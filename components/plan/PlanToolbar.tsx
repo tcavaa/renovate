@@ -6,7 +6,7 @@
  * game's build mode on purpose: the person should never feel they are in CAD.
  */
 
-import { BrickWall, Cable, DoorOpen, Ellipsis, Fence, Layers, Maximize2, Minus, MousePointer2, Paintbrush, Plus, RectangleHorizontal, Square, SquareDashed, SquareDashedBottom, Wrench, type LucideIcon } from 'lucide-react';
+import { BrickWall, Cable, Crosshair, DoorOpen, Ellipsis, Fence, Layers, Maximize2, Minus, MousePointer2, Paintbrush, Plus, RectangleHorizontal, Square, SquareDashed, SquareDashedBottom, Wrench, type LucideIcon } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { fill } from '@/lib/admin/list';
 import { cn } from '@/lib/utils';
@@ -364,7 +364,7 @@ export function OpeningKindPicker({ kinds, tool, onTool, className }: { kinds: r
  * The layers, and zoom in, zoom out and fit: the far end of the row, or a column of icons in
  * a corner of a full-screen board (`vertical`), its layers opening upwards.
  */
-export function PlanViewControls({ layers, onLayers, layerKeys, onFit, onZoom, vertical, edge, className, style }: Pick<PlanToolbarProps, 'layers' | 'onLayers' | 'layerKeys' | 'onFit' | 'onZoom' | 'vertical'> & { edge?: BoardEdge; className?: string; style?: React.CSSProperties }) {
+export function PlanViewControls({ layers, onLayers, layerKeys, onFit, onFocus, onZoom, vertical, edge, className, style }: Pick<PlanToolbarProps, 'layers' | 'onLayers' | 'layerKeys' | 'onFit' | 'onZoom' | 'vertical'> & { onFocus?: () => void; edge?: BoardEdge; className?: string; style?: React.CSSProperties }) {
   const t = useT();
   return (
     <div className={cn('flex items-center gap-2', vertical && 'flex-col', className)} style={style} data-board-edge={edge}>
@@ -384,6 +384,11 @@ export function PlanViewControls({ layers, onLayers, layerKeys, onFit, onZoom, v
           {onFit && (
             <button type="button" title={t.build.fitView} aria-label={t.build.fitView} onClick={onFit} className="grid h-9 w-9 place-items-center rounded-full text-ink-soft hover:bg-sand-light hover:text-ink">
               <Maximize2 className="h-4 w-4" />
+            </button>
+          )}
+          {onFocus && (
+            <button type="button" title={t.build.focusSelection} aria-label={t.build.focusSelection} onClick={onFocus} className="grid h-9 w-9 place-items-center rounded-full text-ink-soft hover:bg-sand-light hover:text-ink">
+              <Crosshair className="h-4 w-4" />
             </button>
           )}
         </div>

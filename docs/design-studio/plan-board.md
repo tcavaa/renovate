@@ -54,7 +54,9 @@ vertices are moved onto the crossings of the centrelines so the graph is waterti
 from polygons is one wall per line of the flat, so the partition between four rooms came back
 as a single wall: selecting it selected all of it and dragging it moved every room along it.
 Every wall is cut where another meets it — in `wallsFromRooms`, in `rebuildRooms` after every
-edit, and in `ensureWalls`, so a plan drawn before the rule existed is put right on load.
+edit, and in `ensureWalls`, so a plan drawn before the rule existed is put right on load. A wall
+with no length is dropped there too: project 371 carried one 479 m from the flat, and the board,
+fitting every wall, showed a plan 489 m wide with the flat a dot somewhere off the sheet.
 
 **Walls never fuse into each other.** Every collinear wall that touched used to be unioned,
 so a room drawn against its neighbours dissolved into them — four walls became one
@@ -315,8 +317,15 @@ red and the drop is refused with its own message.
 
 **A room is picked one at a time**: a click picks it (the store's `focusRoomId` and the
 selection), a click on the empty sheet lets go of it. There is no rubber band and no
-Shift-click to gather several — a drag on the empty sheet is the view's, and a flat moves as one
-body anyway. The room then drags bodily through `moveRooms`, with a live plate saying how
+Shift-click to gather several rooms — a drag on the empty sheet is the view's, and a flat moves as
+one body anyway. **Walls gather with Shift-click**: with a wall selected, Shift-clicking another
+wall adds it to the selection (or takes it out) — `ElementSelection` `{ kind: 'wall', id, ids }`
+— and the inspector changes the thickness, height and material of all of them at once
+(`updateWalls`, one step of history); Delete removes them all (`removeWalls`). A Shift-press on
+the wall in hand still drags it alone. **The thickness** is chips of the standard sizes (10, 12,
+15, 20, 25 cm) and **Manual** — a size typed in centimetres, 2 to 100 — for anything else: a
+30 cm outside wall, a 50 cm bearing wall, a 3 cm glass screen; a wall already off the standard
+sizes opens on it (`ThicknessField`). The room then drags bodily through `moveRooms`, with a live plate saying how
 far it has travelled — and every room joined to it comes too (the ghost shows all of them and
 their walls; the *selection* stays the room clicked, so Delete takes that room and not the
 flat). **A dragged room snaps wall to wall** (`snapRoomMove`): each axis looks for a wall of the
@@ -337,7 +346,10 @@ pickable but immovable (a drag from it slides the view), and `readOnly` is a boa
 at — the project page's viewer (`ProjectViewer`): nothing is hovered or picked, and every drag
 slides the view. The editor owns only the view (wheel zooms about the pointer; a drag on the
 empty sheet, Space or the middle button pans; the view refits on resize until the person moves
-it) and the gesture in progress — everything else is the store's, through callbacks. `PlanWorkspace`
+it) and the gesture in progress — everything else is the store's, through callbacks. Two buttons
+bring a lost view back: one fits the whole plan, one frames what is selected (a wall, a room, a
+piece, a door, a point; the whole plan when nothing is — `PlanEditorApi.focus`, on the plan steps'
+view controls and the studio's 2D zoom column). `PlanWorkspace`
 wires it to the store with the toolbar and the hint line; the design flow's steps 2 and 3,
 the studio's 2D view and the calculator's plan step (2) (`useCalculatorPlan` keeps the
 calculator's `rooms` read off the plan) all use it. (`EditorTool` also has `zone` and `paint`;
@@ -401,7 +413,14 @@ under the `dimensions` layer). Every exterior wall — one with a room on one si
 on the other — contributes its ends to the chain on the side it faces, so a side reads
 "3.12 · 5.31" wall by wall with arrowheads and extension lines, and the outer faces of the
 walls give the overall width under the bottom chain and the overall depth beside the right
-one; a wall with rooms on both sides is interior and in no chain. The board fits the plan
+one; a wall with rooms on both sides is interior and in no chain. Each mark is measured the way
+an architect's chain is: at a corner, the outer face of the outside wall the corner turns into;
+at a step of the outline, the outer face of the wall that steps; where a partition meets the
+outside wall, the partition's middle. A chain therefore adds up to the overall size, as a
+drawing's does — and the plan reader measures a drawing's chains the same way
+([plan-reading.md](plan-reading.md)), so a plan read from a drawing shows its numbers (marks at
+wall ends, the convention before, ran from the corner's centreline and fell half a wall short at
+each end). The board fits the plan
 with a hundred pixels of margin when the layer is on, and a blank sheet opens two and a half
 metres in from the corner so the first room's chain is not under the totals plate. The room's
 own edge lengths stay inside, as before. **What the rooms wear is the `zones` layer**

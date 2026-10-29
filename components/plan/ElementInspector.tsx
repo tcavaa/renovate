@@ -9,7 +9,7 @@
  * store through the actions it is given.
  */
 
-import { createContext, useContext } from 'react';
+import { createContext, useContext, useState } from 'react';
 import { ArrowLeftRight, ChevronLeft, ChevronRight, Lock, LockOpen, RotateCw, Square, SquareSplitHorizontal, Trash2, X } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { roomTypeLabel } from '@/lib/i18n/labels';
@@ -64,6 +64,9 @@ export interface InspectorActions {
   /** Stretches the wall to a typed length; without it the length is shown and not edited. */
   resizeWall?: (id: string, lengthM: number) => void;
   removeWall: (id: string) => void;
+  /** The same change to several walls (a Shift-click selection); without it each is changed in turn. */
+  updateWalls?: (ids: string[], patch: Partial<Pick<Wall, 'thicknessM' | 'heightM' | 'material' | 'locked' | 'built'>>) => void;
+  removeWalls?: (ids: string[]) => void;
   updateOpening: (roomId: string, id: string, patch: Partial<Pick<Opening, 'widthM' | 'heightM' | 'sillM' | 'kind' | 'material' | 'hinge' | 'swing' | 'openAngleDeg' | 'locked'>>) => void;
   removeOpening: (roomId: string, id: string) => void;
   /** Cuts an opening into the wall; a railing runs the whole wall (a balcony's outer wall only). */
@@ -104,6 +107,27 @@ export function ElementInspector({ plan, electrical, finishes = [], selection, a
     return <p className={cn('rounded-[12px] border border-dashed border-line p-4 text-center text-xs text-ink-muted', className)}>{t.build.nothingSelected}</p>;
   }
 
+  if (selection.kind === 'wall' && selection.ids && selection.ids.length > 1) {
+    const walls = (plan.walls ?? []).filter((w) => selection.ids!.includes(w.id) && !w.separator);
+    if (walls.length === 0) return null;
+    const ids = walls.map((w) => w.id);
+    const update = (patch: Partial<Pick<Wall, 'thicknessM' | 'heightM' | 'material'>>) => (actions.updateWalls ? actions.updateWalls(ids, patch) : ids.forEach((id) => actions.updateWall(id, patch)));
+    const remove = () => (actions.removeWalls ? actions.removeWalls(ids) : ids.forEach((id) => actions.removeWall(id)));
+    const same = <T,>(values: T[]): T | null => (values.every((v) => v === values[0]) ? values[0] : null);
+    const thickness = same(walls.map((w) => w.thicknessM));
+    const height = same(walls.map((w) => w.heightM ?? plan.wallHeightM ?? 2.8));
+    const material = same(walls.map((w) => w.material ?? 'block'));
+    const frozen = locked || walls.some((w) => w.locked);
+    return (
+      <Section title={fill(t.build.wallsSelected, { n: walls.length })} onDelete={frozen ? undefined : remove} className={className}>
+        <ThicknessField value={thickness} onChange={(m) => update({ thicknessM: m })} disabled={frozen} />
+        <NumberField label={`${t.build.height} (${t.units.m})`} value={height ?? 2.8} min={1} max={8} step={0.05} onCommit={(v) => update({ heightM: v })} disabled={frozen} />
+        <MaterialField value={material ?? 'block'} options={['concrete', 'brick', 'block', 'drywall', 'wood']} onChange={(m) => update({ material: m })} disabled={frozen} />
+        <p className="text-[11px] leading-snug text-ink-muted">{t.build.wallsGatherHint}</p>
+      </Section>
+    );
+  }
+
   if (selection.kind === 'wall') {
     const wall = plan.walls?.find((w) => w.id === selection.id);
     if (!wall) return null;
@@ -134,15 +158,8 @@ export function ElementInspector({ plan, electrical, finishes = [], selection, a
     return (
       <Section title={t.build.inspectorWall} onDelete={locked ? undefined : () => actions.removeWall(wall.id)} className={className}>
         {length}
-        <Field label={t.build.thickness}>
-          <div className="flex flex-wrap gap-1">
-            {WALL_THICKNESS_OPTIONS_M.map((m) => (
-              <Chip key={m} active={Math.abs(wall.thicknessM - m) < 1e-6} onClick={() => actions.updateWall(wall.id, { thicknessM: m })} disabled={locked}>
-                {fill(t.build.thicknessCm, { n: Math.round(m * 100) })}
-              </Chip>
-            ))}
-          </div>
-        </Field>
+        <ThicknessField value={wall.thicknessM} onChange={(m) => actions.updateWall(wall.id, { thicknessM: m })} disabled={locked} />
+        <p className="text-[11px] leading-snug text-ink-muted">{t.build.wallsGatherHint}</p>
         <NumberField label={`${t.build.height} (${t.units.m})`} value={wall.heightM ?? plan.wallHeightM ?? rooms[0]?.heightM ?? 2.8} min={1} max={8} step={0.05} onCommit={(v) => actions.updateWall(wall.id, { heightM: v })} disabled={locked} />
         <MaterialField value={wall.material ?? 'block'} options={['concrete', 'brick', 'block', 'drywall', 'wood']} onChange={(m) => actions.updateWall(wall.id, { material: m })} disabled={locked} />
         {/* In a black frame "existing" (where the wall came from) would read as "already built": the building question replaces it. */}
@@ -811,6 +828,49 @@ export function Fact({ label, value }: { label: string; value: string }) {
       <span className="text-ink-muted">{label}</span>
       <span className="font-semibold tabular-nums text-ink">{value}</span>
     </p>
+  );
+}
+
+/** Thinner than this, a wall is glass (a shower's 2–5 cm); thicker than this is typed. */
+const MIN_WALL_CM = 2;
+const MAX_WALL_CM = 100;
+
+/**
+ * A wall's thickness: the standard sizes as chips, and "manual" — a typed size in centimetres —
+ * for anything else: a 30 cm outside wall, a 50 cm bearing wall, a 3 cm glass screen. A wall
+ * already off the standard sizes opens on it. `null` when several walls differ.
+ */
+function ThicknessField({ value, onChange, disabled }: { value: number | null; onChange: (metres: number) => void; disabled?: boolean }) {
+  const t = useT();
+  const standard = value != null && WALL_THICKNESS_OPTIONS_M.some((m) => Math.abs(value - m) < 1e-6);
+  const [manual, setManual] = useState(value != null && !standard);
+  const typed = manual || (value != null && !standard);
+  return (
+    <Field label={t.build.thickness}>
+      <div className="flex flex-wrap gap-1">
+        {WALL_THICKNESS_OPTIONS_M.map((m) => (
+          <Chip
+            key={m}
+            active={!typed && value != null && Math.abs(value - m) < 1e-6}
+            onClick={() => {
+              setManual(false);
+              onChange(m);
+            }}
+            disabled={disabled}
+          >
+            {fill(t.build.thicknessCm, { n: Math.round(m * 100) })}
+          </Chip>
+        ))}
+        <Chip active={typed} onClick={() => setManual(true)} disabled={disabled}>
+          {t.build.thicknessManual}
+        </Chip>
+      </div>
+      {typed && (
+        <div className="mt-1.5">
+          <NumberField label={`${t.build.thickness} (${t.units.cm})`} value={Math.round((value ?? 0.3) * 100)} min={MIN_WALL_CM} max={MAX_WALL_CM} step={1} onCommit={(cm) => onChange(Math.round(cm) / 100)} disabled={disabled} />
+        </div>
+      )}
+    </Field>
   );
 }
 

@@ -261,6 +261,83 @@ export function primaryHalf(opening: Opening): boolean {
  * order is the primary; the twin takes the mirrored hinge and swing and the same material
  * and angle.
  */
+/** Which opening keeps its place when two overlap on a wall: a way in before a view. */
+const KEEP_ORDER: Record<OpeningKind, number> = { door: 0, archway: 1, railing: 2, window: 3 };
+
+/** The narrowest a window or archway is kept when it has to give way on a wall. */
+const MIN_GIVEN_WAY_M = 0.4;
+
+/**
+ * Pulls apart openings that overlap on one wall — project 373's veranda door and its window, a
+ * hand's width of the door inside the window, the leaf half hidden. The one that matters more
+ * (a door, then an archway, then a railing, then a window) keeps its place; the other moves to
+ * the free stretch of the wall nearest it, narrowing to fit if it must, and goes when no stretch
+ * of the wall can hold it — never a door. Its other half on the far face moves with it. Same
+ * rooms when nothing overlaps.
+ */
+export function separateOverlaps(rooms: PlanRoom[]): PlanRoom[] {
+  let out = rooms;
+  for (const { id: roomId } of rooms) {
+    let room = out.find((r) => r.id === roomId)!;
+    for (const edge of roomEdges(room.polygon)) {
+      const on = room.openings.filter((o) => o.wallIndex === edge.index).sort((a, b) => KEEP_ORDER[a.kind] - KEEP_ORDER[b.kind]);
+      const kept: Array<{ lo: number; hi: number }> = [];
+      for (const o of on) {
+        const centre = o.t * edge.length;
+        const span = { lo: centre - o.widthM / 2, hi: centre + o.widthM / 2 };
+        const clash = kept.some((k) => span.lo < k.hi - 0.02 && span.hi > k.lo + 0.02);
+        if (!clash) {
+          kept.push(span);
+          continue;
+        }
+        if (o.kind === 'door') {
+          kept.push(span);
+          continue;
+        }
+        // The free stretches of the wall, corners and the openings kept so far taken off.
+        const margin = cornerMargin(o.kind);
+        const taken = [...kept].sort((a, b) => a.lo - b.lo);
+        const free: Array<{ lo: number; hi: number }> = [];
+        let from = margin;
+        for (const k of taken) {
+          if (k.lo - from > 1e-6) free.push({ lo: from, hi: k.lo });
+          from = Math.max(from, k.hi);
+        }
+        if (edge.length - margin - from > 1e-6) free.push({ lo: from, hi: edge.length - margin });
+        const fits = free
+          .filter((f) => f.hi - f.lo >= Math.min(o.widthM, MIN_GIVEN_WAY_M))
+          .map((f) => {
+            const width = Math.min(o.widthM, f.hi - f.lo);
+            const c = Math.min(f.hi - width / 2, Math.max(f.lo + width / 2, centre));
+            return { width, c, cost: Math.abs(c - centre) };
+          })
+          .sort((a, b) => a.cost - b.cost)[0];
+        const twin = twinOf(out, o);
+        if (!fits) {
+          out = replaceIn(out, room.id, (r) => ({ ...r, openings: r.openings.filter((x) => x.id !== o.id) }));
+          if (twin) out = replaceIn(out, twin.room.id, (r) => ({ ...r, openings: r.openings.filter((x) => x.id !== twin.opening.id) }));
+          room = out.find((r) => r.id === roomId)!;
+          continue;
+        }
+        kept.push({ lo: fits.c - fits.width / 2, hi: fits.c + fits.width / 2 });
+        out = replaceIn(out, room.id, (r) => patchOpening(r, o.id, { t: fits.c / edge.length, widthM: fits.width }));
+        if (twin) {
+          const twinEdgeNow = edgeOf(twin.room, twin.opening.wallIndex);
+          if (twinEdgeNow) {
+            const world = pointOnEdge(edge, fits.c / edge.length);
+            out = replaceIn(out, twin.room.id, (r) => patchOpening(r, twin.opening.id, { widthM: fits.width, t: projectToEdge(twinEdgeNow, world, fits.width, cornerMargin(twin.opening.kind)) }));
+          }
+        }
+        room = out.find((r) => r.id === roomId)!;
+      }
+    }
+  }
+  return out;
+}
+
+/** The narrowest a door's two halves are made to fit their walls; narrower is no door at all. */
+const MIN_TWIN_WIDTH_M = 0.3;
+
 export function alignTwins(rooms: PlanRoom[]): PlanRoom[] {
   const done = new Set<string>();
   let out = rooms;
@@ -271,6 +348,20 @@ export function alignTwins(rooms: PlanRoom[]): PlanRoom[] {
       if (!twin) continue;
       done.add(opening.id);
       done.add(twin.opening.id);
+      // Both halves fit the shorter of their two walls: a door wider than the stretch of wall on
+      // one side ran on into the corner there, half of it inside the next wall (project 376).
+      const home = out.find((r) => r.id === room.id)!;
+      const homeEdge = edgeOf(home, opening.wallIndex);
+      const twinEdgeNow = edgeOf(twin.room, twin.opening.wallIndex);
+      if (homeEdge && twinEdgeNow) {
+        const fits = (edge: PlanEdge) => edge.length - 2 * cornerMargin(opening.kind);
+        const width = Math.max(MIN_TWIN_WIDTH_M, Math.min(opening.widthM, fits(homeEdge), fits(twinEdgeNow)));
+        if (width < opening.widthM - 1e-6 || width < twin.opening.widthM - 1e-6) {
+          const refit = (edge: PlanEdge, o: Opening): Partial<Opening> => ({ widthM: width, t: projectToEdge(edge, pointOnEdge(edge, o.t), width, cornerMargin(o.kind)) });
+          out = replaceIn(out, home.id, (r) => patchOpening(r, opening.id, refit(homeEdge, opening)));
+          out = replaceIn(out, twin.room.id, (r) => patchOpening(r, twin.opening.id, refit(twinEdgeNow, twin.opening)));
+        }
+      }
       const wanted: Partial<Opening> = {
         hinge: mirrorHinge(opening.hinge),
         swing: mirrorSwing(opening.swing),
@@ -652,10 +743,13 @@ export function withOpeningTwins(rooms: PlanRoom[], wallThickness: WallThickness
       const room = next.find((r) => r.id === roomId)!;
       const opening = room.openings.find((o) => o.id === id)!;
       if (opening.kind === 'railing') continue;
-      if (opening.connectsToRoomId) {
+      if (opening.connectsToRoomId && twinOf(next, opening)) {
         next = onOneWall(next, room, opening, wallThickness);
         continue;
       }
+      // A half whose other half is gone — a room re-derived under it when a wall moved, project
+      // 371's bedroom door still naming the living room across the hallway — is linked afresh
+      // below, to the room that stands behind its wall now; it was a hole in one face only.
       const edge = edgeOf(room, opening.wallIndex);
       if (!edge) continue;
       const point = pointOnEdge(edge, opening.t);

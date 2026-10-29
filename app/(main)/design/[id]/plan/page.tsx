@@ -174,6 +174,8 @@ export default function ExistingHousePage() {
                     updateWall: actions.updateWall,
                     resizeWall: actions.resizeWall,
                     removeWall: actions.removeWall,
+                    updateWalls: actions.updateWalls,
+                    removeWalls: actions.removeWalls,
                     updateOpening: actions.updateOpening,
                     removeOpening: actions.removeOpening,
                     addOpening: (roomId, kind, wallIndex) => {

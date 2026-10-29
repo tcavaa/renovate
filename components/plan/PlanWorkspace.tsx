@@ -169,7 +169,8 @@ export function PlanWorkspace({ tools, tool: controlledTool, onTool, boardTool, 
     if (structural && locked) return;
     switch (sel.kind) {
       case 'wall':
-        s.removeWall(sel.id);
+        if (sel.ids && sel.ids.length > 1) s.removeWalls(sel.ids);
+        else s.removeWall(sel.id);
         break;
       case 'opening':
         s.removeOpening(sel.roomId, sel.id);
@@ -280,7 +281,7 @@ export function PlanWorkspace({ tools, tool: controlledTool, onTool, boardTool, 
       onElectricalKind?.(kind);
     },
   };
-  const viewProps = { layers, onLayers: setLayers, layerKeys, onFit: () => api?.fit(), onZoom: (f: number) => api?.zoom(f) };
+  const viewProps = { layers, onLayers: setLayers, layerKeys, onFit: () => api?.fit(), onFocus: () => api?.focus(), onZoom: (f: number) => api?.zoom(f) };
 
   return (
     <div ref={rootRef} className={cn('flex flex-col gap-3', bleed && 'lg:absolute lg:inset-0 lg:block', className)}>

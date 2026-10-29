@@ -23,7 +23,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { RoomType } from '@/lib/calculator/types';
 import { DEFAULT_CEILING_M, ROOM_TYPES } from '@/lib/calculator/constants';
 import { detectUnitSystem, parseLength } from './measure';
-import { DEFAULT_WALL_M, solvePlan, type InkEdge, type NormBox, type RoughRoom, type SolveResult } from './planSolver';
+import { DEFAULT_WALL_M, solvePlan, type InkEdge, type NormBox, type PrintedDimension, type RoughRoom, type SolveResult } from './planSolver';
 import { assignCells, boundaryRuns, roomAnchor, wallsFromRuns, type BoundaryRun, type Grid } from './planGrid';
 import { bareRuns, gapsAlong, inkShare, wallBandNear, type InkImage, type LineStretch } from './planInk';
 import { alongEdge, deriveOpenings, pointInPolygon, pointOnEdge, roomEdges, wallEdges, type PlanEdge } from './planGeometry';
@@ -85,10 +85,27 @@ export interface AiOpening {
   swingsInto: string | null;
 }
 
+/**
+ * A dimension line on the drawing — a size between two arrows or ticks, usually chained outside
+ * the plan — as opposed to a size written inside a room (`AiRoomPart.widthLabel`).
+ */
+export interface AiDimension {
+  label: string;
+  /** `across` measures left to right, `down` top to bottom. */
+  axis: 'across' | 'down';
+  /** Its two ends along that axis (x for across, y for down), normalised. */
+  from: number;
+  to: number;
+  /** Where the dimension line is drawn on the other axis (its y for across, its x for down). */
+  at: number;
+}
+
 export interface AiPlanReading {
   unitSystem: 'imperial' | 'metric';
   rooms: AiRoom[];
   openings: AiOpening[];
+  /** Absent in readings recorded before dimension lines were read on their own. */
+  dimensions?: AiDimension[];
   /** The model's own note about anything ambiguous. Surfaced to the user, not acted on. */
   notes: string | null;
 }
@@ -107,7 +124,7 @@ const POINT_SCHEMA = {
 const PLAN_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['unitSystem', 'rooms', 'openings', 'notes'],
+  required: ['unitSystem', 'rooms', 'openings', 'dimensions', 'notes'],
   properties: {
     unitSystem: { type: 'string', enum: ['imperial', 'metric'], description: 'Which units the drawing is annotated in.' },
     rooms: {
@@ -135,8 +152,8 @@ const PLAN_SCHEMA = {
                   description: 'The rectangle from the inner face of one wall to the inner face of the opposite wall, on the ruler.',
                   properties: { x0: { type: 'number' }, y0: { type: 'number' }, x1: { type: 'number' }, y1: { type: 'number' } },
                 },
-                widthLabel: { type: ['string', 'null'], description: 'The printed dimension of this rectangle across (left to right), copied exactly. Null if none.' },
-                depthLabel: { type: ['string', 'null'], description: 'The printed dimension of this rectangle down (top to bottom), copied exactly. Null if none.' },
+                widthLabel: { type: ['string', 'null'], description: 'A size written inside the room (or in a table of rooms) for this rectangle across (left to right), copied exactly. Null if none. Never a dimension line.' },
+                depthLabel: { type: ['string', 'null'], description: 'A size written inside the room (or in a table of rooms) for this rectangle down (top to bottom), copied exactly. Null if none. Never a dimension line.' },
               },
             },
           },
@@ -163,6 +180,22 @@ const PLAN_SCHEMA = {
         },
       },
     },
+    dimensions: {
+      type: 'array',
+      description: 'Every dimension line of the drawing — each segment of a chain and each overall size — once.',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['label', 'axis', 'from', 'to', 'at'],
+        properties: {
+          label: { type: 'string', description: 'The size exactly as printed.' },
+          axis: { type: 'string', enum: ['across', 'down'], description: 'across: it measures left to right; down: top to bottom.' },
+          from: { type: 'number', description: 'Where one end (arrow or tick) is along its axis, on the ruler: an x for across, a y for down.' },
+          to: { type: 'number', description: 'Where the other end is along its axis, on the ruler.' },
+          at: { type: 'number', description: 'Where the dimension line itself is drawn on the other axis, on the ruler: its y for across, its x for down.' },
+        },
+      },
+    },
     notes: { type: ['string', 'null'], description: 'Anything ambiguous or unreadable worth telling the user about.' },
   },
 } as const;
@@ -175,7 +208,10 @@ const SYSTEM_PROMPT = `You read architectural floor plans for a home-design tool
 
 2. **Room shape.** Give each room as rectangles ("parts") that together cover exactly its floor, from the inner face of one wall to the inner face of the opposite one. A rectangular room is one part. An L-shaped room is two parts — the main body, then the leg that sticks out — a T or U shape three. Parts must not overlap each other, within a room or between rooms. Where two rooms share a wall, their edges sit either side of that same wall; where a room opens onto another with no wall, their edges meet on the line where one ends and the other begins.
 
-3. **Dimensions.** These are the only exact numbers on the drawing. Copy each one exactly as printed — "18' 3\\"" not "18.25 ft", "3,50" not "3.5", "3.5 м", "350". Attach it to the part whose interior it measures: widthLabel for its extent across, depthLabel for its extent down. A dimension line drawn outside the plan measures the part whose wall it runs along, between the two points its arrows touch. If one label spans two rooms, leave both null rather than guess a split. An area (m², sq ft) is not a dimension.
+3. **Dimensions.** These are the only exact numbers on the drawing. Copy each one exactly as printed — "18' 3\\"" not "18.25 ft", "3,50" not "3.5", "3.5 м", "350". There are two kinds, reported in different places:
+   - A **dimension line**: a size between two arrows or tick marks, with extension lines running to the walls — usually chained along the outside of the plan, often with an overall size beyond the chain. Report every one in dimensions: each segment of a chain on its own, and the overall too. axis is across when it measures left to right, down when top to bottom; from and to are where its two ends are along that axis on the ruler (x for across, y for down) — where the arrows or ticks are, which is where the extension lines meet the walls; at is where the dimension line itself is drawn on the other axis (its y for across, its x for down). Do not attach these to rooms.
+   - A **size written in a room** (or in a table of rooms by name) with no dimension line — "3.50 x 4.20", "Bed 01: 3.5 x 3.0m": that room's clear inside size. Put it on the room's part, widthLabel for across and depthLabel for down, matching the two numbers to the room's shape.
+   An area (m², sq ft) is not a dimension.
 
 4. **Openings.** Every door, window, archway, open connection and balcony railing, each once:
    - door: a leaf with its swing arc. hinge is the point the arc pivots on (the corner of the opening the leaf hangs from); swingsInto is the room the leaf swings into, null when it swings outside.
@@ -332,7 +368,18 @@ export function normaliseReading(reading: AiPlanReading): AiPlanReading {
       } satisfies AiOpening;
     });
 
-  return { unitSystem: reading.unitSystem === 'imperial' ? 'imperial' : 'metric', rooms, openings, notes: label(reading.notes) };
+  const dimensions = (reading.dimensions ?? [])
+    .filter((d) => d && typeof d.label === 'string' && d.label.trim() && Number.isFinite(d.from) && Number.isFinite(d.to))
+    .map((d) => ({
+      label: d.label.trim(),
+      axis: d.axis === 'down' ? ('down' as const) : ('across' as const),
+      from: clamp(Math.min(d.from, d.to)),
+      to: clamp(Math.max(d.from, d.to)),
+      at: Number.isFinite(d.at) ? d.at : 0,
+    }))
+    .filter((d) => d.to - d.from > 0.005);
+
+  return { unitSystem: reading.unitSystem === 'imperial' ? 'imperial' : 'metric', rooms, openings, dimensions, notes: label(reading.notes) };
 }
 
 // ---------------------------------------------------------------------------
@@ -352,6 +399,8 @@ export interface AiPlanResult {
   worstResidualM: number;
   /** True when the drawing's own dimensions disagree enough to warrant a look. */
   lowConfidence: boolean;
+  /** False when nothing printed gave the plan its size: the person is asked for one wall's length. */
+  scaleKnown: boolean;
   notes: string | null;
   /** The solve behind the plan — for the `plan:ai` tool's overlay, not for the client. */
   solve: SolveResult;
@@ -390,6 +439,7 @@ export function buildPlanFromReading(reading: AiPlanReading, options: BuildOptio
           box: part.box,
           widthM: labelMetres(part.widthLabel, reading.unitSystem),
           depthM: labelMetres(part.depthLabel, reading.unitSystem),
+          outdoor: room.type === 'balcony',
           ...(ink ? { ink: sideBands(ink, part.box) } : {}),
         },
       });
@@ -398,7 +448,11 @@ export function buildPlanFromReading(reading: AiPlanReading, options: BuildOptio
   if (ink) dropHairlines(parts.map((p) => p.rough));
 
   // --- 2. the wall lines every printed dimension agrees with ---
-  const solve = solvePlan(parts.map((p) => p.rough));
+  const dimensions = (reading.dimensions ?? []).flatMap((d): PrintedDimension[] => {
+    const metres = labelMetres(d.label, reading.unitSystem);
+    return metres ? [{ axis: d.axis === 'across' ? 'x' : 'y', from: d.from, to: d.to, at: d.at, metres }] : [];
+  });
+  const solve = solvePlan(parts.map((p) => p.rough), { dimensions });
   const doubtful = new Set(
     solve.residuals.filter((r) => Math.abs(r.solved - r.target) > 0.08).map((r) => parts.find((p) => p.rough.id === r.roomId)!.room)
   );
@@ -461,7 +515,7 @@ export function buildPlanFromReading(reading: AiPlanReading, options: BuildOptio
   placeReadOpenings(rooms, reading, { byIndex, resolver, solve, ink, wallById });
   inferMissingOpenings(rooms, reading, walls);
 
-  const worstResidualM = solve.residuals.reduce((max, r) => Math.max(max, Math.abs(r.solved - r.target)), 0);
+  const worstResidualM = [...solve.residuals, ...solve.dimensionResiduals].reduce((max, r) => Math.max(max, Math.abs(r.solved - r.target)), 0);
   const plan = withBounds({
     // The labels are the drawing's own; a type's bare name printed on more than one room
     // ("საძინებელი" twice) is numbered, and one printed with a number on a lone room loses it.
@@ -474,7 +528,7 @@ export function buildPlanFromReading(reading: AiPlanReading, options: BuildOptio
     wallThicknessM: DEFAULT_WALL_M,
   });
 
-  return { plan, worstResidualM, lowConfidence: solve.lowConfidence, notes: reading.notes, solve };
+  return { plan, worstResidualM, lowConfidence: solve.lowConfidence, scaleKnown: solve.scaleKnown, notes: reading.notes, solve };
 }
 
 /** The wall bands the ink shows along a rectangle's four sides. */

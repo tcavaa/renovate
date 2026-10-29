@@ -29,7 +29,12 @@ export interface VisionInput {
   ruler: boolean;
   /** The drawing's ink, or null when the image could not be decoded. */
   ink: InkImage | null;
+  /** A small copy without the ruler, for the check that it is a plan at all (`planCheck`). */
+  glance: { base64: string; mediaType: ImageMime } | null;
 }
+
+/** The glance's longest side, px: enough to tell a plan from a photo, at a fraction of the tokens. */
+const GLANCE_PX = 512;
 
 /** Margin around the drawing that holds the ruler's numbers, px. */
 const RULER_MARGIN = 30;
@@ -38,12 +43,21 @@ const RULER_TAIL = 10;
 
 export async function prepareForVision(bytes: Buffer, mediaType: ImageMime): Promise<VisionInput> {
   const sized = await fitForVision(bytes, mediaType);
-  const [ink, ruled] = await Promise.all([inkOf(sized.bytes), withRuler(sized.bytes)]);
+  const [ink, ruled, glance] = await Promise.all([inkOf(sized.bytes), withRuler(sized.bytes), glanceOf(sized.bytes)]);
   return {
     image: ruled ? { base64: ruled.toString('base64'), mediaType: 'image/png' } : { base64: sized.bytes.toString('base64'), mediaType: sized.mediaType },
     ruler: !!ruled,
     ink,
+    glance: glance ? { base64: glance.toString('base64'), mediaType: 'image/jpeg' } : null,
   };
+}
+
+async function glanceOf(bytes: Buffer): Promise<Buffer | null> {
+  try {
+    return await sharp(bytes).resize({ width: GLANCE_PX, height: GLANCE_PX, fit: 'inside', withoutEnlargement: true }).flatten({ background: '#ffffff' }).jpeg({ quality: 80 }).toBuffer();
+  } catch {
+    return null;
+  }
 }
 
 /**

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildPlanFromReading, labelMetres, normaliseReading, type AiOpening, type AiPlanReading, type AiRoom } from '@/lib/design/aiPlan';
+import { outerDimensionChains } from '@/components/plan/draw';
 import type { InkImage } from '@/lib/design/planInk';
 import { openingWorldPoint } from '@/lib/design/openings';
 import { withPartialWallSeparators, withSplitRoomTypes } from '@/lib/design/separators';
@@ -183,6 +184,56 @@ function reading(): AiPlanReading {
     notes: null,
   };
 }
+
+describe('buildPlanFromReading with dimension lines', () => {
+  /**
+   * The same drawing with its sizes as an architect chains them outside the plan, and no size in
+   * any room: the overall width 9.00 (outer face to outer face), cut at the partition's middle
+   * into 4.46 + 4.54, and the overall depth 6.50.
+   */
+  const chained = (): AiPlanReading => {
+    const r = drawnReading();
+    for (const room of r.rooms) for (const part of room.parts) {
+      part.widthLabel = null;
+      part.depthLabel = null;
+    }
+    r.dimensions = [
+      { label: '4,46', axis: 'across', from: 0.05, to: 0.496, at: 0.02 },
+      { label: '4,54', axis: 'across', from: 0.496, to: 0.95, at: 0.02 },
+      { label: '9,00', axis: 'across', from: 0.05, to: 0.95, at: 0.01 },
+      { label: '6,50', axis: 'down', from: 0.067, to: 0.933, at: 0.02 },
+    ];
+    return r;
+  };
+  const result = buildPlanFromReading(chained(), { ink: drawing() });
+
+  it('measures a chain from the outer faces at the corners to the middle of the partition', () => {
+    expect(result.scaleKnown).toBe(true);
+    expect(result.worstResidualM).toBeLessThan(0.03);
+    const chains = outerDimensionChains(result.plan)!;
+    expect(chains.box.maxX - chains.box.minX).toBeCloseTo(9, 1);
+    expect(chains.box.maxZ - chains.box.minZ).toBeCloseTo(6.5, 1);
+    // The board's own chain along the top shows the drawing's numbers.
+    expect(chains.top).toHaveLength(3);
+    expect(chains.top[1] - chains.top[0]).toBeCloseTo(4.46, 1);
+    expect(chains.top[2] - chains.top[1]).toBeCloseTo(4.54, 1);
+    expect(Math.abs(chains.top[1] - chains.top[0] - 4.46)).toBeLessThan(0.02);
+  });
+
+  it('keeps the walls as thick as drawn, at standard sizes', () => {
+    const walls = result.plan.walls!.filter((w) => !w.separator);
+    expect([...new Set(walls.map((w) => w.thicknessM))].sort()).toEqual([0.12, 0.2]);
+  });
+
+  it('with nothing printed, says so and builds 30 cm outside walls and 12 cm partitions', () => {
+    const r = chained();
+    r.dimensions = [];
+    const bare = buildPlanFromReading(r, { ink: drawing() });
+    expect(bare.scaleKnown).toBe(false);
+    const walls = bare.plan.walls!.filter((w) => !w.separator);
+    expect([...new Set(walls.map((w) => w.thicknessM))].sort()).toEqual([0.12, 0.3]);
+  });
+});
 
 describe('buildPlanFromReading from the reading alone', () => {
   it('turns printed feet and inches into rooms that measure them, face to face', () => {

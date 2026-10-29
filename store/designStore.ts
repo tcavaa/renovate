@@ -118,7 +118,8 @@ export interface DesignSnapshot {
 
 /** Something picked in the plan or the 3D view that is not a piece of furniture. */
 export type ElementSelection =
-  | { kind: 'wall'; id: string }
+  /** `ids`: several walls gathered with Shift-click (`id` among them), changed together. */
+  | { kind: 'wall'; id: string; ids?: string[] }
   | { kind: 'opening'; id: string; roomId: string }
   | { kind: 'column'; id: string }
   | { kind: 'beam'; id: string }
@@ -315,9 +316,12 @@ export interface DesignActions {
   /** Moves a junction and every wall end on it — or, with `onlyWallId` (the Shift drag), that one wall's end alone. */
   moveWallNode: (from: Vec2, to: Vec2, onlyWallId?: string | null) => void;
   updateWall: (wallId: string, patch: Partial<Pick<Wall, 'thicknessM' | 'heightM' | 'material' | 'locked' | 'built'>>) => void;
+  /** The same change to several walls at once (a Shift-click selection), one step of history. */
+  updateWalls: (wallIds: string[], patch: Partial<Pick<Wall, 'thicknessM' | 'heightM' | 'material' | 'locked' | 'built'>>) => void;
   /** Stretches a wall to a typed length, its far end (and whatever meets it) following. */
   resizeWall: (wallId: string, lengthM: number) => void;
   removeWall: (wallId: string) => void;
+  removeWalls: (wallIds: string[]) => void;
   addColumn: (position: Vec2, size?: Partial<Pick<Column, 'widthM' | 'depthM' | 'heightM' | 'material'>>) => string;
   updateColumn: (id: string, patch: Partial<Omit<Column, 'id'>>) => void;
   removeColumn: (id: string) => void;
@@ -1003,9 +1007,11 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
         moveWallNode: (from, to, onlyWallId = null) =>
           commit((s) => (s.plan?.walls ? withWalls(s, onlyWallId ? markUser(moveWallEndIn(s.plan.walls, onlyWallId, from, to), onlyWallId) : moveWallNodeIn(s.plan.walls, from, to)) : null)),
         updateWall: (wallId, patch) => commit((s) => (s.plan?.walls ? withWalls(s, updateWallIn(s.plan.walls, wallId, patch)) : null)),
+        updateWalls: (wallIds, patch) => commit((s) => (s.plan?.walls ? withWalls(s, wallIds.reduce((walls, id) => updateWallIn(walls, id, patch), s.plan.walls)) : null)),
         resizeWall: (wallId, lengthM) => commit((s) => (s.plan?.walls ? withWalls(s, markUser(resizeWallIn(s.plan.walls, wallId, lengthM), wallId)) : null)),
         // A separator taken away keeps the room it divided whole against its partial wall (`withoutWall`).
         removeWall: (wallId) => commit((s) => (s.plan?.walls ? reconcile(s, withoutWall(s.plan, wallId)) : null)),
+        removeWalls: (wallIds) => commit((s) => (s.plan?.walls ? reconcile(s, wallIds.reduce((plan, id) => withoutWall(plan, id), s.plan)) : null)),
 
         addColumn: (position, size = {}) => {
           const id = uid('c');

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { BrickWall, Camera, Check, ChevronDown, Eraser, Eye, Maximize2, Minimize2, Minus, Moon, PanelBottom, Plus, Scan, SquareDashed, SquareDashedBottom, Sun, Sunrise, Sunset, type LucideIcon } from 'lucide-react';
+import { BrickWall, Camera, Check, ChevronDown, Crosshair, Eraser, Eye, Maximize2, Minimize2, Minus, Moon, PanelBottom, Plus, Scan, SquareDashed, SquareDashedBottom, Sun, Sunrise, Sunset, type LucideIcon } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';
 import { DAYLIGHT_PRESETS, type DaylightPreset } from '@/lib/design3d/daylight';
@@ -199,12 +199,15 @@ function BarButton({ label, disabled, onClick, lock, children }: { label: string
 export function ZoomControls({
   onZoom,
   onReset,
+  onFocus,
   onFullscreen,
   fullscreen,
   disabled,
 }: {
   onZoom: (factor: number) => void;
   onReset: () => void;
+  /** Frames what is selected — the 2D sheet's way back to a piece when the view is lost. */
+  onFocus?: () => void;
   onFullscreen: () => void;
   fullscreen: boolean;
   disabled?: boolean;
@@ -221,6 +224,11 @@ export function ZoomControls({
       <IconButton label={t.design.fitView} onClick={onReset} disabled={disabled} plain>
         <Scan className="h-4 w-4" />
       </IconButton>
+      {onFocus && (
+        <IconButton label={t.build.focusSelection} onClick={onFocus} disabled={disabled} plain>
+          <Crosshair className="h-4 w-4" />
+        </IconButton>
+      )}
       <span className="mx-2 my-0.5 h-px bg-line" />
       <IconButton label={fullscreen ? t.design.exitFullscreen : t.design.fullscreen} pressed={fullscreen} onClick={onFullscreen} plain>
         {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}

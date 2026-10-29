@@ -556,3 +556,21 @@ describe('a WC’s box', () => {
     expect(useDesignStore.getState().decor[0].height.to).toBe(1);
   });
 });
+
+describe('several walls at once', () => {
+  const state = () => useDesignStore.getState();
+
+  it('changes the thickness of every wall gathered, as one step of history, and deletes them together', () => {
+    state().setPlan(plan());
+    const walls = state().plan!.walls!;
+    expect(walls.length).toBeGreaterThanOrEqual(4);
+    const ids = walls.slice(0, 2).map((w) => w.id);
+    state().updateWalls(ids, { thicknessM: 0.3 });
+    for (const id of ids) expect(state().plan!.walls!.find((w) => w.id === id)!.thicknessM).toBe(0.3);
+    expect(state().plan!.walls!.filter((w) => !ids.includes(w.id)).every((w) => w.thicknessM !== 0.3)).toBe(true);
+    state().undo();
+    for (const id of ids) expect(state().plan!.walls!.find((w) => w.id === id)!.thicknessM).not.toBe(0.3);
+    state().removeWalls(ids);
+    expect(state().plan!.walls!.some((w) => ids.includes(w.id))).toBe(false);
+  });
+});

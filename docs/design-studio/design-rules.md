@@ -24,6 +24,131 @@ The brief was built in five stages, each tested, documented and committed on its
 | 4 | gypsum and stretch ceilings lower the room, the LED cove's sizes, the wall-hung WC's gypsum box, the boiler's ventilated cabinet (priced by material, like kitchens) | **built** |
 | 5 | light colour by room (3D and lamp choice), the four styles' guides for the AI designer and the matcher, warnings on the plan PDF and in the AI's room check | **built** |
 
+## The second round: the "guidelines for AI website" (owner, 29 Oct 2026)
+
+A second document of notes (general principles, the four styles, lighting, furniture, bathrooms,
+the plan reader, the board, the steps), with style reference photos and ten uploaded plans
+compared against what the app built from them. Answered question by question on 29 Oct and built
+in six stages:
+
+| Stage | What | State |
+|---|---|---|
+| 1 | plan reading and the 2D board: printed sizes read like the drawing, wall thicknesses, one wall's length when nothing is printed, uploads that are not plans refused, stray walls and a fit button, several walls selected with Shift, a manual thickness, door and opening bugs | **built** ([plan-reading.md](plan-reading.md), [plan-board.md](plan-board.md)) |
+| 2 | steps and technical: Materials and the post-design Technical step become studio sections, one Generate for the points and radiators, "ელექტრო და შუქი" → "განათება", the 3D view-only after the Budget, the boiler's place, radiators on the board, the heated towel rail | planned |
+| 3 | room layout rules: kitchen, living room, bedroom, bathroom, washing machine, windows, bookcases | planned |
+| 4 | lighting: kitchen's three layers, bedroom, hallway, living room, style fixtures, LED strips optional, more floor lamps, the lighting plan | planned |
+| 5 | styles, finishes and decor: one floor through the flat, walls consistent, Scandinavian without black, no mouldings in Scandinavian, no cornices in Industrial, panels only in Modern, decor on free walls at gallery height, decor resizable | planned |
+| 6 | glass shower walls on the board, partitions added at generation (entrance out of the living room's sight, an en-suite's entrance by the wardrobe), partitions run to the corner | planned |
+
+**Plans and the board**
+
+- **Printed sizes are read like the drawing.** A chain of sizes outside the walls adds up to the
+  overall size: its ends are the outer faces of the outside walls and its breaks the middles of the
+  inside walls; an overall size is outer face to outer face. A size written inside a room ("3.5 x
+  3.0", a room table) is that room's clear inside size. The board's outside chains are drawn the
+  same way, so a plan read from a drawing shows the drawing's numbers.
+- **Wall thickness**: measured from the drawing's lines whenever the plan has sizes, rounded to a
+  standard size; with no sizes (or when nothing can be measured) 30 cm outside and 12 cm inside.
+- **No sizes printed**: after the read the plan is shown with its longest outside wall highlighted;
+  the person types its length (or picks another wall first) and the whole plan is scaled from it.
+- **Not a plan**: a cheap check runs before the read; a car, a room photo or a selfie is refused
+  with "this doesn't look like a floor plan" and the card asks for another file, nothing read and
+  nothing counted against the plan's allowance. A photo of a paper plan or a hand sketch is a plan.
+- **Several walls at once**: Shift-click gathers walls, and the right-hand panel changes the
+  thickness of all of them. A thickness over 25 cm is "manual": the person types it (30, 50 cm…).
+- **Lost view**: a button that fits the plan, and one that zooms onto the selected object; a plan
+  never fits to a stray wall far from the flat (project 371 had a zero-length wall 479 m away).
+- The door bugs (a door not seen whole, an opening cut on one side only), found in the recent
+  projects: a door whose other half was lost when a room was re-derived under it (371) is cut
+  again in the room behind its wall; a door and a window read on top of each other (373) are
+  pulled apart, the door keeping its place; a door wider than its wall on one side (376) is
+  narrowed to fit both — all when a plan is taken in (`withOpeningTwins`, `alignTwins`,
+  `separateOverlaps`). The "49 cm bathroom" was the shower slot holding a shower column (a
+  product about 50 cm across) and the check measuring the column: the shower's own area comes
+  with stage 3 and the glass enclosure.
+
+**Steps and technical**
+
+- A renovation (black or white frame, an old flat) walks Plan · Existing home · Style · 3D design ·
+  Budget · Brigade. Materials and Technical are sections of the studio's sidebar; the Budget opens
+  only once the person has opened the Technical section and pressed its one Generate (the points
+  and the radiators together) or confirmed what is there. A green frame or a design-only project
+  keeps Technical as step 3, before the style.
+- The studio's "ელექტრო და შუქი" section is called "განათება".
+- The Budget can still change things (ticks, quantities, back to the 3D); from the Brigade step on,
+  and once anything is ordered, the 3D is view-only with the technical points shown.
+- **The boiler**: in the hall by the entrance, in a wardrobe-like technical cupboard; when there is
+  no room there, on the balcony, enclosed in a cupboard; with no balcony, in the bathroom, never in
+  the shower (and never beside the bath). Supersedes the 28 Oct order below.
+- Radiators are drawn on the 2D board as well as in 3D. A bathroom gets a wall-mounted heated
+  towel rail, hung higher than a radiator.
+
+**Layout**
+
+- Every piece has a purpose: no table in front of the TV, the dining table out of the 1.2 m
+  kitchen circulation, more room between the dining table and an armchair.
+- Kitchen: 1.2 m of circulation in front of the run; the run along the long wall of an elongated
+  room and the dining table against a short wall; the fridge (and the oven tower) beside the run,
+  never elsewhere; a table and chairs whenever there is room; a closed kitchen's floor tiled, an
+  open one's the flat's floor; the backsplash stays the decor it is.
+- Living room: the sofa and the armchairs face the TV, never the window; an armchair beside the sofa
+  turned about 45° towards the TV; the TV unit centred under the TV, and a TV whenever there is a
+  unit; 60–100 cm in front of the unit before the coffee table, else no TV unit; a bookcase or a
+  wine cabinet beside or behind the sofa when there is room (larger living rooms).
+- Bedroom: always a wardrobe (built-in preferred; curtains only when chosen) and bedside tables
+  (turned when that helps the room); a dressing table and chair in a large one; a large wardrobe
+  beside the bed, never facing it.
+- Bathroom: the door opens onto free floor — the basin is never placed so that nobody can pass
+  (the screenshot: a WC and basin facing across a narrow room); a shower only with 80 × 80 cm, larger
+  when the room allows, glass-enclosed and visible from the door; a bath gets its own shower in the
+  middle, or the bath and shower combine; too small for a bath, a shower only; the long walls take
+  the shower and the basin, never the WC alone; storage when there is room; the mirror on the wall,
+  over a basin only; no 10–20 cm leftover gaps.
+- Washing machine: in the bathroom, else the entrance, else the kitchen.
+- Windows: blinds by style — Modern and Industrial compact roller blinds, Scandinavian and Vintage
+  full-length curtains from just under the ceiling, bathroom and kitchen windows always blinds.
+
+**Lighting**
+
+- Kitchen: three layers that keep apart — one pendant centred over the dining table, the main light
+  (cylindrical spots, recessed spots or a track, by style) over the working area, and light under
+  the wall cabinets onto the worktop.
+- Bedroom: one large light, or the main light with a pendant (or a track or spots, by style) each
+  side of the bed; Industrial a cylindrical track, Scandinavian a large central light and bedside
+  pendants.
+- Hallway: a light every 3 m or less, evenly spaced down the middle; no floor lamp at its start.
+- Living room: a chandelier or a prominent pendant where the room is big enough; more floor lamps
+  generally.
+- LED strips and coves: only Modern gets them at generation; anyone can add one.
+- Industrial: cylindrical fixtures. Scandinavian: simple pendants, floor lamps, warm light.
+- **The lighting plan**: a განათება layer on the 2D board showing every fixture, and a lighting
+  sheet in the plan PDF with each room's fixtures (type, purpose, height). Heights and positions
+  stay editable in the studio.
+
+**Styles, finishes and decor**
+
+- "Minimalist" in the notes is Modern.
+- One floor through the flat at generation (bathrooms, and a closed kitchen, excepted); walls the
+  same or in tones of one family.
+- Scandinavian: no product whose main colour is black or very dark (small black details allowed);
+  light, bright colours from the fridge to the sofa; no wall mouldings or decorative wall
+  treatments; plants and floor lamps; no LED strips.
+- Industrial: no decorative cornices; a fireplace that suits the room, not an industrial one by
+  default; no LED strips or hidden decorative light.
+- Wall panels only in Modern. Decor mostly in Modern and Vintage, now and then in Scandinavian.
+- Decor hangs only on free wall — never in an opening or over a window — at gallery height: the
+  picture's centre at 150 cm on a free wall, its bottom 20–30 cm over a sofa, bed or console.
+- Every wall decor piece built in code can be moved and resized: arrows on its sides (width) and
+  top and bottom (height) in 3D, and width and height on its card.
+
+**Shower glass and partitions**
+
+- A shower enclosure's glass is walls on the 2D board, 2–5 cm thick, whose height and width the
+  person changes.
+- Partitions are added at generation, automatically: the entrance door kept out of the living
+  room's sight, an en-suite's entrance enclosed beside the wardrobe; a partition the app draws runs
+  to the corner, never leaving a 10–20 cm gap.
+
 ## The decisions (owner, 28 Oct 2026)
 
 **Part 1 — technical**

@@ -28,12 +28,28 @@ export interface InkImage {
  * A greyscale raster as ink: dark against the paper by Otsu's threshold, held below mid-grey so
  * a pale furniture fill or a hatched floor does not count as wall.
  */
-export function inkFromGray(gray: Uint8Array, width: number, height: number): InkImage {
+export function inkFromGray(input: Uint8Array, width: number, height: number): InkImage {
+  // A drawing in light lines on a dark ground (project 371: cream walls on brown) is turned the
+  // usual way round first, or the whole ground would be ink and no wall found in it.
+  const gray = darkGround(input) ? input.map((v) => 255 - v) : input;
   // Otsu's threshold is the last grey of the dark class: on a pure black-and-white drawing it is 0.
   const threshold = Math.min(otsu(gray), 150);
   const dark = new Uint8Array(width * height);
   for (let i = 0; i < dark.length; i++) dark[i] = gray[i] <= threshold ? 1 : 0;
   return { width, height, dark };
+}
+
+/** Most of the image darker than mid-grey: the ground is dark and the lines are light. */
+export function darkGround(gray: Uint8Array): boolean {
+  let dark = 0;
+  // A sample is plenty to tell the ground's colour.
+  const step = Math.max(1, Math.floor(gray.length / 20000));
+  let seen = 0;
+  for (let i = 0; i < gray.length; i += step) {
+    seen++;
+    if (gray[i] < 110) dark++;
+  }
+  return seen > 0 && dark / seen > 0.6;
 }
 
 function otsu(gray: Uint8Array): number {

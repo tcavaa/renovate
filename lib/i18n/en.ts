@@ -2324,10 +2324,13 @@ export const en: Dictionary = {
     drawManually: 'Enter rooms manually',
     manualRoomsTitle: 'Enter rooms',
 
-    scaleTitle: 'How big is the flat?',
+    scaleTitle: 'How long is this wall?',
     scaleDesc:
-      'A drawing has no scale of its own. Give us the total area and we will work out the rest.',
-    totalAreaLabel: 'Total area (m²)',
+      'The plan has no sizes printed on it. Measure the highlighted wall inside the room (or pick another wall) and type its length — the whole plan is sized from it.',
+    wallLengthLabel: 'Length of the highlighted wall (m)',
+    pickWallHint: 'Click a wall to measure that one instead',
+    notAPlan:
+      'This doesn\'t look like a floor plan. Upload a drawing of the flat seen from above — a photo of a printed plan or a hand sketch works too.',
     applyScale: 'Continue',
 
     reviewTitle: 'Check the rooms',
@@ -2468,7 +2471,7 @@ export const en: Dictionary = {
       dragPiece: 'Drag {name} to a room',
     },
     aiReadSuccess: 'Dimensions read straight off the drawing.',
-    aiReadFallback: 'Could not read the dimensions — tell us the total floor area instead.',
+    aiReadFallback: 'Could not read the plan\'s sizes — tell us one wall\'s length instead.',
     aiLowConfidence: 'The dimensions printed on the plan disagree slightly — please check the rooms.',
     dragHint: 'Drag furniture to move it · R to rotate · WASD / arrows to move the view',
     carryHint: 'The item is on your pointer · move it over the room and click to set it down · R — rotate · Esc — cancel',
@@ -2526,6 +2529,10 @@ export const en: Dictionary = {
     hintSelect: 'Click an element · drag to move it · a room snaps onto its neighbour’s wall, and joined rooms move together (Ctrl+Z undoes) · drag the empty grid (or Space + drag) to pan · wheel zooms · Del deletes · Shift + drag a wall — that wall alone, its neighbours stay',
     hintLocked: 'Walls, doors and windows are locked — unlock them in the top bar to move them',
     fitView: 'Whole plan',
+    focusSelection: 'Zoom to the selection',
+    thicknessManual: 'Manual',
+    wallsSelected: '{n} walls',
+    wallsGatherHint: 'Shift-click to add or remove a wall. Thickness, height and material change on all of them together.',
     layers: 'Layers',
     layerRooms: 'Rooms',
     layerWalls: 'Walls',

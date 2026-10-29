@@ -42,18 +42,44 @@ describe('wallEndExtensions', () => {
 });
 
 describe('outerDimensionChains', () => {
-  it('chains the exterior walls of each side and measures the overall size outer face to outer face', () => {
+  it('chains the exterior walls of each side, from the outer faces at the corners to the partition middle, adding up to the overall size', () => {
     const chains = outerDimensionChains(twoRooms());
     expect(chains).not.toBeNull();
-    // The top and bottom are cut at the partition: 3 m and 5 m, centreline to centreline.
-    expect(chains!.top.map((m) => Math.round(m * 100) / 100)).toEqual([0, 3, 8]);
-    expect(chains!.bottom.map((m) => Math.round(m * 100) / 100)).toEqual([0, 3, 8]);
-    // The sides are one stretch each.
-    expect(chains!.left.map((m) => Math.round(m * 100) / 100)).toEqual([0, 5]);
-    expect(chains!.right.map((m) => Math.round(m * 100) / 100)).toEqual([0, 5]);
-    // 3 + 5 between the centrelines, plus a half thickness each side.
+    // The top and bottom are cut at the partition's middle; the ends are the side walls' outer faces.
+    for (const side of [chains!.top, chains!.bottom]) {
+      expect(side).toHaveLength(3);
+      expect(side[0]).toBeCloseTo(-0.075, 3);
+      expect(side[1]).toBeCloseTo(3, 3);
+      expect(side[2]).toBeCloseTo(8.075, 3);
+    }
+    // The sides are one stretch each, outer face to outer face.
+    for (const side of [chains!.left, chains!.right]) {
+      expect(side).toHaveLength(2);
+      expect(side[0]).toBeCloseTo(-0.075, 3);
+      expect(side[1]).toBeCloseTo(5.075, 3);
+    }
+    // 3 + 5 between the centrelines, plus a half thickness each side — and the chain says the same.
     expect(chains!.box.maxX - chains!.box.minX).toBeCloseTo(8.15, 2);
     expect(chains!.box.maxZ - chains!.box.minZ).toBeCloseTo(5.15, 2);
+    expect(chains!.top[2] - chains!.top[0]).toBeCloseTo(chains!.box.maxX - chains!.box.minX, 3);
+  });
+
+  it('ends a chain at a step of the outline on the outer face of the wall that steps', () => {
+    // An L, 20 cm walls: a 4 × 3 m room (centrelines) with a 3 × 2 m room beside it, their tops
+    // level, the second shorter.
+    const walls = [
+      { x: 0.1, z: 0.1, width: 3.8, depth: 2.8 },
+      { x: 4.1, z: 0.1, width: 2.8, depth: 1.8 },
+    ].reduce((all, r, i) => addWalls(all, wallsForRectangle(r, 0.2, 'user', `l${i}`)), [] as Wall[]);
+    const chains = outerDimensionChains(rebuildRooms(blankPlan(), walls))!;
+    // Along the bottom: the first room's outer corner, then the step — the outer face of the wall
+    // that steps up (x = 4 + 0.1), one mark for both bottom walls — then the second room's corner.
+    expect(chains.bottom).toHaveLength(3);
+    expect(chains.bottom[0]).toBeCloseTo(-0.1, 3);
+    expect(chains.bottom[1]).toBeCloseTo(4.1, 3);
+    expect(chains.bottom[2]).toBeCloseTo(7.1, 3);
+    // Along the top the partition between the rooms is a middle.
+    expect(chains.top.map((m) => Math.round(m * 100) / 100)).toEqual([-0.1, 4, 7.1]);
   });
 
   it('leaves the partition out of the sides it does not face, and a plan without walls alone', () => {

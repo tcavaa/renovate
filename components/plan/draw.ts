@@ -987,19 +987,23 @@ export interface DimensionChains {
  * side of the drawing: every exterior wall — one with a room on one side of it and nothing
  * on the other — contributes its ends to the chain on the side it faces, so a side reads
  * "3 m · 5 m" wall by wall, and the outer faces of the walls give the overall width and
- * depth. Null for a plan with no walls.
+ * depth. Each mark is where the wall ending there is met: at a corner the outer face of the
+ * outside wall turning away, where a partition meets the outside wall the partition's middle —
+ * so a chain adds up to the overall size, as a drawing's does, and a plan read from one shows
+ * its numbers (the plan reader measures the drawing's chains the same way, `planSolver`).
+ * Null for a plan with no walls.
  */
 export function outerDimensionChains(plan: Pick<FloorPlan, 'rooms' | 'walls'>): DimensionChains | null {
-  const walls = plan.walls ?? [];
+  const walls = (plan.walls ?? []).filter((w) => Math.hypot(w.b.x - w.a.x, w.b.z - w.a.z) >= 1e-6);
   if (walls.length === 0) return null;
   const box = { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity };
   const chains = { top: [] as number[], bottom: [] as number[], left: [] as number[], right: [] as number[] };
   const inside = (p: Vec2) => plan.rooms.some((r) => pointInPolygon(p, r.polygon));
-  for (const wall of walls) {
+  // Each wall's kind: exterior walls carry the side of them that is outside.
+  const kinds = walls.map((wall) => {
     const dx = wall.b.x - wall.a.x;
     const dz = wall.b.z - wall.a.z;
     const l = Math.hypot(dx, dz);
-    if (l < 1e-6) continue;
     const half = wall.thicknessM / 2;
     const horizontal = Math.abs(dx) >= Math.abs(dz);
     if (horizontal) {
@@ -1019,10 +1023,42 @@ export function outerDimensionChains(plan: Pick<FloorPlan, 'rooms' | 'walls'>): 
     const reach = half + 0.08;
     const plus = inside({ x: mid.x + n.x * reach, z: mid.z + n.z * reach });
     const minus = inside({ x: mid.x - n.x * reach, z: mid.z - n.z * reach });
-    if (plus === minus) continue; // interior (rooms both sides) or free-standing (none)
-    const facing = plus ? { x: -n.x, z: -n.z } : n;
-    if (horizontal) (facing.z < 0 ? chains.top : chains.bottom).push(wall.a.x, wall.b.x);
-    else (facing.x < 0 ? chains.left : chains.right).push(wall.a.z, wall.b.z);
+    // Interior (rooms both sides) or free-standing (none): no outside.
+    const facing = plus === minus ? null : plus ? { x: -n.x, z: -n.z } : n;
+    return { wall, horizontal, facing };
+  });
+  // A mark at a wall's end, moved to where the wall across it there is measured to: the outer
+  // face of an outside wall running on towards the chain (a step in the outline), else the middle
+  // of a partition, else the outer face of the outside wall the corner turns into.
+  const mark = (end: Vec2, horizontal: boolean, facing: Vec2): number => {
+    const along = horizontal ? end.x : end.z;
+    const towards = horizontal ? facing.z : facing.x;
+    let step: number | null = null;
+    let partition = false;
+    let corner: number | null = null;
+    for (const other of kinds) {
+      if (other.horizontal === horizontal || other.wall.separator) continue;
+      const { a, b } = other.wall;
+      const off = horizontal ? Math.abs(a.x - end.x) : Math.abs(a.z - end.z);
+      const at = horizontal ? end.z : end.x;
+      const lo = horizontal ? Math.min(a.z, b.z) : Math.min(a.x, b.x);
+      const hi = horizontal ? Math.max(a.z, b.z) : Math.max(a.x, b.x);
+      if (off > 0.03 || at < lo - 0.03 || at > hi + 0.03) continue;
+      if (!other.facing) {
+        partition = true;
+        continue;
+      }
+      const face = along + (horizontal ? Math.sign(other.facing.x) : Math.sign(other.facing.z)) * (other.wall.thicknessM / 2);
+      const runsOn = towards > 0 ? hi > at + 0.03 : lo < at - 0.03;
+      if (runsOn) step = face;
+      else corner = face;
+    }
+    return step ?? (partition ? along : corner ?? along);
+  };
+  for (const { wall, horizontal, facing } of kinds) {
+    if (!facing) continue;
+    if (horizontal) (facing.z < 0 ? chains.top : chains.bottom).push(mark(wall.a, true, facing), mark(wall.b, true, facing));
+    else (facing.x < 0 ? chains.left : chains.right).push(mark(wall.a, false, facing), mark(wall.b, false, facing));
   }
   if (!Number.isFinite(box.minX)) return null;
   const tidy = (marks: number[]): number[] => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addOpening, alignTwins, leafOnOtherSide, moveOpening, openingCandidates, openingWorldPoint, projectToEdge, removeOpening, setOpeningProduct, twinOf, updateOpening, withOpeningProducts, withOpeningTwins } from '@/lib/design/openings';
+import { addOpening, alignTwins, leafOnOtherSide, separateOverlaps, moveOpening, openingCandidates, openingWorldPoint, projectToEdge, removeOpening, setOpeningProduct, twinOf, updateOpening, withOpeningProducts, withOpeningTwins } from '@/lib/design/openings';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import { deriveOpenings, refreshRoom, roomEdges } from '@/lib/design/planGeometry';
 import { ensureWalls, planWallThickness, rebuildRooms } from '@/lib/design/walls';
@@ -397,5 +397,56 @@ describe('two doors between the same two rooms', () => {
     expect(moved[1].openings.find((o) => o.id === bTwin.id)).toEqual(bTwin);
     const removed = removeOpening(rooms, 'liv', a.id);
     expect(removed[1].openings.map((o) => o.id)).toEqual([bTwin.id]);
+  });
+});
+
+describe('openings put right when a plan is taken in', () => {
+  /** The hallway's edge on the shared wall (x = 4) and the bedroom's. */
+  const sharedEdge = (room: PlanRoom) => roomEdges(room.polygon).find((e) => Math.abs(e.a.x - (room.id === 'hall' ? 4 : 4)) < 1e-6 && Math.abs(e.b.x - e.a.x) < 1e-6)!;
+
+  it('cuts the missing half of a door whose other half was lost, in the room behind its wall now', () => {
+    const rooms = [rect('hall', 0, 0, 4, 3, 'hallway'), rect('bed', 4, 0, 4, 3, 'bedroom')];
+    const edge = sharedEdge(rooms[1]);
+    // The bedroom's half still names a room that is not behind this wall (it was re-derived away).
+    rooms[1].openings.push({ id: 'd1', kind: 'door', wallIndex: edge.index, t: 0.5, widthM: 0.8, heightM: 2.1, sillM: 0, roomId: 'bed', connectsToRoomId: 'gone', exterior: false, hinge: 'left', swing: 'in' });
+    const fixed = withOpeningTwins(rooms, 0.12);
+    const door = fixed.find((r) => r.id === 'bed')!.openings.find((o) => o.id === 'd1')!;
+    expect(door.connectsToRoomId).toBe('hall');
+    const twin = twinOf(fixed, door);
+    expect(twin?.room.id).toBe('hall');
+  });
+
+  it('fits both halves of a door to the shorter of their two walls', () => {
+    // A 0.8 m corridor beside a 4 m bedroom: the door read 1 m wide.
+    const rooms = [rect('hall', 3.2, 0, 0.8, 3, 'hallway'), rect('bed', 4.12, 0, 4, 0.7, 'bedroom')];
+    const hallEdge = roomEdges(rooms[0].polygon).find((e) => Math.abs(e.a.x - 4) < 1e-6 && Math.abs(e.b.x - 4) < 1e-6)!;
+    const bedEdge = roomEdges(rooms[1].polygon).find((e) => Math.abs(e.a.x - 4.12) < 1e-6 && Math.abs(e.b.x - 4.12) < 1e-6)!;
+    rooms[0].openings.push({ id: 'h1', kind: 'door', wallIndex: hallEdge.index, t: 0.1, widthM: 1, heightM: 2.1, sillM: 0, roomId: 'hall', connectsToRoomId: 'bed', exterior: false, hinge: 'left', swing: 'out' });
+    rooms[1].openings.push({ id: 'bed-hall-d-h1', kind: 'door', wallIndex: bedEdge.index, t: 0.5, widthM: 1, heightM: 2.1, sillM: 0, roomId: 'bed', connectsToRoomId: 'hall', exterior: false, hinge: 'right', swing: 'in' });
+    const fixed = alignTwins(rooms);
+    const bed = fixed.find((r) => r.id === 'bed')!.openings[0];
+    const hall = fixed.find((r) => r.id === 'hall')!.openings[0];
+    expect(bed.widthM).toBeLessThan(0.7);
+    expect(hall.widthM).toBeCloseTo(bed.widthM, 6);
+    const lo = bed.t * bedEdge.length - bed.widthM / 2;
+    expect(lo).toBeGreaterThanOrEqual(0);
+    expect(bed.t * bedEdge.length + bed.widthM / 2).toBeLessThanOrEqual(bedEdge.length + 1e-6);
+  });
+
+  it('moves a window off a door it overlaps on the same wall, and keeps the door', () => {
+    const rooms = [rect('living', 0, 0, 5, 4, 'living_room')];
+    const edge = roomEdges(rooms[0].polygon)[0];
+    rooms[0].openings.push(
+      { id: 'door', kind: 'door', wallIndex: edge.index, t: 1.5 / 5, widthM: 1, heightM: 2.1, sillM: 0, roomId: 'living', exterior: true, hinge: 'left', swing: 'in' },
+      { id: 'win', kind: 'window', wallIndex: edge.index, t: 0.75 / 5, widthM: 1, heightM: 1.4, sillM: 0.9, roomId: 'living', exterior: true }
+    );
+    const fixed = separateOverlaps(rooms)[0].openings;
+    const door = fixed.find((o) => o.id === 'door')!;
+    const win = fixed.find((o) => o.id === 'win')!;
+    expect(door.t * 5).toBeCloseTo(1.5, 6);
+    const doorSpan = [door.t * 5 - door.widthM / 2, door.t * 5 + door.widthM / 2];
+    const winSpan = [win.t * 5 - win.widthM / 2, win.t * 5 + win.widthM / 2];
+    expect(winSpan[1] <= doorSpan[0] + 0.02 || winSpan[0] >= doorSpan[1] - 0.02).toBe(true);
+    expect(separateOverlaps([rect('x', 0, 0, 3, 3)])[0].openings).toHaveLength(0);
   });
 });

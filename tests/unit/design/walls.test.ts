@@ -390,6 +390,17 @@ describe('editing walls', () => {
   });
 });
 
+describe('a wall with no length', () => {
+  it('is dropped whenever walls are cut at their junctions, so a stray one far off cannot frame the plan', () => {
+    const walls = wallsForRectangle({ x: 0, z: 0, width: 4, depth: 3 }, 0.12, 'user', 'r');
+    const stray: Wall = { id: 'stray', a: { x: -479, z: 5 }, b: { x: -479, z: 5 }, thicknessM: 0.25, origin: 'existing' };
+    expect(splitAtJunctions([...walls, stray]).some((w) => w.id === 'stray')).toBe(false);
+    const plan = ensureWalls({ rooms: [], walls: [...walls, stray], metresPerPixel: null, bounds: { width: 0, depth: 0 }, source: 'parsed', wallThicknessM: 0.12 });
+    expect(plan.walls!.some((w) => w.id === 'stray')).toBe(false);
+    expect(plan.bounds.width).toBeLessThan(5);
+  });
+});
+
 describe('walls from room polygons', () => {
   it('turns two rooms with a gap between them into one shared wall of that thickness', () => {
     const rooms = [rect('living', 0, 0, 5, 4, 'living_room'), rect('bed', 5.12, 0, 4, 4)];

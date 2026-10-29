@@ -15,9 +15,12 @@
  *      estimates are snapped onto one shared grid line, so neighbours agree on the wall
  *      between them instead of each having their own a pixel or two apart.
  *   2. Those lines become the unknowns of a small least-squares problem. Each printed
- *      dimension is a strong constraint — a room's printed width is the distance between its
- *      two walls' *faces*, so the centrelines stand that plus half of each wall apart — and
- *      each line's observed position is a weak one.
+ *      dimension is a strong constraint and each line's observed position a weak one. A size
+ *      written inside a room is the distance between its two walls' *faces*, so the
+ *      centrelines stand that plus half of each wall apart. A dimension line drawn outside the
+ *      plan is measured the way an architect chains them, and the way the board draws its own
+ *      (`outerDimensionChains`): from the outer face of an outside wall to the middle of an
+ *      inside one, so a chain adds up to the overall size.
  *   3. Solving gives the line positions that best satisfy every printed dimension at once.
  *
  * The result is a grid of wall centrelines in metres plus each line's wall thickness, from
@@ -51,6 +54,27 @@ export interface RoughRoom {
   depthM?: number | null;
   /** The walls the image shows along the box's sides, where `planInk` found them. */
   ink?: Partial<Record<'x0' | 'x1' | 'y0' | 'y1', InkEdge | null>>;
+  /** A balcony or terrace: the wall between it and the flat is an outside wall. */
+  outdoor?: boolean;
+}
+
+/**
+ * A dimension line printed on the drawing (not a size written in a room), normalised. Its ends
+ * land on wall lines: an end on an outside wall measures to that wall's outer face, any other
+ * to the wall's middle.
+ */
+export interface PrintedDimension {
+  /** `x` measures left to right (its ends are x positions), `y` top to bottom. */
+  axis: 'x' | 'y';
+  from: number;
+  to: number;
+  /** Where the dimension line itself is drawn, on the other axis — which end of a wall it measures to. */
+  at: number;
+  metres: number;
+}
+
+export interface SolveOptions {
+  dimensions?: PrintedDimension[];
 }
 
 export interface SolvedRoom {
@@ -77,8 +101,15 @@ export interface SolveResult {
   toImage: (point: { x: number; z: number }) => { x: number; y: number };
   /** How far each printed dimension ended up from its target, in metres (inner face to inner face). */
   residuals: Array<{ roomId: string; axis: 'width' | 'depth'; target: number; solved: number }>;
+  /** The same for each dimension line used, by its index in `options.dimensions`. */
+  dimensionResiduals: Array<{ index: number; target: number; solved: number }>;
   /** Set when the dimensions disagreed badly enough that the result should be reviewed. */
   lowConfidence: boolean;
+  /**
+   * Whether anything printed gave the plan its size. False for a drawing with no sizes at all:
+   * the plan is at an assumed scale, and the person is asked for one wall's length.
+   */
+  scaleKnown: boolean;
 }
 
 /**
@@ -93,16 +124,30 @@ const SNAP_TOLERANCE = 0.022;
 /** A printed dimension more than this far from the measured box is treated as a misread. */
 const MAX_DIMENSION_DRIFT = 0.45;
 
-/** The wall assumed where the image does not show one, metres. */
+/** A dimension line's end further than this from every wall line is not trusted, normalised. */
+const DIMENSION_SNAP = 0.04;
+
+/** An inside wall where the image does not show one (or nothing printed gives it a size), metres. */
 export const DEFAULT_WALL_M = 0.12;
+/** An outside wall where the image does not show one (or nothing printed gives it a size), metres. */
+export const DEFAULT_EXTERIOR_WALL_M = 0.3;
 
 /** Wall thicknesses read off the image are kept within these, metres. */
 const MIN_WALL_M = 0.06;
-const MAX_WALL_M = 0.5;
+const MAX_WALL_M = 0.6;
+
+/** The sizes a measured wall is rounded to: a few pixels of ink are not a thickness anyone builds. */
+export const STANDARD_WALLS_M = [0.08, 0.1, 0.12, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.6] as const;
+
+/** A measured thickness as the standard size nearest it. */
+export function standardWallThickness(metres: number): number {
+  const m = clamp(metres, MIN_WALL_M, MAX_WALL_M);
+  return STANDARD_WALLS_M.reduce((best, s) => (Math.abs(s - m) < Math.abs(best - m) ? s : best), STANDARD_WALLS_M[0]);
+}
 
 type Side = 'x0' | 'x1' | 'y0' | 'y1';
 
-export function solvePlan(rooms: RoughRoom[]): SolveResult {
+export function solvePlan(rooms: RoughRoom[], options: SolveOptions = {}): SolveResult {
   if (rooms.length === 0) {
     const identity = { x: 1, y: 1 };
     return {
@@ -115,12 +160,15 @@ export function solvePlan(rooms: RoughRoom[]): SolveResult {
       toPlan: (p) => ({ x: p.x, z: p.y }),
       toImage: (p) => ({ x: p.x, y: p.z }),
       residuals: [],
+      dimensionResiduals: [],
       lowConfidence: true,
+      scaleKnown: false,
     };
   }
+  const dimensions = (options.dimensions ?? []).filter((d) => Number.isFinite(d.metres) && d.metres > 0 && Math.abs(d.to - d.from) > 1e-3);
 
   // --- 0. a rough scale from the boxes as given, to size the default wall in image units --
-  const rough = roughScale(rooms);
+  const rough = roughScale(rooms, dimensions);
   const defaultT = { x: DEFAULT_WALL_M / rough.x, y: DEFAULT_WALL_M / rough.y };
 
   // --- 1. every box side as a centreline estimate, snapped onto shared grid lines ----------
@@ -157,26 +205,69 @@ export function solvePlan(rooms: RoughRoom[]): SolveResult {
     if (entry.y1 <= entry.y0) entry.y1 = Math.min(yLines.length - 1, entry.y0 + 1);
   }
 
+  // --- 1b. which side of each line the rooms are on: outside walls, and what a chain measures --
+  const sides = lineSides(indexed, xLines.length, yLines.length);
+  const indoor = lineSides(indexed.filter((e) => !e.room.outdoor), xLines.length, yLines.length);
+  const xExterior = xLines.map((_, i) => isExterior(indoor.x[i], yLines));
+  const yExterior = yLines.map((_, i) => isExterior(indoor.y[i], xLines));
+  // A wall the image does not show is an outside one's thickness on the outside, keeping the
+  // room's face where the box put it.
+  const widenUnmeasured = (lines: Line[], exterior: boolean[], lineSides: LineSides[], defaultT: number) => {
+    lines.forEach((line, i) => {
+      if (line.measured || !exterior[i]) return;
+      const t = (defaultT * DEFAULT_EXTERIOR_WALL_M) / DEFAULT_WALL_M;
+      const outward = coveredLength(lineSides[i].neg) >= coveredLength(lineSides[i].pos) ? 1 : -1;
+      line.c += (outward * (t - line.t)) / 2;
+      line.t = t;
+    });
+  };
+  widenUnmeasured(xLines, xExterior, sides.x, defaultT.x);
+  widenUnmeasured(yLines, yExterior, sides.y, defaultT.y);
+
+  // Each dimension line's ends on the wall lines, and which face (or the middle) each measures to.
+  const chains = dimensions.flatMap((d, index) => {
+    const lines = d.axis === 'x' ? xLines : yLines;
+    const across = d.axis === 'x' ? yLines : xLines;
+    const lo = nearestLine(Math.min(d.from, d.to), lines);
+    const hi = nearestLine(Math.max(d.from, d.to), lines);
+    if (lo === hi || Math.abs(lines[lo].c - Math.min(d.from, d.to)) > DIMENSION_SNAP || Math.abs(lines[hi].c - Math.max(d.from, d.to)) > DIMENSION_SNAP) return [];
+    const lineSide = d.axis === 'x' ? sides.x : sides.y;
+    return [{ index, axis: d.axis, lo, hi, metres: d.metres, faceLo: faceAt(lineSide[lo], across, d.at), faceHi: faceAt(lineSide[hi], across, d.at) }];
+  });
+
   // --- 2. a scale per axis, so the weak priors are in metres ---------------------------------
   //
   // Two scales, not one: boxes are normalised against the image's width for x and its height
   // for y, and drawings are rarely square. Sharing a scale stretches one axis by the aspect
   // ratio, which then makes every dimension on that axis look like a misread.
-  const scale = estimateScale(indexed, xLines, yLines);
+  const { scale, known: scaleKnown } = estimateScale(indexed, xLines, yLines, chains);
 
-  const thicknessM = (lines: Line[], s: number) =>
-    lines.map((line) => (line.measured ? clamp(line.t * s, MIN_WALL_M, MAX_WALL_M) : DEFAULT_WALL_M));
-  const xThickness = thicknessM(xLines, scale.x);
-  const yThickness = thicknessM(yLines, scale.y);
+  // Measured walls at a standard size when the plan has a size; with nothing printed the ink's
+  // widths are in no unit, so every wall is the default for its kind.
+  const thicknessM = (lines: Line[], s: number, exterior: boolean[]) =>
+    lines.map((line, i) =>
+      scaleKnown && line.measured ? standardWallThickness(line.t * s) : exterior[i] ? DEFAULT_EXTERIOR_WALL_M : DEFAULT_WALL_M
+    );
+  const xThickness = thicknessM(xLines, scale.x, xExterior);
+  const yThickness = thicknessM(yLines, scale.y, yExterior);
 
   // --- 3. solve each axis independently --------------------------------------------------------
-  // A printed dimension runs face to face; the centrelines stand half of each wall further out.
-  const xTargets = indexed
-    .filter((e) => e.room.widthM != null && e.x1 > e.x0)
-    .map((e) => ({ lo: e.x0, hi: e.x1, length: (e.room.widthM as number) + (xThickness[e.x0] + xThickness[e.x1]) / 2 }));
-  const yTargets = indexed
-    .filter((e) => e.room.depthM != null && e.y1 > e.y0)
-    .map((e) => ({ lo: e.y0, hi: e.y1, length: (e.room.depthM as number) + (yThickness[e.y0] + yThickness[e.y1]) / 2 }));
+  // A size in a room runs face to face; the centrelines stand half of each wall further out.
+  // A dimension line runs between the faces (or middles) its ends measure to.
+  const chainLength = (c: (typeof chains)[number], thickness: number[]) =>
+    c.metres - (c.faceHi * thickness[c.hi]) / 2 + (c.faceLo * thickness[c.lo]) / 2;
+  const xTargets = [
+    ...indexed
+      .filter((e) => e.room.widthM != null && e.x1 > e.x0)
+      .map((e) => ({ lo: e.x0, hi: e.x1, length: (e.room.widthM as number) + (xThickness[e.x0] + xThickness[e.x1]) / 2 })),
+    ...chains.filter((c) => c.axis === 'x').map((c) => ({ lo: c.lo, hi: c.hi, length: chainLength(c, xThickness) })),
+  ];
+  const yTargets = [
+    ...indexed
+      .filter((e) => e.room.depthM != null && e.y1 > e.y0)
+      .map((e) => ({ lo: e.y0, hi: e.y1, length: (e.room.depthM as number) + (yThickness[e.y0] + yThickness[e.y1]) / 2 })),
+    ...chains.filter((c) => c.axis === 'y').map((c) => ({ lo: c.lo, hi: c.hi, length: chainLength(c, yThickness) })),
+  ];
 
   const measuredX = xLines.map((line) => line.c * scale.x);
   const measuredY = yLines.map((line) => line.c * scale.y);
@@ -216,7 +307,17 @@ export function solvePlan(rooms: RoughRoom[]): SolveResult {
     }
   }
 
-  const worst = residuals.reduce(
+  const dimensionResiduals = chains.map((c) => {
+    const lines = c.axis === 'x' ? finalX : finalY;
+    const thickness = c.axis === 'x' ? xThickness : yThickness;
+    return {
+      index: c.index,
+      target: c.metres,
+      solved: lines[c.hi] + (c.faceHi * thickness[c.hi]) / 2 - (lines[c.lo] + (c.faceLo * thickness[c.lo]) / 2),
+    };
+  });
+
+  const worst = [...residuals, ...dimensionResiduals].reduce(
     (max, r) => Math.max(max, Math.abs(r.solved - r.target) / Math.max(r.target, 0.1)),
     0
   );
@@ -234,8 +335,89 @@ export function solvePlan(rooms: RoughRoom[]): SolveResult {
     toPlan: (p) => ({ x: xMap.forward(p.x), z: yMap.forward(p.y) }),
     toImage: (p) => ({ x: xMap.inverse(p.x), y: yMap.inverse(p.z) }),
     residuals,
+    dimensionResiduals,
     lowConfidence: worst > 0.08,
+    scaleKnown,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Which side of a line the rooms are on
+// ---------------------------------------------------------------------------
+
+/**
+ * The rooms either side of one grid line, as spans of cells along it (indices into the other
+ * axis's lines): `neg` the rooms on its left (above, for a horizontal line), `pos` on its right
+ * (below).
+ */
+interface LineSides {
+  neg: Array<[number, number]>;
+  pos: Array<[number, number]>;
+}
+
+function lineSides(
+  indexed: Array<{ x0: number; x1: number; y0: number; y1: number }>,
+  xCount: number,
+  yCount: number
+): { x: LineSides[]; y: LineSides[] } {
+  const x: LineSides[] = Array.from({ length: xCount }, () => ({ neg: [], pos: [] }));
+  const y: LineSides[] = Array.from({ length: yCount }, () => ({ neg: [], pos: [] }));
+  for (const e of indexed) {
+    x[e.x1].neg.push([e.y0, e.y1]);
+    x[e.x0].pos.push([e.y0, e.y1]);
+    y[e.y1].neg.push([e.x0, e.x1]);
+    y[e.y0].pos.push([e.x0, e.x1]);
+  }
+  return { x, y };
+}
+
+const covers = (spans: Array<[number, number]>, cell: number) => spans.some(([a, b]) => a <= cell && cell < b);
+
+function coveredLength(spans: Array<[number, number]>): number {
+  return spans.reduce((sum, [a, b]) => sum + (b - a), 0);
+}
+
+/**
+ * An outside wall: a room of the flat on one side of it only, all along it (a balcony counts as
+ * outside). A line carries one thickness, so a line that is a partition anywhere — the wall
+ * between a bathroom and the hallway that runs on past the hallway to the outside — keeps a
+ * partition's: an outside wall's 30 cm there would push both rooms' faces 9 cm off their sizes.
+ */
+function isExterior(sides: LineSides, across: Line[]): boolean {
+  let outside = false;
+  for (let k = 0; k + 1 < across.length; k++) {
+    const neg = covers(sides.neg, k);
+    const pos = covers(sides.pos, k);
+    if (neg && pos) return false;
+    if (neg || pos) outside = true;
+  }
+  return outside;
+}
+
+/**
+ * What a dimension line's end on this line measures to: the wall's face on the outside (+1 its
+ * positive side, −1 its negative) where the line is an outside wall at the end the dimension is
+ * drawn by, else its middle (0). A chain drawn above the plan meets each wall at the wall's top
+ * end, so that end decides — the middle of a partition reaching the outside wall, the outer face
+ * of the outside wall at a corner.
+ */
+function faceAt(sides: LineSides, across: Line[], at: number): -1 | 0 | 1 {
+  const cells: number[] = [];
+  for (let k = 0; k + 1 < across.length; k++) if (covers(sides.neg, k) || covers(sides.pos, k)) cells.push(k);
+  if (cells.length === 0) return 0;
+  const first = cells[0];
+  const last = cells[cells.length - 1];
+  const cell =
+    at <= across[first].c
+      ? first
+      : at >= across[last + 1].c
+        ? last
+        : cells.reduce((best, k) => (Math.abs((across[k].c + across[k + 1].c) / 2 - at) < Math.abs((across[best].c + across[best + 1].c) / 2 - at) ? k : best), first);
+  const neg = covers(sides.neg, cell);
+  const pos = covers(sides.pos, cell);
+  if (neg && !pos) return 1;
+  if (pos && !neg) return -1;
+  return 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -293,9 +475,16 @@ function nearestLine(value: number, lines: Line[]): number {
 }
 
 /** Metres per normalised unit from the raw boxes — only to size a default wall before the lines exist. */
-function roughScale(rooms: RoughRoom[]): { x: number; y: number } {
-  const xs = rooms.filter((r) => r.widthM != null && r.box.x1 - r.box.x0 > 1e-3).map((r) => (r.widthM as number) / (r.box.x1 - r.box.x0));
-  const ys = rooms.filter((r) => r.depthM != null && r.box.y1 - r.box.y0 > 1e-3).map((r) => (r.depthM as number) / (r.box.y1 - r.box.y0));
+function roughScale(rooms: RoughRoom[], dimensions: PrintedDimension[]): { x: number; y: number } {
+  const span = (d: PrintedDimension) => d.metres / Math.abs(d.to - d.from);
+  const xs = [
+    ...rooms.filter((r) => r.widthM != null && r.box.x1 - r.box.x0 > 1e-3).map((r) => (r.widthM as number) / (r.box.x1 - r.box.x0)),
+    ...dimensions.filter((d) => d.axis === 'x').map(span),
+  ];
+  const ys = [
+    ...rooms.filter((r) => r.depthM != null && r.box.y1 - r.box.y0 > 1e-3).map((r) => (r.depthM as number) / (r.box.y1 - r.box.y0)),
+    ...dimensions.filter((d) => d.axis === 'y').map(span),
+  ];
   const x = median(xs) ?? median(ys) ?? 12;
   const y = median(ys) ?? x;
   return { x, y };
@@ -306,13 +495,15 @@ function roughScale(rooms: RoughRoom[]): { x: number; y: number } {
  *
  * The median rather than the mean: one misread label ("18" for "1.8") would drag an average
  * badly, and a plan only carries a handful of dimensions to begin with. A label runs face to
- * face, so it is compared with the span between the walls' faces.
+ * face, so it is compared with the span between the walls' faces; a dimension line with the
+ * span between the faces or middles its ends measure to.
  */
 function estimateScale(
   indexed: Array<{ room: RoughRoom; x0: number; x1: number; y0: number; y1: number }>,
   xLines: Line[],
-  yLines: Line[]
-): { x: number; y: number } {
+  yLines: Line[],
+  chains: Array<{ axis: 'x' | 'y'; lo: number; hi: number; metres: number; faceLo: number; faceHi: number }>
+): { scale: { x: number; y: number }; known: boolean } {
   const xSamples: number[] = [];
   const ySamples: number[] = [];
 
@@ -325,12 +516,18 @@ function estimateScale(
     if (entry.room.widthM != null) sample(xLines, entry.x0, entry.x1, entry.room.widthM, xSamples);
     if (entry.room.depthM != null) sample(yLines, entry.y0, entry.y1, entry.room.depthM, ySamples);
   }
+  for (const c of chains) {
+    const lines = c.axis === 'x' ? xLines : yLines;
+    const span = lines[c.hi].c + (c.faceHi * lines[c.hi].t) / 2 - (lines[c.lo].c + (c.faceLo * lines[c.lo].t) / 2);
+    if (span > 1e-4) (c.axis === 'x' ? xSamples : ySamples).push(c.metres / span);
+  }
 
   // A plan with no dimensions on one axis borrows the other's; with none at all, assume a flat
-  // about 12 m across, which at least puts the furniture at a sane size.
+  // about 12 m across, which at least puts the furniture at a sane size until the person gives
+  // one wall's length.
   const x = median(xSamples) ?? median(ySamples) ?? 12;
   const y = median(ySamples) ?? x;
-  return { x, y };
+  return { scale: { x, y }, known: xSamples.length + ySamples.length > 0 };
 }
 
 /**

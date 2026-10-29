@@ -94,3 +94,15 @@ describe('planInk', () => {
     expect(bareRuns(ink, { orientation: 'h', at: 0.5, from: 0, to: 1 }, 0.02, 0.5)).toHaveLength(0);
   });
 });
+
+describe('a drawing in light lines on a dark ground', () => {
+  it('finds the same ink as the usual way round', () => {
+    const width = 60;
+    const height = 40;
+    const light = new Uint8Array(width * height).fill(240);
+    for (let x = 5; x < 55; x++) for (let y = 10; y < 14; y++) light[y * width + x] = 20; // a wall
+    const darkGround = light.map((v) => 255 - v);
+    expect(Array.from(inkFromGray(darkGround, width, height).dark)).toEqual(Array.from(inkFromGray(light, width, height).dark));
+    expect(inkFromGray(light, width, height).dark[12 * width + 30]).toBe(1);
+  });
+});

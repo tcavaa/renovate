@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { MissingApiKeyError, buildPlanFromReading, readPlanWithClaudeDetailed } from '@/lib/design/aiPlan';
 import { prepareForVision, type VisionInput } from '@/lib/design/planVision';
+import { checkIsPlan } from '@/lib/design/planCheck';
 import { parsePlanRequestSchema } from '@/lib/validations/plan.schema';
 import { RATE_RULES, rateLimited } from '@/lib/api/rateLimit';
 import { requirePlanFeature } from '@/lib/plans/server';
@@ -23,6 +24,10 @@ export const maxDuration = 300;
  * — `PLAN_REQUIRED` otherwise; Free draws its plan). The other cost guards are the per-IP rate
  * limit and that it only ever reads a file this app already stored (or the bundled sample), so
  * it cannot be pointed at arbitrary paths or used as a general image-analysis proxy.
+ *
+ * A cheap look runs first (`planCheck`): an upload that is not a floor plan — a photo of a room,
+ * a car — is answered 422 `NOT_A_PLAN` with no fallback, before the expensive read, and the card
+ * asks for another file.
  *
  * When no API key is configured this returns 503 with `fallback: 'cv'`, and the client parses
  * the plan locally instead. That is a deliberate degradation rather than an error: the
@@ -50,6 +55,14 @@ export async function POST(req: Request) {
     const vision = await readPlanImage(parsed.data.imageUrl);
     if (!vision) {
       return NextResponse.json({ data: null, error: 'Plan image not found' }, { status: 404 });
+    }
+
+    if (vision.glance) {
+      const check = await checkIsPlan({ imageBase64: vision.glance.base64, mediaType: vision.glance.mediaType });
+      if (!check.isPlan) {
+        log.info('upload is not a floor plan', { image: parsed.data.imageUrl, depicts: check.depicts });
+        return NextResponse.json({ data: null, error: 'NOT_A_PLAN', notPlan: true }, { status: 422 });
+      }
     }
 
     const { reading, usage } = await readPlanWithClaudeDetailed({
@@ -80,6 +93,8 @@ export async function POST(req: Request) {
       openings: result.plan.rooms.reduce((n, r) => n + r.openings.length, 0),
       worstResidualM: Number(result.worstResidualM.toFixed(3)),
       lowConfidence: result.lowConfidence,
+      scaleKnown: result.scaleKnown,
+      dimensions: reading.dimensions?.length ?? 0,
       unitSystem: reading.unitSystem,
       ...usage,
     });
@@ -89,6 +104,7 @@ export async function POST(req: Request) {
         plan: result.plan,
         lowConfidence: result.lowConfidence,
         worstResidualM: result.worstResidualM,
+        scaleKnown: result.scaleKnown,
         notes: result.notes,
       },
       error: null,

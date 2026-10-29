@@ -13,7 +13,9 @@ same upload card).
 
 | File | Responsibility |
 |---|---|
-| `components/design/PlanUploadCard.tsx` | the upload card used by both products' step 1: file → upload → read (Claude, else CV) → confirm scale/area; the game while it reads |
+| `components/design/PlanUploadCard.tsx` | the upload card used by both products' step 1: file → upload → read (Claude, else CV) → for a plan with no size of its own, one wall's length (`ScalePlanDrawing`); an upload that is not a plan refused; the game while it reads |
+| `lib/design/planCheck.ts` | the cheap look before the read — is it a floor plan at all? (`claude-haiku-5-5`, low effort, thinking off, on a 512 px copy: `checkIsPlan`); fails open |
+| `lib/design/planScale.ts` | a plan given its size from one wall: `defaultScaleEdge` (the longest inside edge on an outside wall), `scalePlanToEdge`, `scalePlan` |
 | `components/design/PlacementGame.tsx`, `lib/design/placementGame.ts` | "Where does it go?" — real catalogue pieces on a 3D turntable to put in the rooms of a little flat while the plan is read (below) |
 | `app/api/design/upload-plan/route.ts` | claims a plan the browser sent straight to storage and publishes it under `plans/` (Premium's and Professional's — `PLAN_REQUIRED` otherwise, [subscriptions.md](../subscriptions.md), as is `parse-plan`; 20 MB, bytes sniffed, never the declared type, GIF refused; `RATE_RULES.uploadPlan` when the place is asked for — [uploads.md](../uploads.md)) |
 | `lib/uploads/browserImage.ts` (`optimizePlanForUpload`) | browser: a plan goes as it came unless its longest side is over 4096 px or it is over 20 MB — then scaled down, aspect kept, a PNG staying PNG |
@@ -27,7 +29,7 @@ same upload card).
 | `lib/design/aiPlan.ts` | the prompt and schema, the call (structured output), `normaliseReading`, `labelMetres`, and `buildPlanFromReading`: reading + ink → walls, rooms, openings |
 | `lib/design/planInk.ts` | the drawing's ink: the wall band beside a box side (`wallBandNear`), bare stretches of a boundary (`bareRuns`, `inkShare`), the doorways and windows in a solid wall (`gapsAlong`) |
 | `lib/design/measure.ts` | reading printed dimension strings |
-| `lib/design/planSolver.ts` | box sides → wall centrelines with thicknesses, solved so every printed dimension holds face to face (least squares); the image ⇄ plan mapping |
+| `lib/design/planSolver.ts` | box sides → wall centrelines with thicknesses, solved so every printed size holds — a room's face to face, a dimension line from outer face or wall middle to outer face or wall middle (least squares); the walls' thicknesses (measured and rounded, or 30 / 12 cm); the image ⇄ plan mapping |
 | `lib/design/planGrid.ts` | solved lines → cells per room (overlaps, holes, pieces) → boundary runs → walls and room separators |
 | `lib/design/planGeometry.ts` | pixel regions → metric `FloorPlan`; edges, normals, `deriveOpenings` |
 | `lib/validations/plan.schema.ts` | the parse-plan payload |
@@ -39,12 +41,14 @@ same upload card).
 file (image or PDF) ─ planPdf (PDF → PNG, page 1) ─ optimizePlanForUpload (only when huge)
    ─▶ POST /api/uploads (a place) → PUT to storage → POST /api/design/upload-plan → stored URL
    ├─ POST /api/design/parse-plan  planVision: image + ruler for Claude, the same image as ink
-   │     Claude: rooms as boxes, printed dimensions, doors/windows/open sides/railings
+   │     planCheck (Haiku, a glance): not a floor plan → 422 NOT_A_PLAN, the card asks again
+   │     Claude: rooms as boxes, dimension lines, sizes in rooms, doors/windows/open sides/railings
    │     → planInk (box sides onto wall bands) → planSolver (centrelines, thicknesses)
    │     → planGrid (cells, walls, separators) → roomsFromWalls → openings onto the gaps
-   │     → FloorPlan with walls (lowConfidence flags)
+   │     → FloorPlan with walls (lowConfidence flags, scaleKnown)
    └─ 503 fallback:'cv' → planImage (RGBA ≤1100 px) → planParser (rooms as pixel polygons)
-         → the person confirms the total area/scale → planGeometry → FloorPlan
+         → planGeometry at an assumed 70 m² → ensureWalls → FloorPlan
+   nothing printed (scaleKnown false), or the CV path → one wall's length → planScale → FloorPlan
 FloorPlan → ensureWalls (plan-board.md: wallsFromRooms for the CV path's polygons) → the board
 ```
 
@@ -104,8 +108,16 @@ dimensions, and one grid the walls are built from.
 `claude-opus-5-5` at high effort, with the server-side refusal fallback on):
 
 - **Rooms as parts.** Each room is one or more rectangles covering its floor, inner face to inner
-  face: a rectangle is one part, an L two, a T or U three. Labels go on the part they measure.
+  face: a rectangle is one part, an L two, a T or U three. A size written *in* a room (or in a
+  table of rooms by name — "Bed 01: 3.5 x 3.0m") goes on its part: the room's clear inside size.
   A space labelled as two things at once ("Living Room and Kitchen") is one `studio`.
+- **Dimension lines on their own** (`dimensions`). Every size between two arrows or ticks — each
+  segment of a chain outside the plan, and the overall size beyond it — with its `axis`
+  (across / down), its two ends along that axis (`from`, `to`, where the extension lines meet the
+  walls) and where the line is drawn (`at`). They used to go on the rooms whose wall they ran
+  along, as if each were a clear room size: a chain adds up to the overall, measured to the walls'
+  outer faces and middles, so every wall's thickness was added on top — project 375's printed
+  11.50 × 7.75 m came out 12.29 × 8.52.
 - **Openings with a side and two ends.** `kind` is `door`, `window`, `archway`, `open` (no wall
   at all between two rooms) or `railing` (a balcony's open side); `side` is which side of
   `roomA` it is on, `from`/`to` its two ends on the wall; a door also gives the point its arc
@@ -141,16 +153,32 @@ typical wall is a wall with something drawn against it — a hatched kitchen cou
 outer face and takes the typical thickness (an exterior wall twice a partition is left alone). A side the ink pins becomes a
 wall **centreline and thickness**; one it does not becomes the box face pushed out by half a
 default 12 cm wall. The raster is Otsu-thresholded (capped below mid-grey, so pale fills do not
-count) — on a pure black-and-white drawing Otsu's threshold is 0, hence `<=`.
+count) — on a pure black-and-white drawing Otsu's threshold is 0, hence `<=`. A drawing in light
+lines on a dark ground (project 371: cream walls on brown) is inverted first (`darkGround`: most of
+a sample darker than mid-grey).
+
+**Is it a plan at all?** (`planCheck`). Before the read, a 512 px copy without the ruler
+(`VisionInput.glance`) goes to `claude-haiku-5-5` at low effort with thinking off, asking for
+`{ isPlan, depicts }` as structured output — well under a tetri, against the read's $0.05–0.30.
+A photo of a room, a building, a car or a person is answered 422 `NOT_A_PLAN` (`notPlan: true`, no
+CV fallback) and the card says so and asks for another file; a CAD export, an estate agent's plan,
+a hand sketch or a photo of a printed plan is a plan. No key, an error, a refusal or an answer that
+does not parse all count as a plan: the check can only save a read, never block one.
 
 **Solving** (`planSolver`):
 
 1. Every side's centreline estimate is snapped onto shared grid lines (a band the ink showed
    outranks a guess from a box face), so neighbours agree on the wall between them. Each line
    carries one wall thickness, the median of its members' bands.
-2. Those lines become the unknowns of a least-squares problem: each printed dimension is a
-   strong constraint **face to face** — the two centrelines stand the label plus half of each
-   wall apart — each line's observed position a weak one.
+2. Those lines become the unknowns of a least-squares problem; each line's observed position is
+   a weak constraint and each printed size a strong one. A size in a room runs **face to face** —
+   the two centrelines stand the label plus half of each wall apart. A **dimension line** runs
+   between what its two ends land on: each end snaps to the nearest line (within 4 % of the
+   image), and measures to that wall's **outer face** where the line is an outside wall at the end
+   the chain is drawn by (a room on one side only, there), else to the wall's **middle** — the
+   way an architect chains sizes, and the way the board draws its own chains
+   (`outerDimensionChains`, [plan-board.md](plan-board.md)), so the board shows the drawing's
+   numbers. A chain then adds up to its overall, and the overall is outer face to outer face.
 3. The solve gives the wall positions, and a piecewise mapping between the image and the plan
    (`toPlan` / `toImage`, linear between consecutive lines) that every opening and every ink
    check goes through. The mapping used to be one global scale with no origin, which put every
@@ -161,6 +189,23 @@ Counting the walls is what makes a drawing's labels agree. On the sample plan th
 labels were taken centreline to centreline — and exactly the 12 cm wall between bathroom and
 hallway. Every label is now met to about a centimetre (`pnpm test:solver` asserts under 3 cm),
 and `lowConfidence` is left for drawings that really disagree.
+
+**Wall thicknesses.** With anything printed, a wall the ink shows keeps its measured thickness
+rounded to a standard size (`standardWallThickness`: 8, 10, 12, 15, 20, 25, 30 … 60 cm); one the
+ink does not show is 30 cm when it is an outside wall and 12 cm inside (`DEFAULT_EXTERIOR_WALL_M`,
+`DEFAULT_WALL_M`). With nothing printed the ink's widths are in no unit, so every wall is 30 / 12.
+A line is an outside wall when a room of the flat stands on one side of it only, all along it — a
+balcony counts as outside, and a line that is a partition anywhere keeps a partition's thickness
+(one thickness per line; an outside wall's 30 cm on the bathroom–hallway line that runs on past
+the hallway would push both rooms' faces 9 cm off their sizes). A wall the ink does not show is
+widened outwards, the room's face staying where its box put it.
+
+**No size at all.** When nothing printed could be read (`scaleKnown: false` on the result and the
+route's answer) the plan is at an assumed scale; the upload card shows it with its longest outside
+wall picked and asks that wall's length, inside the room, as the board shows it — or another wall
+the person clicks (`planScale.scalePlanToEdge`: the positions scale, the thicknesses do not, so the
+factor is taken on the centreline: the inside length plus the half thicknesses at its two ends).
+The CV path, which never knows a size, ends the same way.
 
 Two axes need **two scales** — boxes are normalised against image width for x and height for
 y, and drawings are rarely square. Sharing one scale stretches an axis by the aspect ratio and
@@ -294,7 +339,7 @@ neither counts as sealed in; windows go on walls only, never on a separator's op
   no selectable text, no furniture schedule, no second sheet.
 - Floor-plan parsing has two paths: Claude reads the drawing when `ANTHROPIC_API_KEY` is set,
   and the deterministic CV parser takes over when it is not. The CV path cannot read
-  dimensions, so it still asks the user for the total floor area.
+  dimensions, so it always asks one wall's length.
 - A plan whose doors are inferred can come with no front door: `deriveOpenings` places the
   windows before the front door, and an entry room whose outside walls have all taken a window
   has no wall left for it. The sample plan read the CV way is one — its living room's two
@@ -306,9 +351,9 @@ neither counts as sealed in; windows go on walls only, never on a separator's op
   behind the bedroom — gets the line's median for both; widening one run moves the faces the
   printed dimensions are measured to, so it is not done.
 - A double door is read as one door of a single leaf's width (the CAD plan's front door).
-- Dimensions the model cannot parse (hand-lettered "55-14\"") leave the plan at the assumed
-  scale of about 12 m across, with nothing to flag it.
-- The ink helpers assume a light background and dark walls; walls drawn only as two thin
+- Dimensions the model cannot parse (hand-lettered "55-14\"") count as nothing printed: the plan
+  is at the assumed scale of about 12 m across and the person is asked one wall's length.
+- The ink helpers find dark walls on a light ground (a dark ground is inverted first); walls drawn only as two thin
   outlines are found as thin bands, and their doorways are not snapped (`gapsAlong` needs a
   solid band). A photographed plan is read without deskewing on this path.
 - Every opening keeps the default height and sill of its kind (a bathroom window is set high);

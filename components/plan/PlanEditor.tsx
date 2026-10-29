@@ -30,7 +30,7 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';
 import { archetypeLabel } from '@/lib/design/catalog';
 import { beamAt, columnAt, pointElementAt, polygonsOverlap, pressMoves, roomUnderRect, snapPoint, snapRectangle, snapRoomMove, snapWallOffset, wallAt, type BoardMoves, type BoardTarget, type SnapGuide } from '@/lib/design/drawing';
-import { MIN_RAILING_M, OPENING_DEFAULTS, cornerMargin, distanceToSegment, holdsRailings, nearestWall, projectToEdge, railingClash, railingFits, type WallTarget } from '@/lib/design/openings';
+import { MIN_RAILING_M, OPENING_DEFAULTS, cornerMargin, distanceToSegment, holdsRailings, nearestWall, openingWorldPoint, projectToEdge, railingClash, railingFits, type WallTarget } from '@/lib/design/openings';
 import { wallsToBuild } from '@/lib/design/partitions';
 import { pointInPolygon, pointOnEdge, roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
 import { roomAtPoint, snapPlacement } from '@/lib/design/manipulate';
@@ -224,6 +224,8 @@ const NO_INSETS: BoardInsets = { top: 0, right: 0, bottom: 0, left: 0 };
 /** Fit and zoom, for a page's own buttons — and the carried piece, for a drag from a tray. */
 export interface PlanEditorApi {
   fit: () => void;
+  /** Frames what is selected (a wall, a room, a piece, a point…), or the whole plan when nothing is. */
+  focus: () => void;
   /** Multiplies the scale about the centre of the canvas (of what `fitInsets` leaves of it); > 1 zooms in. */
   zoom: (factor: number) => void;
   /** The carried piece follows a drag from a tray (client coordinates). */
@@ -436,10 +438,11 @@ export function PlanEditor(props: PlanEditorProps) {
   // View
   // -------------------------------------------------------------------------
 
-  const fitView = useCallback(() => {
+  /** Frames these points with the margin the chains need; the whole plan when none are given. */
+  const frame = useCallback((only?: Vec2[]) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const points = [...plan.rooms.flatMap((r) => r.polygon), ...walls.flatMap((w) => [w.a, w.b])];
+    const points = only ?? [...plan.rooms.flatMap((r) => r.polygon), ...walls.flatMap((w) => [w.a, w.b])];
     // What floats over the sheet is taken off it first: the plan is framed in what is left.
     const cover = callbacks.current.fitInsets?.() ?? NO_INSETS;
     const width = Math.max(1, canvas.clientWidth - cover.left - cover.right);
@@ -456,10 +459,14 @@ export function PlanEditor(props: PlanEditorProps) {
       redraw();
       return;
     }
-    const minX = Math.min(...points.map((p) => p.x));
-    const maxX = Math.max(...points.map((p) => p.x));
-    const minZ = Math.min(...points.map((p) => p.z));
-    const maxZ = Math.max(...points.map((p) => p.z));
+    // A single piece is framed with a room's worth of sheet round it, not blown up to fill it.
+    const least = only ? 3 : 0;
+    const midX = (Math.min(...points.map((p) => p.x)) + Math.max(...points.map((p) => p.x))) / 2;
+    const midZ = (Math.min(...points.map((p) => p.z)) + Math.max(...points.map((p) => p.z))) / 2;
+    const minX = Math.min(midX - least / 2, ...points.map((p) => p.x));
+    const maxX = Math.max(midX + least / 2, ...points.map((p) => p.x));
+    const minZ = Math.min(midZ - least / 2, ...points.map((p) => p.z));
+    const maxZ = Math.max(midZ + least / 2, ...points.map((p) => p.z));
     // The dimension chains stand outside the plan and need the room for it.
     const margin = layers.dimensions ? 100 : 48;
     const scale = Math.max(8, Math.min(120, Math.min((width - margin * 2) / Math.max(1, maxX - minX), (height - margin * 2) / Math.max(1, maxZ - minZ))));
@@ -470,6 +477,58 @@ export function PlanEditor(props: PlanEditorProps) {
     };
     redraw();
   }, [plan.rooms, walls, redraw, layers.dimensions]);
+
+  const fitView = useCallback(() => frame(), [frame]);
+
+  /**
+   * The points of what is selected, for `focus`; null when nothing is. Read through a ref, so the
+   * API handed to the page stays the same object between renders.
+   */
+  const selectionPoints = useRef<() => Vec2[] | null>(() => null);
+  useEffect(() => {
+    selectionPoints.current = (): Vec2[] | null => {
+      const sel = selection;
+      if (sel?.kind === 'wall') {
+        const wall = walls.find((w) => w.id === sel.id);
+        return wall ? [wall.a, wall.b] : null;
+      }
+      if (sel?.kind === 'opening') {
+        const room = plan.rooms.find((r) => r.id === sel.roomId);
+        const opening = room?.openings.find((o) => o.id === sel.id);
+        const at = room && opening ? openingWorldPoint(room, opening) : null;
+        return at ? [at] : null;
+      }
+      if (sel?.kind === 'column') {
+        const column = columns.find((c) => c.id === sel.id);
+        return column ? [column.position] : null;
+      }
+      if (sel?.kind === 'beam') {
+        const beam = beams.find((b) => b.id === sel.id);
+        return beam ? [beam.a, beam.b] : null;
+      }
+      if (sel?.kind === 'technical') {
+        const point = technical.find((p) => p.id === sel.id);
+        return point ? [point.position] : null;
+      }
+      if (sel?.kind === 'electrical') {
+        const point = electrical.find((p) => p.id === sel.id);
+        return point ? [point.position] : null;
+      }
+      const roomId = sel?.kind === 'room' || sel?.kind === 'zone' ? (sel.kind === 'room' ? sel.id : sel.roomId) : selectedRoomId;
+      if (selectedItemId) {
+        const item = items.find((i) => i.id === selectedItemId);
+        if (item) return [item.position];
+      }
+      const room = roomId ? plan.rooms.find((r) => r.id === roomId) : undefined;
+      return room ? room.polygon : null;
+    };
+  });
+
+  const focusView = useCallback(() => {
+    const points = selectionPoints.current();
+    userAdjusted.current = true;
+    frame(points ?? undefined);
+  }, [frame]);
 
   useEffect(() => {
     if (fitted.current === fitKey && fitted.current !== undefined) return;
@@ -483,6 +542,7 @@ export function PlanEditor(props: PlanEditorProps) {
     if (!onApi) return;
     onApi({
       fit: fitView,
+      focus: focusView,
       zoom: (factor) => {
         const canvas = canvasRef.current;
         if (!canvas) return;
@@ -513,7 +573,7 @@ export function PlanEditor(props: PlanEditorProps) {
       },
     });
     return () => onApi(null);
-  }, [fitView, redraw, worldOfClient, dropCarriedAt]);
+  }, [fitView, focusView, redraw, worldOfClient, dropCarriedAt]);
 
   // Wheel: zoom around the pointer. Registered natively so the page does not scroll too.
   useEffect(() => {
@@ -722,7 +782,7 @@ export function PlanEditor(props: PlanEditorProps) {
           // Only the walls with an end on the corner being dragged move — and only they carry a length plate.
           if (near(wall.a) || near(wall.b)) live = { ...live, a: near(wall.a) ? gesture.to : live.a, b: near(wall.b) ? gesture.to : live.b };
         }
-        const isSelected = selection?.kind === 'wall' && selection.id === wall.id;
+        const isSelected = selection?.kind === 'wall' && (selection.id === wall.id || !!selection.ids?.includes(wall.id));
         const extension = live === wall ? wallExtensions.get(wall.id) : undefined;
         drawWall(ctx, tr, live, {
           selected: isSelected,
@@ -1246,6 +1306,12 @@ export function PlanEditor(props: PlanEditorProps) {
           const wall = walls.find((w) => w.id === selection.id)!;
           const from = Math.hypot(wall.a.x - world.x, wall.a.z - world.z) <= Math.hypot(wall.b.x - world.x, wall.b.z - world.z) ? wall.a : wall.b;
           gesture = { kind: 'node-drag', wallId: wall.id, from, to: from, moved: false, alone: shiftHeld.current };
+        } else if (hit.kind === 'wall' && shiftHeld.current && selection?.kind === 'wall' && selection.id !== hit.id && !walls.find((w) => w.id === hit.id)?.separator) {
+          // Shift-click on another wall gathers it (or lets it go), to change them together; a
+          // Shift-press on the wall in hand still drags it alone.
+          const gathered = selection.ids ?? [selection.id];
+          const ids = gathered.includes(hit.id!) ? gathered.filter((id) => id !== hit.id) : [...gathered, hit.id!];
+          callbacks.current.onSelect({ kind: 'wall', id: ids.includes(selection.id) ? selection.id : ids[0], ...(ids.length > 1 ? { ids } : {}) });
         } else if (hit.kind === 'wall') {
           callbacks.current.onSelect({ kind: 'wall', id: hit.id! });
           const wall = walls.find((w) => w.id === hit.id)!;

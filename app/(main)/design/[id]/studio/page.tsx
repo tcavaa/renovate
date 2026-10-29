@@ -588,7 +588,10 @@ export default function StudioPage() {
         } else if (selectedElement) {
           const structural = selectedElement.kind === 'wall' || selectedElement.kind === 'opening' || selectedElement.kind === 'column' || selectedElement.kind === 'beam';
           if (structural && structureLocked) return;
-          if (selectedElement.kind === 'wall') store.removeWall(selectedElement.id);
+          if (selectedElement.kind === 'wall') {
+            if (selectedElement.ids && selectedElement.ids.length > 1) store.removeWalls(selectedElement.ids);
+            else store.removeWall(selectedElement.id);
+          }
           if (selectedElement.kind === 'opening') store.removeOpening(selectedElement.roomId, selectedElement.id);
           if (selectedElement.kind === 'column') store.removeColumn(selectedElement.id);
           if (selectedElement.kind === 'beam') store.removeBeam(selectedElement.id);
@@ -885,6 +888,8 @@ export default function StudioPage() {
     updateWall: store.updateWall,
     resizeWall: store.resizeWall,
     removeWall: store.removeWall,
+    updateWalls: store.updateWalls,
+    removeWalls: store.removeWalls,
     updateOpening: (roomId: string, openingId: string, patch: Parameters<typeof store.updateOpening>[2]) => store.updateOpening(roomId, openingId, patch, products),
     removeOpening: store.removeOpening,
     addOpening: (roomId: string, kind: OpeningKind, wallIndex: number) => {
@@ -1376,6 +1381,7 @@ export default function StudioPage() {
           <ZoomControls
             onZoom={(f) => (view === '2d' ? planApi?.zoom(1 / f) : viewerApi?.zoom(f))}
             onReset={() => (view === '2d' ? planApi?.fit() : viewerApi?.reset())}
+            onFocus={view === '2d' ? () => planApi?.focus() : undefined}
             onFullscreen={toggleFullscreen}
             fullscreen={fullscreen}
             disabled={view === '2d' ? !planApi : view !== '3d' || !viewerApi}

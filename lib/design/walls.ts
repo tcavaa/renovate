@@ -28,7 +28,7 @@
 import { DEFAULT_CEILING_M } from '@/lib/calculator/constants';
 import type { RoomType } from '@/lib/calculator/types';
 import { pointInPolygon, polygonAreaM2, polygonCentroid, polygonPerimeterM, roomEdges, signedArea, type PlanEdge } from './planGeometry';
-import { MIN_RAILING_M, alignTwins, cornerMargin, projectToEdge, withOpeningTwins, type WallThickness } from './openings';
+import { MIN_RAILING_M, alignTwins, cornerMargin, projectToEdge, separateOverlaps, withOpeningTwins, type WallThickness } from './openings';
 import { nextRoomName } from './roomNames';
 import type { Column, ElementOrigin, FloorPlan, Opening, PlanRoom, Vec2, Wall } from './types';
 
@@ -648,8 +648,13 @@ export function wallsFromRooms(rooms: PlanRoom[], defaultThicknessM: number, ori
  * the length of the flat: selecting it selected all of it, dragging it moved four rooms, and
  * there was no such thing as *this room's* wall. Each junction now ends one wall and starts
  * the next, which is what the wall graph already does behind the scenes.
+ *
+ * A wall with no length is dropped here too: it encloses nothing and draws nothing, but a stray
+ * one 479 m from the flat (project 371) made the board fit a plan 489 m wide — the flat a dot
+ * somewhere off the sheet, and no way back to it.
  */
-export function splitAtJunctions(walls: Wall[]): Wall[] {
+export function splitAtJunctions(input: Wall[]): Wall[] {
+  const walls = input.filter((w) => wallLength(w) >= NODE_TOL_M);
   const ends = walls.flatMap((w) => [w.a, w.b]);
   const out: Wall[] = [];
   for (const wall of walls) {
@@ -703,7 +708,8 @@ export function ensureWalls(plan: FloorPlan): FloorPlan {
     // rooms; this is the hook every plan taken in passes through, so it is put right here
     // rather than waiting for the first edit.
     const cut = splitAtJunctions(plan.walls);
-    return withAlignedTwins(cut.length === plan.walls.length ? plan : rebuildRooms(plan, cut));
+    const same = cut.length === plan.walls.length && cut.every((w, i) => w === plan.walls![i]);
+    return withAlignedTwins(same ? plan : rebuildRooms(plan, cut));
   }
   if (plan.rooms.length === 0) return { ...plan, walls: [] };
   const walls = wallsFromRooms(plan.rooms, plan.wallThicknessM, plan.source === 'manual' ? 'user' : 'existing');
@@ -717,7 +723,7 @@ export function ensureWalls(plan: FloorPlan): FloorPlan {
  * interior door agree on one leaf (see `alignTwins`); same plan object when they already do.
  */
 function withAlignedTwins(plan: FloorPlan): FloorPlan {
-  const rooms = alignTwins(withOpeningTwins(plan.rooms, planWallThickness(plan)));
+  const rooms = separateOverlaps(alignTwins(withOpeningTwins(plan.rooms, planWallThickness(plan))));
   return rooms === plan.rooms ? plan : { ...plan, rooms };
 }
 
