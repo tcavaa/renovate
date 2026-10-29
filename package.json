@@ -29,6 +29,7 @@
     "models:fixtures": "tsx scripts/fixture-models.ts",
     "models:radiators": "tsx scripts/radiator-models.ts",
     "models:railings": "tsx scripts/railing-models.ts",
+    "models:blinds": "tsx scripts/blind-models.ts",
     "models:equipment": "tsx scripts/equipment-models.ts",
     "models:kitchens": "tsx scripts/kitchen-models.ts",
     "models:kitchen-walls": "tsx scripts/kitchen-wall-models.ts",

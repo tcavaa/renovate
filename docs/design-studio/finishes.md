@@ -165,6 +165,15 @@ its own maps and scale into `StyleMaterials.surface`, replacing the style's — 
 the oak floor's normal map underneath was the first bug here. Re-laying out the furniture keeps
 chosen finishes; switching style resets them.
 
+**One floor and one wall finish through the flat** (the owner's notes of 29 Oct 2026,
+`withFlatFinish`): once each room's finish is drawn, the lead room's (`flatFinishRoom`: the largest
+living room or studio, else the largest room that shares) floor and wall product are laid in every
+room that shares them (`sharesFlatFinish`) — every room but a bathroom, a toilet, a balcony and a
+closed kitchen (`isClosedKitchen`: no separator along it, no archway out of it), whose own floor is
+the style's tiled one in the table above. A room someone finished by hand keeps its finish, and a
+product that does not suit the room (a dry product in a wet room) is not laid. `defaultFinishes`
+and `generateScene` both end with it, the AI designer's floors and walls included.
+
 **The style's own floors and walls are partner products, and the budget buys them.** The
 textures the styles lay are the textures of `textures:stock` products (modern's bathroom walls
 are *wall-tile-textured-grey*, its bedroom floor *laminate-grey-10mm*, scandinavian's bedroom

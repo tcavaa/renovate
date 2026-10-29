@@ -99,6 +99,7 @@ pnpm models:stock [--inspect] [--only=…]   # CC0 stock furniture
 pnpm models:fixtures    # sockets, switches, lamps, doors, windows
 pnpm models:radiators   # the four radiator designs (one section each)
 pnpm models:railings    # the balcony railing (one metre module, not a product)
+pnpm models:blinds      # the roller blinds (one per product; migration 0013 seeds them)
 pnpm models:equipment [--only=…]   # panels, boilers, ACs, hoods, fan, drain, TV/data sockets, TVs (CC0/CC BY downloads)
 pnpm models:kitchens    # a kitchen run per kitchen material (one CC BY kitchen, re-textured)
 pnpm models:kitchen-walls   # the made-to-measure wall cabinets per material (made from boxes)

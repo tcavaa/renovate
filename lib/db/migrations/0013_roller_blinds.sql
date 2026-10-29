@@ -1,0 +1,27 @@
+-- Roller blinds (the owner's notes of 29 Oct 2026): a Modern or an Industrial flat's windows, and
+-- every kitchen's and bathroom's whatever the style, are dressed with a roller blind rather than
+-- curtains (`windowDressing`, lib/design/rules.ts). Their category under decor, of the `blind` 3D
+-- kind, beside the curtains; the three blinds `pnpm models:blinds` draws (public/models/blinds),
+-- sold by the textile shop by the piece; and the studio rooms that dress a window list them (the
+-- bathroom the curtains too: one slot). Insert-only: what the team already has is left as it is.
+-- Kept in step with BLIND_PRODUCTS (scripts/lib/blindProducts.ts) by tests/unit/catalog/blindMigration.test.ts.
+-- roller-blinds under decor
+INSERT INTO "categories" ("name_ka", "name_en", "name_ru", "slug", "icon", "calculation_type", "is_visible", "is_furniture", "in_calculator", "model_3d_kind", "sort_order", "parent_id") VALUES ('რულონური ფარდები', 'Roller blinds', 'Рулонные шторы', 'roller-blinds', 'blinds', 'per_unit', true, true, false, 'blind', 45, (SELECT "id" FROM "categories" WHERE "slug" = 'decor')) ON CONFLICT ("slug") DO NOTHING;
+--> statement-breakpoint
+INSERT INTO "products" ("category_id","store_id","name_ka","name_en","name_ru","description_ka","slug","sku","price_per_unit","unit","image_url","style_tags","model_3d_kind","model_3d_url","model_3d_status","color_hex","width_cm","depth_cm","height_cm","is_active","is_featured") VALUES ((SELECT "id" FROM "categories" WHERE "slug" = 'roller-blinds'), (SELECT "id" FROM "stores" WHERE "name_ka" = 'ტექსტილ+ ხალიჩები'), 'რულონური ფარდა — თეთრი', 'Roller blind — white', 'Рулонная штора — белая', 'თეთრი რულონური ფარდა, შუქგამტარი ქსოვილი, თეთრი კასეტა. ფანჯრის ზომაზე დამზადებული, კასეტით და მონტაჟით.', 'roller-blind-white', 'BL-ROLLER-BLIND-WHITE', '160.00', 'piece', '/uploads/furniture/roller-blind-white.webp', '["modern","scandinavian"]'::jsonb, 'blind', '/models/blinds/roller-blind-white.glb', 'ready', '#efede6', 100, 6, 60, true, false) ON CONFLICT ("slug") DO NOTHING;
+--> statement-breakpoint
+INSERT INTO "products" ("category_id","store_id","name_ka","name_en","name_ru","description_ka","slug","sku","price_per_unit","unit","image_url","style_tags","model_3d_kind","model_3d_url","model_3d_status","color_hex","width_cm","depth_cm","height_cm","is_active","is_featured") VALUES ((SELECT "id" FROM "categories" WHERE "slug" = 'roller-blinds'), (SELECT "id" FROM "stores" WHERE "name_ka" = 'ტექსტილ+ ხალიჩები'), 'რულონური ფარდა — ნახშირისფერი', 'Roller blind — charcoal', 'Рулонная штора — графитовая', 'ნახშირისფერი რულონური ფარდა, ჩამაბნელებელი ქსოვილი, შავი ლითონის კასეტა. ფანჯრის ზომაზე დამზადებული, კასეტით და მონტაჟით.', 'roller-blind-charcoal', 'BL-ROLLER-BLIND-CHARCOAL', '180.00', 'piece', '/uploads/furniture/roller-blind-charcoal.webp', '["industrial","modern"]'::jsonb, 'blind', '/models/blinds/roller-blind-charcoal.glb', 'ready', '#3d3e41', 100, 6, 60, true, false) ON CONFLICT ("slug") DO NOTHING;
+--> statement-breakpoint
+INSERT INTO "products" ("category_id","store_id","name_ka","name_en","name_ru","description_ka","slug","sku","price_per_unit","unit","image_url","style_tags","model_3d_kind","model_3d_url","model_3d_status","color_hex","width_cm","depth_cm","height_cm","is_active","is_featured") VALUES ((SELECT "id" FROM "categories" WHERE "slug" = 'roller-blinds'), (SELECT "id" FROM "stores" WHERE "name_ka" = 'ტექსტილ+ ხალიჩები'), 'რულონური ფარდა — სელისფერი', 'Roller blind — linen', 'Рулонная штора — льняная', 'სელისფერი რულონური ფარდა, სელის ტექსტურის ქსოვილი, კრემისფერი კასეტა. ფანჯრის ზომაზე დამზადებული, კასეტით და მონტაჟით.', 'roller-blind-linen', 'BL-ROLLER-BLIND-LINEN', '170.00', 'piece', '/uploads/furniture/roller-blind-linen.webp', '["scandinavian","vintage"]'::jsonb, 'blind', '/models/blinds/roller-blind-linen.glb', 'ready', '#d8cab0', 100, 6, 60, true, false) ON CONFLICT ("slug") DO NOTHING;
+--> statement-breakpoint
+INSERT INTO "shelf_room_categories" ("shelf_room_id", "category_id", "sort_order") SELECT r."id", c."id", 145 FROM "shelf_rooms" r JOIN "categories" c ON c."slug" = 'roller-blinds' WHERE r."slug" = 'living-room' ON CONFLICT DO NOTHING;
+--> statement-breakpoint
+INSERT INTO "shelf_room_categories" ("shelf_room_id", "category_id", "sort_order") SELECT r."id", c."id", 105 FROM "shelf_rooms" r JOIN "categories" c ON c."slug" = 'roller-blinds' WHERE r."slug" = 'bedroom' ON CONFLICT DO NOTHING;
+--> statement-breakpoint
+INSERT INTO "shelf_room_categories" ("shelf_room_id", "category_id", "sort_order") SELECT r."id", c."id", 65 FROM "shelf_rooms" r JOIN "categories" c ON c."slug" = 'roller-blinds' WHERE r."slug" = 'kitchen' ON CONFLICT DO NOTHING;
+--> statement-breakpoint
+INSERT INTO "shelf_room_categories" ("shelf_room_id", "category_id", "sort_order") SELECT r."id", c."id", 105 FROM "shelf_rooms" r JOIN "categories" c ON c."slug" = 'roller-blinds' WHERE r."slug" = 'office' ON CONFLICT DO NOTHING;
+--> statement-breakpoint
+INSERT INTO "shelf_room_categories" ("shelf_room_id", "category_id", "sort_order") SELECT r."id", c."id", 70 FROM "shelf_rooms" r JOIN "categories" c ON c."slug" = 'roller-blinds' WHERE r."slug" = 'bathroom' ON CONFLICT DO NOTHING;
+--> statement-breakpoint
+INSERT INTO "shelf_room_categories" ("shelf_room_id", "category_id", "sort_order") SELECT r."id", c."id", 75 FROM "shelf_rooms" r JOIN "categories" c ON c."slug" = 'curtains' WHERE r."slug" = 'bathroom' ON CONFLICT DO NOTHING;

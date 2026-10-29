@@ -21,13 +21,14 @@ import { isWetRoom } from './surfaces';
 import { finishCandidates, type AiProposal, type AiRoomProposal } from './aiProposal';
 import { wallEdges, type PlanEdge } from './planGeometry';
 import { freeSpans } from './decor/layout';
-import { AI_DECOR_FAMILIES, DECOR_FAMILIES, decorSlots, slotTakes } from './decor/families';
+import { AI_DECOR_FAMILIES, DECOR_FAMILIES, STYLE_DECOR_FAMILIES, decorSlots, slotTakes, styleTakesLed } from './decor/families';
 import { DECOR_ANCHORS, type DecorIntent } from './decor/resolve';
 import { decorMaterialKind, decorSpecs, isDecorMaterial } from './decor/materials';
 import type { DecorFamily, DecorParams, DecorSlot, FloorPlan, PlanRoom, StyleId, StyleProfile } from './types';
 import type { RoomType } from '@/lib/calculator/types';
 import { MissingApiKeyError } from './aiPlan';
-import { styleGuideText, subStyleFor } from './styleGuide';
+import { styleGuideText, styleRejects, subStyleFor } from './styleGuide';
+import { windowDressing } from './rules';
 
 /** The model: the same one that reads plans. A constant, chosen by evaluation, never a guess in code. */
 export const DESIGN_MODEL = 'claude-opus-5-5';
@@ -148,14 +149,14 @@ export function side(edge: PlanEdge): string {
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
-/** The kinds the engine lays out in a room of this type and size (the room program). */
-export function programKinds(room: PlanRoom): string[] {
+/** The kinds the engine lays out in a room of this type and size (the room program), its windows dressed for the style. */
+export function programKinds(room: PlanRoom, styleId?: StyleId): string[] {
   const types: RoomType[] = room.type === 'studio' ? ['kitchen', 'living_room'] : [room.type];
   const kinds = new Set<string>();
   for (const type of types) {
     for (const entry of ROOM_PROGRAMS[type] ?? []) {
       if (entry.minAreaM2 && room.areaM2 < entry.minAreaM2) continue;
-      kinds.add(resolveVariant(entry, room.areaM2));
+      kinds.add(windowDressing(resolveVariant(entry, room.areaM2), type, styleId));
     }
   }
   return [...kinds].filter((k) => !KINDS_FURNISHED_BY_ENGINE.has(k));
@@ -196,12 +197,15 @@ export function buildBrief(request: AiDesignRequest): { text: string; offer: Off
       lines.push(`- wall ${edge.index} (${side(edge)} side), ${r2(edge.length)} m: ${openings.length ? openings.join('; ') : 'solid'}${clear.length ? `; clear stretches ${clear.join(', ')} m` : '; no clear stretch'}`);
     }
     // The pieces the engine will lay out here, with the products that may fill each.
-    const kinds = programKinds(room);
+    const kinds = programKinds(room, styleId);
     const byKind = new Map<string, Set<number>>();
     for (const kind of kinds) {
       // A fresh draw from every product of the kind that fits the room: the style's own and the
       // well-priced more likely (`generationWeight`), any of them possible, the last design's rarely.
-      const pool = candidatesFor(kind, catalog, styleId).filter((p) => fitsRoom(p, room));
+      const fitting = candidatesFor(kind, catalog, styleId).filter((p) => fitsRoom(p, room));
+      // The style's rejects (Scandinavian: nothing black) are not offered, while anything else is.
+      const kept = fitting.filter((p) => !styleRejects(p, styleId));
+      const pool = kept.length > 0 ? kept : fitting;
       const ranked = weightedOrder(pool, (p) => generationWeight(p, styleId, 'balanced', undefined, false) * fresh(p), rng).slice(0, CANDIDATES_PER_KIND);
       if (ranked.length === 0) continue;
       byKind.set(kind, new Set(ranked.map((p) => p.id)));
@@ -264,12 +268,13 @@ Everything you choose is real and purchasable: you pick products and materials o
 
 ## Furniture and finishes
 - For each room, choose one product per piece listed under "Pieces the engine lays out", from that piece's ids. Leave a piece out to let the engine choose. The lists are a fresh random draw from the catalogue for every flat and in no order: consider every id, not the first ones, and follow the flat's direction — no two flats should come out alike. Pieces in one room should belong together (materials, colours, scale); keep a palette of at most 3–4 colour families per room, consistent across the flat, and respect the budget (mid-range when none is set).
-- Choose one floor and one wall finish per room from its own lists (0 keeps the style's default). Keep floors continuous through living spaces; calmer walls in bedrooms; wet rooms only from their wet lists.
+- Choose one floor and one wall finish per room from its own lists (0 keeps the style's default). One floor through the whole flat — the same product in every room but the bathrooms, the toilets, a balcony and a closed kitchen (whose floor is tiled) — and the same wall finish, or tones of one family, so the materials never become a mixture; wet rooms only from their wet lists.
 - Follow the style guide and the flat's sub-style (given with the flat): its palette, materials, furniture, kitchen, lighting and walls.
-- The owner's design rules: one palette of 2–3 main colours plus one accent, repeating materials across rooms for continuity; light in three layers (ambient, task, accent), warm (2700–3000 K) in living rooms and bedrooms, neutral (3500–4000 K) in kitchens and offices; curtains floor-length from just under the ceiling; a shower at least 80×80 cm (better 90×90), a basin's top at 85 cm, a wardrobe 60 cm deep (35–40 cm when shallow); hidden storage in the entrance, the kitchen and the bedrooms. The engine already keeps the WC out of the door's sight, the bed preferably too, the kitchen out of the entrance's, and the sizes between pieces.
+- The owner's design rules: one palette of 2–3 main colours plus one accent, repeating materials across rooms for continuity; light in three layers (ambient, task, accent), warm (2700–3000 K) in living rooms and bedrooms, neutral (3500–4000 K) in kitchens and offices; curtains floor-length from just under the ceiling, roller blinds instead in a Modern or Industrial flat and over every kitchen's and bathroom's window; a shower at least 80×80 cm (better 90×90), a basin's top at 85 cm, a wardrobe 60 cm deep (35–40 cm when shallow); hidden storage in the entrance, the kitchen and the bedrooms. The engine already keeps the WC out of the door's sight, the bed preferably too, the kitchen out of the entrance's, and the sizes between pieces.
 
 ## Custom wall decor
 - Realise concepts from the decor references for the style. Use 1–2 pieces in living rooms, bedrooms, offices and studios; at most one in a hallway, kitchen or bathroom; none is fine (storage, closets, toilets, balconies usually get none). Never more than 3 in a room, never two on the same stretch of wall.
+- Decor by style (the owner's rules): Vintage takes the most decor and characterful details; Modern (minimalist) stays clean — decor used selectively, and the only style with wall panels and with LED (light lines, coves, a lit niche or slab); Scandinavian has no mouldings and no decorative wall treatments — at most a timber slat wall or a niche, and plants and floor lamps rather than decor; Industrial has no mouldings and no concealed or LED light. The families a style does not take are dropped.
 - anchor: bed | tv | sofa | desk | dining | kitchen — centred on that piece, on the wall it stands against (only for pieces the room has: bed in bedrooms, tv/sofa in living rooms, desk in offices, dining where a dining table is laid out, kitchen = the kitchen run: a tile or slab backsplash from the worktop to the wall cabinets, the whole length of the run — tiles in a kitchen always go there, and so does a slab on the run's wall or no higher than 1.8 m); wall — on wall "wallIndex" (the wall numbers above; it is fitted to that wall's longest clear stretch; -1 with any other anchor); room — a light cove round the ceiling (rectangular rooms only).
 - widthM: 0 lets the engine size it (the anchor's width plus a margin, or the whole clear stretch); give a number only when the design needs it. heightFromM / heightToM: -1 for the family's default (a slab behind a TV 0.65–2.45 m, slats behind a bed from 1.0 m to near the ceiling, an upholstered headboard panel 0.35–1.6 m, a tiled field up to 1.2 m, a kitchen backsplash from the worktop to the wall cabinets, everything else floor to ceiling); give numbers for a half-height wainscot or a panel above a headboard. A niche is a wall built out about 30 cm: it goes only on a wall stretch with nothing standing against it (never behind a bath, a washing machine, a bed or a cabinet). Decor never covers a window or a door, and furniture is never hidden by it.
 - Families and the materials each part takes (slot (material kinds)):
@@ -426,7 +431,7 @@ const text = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? v
  * from the room's pools, decor of a known family with materials of a kind its slot takes and
  * references for this style. Throws when nothing usable is left — the caller falls back.
  */
-export function validateProposal(raw: { rooms?: RawRoom[] }, plan: FloorPlan, offer: Offer, model: string): AiProposal {
+export function validateProposal(raw: { rooms?: RawRoom[] }, plan: FloorPlan, offer: Offer, model: string, styleId?: StyleId): AiProposal {
   const roomIds = new Set(plan.rooms.map((r) => r.id));
   const wet = new Set(plan.rooms.filter((r) => isWetRoom(r.type)).map((r) => r.id));
   const rooms: AiRoomProposal[] = [];
@@ -442,6 +447,8 @@ export function validateProposal(raw: { rooms?: RawRoom[] }, plan: FloorPlan, of
       // A bathroom's and a toilet's walls are tiled as their finish: a tiled field on them is the work twice.
       if (d.family === 'tile' && wet.has(room.roomId)) continue;
       const family = d.family as DecorFamily;
+      // What the style takes (panels only in Modern, nothing decorative in Scandinavian…).
+      if (styleId && !STYLE_DECOR_FAMILIES[styleId].includes(family)) continue;
       const materials = (d.materials ?? [])
         .filter((m) => {
           if (!m || !decorSlots(family).includes(m.slot as DecorSlot) || !m.productId) return false;
@@ -458,7 +465,8 @@ export function validateProposal(raw: { rooms?: RawRoom[] }, plan: FloorPlan, of
         widthM: typeof d.widthM === 'number' && d.widthM > 0 ? d.widthM : null,
         heightFromM: typeof d.heightFromM === 'number' && d.heightFromM >= 0 ? d.heightFromM : null,
         heightToM: typeof d.heightToM === 'number' && d.heightToM > 0 ? d.heightToM : null,
-        params: readParams(d.params),
+        // LED only in Modern: elsewhere a piece's light is switched off.
+        params: styleId && !styleTakesLed(styleId) ? { ...readParams(d.params), led: 'none' } : readParams(d.params),
         materials,
         note: text(d.note, 400),
       });
@@ -504,7 +512,7 @@ export async function designWithClaude(request: AiDesignRequest): Promise<{ prop
   const block = response.content.find((b): b is Anthropic.Beta.BetaTextBlock => b.type === 'text');
   if (!block) throw new Error(`The designer returned nothing (stop_reason: ${response.stop_reason})`);
 
-  const proposal = validateProposal(JSON.parse(block.text) as { rooms?: RawRoom[] }, request.plan, offer, response.model);
+  const proposal = validateProposal(JSON.parse(block.text) as { rooms?: RawRoom[] }, request.plan, offer, response.model, request.styleId);
   const u = response.usage;
   const price = PRICE_PER_MTOK[model] ?? PRICE_PER_MTOK[DESIGN_MODEL];
   const cacheRead = u.cache_read_input_tokens ?? 0;

@@ -46,6 +46,7 @@ import { effectivePhases } from '@/lib/design/technical';
 import { archetypeLabel } from '@/lib/design/catalog';
 import { RuleWarnings } from '@/components/studio/RuleWarnings';
 import { underCeiling } from '@/lib/design/rules';
+import { resizeDecor, type DecorExtent } from '@/lib/design/decor/resize';
 import { equipmentSignature } from '@/lib/design/equipment';
 import { isCustomKitchenItem, kitchenMaterialSignature } from '@/lib/design/kitchen';
 import { loadDesignVersions, saveDesign } from '@/lib/design/saveDesign';
@@ -66,7 +67,7 @@ import type { PaintTarget } from '@/lib/design/paint';
 import { formatM2 } from '@/lib/utils';
 import { fill } from '@/lib/admin/list';
 import type { EditorTool, PlanEditorApi } from '@/components/plan/PlanEditor';
-import type { ElectricalKind, OpeningKind, PlacedItem, TechnicalKind, Vec2 } from '@/lib/design/types';
+import type { DecorPiece, ElectricalKind, OpeningKind, PlacedItem, PlanRoom, TechnicalKind, Vec2 } from '@/lib/design/types';
 import { openingProductKind } from '@/lib/design/openings';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import type { ViewerApi, EditMode } from '@/components/design/Viewer3D';
@@ -466,6 +467,19 @@ export default function StudioPage() {
   const onMoveColumn = useCallback((id: string, position: Vec2) => store.updateColumn(id, { position }), [store]);
   const onMoveElectrical = useCallback((id: string, position: Vec2) => store.moveElectricalPoint(id, position), [store]);
   const onMoveOpening = useCallback((roomId: string, openingId: string, tt: number) => store.moveOpening(roomId, openingId, tt), [store]);
+  // A decor piece resized — by its arrows in 3D or its card's sizes — measured on its room as the
+  // card shows it (under a lowered ceiling) and kept on its wall (`lib/design/decor/resize`).
+  const onResizeDecor = useCallback(
+    (id: string, resize: (piece: DecorPiece, room: PlanRoom) => DecorExtent | null) => {
+      if (!plan || !gate('catalog')) return;
+      const piece = decor.find((d) => d.id === id);
+      const room = piece ? plan.rooms.find((r) => r.id === piece.roomId) : undefined;
+      const extent = piece && room ? resize(piece, underCeiling(room, plan)) : null;
+      if (extent) store.setDecorExtent(id, extent);
+    },
+    [plan, decor, gate, store]
+  );
+  const onDecorDragged = useCallback((id: string, extent: DecorExtent) => onResizeDecor(id, () => extent), [onResizeDecor]);
 
   // The 3D view and the 2D board both carry; the walk-through has no pointer to carry on, so
   // entering it with a piece still on the pointer gives the piece up the way Escape does — an
@@ -1103,6 +1117,7 @@ export default function StudioPage() {
               frameKey={planSerial}
               selectedOpeningId={selectedElement?.kind === 'opening' ? selectedElement.id : null}
               onMoveOpening={onMoveOpening}
+              onResizeDecor={onDecorDragged}
               onSelectElement={onSelectElement}
               onOffsetWall={onOffsetWall}
               onMoveColumn={onMoveColumn}
@@ -1275,6 +1290,7 @@ export default function StudioPage() {
                   onMaterial={(slot, product) => gate('catalog') && store.setDecorMaterial(selectedElement.id, slot, product)}
                   onColor={(slot, colorHex) => gate('catalog') && store.setDecorColor(selectedElement.id, slot, colorHex)}
                   onParams={(patch) => gate('catalog') && store.setDecorParams(selectedElement.id, patch)}
+                  onSize={(size) => onResizeDecor(selectedElement.id, (piece, room) => resizeDecor(piece, room, size))}
                   onRemove={() => gate('catalog') && store.removeDecor(selectedElement.id)}
                 />
               </FloatingPanel>

@@ -107,6 +107,10 @@ air conditioners, cooker hoods, extractor fans, floor drains
 ([design-studio/technical-and-fittings.md](design-studio/technical-and-fittings.md#equipment-is-bought-one-per-point-libdesignequipmentts));
 **TVs** ("ტელევიზორები", `tvs`, kind `tv`) under Furniture beside storage, on the living room's
 shelf after the TV units (migration `0008_tv_category`); the bedroom's and the office's list the floor lamps since their programs have one (migration `0012_floor_lamps_bedroom_office`, insert-only);
+**roller blinds** ("რულონური ფარდები", `roller-blinds`, kind `blind`) under Decor beside the
+curtains — the living room's, bedroom's, kitchen's, office's and bathroom's shelves list them (the
+bathroom the curtains too, one slot), with the three code-built blinds (migration
+`0013_roller_blinds`, insert-only; the slug is not `blinds`, the curtains' icon's name);
 **kitchen wall cabinets** ("სამზარეულოს ზედა კარადები", `kitchen-wall-units`, kind
 `kitchen_wall`) under Kitchen furniture, on the kitchen's shelf after the units (migration
 `0004_kitchen_wall_cabinets`, which moved the library's one wall cabinet there from the runs);

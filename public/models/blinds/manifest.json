@@ -1,0 +1,36 @@
+{
+  "generatedAt": "2026-10-29",
+  "note": "Written by scripts/blind-models.ts. One roller blind per product in scripts/lib/blindProducts.ts: centred on x, standing on y = 0, centred on z, its front along +z, in metres. The studio stretches it to its window (the curtain slot).",
+  "models": [
+    {
+      "slug": "roller-blind-white",
+      "url": "/models/blinds/roller-blind-white.glb",
+      "imageUrl": "/uploads/furniture/roller-blind-white.webp",
+      "widthCm": 100,
+      "heightCm": 60,
+      "depthCm": 6,
+      "triangles": 58,
+      "bytes": 4900
+    },
+    {
+      "slug": "roller-blind-charcoal",
+      "url": "/models/blinds/roller-blind-charcoal.glb",
+      "imageUrl": "/uploads/furniture/roller-blind-charcoal.webp",
+      "widthCm": 100,
+      "heightCm": 60,
+      "depthCm": 6,
+      "triangles": 58,
+      "bytes": 4924
+    },
+    {
+      "slug": "roller-blind-linen",
+      "url": "/models/blinds/roller-blind-linen.glb",
+      "imageUrl": "/uploads/furniture/roller-blind-linen.webp",
+      "widthCm": 100,
+      "heightCm": 60,
+      "depthCm": 6,
+      "triangles": 58,
+      "bytes": 4900
+    }
+  ]
+}

@@ -5,6 +5,7 @@
  * knobs it starts from.
  */
 
+import type { StyleId } from '../types';
 import type { DecorFamily, DecorParams, DecorSlot } from '@/lib/design/types';
 import type { DecorMaterialKind } from './materials';
 
@@ -89,4 +90,22 @@ export function slotTakes(family: DecorFamily, slot: DecorSlot, kind: DecorMater
 export function hasLed(family: DecorFamily, params: DecorParams): boolean {
   if (family === 'light') return true;
   return !!DECOR_FAMILIES[family].slots.led && !!params.led && params.led !== 'none';
+}
+
+/**
+ * The decor families a style takes when the designer proposes a flat (the owner's notes of 29 Oct
+ * 2026): wall panels only in Modern; no mouldings or decorative wall treatments in Scandinavian;
+ * no mouldings or concealed light in Industrial; light lines and coves (LED) only in Modern. The
+ * WC's box and a kitchen's tiled backsplash are every style's. A person adds any family by hand.
+ */
+export const STYLE_DECOR_FAMILIES: Record<StyleId, readonly DecorFamily[]> = {
+  modern: ['slats', 'moulding', 'niche', 'slab', 'light', 'panel', 'cladding', 'mural', 'tile', 'box'],
+  scandinavian: ['slats', 'niche', 'tile', 'box'],
+  industrial: ['slats', 'niche', 'slab', 'cladding', 'mural', 'tile', 'box'],
+  vintage: ['slats', 'moulding', 'niche', 'slab', 'cladding', 'mural', 'tile', 'box'],
+};
+
+/** Whether a style's designed flat may have LED in its decor (a slat's, a niche's, a slab's halo): Modern only. */
+export function styleTakesLed(styleId: StyleId): boolean {
+  return styleId === 'modern';
 }

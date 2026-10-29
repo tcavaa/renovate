@@ -212,6 +212,59 @@ export function generatedFinish(room: PlanRoom, surface: 'floor' | 'wall' | 'cei
   return product.colorHex ? finish : { ...finish, colorHex: styled.colorHex };
 }
 
+/**
+ * A kitchen that is a room of its own, not open to the living room (no room separator along it,
+ * no archway out of it): its floor is tiled, where an open kitchen wears the flat's floor.
+ */
+export function isClosedKitchen(room: Pick<PlanRoom, 'type' | 'open' | 'openings'>): boolean {
+  return room.type === 'kitchen' && !(room.open?.length) && !room.openings.some((o) => o.kind === 'archway');
+}
+
+/**
+ * The rooms that share the flat's one floor and its walls (the owner's notes of 29 Oct 2026: the
+ * same flooring through the house, except bathrooms and sometimes kitchens; walls the same or of
+ * one tone): every room but a bathroom or a toilet, a balcony and a closed kitchen.
+ */
+export function sharesFlatFinish(room: Pick<PlanRoom, 'type' | 'open' | 'openings'>): boolean {
+  return !isWetRoom(room.type) && room.type !== 'balcony' && !isClosedKitchen(room);
+}
+
+/** The room the flat's floor and walls are drawn for: the largest living room or studio, else the largest room that shares them. */
+export function flatFinishRoom(rooms: PlanRoom[]): PlanRoom | null {
+  const sharing = rooms.filter(sharesFlatFinish);
+  const living = sharing.filter((r) => r.type === 'living_room' || r.type === 'studio');
+  return [...(living.length > 0 ? living : sharing)].sort((a, b) => b.areaM2 - a.areaM2)[0] ?? null;
+}
+
+/**
+ * The flat's one floor and one wall finish laid in every room that shares them: the lead room's
+ * product (`flatFinishRoom`), where it suits the room — a room someone finished by hand keeps its
+ * own. The same array when there is nothing to change.
+ */
+export function withFlatFinish(finishes: SurfaceFinish[], rooms: PlanRoom[], catalog: CatalogProduct[]): SurfaceFinish[] {
+  const lead = flatFinishRoom(rooms);
+  if (!lead || catalog.length === 0) return finishes;
+  const byId = new Map(catalog.map((p) => [p.id, p]));
+  let next = finishes;
+  for (const surface of ['floor', 'wall'] as const) {
+    const leading = finishes.find((f) => f.roomId === lead.id && f.surface === surface && isBaseFinish(f));
+    const product = leading?.product ? byId.get(leading.product.productId) : undefined;
+    if (!product) continue;
+    for (const room of rooms) {
+      if (room.id === lead.id || !sharesFlatFinish(room) || !suitsRoom(product, room, surface)) continue;
+      const index = next.findIndex((f) => f.roomId === room.id && f.surface === surface && isBaseFinish(f));
+      const current = index >= 0 ? next[index] : undefined;
+      if (current && !isStyleFinish(current)) continue;
+      if (current?.product?.productId === product.id) continue;
+      const laid: SurfaceFinish = { ...finishFromProduct(room, surface, product, 'style'), laidFor: room.type, ...(product.colorHex ? {} : { colorHex: leading!.colorHex }) };
+      if (next === finishes) next = [...finishes];
+      if (index >= 0) next[index] = laid;
+      else next.push(laid);
+    }
+  }
+  return next;
+}
+
 /** Whether a finish product suits this surface of this room as the style would lay it: the surface's, and wet in a bathroom, dry elsewhere. */
 function suitsRoom(product: CatalogProduct | undefined, room: PlanRoom, surface: Surface): boolean {
   return !!product && isSurfaceProduct(product, surface) && !!surfaceSpecs(product).wet === isWetRoom(room.type);

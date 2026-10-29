@@ -231,3 +231,13 @@ export function guideFit(product: { colorHex?: string | null; specs?: unknown; n
   const material = guide.materialWords.some((w) => words.includes(w));
   return 1 + (colour ? 0.35 : 0) + (material ? 0.25 : 0);
 }
+
+/**
+ * Whether a style keeps a product out of a generated flat (the owner's notes of 29 Oct 2026):
+ * Scandinavian has no piece whose main colour is black — light, bright colours from the fridge to
+ * the sofa; small black details (legs, handles) are allowed. The swap list still offers it.
+ */
+export function styleRejects(product: { colorHex?: string | null; specs?: unknown }, styleId: StyleId): boolean {
+  if (styleId !== 'scandinavian') return false;
+  return productColorFamilies(product)[0] === 'black';
+}

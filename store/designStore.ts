@@ -406,6 +406,8 @@ export interface DesignActions {
   setDecorColor: (id: string, slot: DecorSlot, colorHex: string | null) => void;
   /** A decor piece's knobs: its light line, slat gap, niche count… */
   setDecorParams: (id: string, patch: DecorParams) => void;
+  /** A decor piece resized by hand — its arrows in 3D or its card's sizes (`lib/design/decor/resize`). */
+  setDecorExtent: (id: string, extent: Pick<DecorPiece, 'span' | 'height'>) => void;
   removeDecor: (id: string) => void;
   /**
    * Empties the flat and leaves the flat: every piece of furniture, every fitting and every
@@ -1274,6 +1276,12 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             // A WC's box to the ceiling runs as high as the room lets it; half height, to its shelf.
             const height = (d: DecorPiece) => (d.family === 'box' && patch.full !== undefined ? { height: { from: 0, to: patch.full ? 20 : WC_BOX_HALF_M } } : {});
             return { decor: s.decor.map((d) => (d.id === id ? { ...d, params: { ...d.params, ...patch }, ...height(d), origin: 'studio' as const } : d)) };
+          }),
+        setDecorExtent: (id, extent) =>
+          commit((s) => {
+            const piece = s.decor.find((d) => d.id === id);
+            if (!piece || (piece.span.from === extent.span.from && piece.span.to === extent.span.to && piece.height.from === extent.height.from && piece.height.to === extent.height.to)) return null;
+            return { decor: s.decor.map((d) => (d.id === id ? { ...d, span: { ...extent.span }, height: { ...extent.height }, origin: 'studio' as const } : d)) };
           }),
         removeDecor: (id) =>
           commit((s) => ({ decor: s.decor.filter((d) => d.id !== id), selectedElement: s.selectedElement?.kind === 'decor' && s.selectedElement.id === id ? null : s.selectedElement })),

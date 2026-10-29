@@ -74,7 +74,7 @@ export type PlacementRule =
    * piece's length when `stretch` (the cabinets), else its own width at most. With `onlyAbove`,
    * nowhere when the room has none of those pieces (a TV with no TV unit).
    */
-  | { type: 'wall-mounted'; heightM: number; above?: SlotKind | SlotKind[]; aboveHeightM?: number; stretch?: boolean; onlyAbove?: boolean }
+  | { type: 'wall-mounted'; heightM: number; above?: SlotKind | SlotKind[]; aboveHeightM?: number; stretch?: boolean; onlyAbove?: boolean; /** Over a piece, its bottom at least this far over the piece's top (default 15 cm; 12 once matched). */ aboveGapM?: number }
   /** Laid on the floor under another item, sized to it. */
   | { type: 'under'; to: SlotKind; padM: number }
   /**
@@ -525,7 +525,9 @@ export const ARCHETYPES: Record<string, Archetype> = {
     labelRu: 'Картина',
     categorySlug: 'decor',
     size: { width: 0.95, depth: 0.05, height: 0.7 },
-    placement: { type: 'wall-mounted', heightM: 1.55, above: ['bed', 'sofa'], aboveHeightM: 1.45 },
+    // Gallery height (the owner's notes): the picture's middle at 1.5 m on a free wall; over a bed
+    // or a sofa its bottom 25 cm over the piece's top (20–30 cm), never higher than that asks.
+    placement: { type: 'wall-mounted', heightM: 1.5, above: ['bed', 'sofa'], aboveHeightM: 0, aboveGapM: 0.25 },
     priority: 12,
     ghost: true,
   },
@@ -537,6 +539,21 @@ export const ARCHETYPES: Record<string, Archetype> = {
     labelRu: 'Шторы',
     categorySlug: 'decor',
     size: { width: 2.0, depth: 0.12, height: 2.4 },
+    placement: { type: 'window' },
+    priority: 10,
+    ghost: true,
+  },
+  // A roller blind (the owner's notes: Modern and Industrial windows, and every kitchen's and
+  // bathroom's): the curtain's slot, so it is sized to its window and priced like one; the layout
+  // dresses each window with one or the other (`windowDressing` in rules.ts).
+  blind: {
+    kind: 'blind',
+    slot: 'curtain',
+    labelKa: 'რულონური ფარდა',
+    labelEn: 'Roller blind',
+    labelRu: 'Рулонная штора',
+    categorySlug: 'decor',
+    size: { width: 1.3, depth: 0.06, height: 0.6 },
     placement: { type: 'window' },
     priority: 10,
     ghost: true,
@@ -606,7 +623,7 @@ export const ROOM_PROGRAMS: Record<RoomType, ProgramEntry[]> = {
     { kind: 'dining_table', count: 1, minAreaM2: 10 },
     { kind: 'dining_chair', count: 'fill', minAreaM2: 10 },
     { kind: 'pendant', count: 1 },
-    { kind: 'curtain', count: 1 },
+    { kind: 'blind', count: 1 },
   ],
   // The bath before the shower: a bath has its own shower, and a separate shower goes in only when
   // there is room for one besides; a bathroom too small for a bath has the shower alone.
@@ -620,6 +637,7 @@ export const ROOM_PROGRAMS: Record<RoomType, ProgramEntry[]> = {
     { kind: 'shower', count: 1 },
     { kind: 'washer', count: 1, minAreaM2: 4.5 },
     { kind: 'mirror', count: 1 },
+    { kind: 'blind', count: 1 },
   ],
   toilet: [
     { kind: 'toilet', count: 1 },

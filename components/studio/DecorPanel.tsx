@@ -21,7 +21,8 @@ import { decorMaterialsOf, defaultDecorMaterial } from '@/lib/design/decor/mater
 import { decorWall, paramsOf } from '@/lib/design/decor/layout';
 import { piecePurchases } from '@/lib/design/decor/quantities';
 import { PAINT_COLORS } from '@/lib/design/styles';
-import { Chip } from '@/components/plan/ElementInspector';
+import { Chip, NumberField } from '@/components/plan/ElementInspector';
+import { decorExtent, isResizable } from '@/lib/design/decor/resize';
 import type { Dictionary } from '@/lib/i18n/ka';
 
 /** The colours a paintable part offers: the studio's paints, then a few deeper accents. */
@@ -56,6 +57,7 @@ export function DecorPanel({
   onMaterial,
   onColor,
   onParams,
+  onSize,
   onRemove,
 }: {
   piece: DecorPiece;
@@ -64,6 +66,8 @@ export function DecorPanel({
   onMaterial: (slot: DecorSlot, product: CatalogProduct | null) => void;
   onColor: (slot: DecorSlot, colorHex: string | null) => void;
   onParams: (patch: DecorParams) => void;
+  /** A size typed on the card: its width, its height, or its bottom off the floor (metres). */
+  onSize: (size: { widthM?: number; heightM?: number; bottomM?: number }) => void;
   onRemove: () => void;
 }) {
   const t = useT();
@@ -73,6 +77,7 @@ export function DecorPanel({
   const purchases = piecePurchases(piece, room);
   const total = purchases.reduce((sum, line) => sum + line.total, 0);
   const ledOptions = LED_OPTIONS[piece.family];
+  const extent = isResizable(piece) ? decorExtent(piece, room) : null;
   const slots = decorSlots(piece.family).filter((slot) => slot !== 'led' || piece.family === 'light' || (params.led && params.led !== 'none'));
 
   const setLed = (led: NonNullable<DecorParams['led']>) => {
@@ -99,6 +104,18 @@ export function DecorPanel({
           </p>
         )}
       </div>
+
+      {extent && (
+        <div>
+          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">{t.decor.size}</p>
+          <div className="grid grid-cols-3 gap-1.5">
+            <NumberField label={t.decor.width} value={extent.span.to - extent.span.from} min={0.2} max={30} step={0.05} onCommit={(widthM) => onSize({ widthM })} />
+            <NumberField label={t.decor.height} value={extent.height.to - extent.height.from} min={0.1} max={room.heightM} step={0.05} onCommit={(heightM) => onSize({ heightM })} />
+            <NumberField label={t.decor.fromFloor} value={extent.height.from} min={0} max={room.heightM} step={0.05} onCommit={(bottomM) => onSize({ bottomM })} />
+          </div>
+          <p className="mt-1 text-[11px] text-ink-soft">{t.decor.resizeHint}</p>
+        </div>
+      )}
 
       {ledOptions && (
         <div>

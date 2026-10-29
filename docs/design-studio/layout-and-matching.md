@@ -104,6 +104,22 @@ scene ──tightSpots──▶ amber warnings (not a rule)
 - **A bookcase stands beside or behind the sofa** (+8 behind, +4 beside), never on the TV's wall in
   its line of sight (−20). **A wardrobe stands beside the bed** (+6 on a side wall), never facing it
   from its foot (−20), and every bedroom has one (no area gate).
+- **Windows by style** (`windowDressing` in `rules.ts`, `LayoutOptions.styleId`): the program's
+  curtain is a roller blind (`blind`, an archetype of the curtain's slot — sized to its window,
+  `quantityFor` one a window) in a Modern or Industrial flat and in every kitchen, bathroom and
+  toilet (the kitchen's and the bathroom's programs list a blind), full-length curtains otherwise.
+  A blind hangs on the wall over its window, 5 cm wider each side (`BLIND_OVERLAP_M`), its cassette
+  10 cm over the head (`BLIND_OVER_HEAD_M`, under the ceiling), let down a third of the way
+  (`BLIND_LOWERED`), so the room keeps its daylight; it is drawn stretched to that size
+  (`fitToItem` measures a curtain's slot per axis). A room with no window draws nothing for either.
+  The AI designer is offered the room's kinds dressed the same way (`programKinds`). The blinds are
+  code-built models (`pnpm models:blinds`, [../3d-assets.md](../3d-assets.md)).
+- **A Scandinavian flat has nothing whose main colour is black** (`styleRejects`, `styleGuide.ts`):
+  the matcher draws from the rest of a kind (all of it if every candidate is black), the AI designer
+  is not offered it; the swap list still is.
+- **A picture hangs at gallery height**: its middle at 150 cm on a free wall, its bottom 25 cm over
+  a bed or a sofa under it (`aboveHeightM: 0`, `aboveGapM: 0.25` on the artwork; `settledElevation`
+  keeps the gap once the product's size is known).
 
 ## Generating is random
 
@@ -121,7 +137,7 @@ deterministic, so a person who swaps one product does not have the rest of the f
 - **Decor comes and goes** (`OPTIONAL_DECOR`): a print 80 %, a plant 70 %, a floor lamp 95 % (the
   owner wants more of them: bedrooms from 12 m² and offices from 9 m² have one in their program too),
   an armchair or a bookshelf 75 %, a dresser 80 %, a rug 85 % (under the bed 80 %), curtains
-  90 % — of the rooms they would fit in. The pieces a room is for (a bed, a sofa, a toilet) are
+  90 %, a roller blind 95 % — of the rooms they would fit in. The pieces a room is for (a bed, a sofa, a toilet) are
   always laid out.
 - **Products** (`MatchOptions.rng`, `generationWeight`): each slot's product is drawn from
   **every** candidate of its kind with a model — the style's own ten times as likely as an
@@ -357,6 +373,9 @@ rule: the layout is still saved as arranged.
 
 ## Tests
 
+`tests/unit/design/styleRules.test.ts` (the flat's one floor and wall, an open kitchen and a
+floor chosen by hand; no black in a Scandinavian flat; a picture's height; blinds or curtains by
+style and room, a blind's size and height, sold one a window),
 `tests/unit/design/matcher.test.ts` (same product per kind per room, rotation between rooms,
 fit with rooms, not through the end of a partial wall, the model filter, a product flush in each
 corner of a room, a chair tucked under its table — both get products, no table over more than

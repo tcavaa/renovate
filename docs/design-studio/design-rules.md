@@ -37,7 +37,7 @@ in six stages:
 | 2 | steps and technical: Materials and the post-design Technical step become studio sections, one Generate for the points and radiators, "ელექტრო და შუქი" → "განათება", the 3D view-only after the Budget, the boiler's place, radiators on the board, the heated towel rail | **built** ([overview.md](overview.md), [studio.md](studio.md), [technical-and-fittings.md](technical-and-fittings.md)) |
 | 3 | room layout rules: kitchen, living room, bedroom, bathroom, washing machine, bookcases (windows' blinds with stage 5) | **built** ([layout-and-matching.md](layout-and-matching.md)) |
 | 4 | lighting: kitchen's three layers, bedroom, hallway, living room, style fixtures, more floor lamps, the lighting plan (LED strips with stage 5's decor) | **built** ([technical-and-fittings.md](technical-and-fittings.md), [plan-board.md](plan-board.md)) |
-| 5 | styles, finishes and decor: one floor through the flat, walls consistent, Scandinavian without black, no mouldings in Scandinavian, no cornices in Industrial, panels only in Modern, decor on free walls at gallery height, decor resizable | planned |
+| 5 | styles, finishes and decor: one floor through the flat, walls consistent, Scandinavian without black, no mouldings in Scandinavian, no cornices in Industrial, panels only in Modern, decor on free walls at gallery height, decor resizable, windows by style (roller blinds or curtains) | **built** ([finishes.md](finishes.md), [decor.md](decor.md), [layout-and-matching.md](layout-and-matching.md), [studio.md](studio.md)) |
 | 6 | glass shower walls on the board, partitions added at generation (entrance out of the living room's sight, an en-suite's entrance by the wardrobe), partitions run to the corner | planned |
 
 **Plans and the board**
@@ -140,6 +140,23 @@ in six stages:
   picture's centre at 150 cm on a free wall, its bottom 20–30 cm over a sofa, bed or console.
 - Every wall decor piece built in code can be moved and resized: arrows on its sides (width) and
   top and bottom (height) in 3D, and width and height on its card.
+
+How stage 5 built it: the flat's one floor and wall finish are the largest living room's (else the
+largest room's), laid in every room but a bathroom, a toilet, a balcony and a closed kitchen — a
+kitchen with no separator and no archway, whose style floor is tiled already (`withFlatFinish`,
+`isClosedKitchen` in `surfaces.ts`); a room finished by hand keeps its own. A Scandinavian flat
+draws no product whose main colour is black (`styleRejects` in `styleGuide.ts`: the matcher and the
+AI designer's offer leave it out, the swap list still has it). The decor families a style takes are
+`STYLE_DECOR_FAMILIES` (`decor/families.ts`): Modern all, Scandinavian slats, niches, tiles and the
+WC box, Industrial no mouldings, light or panels, Vintage no light or panels; LED only in Modern
+(`styleTakesLed`) — the AI designer's answer is cut to them (`validateProposal`). Industrial and
+Modern have no cornice (`STYLE_TRIMS`); Scandinavian keeps its plain 6 cm ceiling cove, the rule
+being about wall mouldings. A picture's middle is at 150 cm on a free wall, its bottom 25 cm over a
+bed or a sofa under it. Windows: `windowDressing` (`rules.ts`) turns the program's curtain into a
+roller blind (`blind`, the curtain's slot) in a Modern or Industrial flat and in every kitchen,
+bathroom and toilet; a blind hangs over the window, 5 cm wider each side, its cassette 10 cm over
+the head, let down a third of the way (`placeAtWindow`). Decor is resized with `decor/resize.ts`
+(the arrows: `lib/design3d/decorHandles.ts`; the card's width, height and height off the floor).
 
 **Shower glass and partitions**
 

@@ -170,6 +170,7 @@ const TREE: Spec[] = [
       kind('plant', 'plants', 'მცენარეები', 'Plants', 'Растения', 'flower-2'),
       kind('mirror', 'mirrors', 'სარკეები', 'Mirrors', 'Зеркала', 'mirror'),
       kind('curtain', 'curtains', 'ფარდები', 'Curtains', 'Шторы', 'blinds'),
+      kind('blind', 'roller-blinds', 'რულონური ფარდები', 'Roller blinds', 'Рулонные шторы', 'blinds'),
       old('rugs', 'ხალიჩები', 'Rugs', 'Ковры', 'rug', {
         children: [kind('rug', 'area-rugs', 'ოთახის ხალიჩები', 'Area rugs', 'Ковры для комнаты', 'rug'), kind('rug_bed', 'bedside-rugs', 'საწოლის ხალიჩები', 'Bedside rugs', 'Прикроватные коврики', 'rug-bedside')],
       }),

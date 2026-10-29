@@ -38,6 +38,7 @@ import type { RadiatorManifestModel } from './radiator-models';
 import type { EquipmentManifestModel } from './equipment-models';
 import type { KitchenManifestModel } from './kitchen-models';
 import { TRIM_PRODUCTS } from './lib/trimProducts';
+import { BLIND_CATEGORY, BLIND_MODEL_CM, BLIND_PRODUCTS, blindModelUrl, blindPhotoUrl } from './lib/blindProducts';
 import { productionRefusal } from './lib/productionGuard';
 import { BOILER_CABINET_MATERIALS, KITCHEN_MATERIALS, KITCHEN_STORE } from './lib/kitchenMaterials';
 import { STORE_I18N } from './lib/translations';
@@ -369,6 +370,44 @@ async function main() {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
     console.log('  (no public/models/equipment/manifest.json — run `pnpm models:equipment` for the panels, boilers, air conditioners, hoods, fans, drains and TV/data sockets)');
   }
+
+  // The roller blinds (`pnpm models:blinds`): one product per blind, sized to its window in the
+  // studio and sold by the piece. Migration 0013 inserts the same rows on a deploy.
+  await ensureCategory(BLIND_CATEGORY);
+  for (const blind of BLIND_PRODUCTS) {
+    const existing = await db.select({ id: products.id, categoryId: products.categoryId }).from(products).where(eq(products.slug, blind.slug)).limit(1);
+    const categoryId = placeFor('blind', BLIND_CATEGORY, existing[0]?.categoryId)!;
+    keepSlugs.push(blind.slug);
+    const row = {
+      categoryId,
+      storeId: storeBySlug.get(blind.storeSlug) ?? null,
+      nameKa: blind.nameKa,
+      nameEn: blind.nameEn,
+      nameRu: blind.nameRu,
+      descriptionKa: blind.descriptionKa,
+      slug: blind.slug,
+      sku: `BL-${blind.slug.toUpperCase().replace(/[^A-Z0-9]+/g, '-')}`,
+      pricePerUnit: String(blind.priceGel),
+      unit: 'piece' as const,
+      brand: null,
+      imageUrl: blindPhotoUrl(blind.slug),
+      styleTags: blind.styles,
+      specs: null,
+      model3dKind: 'blind',
+      model3dUrl: blindModelUrl(blind.slug),
+      model3dStatus: 'ready' as const,
+      colorHex: blind.fabric,
+      widthCm: BLIND_MODEL_CM.width,
+      depthCm: BLIND_MODEL_CM.depth,
+      heightCm: BLIND_MODEL_CM.height,
+      isActive: true,
+      isFeatured: false,
+    };
+    if (existing.length) await db.update(products).set(row).where(eq(products.id, existing[0].id));
+    else await db.insert(products).values(row);
+    upserted++;
+  }
+  console.log(`  ✓ ${BLIND_PRODUCTS.length} roller blinds`);
 
   // Skirting boards and cornices. These carry no model file at all: the studio sweeps the
   // profile their `specs` name along every wall of the room (`lib/design/trims.ts`), so what

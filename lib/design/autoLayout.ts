@@ -37,7 +37,7 @@ import {
   roomEdges,
   type PlanEdge,
 } from './planGeometry';
-import type { Opening, PlacedItem, PlanRoom, Vec2 } from './types';
+import type { Opening, PlacedItem, PlanRoom, StyleId, Vec2 } from './types';
 import { isLargeSize, isTightPassage, longSideGaps } from './clearance';
 import { blocksWindow } from './manipulate';
 import { anchorsFor, type TechnicalAnchor } from './technical';
@@ -47,6 +47,9 @@ import {
   BATH_PASSAGE_M,
   BATH_PASSAGE_MIN_M,
   BED_SIDE_FREE_M,
+  BLIND_LOWERED,
+  BLIND_OVER_HEAD_M,
+  BLIND_OVERLAP_M,
   CURTAIN_UNDER_CEILING_M,
   DINING_SEAT_M,
   FACING_COUNTERS_M,
@@ -64,6 +67,7 @@ import {
   rayToPolygon,
   roomNiches,
   roomSightBands,
+  windowDressing,
   type Quad,
 } from './rules';
 
@@ -95,6 +99,8 @@ export interface LayoutOptions {
   rng?: Rng;
   /** Per room, what is seen coming in through the flat's front door (`entranceSightBands`): the kitchen keeps out of it. */
   entranceSight?: Record<string, Quad[]>;
+  /** The flat's style: it dresses the windows (`windowDressing` — roller blinds or curtains). */
+  styleId?: StyleId | null;
 }
 
 /**
@@ -126,6 +132,7 @@ const OPTIONAL_DECOR: Record<string, number> = {
   rug: 0.85,
   rug_bed: 0.8,
   curtain: 0.9,
+  blind: 0.95,
 };
 
 /** How high a TV over its unit reaches, metres: the band of the unit's wall that is kept clear of windows. */
@@ -264,7 +271,7 @@ function layoutArea(room: PlanRoom, options: LayoutOptions, idPrefix: string, do
   const wet = WET_ROOM_TYPES.includes(room.type);
 
   for (const entry of program) {
-    const kind = resolveVariant(entry, room.areaM2);
+    const kind = windowDressing(resolveVariant(entry, room.areaM2), room.type, options.styleId);
     const archetype = getArchetype(kind);
     if (!archetype) continue;
 
@@ -272,6 +279,8 @@ function layoutArea(room: PlanRoom, options: LayoutOptions, idPrefix: string, do
 
     const gate = entry.minAreaM2 ?? archetype.minRoomAreaM2 ?? 0;
     if (room.areaM2 < gate) continue;
+    // A curtain or a blind needs a window: a room without one draws nothing for it.
+    if (archetype.placement.type === 'window' && !room.openings.some((o) => o.kind === 'window')) continue;
     // A generated room varies its decor: a plant here, a print there, not every piece every time.
     if (options.rng && kind in OPTIONAL_DECOR && options.rng() > OPTIONAL_DECOR[kind]) continue;
 
@@ -1244,7 +1253,7 @@ function placeAbove(
   const under = slots.map((slot) => placed.find((p) => p.slot === slot)).find(Boolean);
   if (!under) return null;
   const { depth, height } = archetype.size;
-  const middle = Math.max(rule.aboveHeightM ?? rule.heightM, rule.stretch ? 0 : under.size.height + 0.15 + height / 2);
+  const middle = Math.max(rule.aboveHeightM ?? rule.heightM, rule.stretch ? 0 : under.size.height + (rule.aboveGapM ?? 0.15) + height / 2);
   const forward = { x: Math.sin(under.rotation), z: Math.cos(under.rotation) };
   const back = { x: under.position.x - forward.x * (under.size.depth / 2), z: under.position.z - forward.z * (under.size.depth / 2) };
   // The wall it stands against: one that faces as it does, the nearest to its back.
@@ -1364,6 +1373,21 @@ function placeAtWindow(
   if (!edge) return null;
 
   const anchor = pointOnEdge(edge, opening.t);
+  if (archetype.kind === 'blind') {
+    // A roller blind: its cassette on the wall just over the window's head (under the ceiling),
+    // a little wider than the window, let down a third of the way.
+    const top = Math.min(opening.sillM + opening.heightM + BLIND_OVER_HEAD_M, room.heightM - 0.02);
+    const height = top - (opening.sillM + opening.heightM * (1 - BLIND_LOWERED));
+    return {
+      position: {
+        x: anchor.x + edge.inward.x * (archetype.size.depth / 2 + 0.01),
+        z: anchor.z + edge.inward.z * (archetype.size.depth / 2 + 0.01),
+      },
+      rotation: edge.facing,
+      size: { width: opening.widthM + 2 * BLIND_OVERLAP_M, depth: archetype.size.depth, height: Math.round(height * 100) / 100 },
+      elevationM: Math.round((top - height) * 100) / 100,
+    };
+  }
   return {
     position: {
       x: anchor.x + edge.inward.x * (archetype.size.depth / 2 + 0.03),

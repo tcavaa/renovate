@@ -16,7 +16,7 @@ import { applyBoardPicks, applyFinishPicks, applyFurniturePicks, type Calculator
 import { matchProducts, type CatalogProduct } from './matcher';
 import { withOpeningProducts } from './openings';
 import { seededRng, type Rng } from './random';
-import { generatedFinish, isStyleFinish } from './surfaces';
+import { generatedFinish, isStyleFinish, withFlatFinish } from './surfaces';
 import { technicalAnchors } from './technical';
 import { defaultTrim, hasTrims } from './trims';
 import { columnFootprints } from './walls';
@@ -70,7 +70,7 @@ export function generateScene(input: GenerateSceneInput): GeneratedScene {
   for (const band of entranceSightBands(plan.rooms)) (entranceSight[band.roomId] ??= []).push(band.quad);
   // Laid out under the ceiling: a pendant hangs from a new ceiling, a curtain runs from just under it.
   const underCeilings = plan.rooms.map((r) => underCeiling(r, plan));
-  const placed = layoutPlan(underCeilings, { anchors: technicalAnchors(plan), obstacles, rng, entranceSight });
+  const placed = layoutPlan(underCeilings, { anchors: technicalAnchors(plan), obstacles, rng, entranceSight, styleId });
   // A slot no partner product can fill is dropped rather than shown as a stand-in. The AI
   // designer's product picks go in where they fit their slot (`MatchOptions.picks`).
   let items = placeableOnly(matchProducts(placed, catalog, { styleId, budgetGel, rooms: underCeilings, rng, picks: proposalPicks(proposal) }));
@@ -78,7 +78,7 @@ export function generateScene(input: GenerateSceneInput): GeneratedScene {
   // and paint elsewhere — so the budget buys what the flat is shown in. Re-laying out the
   // furniture is not a reason to lose the tiles someone picked. The designer's floors and walls
   // replace the style's own draw.
-  let finishes = withProposalFinishes(keepChosen(defaultFinishes(plan, styleId, catalog, rng), input.finishes), plan, proposal, styleId, catalog);
+  let finishes = withFlatFinish(withProposalFinishes(keepChosen(defaultFinishes(plan, styleId, catalog, rng), input.finishes), plan, proposal, styleId, catalog), plan.rooms, catalog);
   if (calculatorPicks) {
     items = placeableOnly(applyFurniturePicks(items, plan, calculatorPicks, catalog));
     finishes = applyFinishPicks(finishes, plan, calculatorPicks, catalog);
@@ -141,7 +141,10 @@ export function placeableOnly(items: PlacedItem[]): PlacedItem[] {
 export function defaultFinishes(plan: FloorPlan | null, styleId: StyleId, catalog: CatalogProduct[] = [], rng?: Rng): SurfaceFinish[] {
   if (!plan) return [];
   const surfaces = ['floor', 'wall', 'ceiling'] as const;
-  return plan.rooms.flatMap((room) => [...surfaces.map((surface) => generatedFinish(room, surface, styleId, catalog, rng)), ...(hasTrims(room) ? [defaultTrim(room, 'skirting', styleId), defaultTrim(room, 'cornice', styleId)] : [])]);
+  const finishes = plan.rooms.flatMap((room) => [...surfaces.map((surface) => generatedFinish(room, surface, styleId, catalog, rng)), ...(hasTrims(room) ? [defaultTrim(room, 'skirting', styleId), defaultTrim(room, 'cornice', styleId)] : [])]);
+  // One floor and one wall finish through the flat, drawn for its main room (the owner's notes):
+  // a bathroom, a balcony and a closed kitchen keep their own.
+  return withFlatFinish(finishes, plan.rooms, catalog);
 }
 
 /**

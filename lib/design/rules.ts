@@ -11,7 +11,7 @@
  */
 
 import { isOpenEdge, isPassage, pointOnEdge, roomEdges, wallEdges, type PlanEdge } from './planGeometry';
-import type { Opening, PlacedItem, PlanRoom, SlotKind, TechnicalPoint, Vec2 } from './types';
+import type { Opening, PlacedItem, PlanRoom, SlotKind, StyleId, TechnicalPoint, Vec2 } from './types';
 
 // ---------------------------------------------------------------------------
 // Sockets and switches
@@ -196,6 +196,24 @@ export const COVE_GAP_M = 0.15;
 export const COVE_STRIP_BACK_M = 0.05;
 /** Curtains hang from just under the ceiling, to make the room look taller. */
 export const CURTAIN_UNDER_CEILING_M = 0.03;
+
+/**
+ * Windows by style (the owner's notes): roller blinds in a Modern or an Industrial flat, and over a
+ * kitchen's or a bathroom's window whatever the style; full-length curtains in the others.
+ */
+export const BLIND_STYLES: readonly StyleId[] = ['modern', 'industrial'];
+export const BLIND_ROOMS: ReadonlyArray<PlanRoom['type']> = ['kitchen', 'bathroom', 'toilet'];
+/** A roller blind's cassette sits this far over the window's head, and it is this much wider than the window each side. */
+export const BLIND_OVER_HEAD_M = 0.1;
+export const BLIND_OVERLAP_M = 0.05;
+/** How far a blind is shown let down: a third of the window, so the room keeps its daylight and the blind reads as one. */
+export const BLIND_LOWERED = 0.35;
+
+/** A window's dressing: the program's curtain as a roller blind where the owner wants blinds, else as curtains. */
+export function windowDressing(kind: string, roomType: PlanRoom['type'], styleId?: StyleId | null): string {
+  if (kind !== 'curtain' && kind !== 'blind') return kind;
+  return BLIND_ROOMS.includes(roomType) || (!!styleId && BLIND_STYLES.includes(styleId)) ? 'blind' : 'curtain';
+}
 
 /** Rooms no new ceiling is hung in. */
 const NO_FALSE_CEILING: Array<PlanRoom['type']> = ['balcony'];

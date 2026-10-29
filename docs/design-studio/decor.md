@@ -18,7 +18,9 @@ proposal goes through) · [3d-engine.md](3d-engine.md) · [studio.md](studio.md)
 | File | Responsibility |
 |---|---|
 | `lib/design/decor/reference-library.json` | the reference library: per room type × style, the concepts, the families they use, the composition rule and the room constraint; the primitives' parameters and fit rules (what the prompt quotes) |
-| `lib/design/decor/families.ts` | `DECOR_FAMILIES`: each family's slots, the material kinds each slot takes, its default knobs; `slotTakes`, `hasLed` |
+| `lib/design/decor/families.ts` | `DECOR_FAMILIES`: each family's slots, the material kinds each slot takes, its default knobs; `slotTakes`, `hasLed`; `STYLE_DECOR_FAMILIES` (the families each style takes) and `styleTakesLed` (Modern only) |
+| `lib/design/decor/resize.ts` | a piece resized by hand: `dragDecorHandle` (an arrow dragged to a point on its wall), `resizeDecor` (the card's width, height, height off the floor), `decorExtent`, `isResizable`, `resizesFromMiddle` |
+| `lib/design3d/decorHandles.ts` | the selected piece's arrows and frame in 3D: `makeDecorHandles`, `placeDecorHandles`, `hideDecorHandles`, `decorDepth` |
 | `lib/design/decor/materials.ts` | decor materials: `DECOR_MATERIAL_CATEGORY` (`decor-materials`), the kinds (`decor-<kind>` sub-categories), `isDecorMaterial`, `decorMaterialsOf`, `defaultDecorMaterial` (an LED defaults to the warmest), `decorSpecs`, `ledColor` |
 | `lib/design/decor/layout.ts` | the fit, pure and in the wall's frame: `decorWall`, `freeSpans`, `fitSlats`, `fitMoulding`, `fitNiche`, `fitField`, `fitLight` |
 | `lib/design/decor/quantities.ts` | what a piece uses per slot in m², metres and pieces (`decorUses`), bought in the material's unit with the waste (`quantityIn`, `DECOR_WASTE`), per piece (`piecePurchases`, `pieceCost`) and folded per product across the flat (`decorPurchases`); `decorProductIds` for the save route |
@@ -39,7 +41,8 @@ proposal goes through) · [3d-engine.md](3d-engine.md) · [studio.md](studio.md)
 | `lib/db/migrations/0009_design_jobs.sql` | the `design_jobs` table |
 | `components/studio/DecorPanel.tsx` | the card of a selected piece |
 | `lib/db/migrations/0005_decor_materials.sql` | the category tree, the starter materials and the workshop store |
-| `tests/unit/design/decor.test.ts` | the fit, the quantities, the budget lines, the resolver, the proposal and its validation |
+| `tests/unit/design/decor.test.ts` | the fit, the quantities, the budget lines, the resolver, the proposal and its validation (the families and LED a style takes) |
+| `tests/unit/design/decorResize.test.ts` | the arrows dragged (one side, from the middle, kept on the wall and under the ceiling, the smallest size) and the card's sizes |
 | `tests/unit/design/placementSettle.test.ts` | the check's findings, its validation and its fixes applied; no print over slats |
 | `tests/unit/design/generateScene.test.ts` | the store and `generateScene` make the same flat for a seed, with the designer and without; `reviewedScene` |
 | `tests/unit/design/generationJob.test.ts` | a stale job; what the style page does with each job, on starting one and on opening the project again |
@@ -164,8 +167,28 @@ note, its light line (the family's options — under, over, behind, inside — t
 when turned on), each slot's materials from the catalogue as swatches (none for an optional
 slot), a colour row for a tintable material (the studio's paints and a few accents, or the
 material's own), and the materials it buys with their cost. Edits are undoable store actions
-(`setDecorMaterial`, `setDecorColor`, `setDecorParams`, `removeDecor`) and mark the piece
-`origin: 'studio'`.
+(`setDecorMaterial`, `setDecorColor`, `setDecorParams`, `setDecorExtent`, `removeDecor`) and mark
+the piece `origin: 'studio'`.
+
+**Resizing** (the owner's notes of 29 Oct 2026). A piece on a wall (not a cove round the ceiling)
+has its size on the card — width, height and its bottom off the floor, in metres (`resizeDecor`:
+the width about its middle, the height from its bottom up) — and, while selected in 3D, four
+arrows just in front of it, at its sides and on its top and bottom, with a frame round it
+(`decorHandles.ts`, drawn without depth testing like the selection outline). Dragging an arrow
+moves that edge to the pointer on the plane of the piece's face (`dragDecorHandle`); the arrows and
+the frame follow live and the piece is rebuilt at its new size on release (`setDecorExtent`, one
+undo step). A piece centred on furniture (`anchor` bed, sofa, TV…) grows both ways from its middle,
+so it stays centred when `reanchorDecor` follows the furniture; any other moves the dragged side.
+A piece keeps to its wall, under the (lowered) ceiling, and is never narrower than 20 cm or lower
+than 10 cm (`DECOR_MIN_WIDTH_M`, `DECOR_MIN_HEIGHT_M`). The arrows show only where the flat can be
+changed — not in a view that only looks, nor while building, wiring or painting.
+
+**By style.** The AI designer's decor is cut to the families its style takes
+(`STYLE_DECOR_FAMILIES`): Modern all of them; Scandinavian slats, niches, tiles and the WC's box
+(no mouldings or decorative wall treatments); Industrial no mouldings, light lines or panels;
+Vintage no light lines or panels. LED (a slat wall's line, a niche's, a slab's halo) only in a
+Modern flat (`styleTakesLed`; `validateProposal` turns it off elsewhere). Anyone can still add a
+light line on a piece's card.
 
 ## The AI designer
 

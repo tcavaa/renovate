@@ -317,6 +317,18 @@ describe('checking the designer\'s answer', () => {
     expect(validateProposal(answer(r.id), plan, offer, 'm').rooms[0].decor.map((d) => d.family)).toEqual(['tile', 'niche']);
   });
 
+  it('keeps only the decor families the style takes, and light only in a Modern flat', () => {
+    const slats = { family: 'slats', referenceId: '', concept: '', anchor: 'bed', wallIndex: -1, widthM: 0, heightFromM: -1, heightToM: -1, params: auto, materials: [], note: '' };
+    const answer = { rooms: [{ roomId: r.id, note: '', furniture: [], floor: 0, wall: 0, decor: [slats, { ...slats, family: 'moulding' }, { ...slats, family: 'panel' }] }] } as never;
+    const decor = (styleId: 'modern' | 'scandinavian' | 'industrial' | 'vintage') => validateProposal(answer, plan, offer, 'm', styleId).rooms[0].decor;
+    expect(decor('modern').map((d) => d.family)).toEqual(['slats', 'moulding', 'panel']);
+    expect(decor('modern')[0].params?.led).toBe('bottom');
+    expect(decor('vintage').map((d) => d.family)).toEqual(['slats', 'moulding']);
+    expect(decor('scandinavian').map((d) => d.family)).toEqual(['slats']);
+    expect(decor('industrial').map((d) => d.family)).toEqual(['slats']);
+    for (const styleId of ['scandinavian', 'industrial', 'vintage'] as const) expect(decor(styleId)[0].params?.led, styleId).toBe('none');
+  });
+
   it('refuses an answer with nothing usable', () => {
     expect(() => validateProposal({ rooms: [] }, plan, offer, 'm')).toThrow();
   });

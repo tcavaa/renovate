@@ -16,7 +16,7 @@ import { roomEdges } from './planGeometry';
 import { seatSlots } from './autoLayout';
 import { asPlacedKitchen, kitchenMaterialCandidates } from './kitchen';
 import { styleAffinity } from './styles';
-import { guideFit } from './styleGuide';
+import { guideFit, styleRejects } from './styleGuide';
 import { weightedOrder, weightedPick, type Rng } from './random';
 import type { PlacedItem, PlanRoom, SceneProduct, StyleId, Vec2 } from './types';
 
@@ -129,7 +129,11 @@ export function matchProducts(
 
   for (const item of items) {
     if (byKind.has(item.kind)) continue;
-    byKind.set(item.kind, candidatesFor(item.kind, catalog, options.styleId));
+    // What the style keeps out of a flat it lays out (Scandinavian: nothing black) — unless that
+    // would leave the kind with nothing at all.
+    const all = candidatesFor(item.kind, catalog, options.styleId);
+    const kept = all.filter((p) => !styleRejects(p, options.styleId));
+    byKind.set(item.kind, kept.length > 0 ? kept : all);
   }
 
   // Same kind in the same room → the same product (six matching dining chairs). Same kind in
@@ -589,7 +593,7 @@ export function settledElevation(item: PlacedItem, size: PlacedItem['size'], pro
   const below = settled.filter((p) => p.roomId === item.roomId && p.elevationM < 0.05 && p.id !== item.id && !getArchetype(p.kind)?.ghost && footprintsOverlap(box, footprintOf(p.position, p.size, p.rotation), 0));
   const middle = item.slot === 'mirror' ? 1.5 : below.length > 0 ? (rule.aboveHeightM ?? rule.heightM) : rule.heightM;
   let elevation = middle - size.height / 2;
-  for (const piece of below) elevation = Math.max(elevation, piece.size.height + 0.12);
+  for (const piece of below) elevation = Math.max(elevation, piece.size.height + (rule.aboveGapM ?? 0.12));
   return round2(Math.max(0.05, elevation));
 }
 
@@ -705,8 +709,9 @@ export function quantityFor(item: PlacedItem): number {
   if (item.slot === 'kitchen_run') {
     return round2(Math.max(1, item.size.width / 3));
   }
+  // A roller blind is made to its window: one a window.
   if (item.slot === 'curtain') {
-    return round2(Math.max(1, item.size.width / 2));
+    return item.kind === 'blind' ? 1 : round2(Math.max(1, item.size.width / 2));
   }
   return 1;
 }

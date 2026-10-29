@@ -92,6 +92,13 @@
       "when": 1793250000000,
       "tag": "0012_floor_lamps_bedroom_office",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793260000000,
+      "tag": "0013_roller_blinds",
+      "breakpoints": true
     }
   ]
 }

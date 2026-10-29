@@ -4,9 +4,10 @@
  *   pnpm models:photos                    → every fixture, door and window in
  *                                           public/models/fixtures/manifest.json, every
  *                                           radiator in public/models/radiators/manifest.json
- *                                           every model in public/models/equipment/manifest.json
- *                                           and every run in public/models/kitchens/manifest.json
- *   pnpm models:photos --only=door-oak,radiator-panel   → a few (slugs from any of the four)
+ *                                           every model in public/models/equipment/manifest.json,
+ *                                           every run in public/models/kitchens/manifest.json
+ *                                           and every blind in public/models/blinds/manifest.json
+ *   pnpm models:photos --only=door-oak,radiator-panel   → a few (slugs from any of the five)
  *
  * The sources' own thumbnails come on coloured gradients that look nothing like a product
  * photo, so each model is rendered here the way the studio shows it — its own materials, a
@@ -26,7 +27,9 @@
  * lamp glow, to the `imageUrl` its manifest already names
  * (`public/uploads/furniture/equipment-<slug>.webp`). A kitchen run (`pnpm models:kitchens`) is
  * photographed standing on its shadow, from the front and a little to the side, to
- * `public/uploads/furniture/kitchen-<slug>.webp`.
+ * `public/uploads/furniture/kitchen-<slug>.webp`. A roller blind (`pnpm models:blinds`) is
+ * photographed from the front and a little below, to the `imageUrl` its manifest names
+ * (`public/uploads/furniture/<slug>.webp`).
  */
 
 import { existsSync } from 'node:fs';
@@ -37,6 +40,7 @@ import type { AddressInfo } from 'node:net';
 import { chromium } from '@playwright/test';
 import type { EquipmentManifestModel } from './equipment-models';
 import type { FixtureManifestModel } from './fixture-models';
+import type { BlindManifestModel } from './blind-models';
 import type { KitchenManifestModel } from './kitchen-models';
 import type { RadiatorManifestModel } from './radiator-models';
 import { writePhotoWebp } from './lib/photos';
@@ -46,6 +50,7 @@ const MANIFEST = path.join(ROOT, 'public', 'models', 'fixtures', 'manifest.json'
 const RADIATOR_MANIFEST = path.join(ROOT, 'public', 'models', 'radiators', 'manifest.json');
 const EQUIPMENT_MANIFEST = path.join(ROOT, 'public', 'models', 'equipment', 'manifest.json');
 const KITCHEN_MANIFEST = path.join(ROOT, 'public', 'models', 'kitchens', 'manifest.json');
+const BLIND_MANIFEST = path.join(ROOT, 'public', 'models', 'blinds', 'manifest.json');
 const PHOTO_DIR = path.join(ROOT, 'public', 'uploads', 'furniture');
 const SIZE = 720;
 /** A radiator is photographed as this many of its sections side by side. */
@@ -170,7 +175,9 @@ async function main() {
   const radiators = existsSync(RADIATOR_MANIFEST) ? wanted((JSON.parse(await readFile(RADIATOR_MANIFEST, 'utf8')) as { models: RadiatorManifestModel[] }).models) : [];
   const equipment = existsSync(EQUIPMENT_MANIFEST) ? wanted((JSON.parse(await readFile(EQUIPMENT_MANIFEST, 'utf8')) as { models: EquipmentManifestModel[] }).models) : [];
   const kitchens = existsSync(KITCHEN_MANIFEST) ? wanted((JSON.parse(await readFile(KITCHEN_MANIFEST, 'utf8')) as { models: KitchenManifestModel[] }).models) : [];
-  if (models.length + radiators.length + equipment.length + kitchens.length === 0) throw new Error(only ? `nothing matches --only=${only.join(',')}` : 'no manifest — run `pnpm models:fixtures`, `pnpm models:radiators`, `pnpm models:equipment` and `pnpm models:kitchens` first');
+  const blinds = existsSync(BLIND_MANIFEST) ? wanted((JSON.parse(await readFile(BLIND_MANIFEST, 'utf8')) as { models: BlindManifestModel[] }).models) : [];
+  const total = models.length + radiators.length + equipment.length + kitchens.length + blinds.length;
+  if (total === 0) throw new Error(only ? `nothing matches --only=${only.join(',')}` : 'no manifest — run `pnpm models:fixtures`, `pnpm models:radiators`, `pnpm models:equipment`, `pnpm models:kitchens` and `pnpm models:blinds` first');
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
@@ -264,7 +271,19 @@ async function main() {
         process.exitCode = 1;
       }
     }
-    console.log(`\n${done} of ${models.length + radiators.length + equipment.length + kitchens.length} rendered · ${path.relative(ROOT, PHOTO_DIR)}`);
+    for (const model of blinds) {
+      process.stdout.write(`• ${model.slug} `);
+      try {
+        const png = await render(model.url, 'blind', null, [0.45, -0.12, 1]);
+        const file = await writePhotoWebp(png, path.join(ROOT, 'public', model.imageUrl));
+        done++;
+        console.log(`✓ ${((await stat(file)).size / 1024).toFixed(0)} KB`);
+      } catch (error) {
+        console.log(`✗ ${(error as Error).message}`);
+        process.exitCode = 1;
+      }
+    }
+    console.log(`\n${done} of ${total} rendered · ${path.relative(ROOT, PHOTO_DIR)}`);
   } finally {
     await browser.close();
     server.close();

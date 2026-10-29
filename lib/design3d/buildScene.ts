@@ -54,7 +54,7 @@ import { WALL_STUB_M, type WallPartKind } from './wallMode';
 import { ceilingHeightM } from '@/lib/design/rules';
 
 export interface SceneUserData {
-  pickKind: 'item' | 'surface' | 'opening' | 'wall' | 'column' | 'beam' | 'electrical' | 'zone' | 'technical' | 'decor';
+  pickKind: 'item' | 'surface' | 'opening' | 'wall' | 'column' | 'beam' | 'electrical' | 'zone' | 'technical' | 'decor' | 'decor-handle';
   itemId?: string;
   openingId?: string;
   roomId: string;
@@ -81,6 +81,8 @@ export interface SceneUserData {
   zoneId?: string;
   /** A custom wall decor piece (`lib/design3d/decor`). */
   decorId?: string;
+  /** A selected decor piece's arrow: which side it resizes (`lib/design3d/decorHandles`). */
+  handle?: 'left' | 'right' | 'top' | 'bottom';
 }
 
 /**
@@ -867,8 +869,9 @@ function fitToItem(model: THREE.Object3D, item: PlacedItem): void {
   // different shape from the product and each axis has to follow. Anything else keeps its
   // proportions; the tiny per-axis differences left are rounding in the stored dimensions.
   // A kitchen is measured by its slot whatever the proportions — a 2.6 m model on a 3 m run is
-  // within the 1.25 below, and scaled whole it stood 1.04 m tall and 0.74 m deep.
-  const measured = (CUSTOM_KITCHEN_SLOTS as readonly string[]).includes(item.slot);
+  // within the 1.25 below, and scaled whole it stood 1.04 m tall and 0.74 m deep. So is a curtain
+  // or a blind, sized to its window: a blind scaled whole hung below the window's head.
+  const measured = (CUSTOM_KITCHEN_SLOTS as readonly string[]).includes(item.slot) || item.slot === 'curtain';
   if (measured || Math.max(...ratios) / Math.min(...ratios) > 1.25) {
     model.scale.set(rx, ry, rz);
   } else {
