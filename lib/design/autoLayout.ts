@@ -118,7 +118,8 @@ interface RuleContext {
 const OPTIONAL_DECOR: Record<string, number> = {
   artwork: 0.8,
   plant: 0.7,
-  floor_lamp: 0.7,
+  // More floor lamps (the owner's notes): a room that has room for one nearly always gets it.
+  floor_lamp: 0.95,
   armchair: 0.75,
   bookshelf: 0.75,
   dresser: 0.8,

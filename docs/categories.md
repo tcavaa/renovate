@@ -106,7 +106,7 @@ equipment the technical points are bought as — electrical panels, boilers and 
 air conditioners, cooker hoods, extractor fans, floor drains
 ([design-studio/technical-and-fittings.md](design-studio/technical-and-fittings.md#equipment-is-bought-one-per-point-libdesignequipmentts));
 **TVs** ("ტელევიზორები", `tvs`, kind `tv`) under Furniture beside storage, on the living room's
-shelf after the TV units (migration `0008_tv_category`);
+shelf after the TV units (migration `0008_tv_category`); the bedroom's and the office's list the floor lamps since their programs have one (migration `0012_floor_lamps_bedroom_office`, insert-only);
 **kitchen wall cabinets** ("სამზარეულოს ზედა კარადები", `kitchen-wall-units`, kind
 `kitchen_wall`) under Kitchen furniture, on the kitchen's shelf after the units (migration
 `0004_kitchen_wall_cabinets`, which moved the library's one wall cabinet there from the runs);

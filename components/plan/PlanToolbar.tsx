@@ -404,6 +404,7 @@ const LAYER_LABEL: Record<keyof EditorLayers, keyof Dictionary['build']> = {
   structure: 'layerStructure',
   technical: 'layerTechnical',
   electrical: 'layerElectrical',
+  lighting: 'layerLighting',
   furniture: 'layerFurniture',
   zones: 'layerZones',
   dimensions: 'layerDimensions',
@@ -418,7 +419,7 @@ const LAYER_LABEL: Record<keyof EditorLayers, keyof Dictionary['build']> = {
  */
 export function LayersMenu({ layers, onLayers, keys, className, compact, up }: { layers: EditorLayers; onLayers: (layers: EditorLayers) => void; keys?: Array<keyof EditorLayers>; className?: string; compact?: boolean; up?: boolean }) {
   const t = useT();
-  const shown = keys ?? (['walls', 'openings', 'structure', 'technical', 'electrical', 'furniture', 'zones', 'dimensions', 'origins'] as Array<keyof EditorLayers>);
+  const shown = keys ?? (['walls', 'openings', 'structure', 'technical', 'electrical', 'lighting', 'furniture', 'zones', 'dimensions', 'origins'] as Array<keyof EditorLayers>);
   return (
     <details className={cn('group relative', className)}>
       <summary title={compact ? t.build.layers : undefined} aria-label={compact ? t.build.layers : undefined} className={cn('flex h-11 cursor-pointer list-none items-center gap-2 rounded-full bg-bg-surface/85 text-xs font-semibold text-ink-soft shadow-glass backdrop-blur-xl hover:text-ink [&::-webkit-details-marker]:hidden', compact ? 'w-11 justify-center' : 'px-3')}>

@@ -579,6 +579,7 @@ export const ROOM_PROGRAMS: Record<RoomType, ProgramEntry[]> = {
     { kind: 'artwork', count: 1 },
     { kind: 'curtain', count: 1 },
     { kind: 'plant', count: 1, minAreaM2: 12 },
+    { kind: 'floor_lamp', count: 1, minAreaM2: 12 },
   ],
   living_room: [
     { kind: 'sofa_3seat', count: 1, preferAboveM2: 22 },
@@ -639,6 +640,7 @@ export const ROOM_PROGRAMS: Record<RoomType, ProgramEntry[]> = {
     { kind: 'armchair', count: 1, minAreaM2: 14 },
     { kind: 'rug', count: 1 },
     { kind: 'pendant', count: 1 },
+    { kind: 'floor_lamp', count: 1, minAreaM2: 9 },
     { kind: 'artwork', count: 1 },
     { kind: 'curtain', count: 1 },
   ],

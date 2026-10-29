@@ -1152,7 +1152,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
           }),
 
         // --- electrical ---
-        suggestElectrical: (catalog = []) => commit((s) => (s.plan ? { electrical: withFixtureProducts(suggestElectrical(s.plan, s.items, s.electrical), catalog, s.styleId, s.plan.rooms) } : null)),
+        suggestElectrical: (catalog = []) => commit((s) => (s.plan ? { electrical: withFixtureProducts(suggestElectrical(s.plan, s.items, s.electrical, s.styleId), catalog, s.styleId, s.plan.rooms) } : null)),
         placeByStandards: (catalog = []) => {
           const placed = { technical: 0, radiators: 0, electrical: 0 };
           commit((s) => {

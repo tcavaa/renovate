@@ -42,6 +42,7 @@ import { basketLabels, homeStateLabel } from '@/lib/i18n/labels';
 import { formatGEL, formatM2, TIME_ZONE } from '@/lib/utils';
 import type { DesignScene } from '@/lib/design/types';
 import { ruleNotes } from '@/components/design/ruleText';
+import { lightingSheet } from '@/components/plan/lightingSheet';
 
 export default function SummaryPage() {
   const router = useRouter();
@@ -181,6 +182,7 @@ export default function SummaryPage() {
         electrical: boardElectrical,
         notes: ruleNotes(ka, 'ka', boardPlan, [], boardElectrical),
         notesTitle: ka.design.rulesTitle,
+        lighting: lightingSheet(ka, 'ka', boardPlan, [], boardElectrical),
       });
     } catch (e) {
       setError((e as Error).message);

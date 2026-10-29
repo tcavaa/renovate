@@ -31,6 +31,7 @@ import { cn } from '@/lib/utils';
 import { archetypeLabel } from '@/lib/design/catalog';
 import { beamAt, columnAt, pointElementAt, polygonsOverlap, pressMoves, roomUnderRect, snapPoint, snapRectangle, snapRoomMove, snapWallOffset, wallAt, type BoardMoves, type BoardTarget, type SnapGuide } from '@/lib/design/drawing';
 import { DEFAULT_SECTION_WIDTH_M, radiatorSections, radiatorWallSpot } from '@/lib/design/radiators';
+import { isLight } from '@/lib/design/electrical';
 import { MIN_RAILING_M, OPENING_DEFAULTS, cornerMargin, distanceToSegment, holdsRailings, nearestWall, openingWorldPoint, projectToEdge, railingClash, railingFits, type WallTarget } from '@/lib/design/openings';
 import { wallsToBuild } from '@/lib/design/partitions';
 import { pointInPolygon, pointOnEdge, roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
@@ -70,7 +71,10 @@ export interface EditorLayers {
   openings: boolean;
   structure: boolean;
   technical: boolean;
+  /** Sockets, switches, the TV and data points. */
   electrical: boolean;
+  /** The lights — the lighting plan (განათება), a layer of its own. */
+  lighting: boolean;
   furniture: boolean;
   zones: boolean;
   dimensions: boolean;
@@ -79,7 +83,7 @@ export interface EditorLayers {
   origins: boolean;
 }
 
-export const ALL_LAYERS: EditorLayers = { rooms: true, walls: true, openings: true, structure: true, technical: true, electrical: true, furniture: true, zones: true, dimensions: true, labels: true, origins: false };
+export const ALL_LAYERS: EditorLayers = { rooms: true, walls: true, openings: true, structure: true, technical: true, electrical: true, lighting: true, furniture: true, zones: true, dimensions: true, labels: true, origins: false };
 
 export interface PlanEditorProps {
   plan: FloorPlan;
@@ -901,8 +905,9 @@ export function PlanEditor(props: PlanEditorProps) {
         drawTechnical(ctx, tr, live, { selected: selectedPoint, hovered: hover.kind === 'technical' && hover.id === point.id });
       }
     }
-    if (layers.electrical) {
+    if (layers.electrical || layers.lighting) {
       for (const point of electrical) {
+        if (!(isLight(point.kind) ? layers.lighting : layers.electrical)) continue;
         const live = gesture?.kind === 'point-drag' && gesture.what === 'electrical' && gesture.id === point.id ? { ...point, position: gesture.position } : point;
         drawElectrical(ctx, tr, live, { selected: selection?.kind === 'electrical' && selection.id === point.id, hovered: hover.kind === 'electrical' && hover.id === point.id });
       }
@@ -1036,8 +1041,8 @@ export function PlanEditor(props: PlanEditorProps) {
       const inside = roomAt(world);
       return inside ? { kind: 'room', id: inside.id } : { kind: null };
     }
-    if (layers.electrical) {
-      const p = pointElementAt(electrical, world, 12 * perPx());
+    if (layers.electrical || layers.lighting) {
+      const p = pointElementAt(electrical.filter((e) => (isLight(e.kind) ? layers.lighting : layers.electrical)), world, 12 * perPx());
       if (p) return { kind: 'electrical', id: p.id };
     }
     if (layers.technical) {

@@ -134,7 +134,8 @@ Sockets, switches and lights are `scene.electrical` (`ElectricalPoint`: kind, wa
 position, height, outlets, on/off, a lighting `category`), in two parts, at the heights of the
 design rules (`lib/design/rules.ts`, [design-rules.md](design-rules.md)).
 **The standard fittings** (`standardElectrical`, decided by the room alone): one main light per
-room, a 105 cm switch on the handle side of every door, 20 cm from the opening (about 15 cm from
+room — a hallway one every 3 m or nearer, evenly spaced down its middle (`hallLightSpots`,
+`HALL_LIGHT_SPACING_M`; the owner: one light is not enough for a hallway) — a 105 cm switch on the handle side of every door, 20 cm from the opening (about 15 cm from
 the frame), general 45 cm sockets on the long walls of the rooms people live in, off the walls
 the switches are on; a hallway 4 m or longer is switched from both ends — the door switches
 nearest its two ends become a **two-way** pair (`switch_two_way`), or a two-way switch is added on
@@ -146,7 +147,15 @@ of a double bed (the open side of a single one), the door's switch joining the p
 kitchen by `kitchenRunZones` — three double sockets at 105 cm over the 90 cm worktop (the prep
 zone, the coffee zone past the hob, one more in the longer), 30 cm sockets behind the dishwasher,
 the oven and the hob's ignition, the hood's at 215 cm over the hob, one at 170 cm in the wall
-cabinets for the under-cabinet light, the light itself, and the fridge's at 40 cm; a desk's
+cabinets for the under-cabinet light, the light itself, and the fridge's at 40 cm — and **the
+kitchen's main light is a row of spots over the working floor** (one every 90 cm of the run, 10 cm
+in front of the worktop's edge, `KITCHEN_SPOT_*`), replacing the room's one ceiling light (a
+studio keeps it for its living half): the owner's three layers, apart from each other — the
+pendant over the table (furniture, `placeOnCeiling`), the spots over the run, the light under the
+wall cabinets. **An industrial bedroom's main light is a track** of three cylinder spots across the
+room's middle, square to the bed (`TRACK_SPOTS`); `suggestElectrical` takes the style for it. An
+industrial spot or ceiling light whose name says cylinder, tube or track goes first
+(`fixtureCandidates`); a desk's
 sockets 10 cm over the desktop; 170 cm high sockets and the television and data points by the TV.
 A two-way switch is bought as its own product kind (`switch_two_way`) — an estimate until the
 catalogue has one — and drawn with the switch's models. **A lamp's colour temperature**: a lamp

@@ -36,7 +36,7 @@ in six stages:
 | 1 | plan reading and the 2D board: printed sizes read like the drawing, wall thicknesses, one wall's length when nothing is printed, uploads that are not plans refused, stray walls and a fit button, several walls selected with Shift, a manual thickness, door and opening bugs | **built** ([plan-reading.md](plan-reading.md), [plan-board.md](plan-board.md)) |
 | 2 | steps and technical: Materials and the post-design Technical step become studio sections, one Generate for the points and radiators, "ელექტრო და შუქი" → "განათება", the 3D view-only after the Budget, the boiler's place, radiators on the board, the heated towel rail | **built** ([overview.md](overview.md), [studio.md](studio.md), [technical-and-fittings.md](technical-and-fittings.md)) |
 | 3 | room layout rules: kitchen, living room, bedroom, bathroom, washing machine, bookcases (windows' blinds with stage 5) | **built** ([layout-and-matching.md](layout-and-matching.md)) |
-| 4 | lighting: kitchen's three layers, bedroom, hallway, living room, style fixtures, LED strips optional, more floor lamps, the lighting plan | planned |
+| 4 | lighting: kitchen's three layers, bedroom, hallway, living room, style fixtures, more floor lamps, the lighting plan (LED strips with stage 5's decor) | **built** ([technical-and-fittings.md](technical-and-fittings.md), [plan-board.md](plan-board.md)) |
 | 5 | styles, finishes and decor: one floor through the flat, walls consistent, Scandinavian without black, no mouldings in Scandinavian, no cornices in Industrial, panels only in Modern, decor on free walls at gallery height, decor resizable | planned |
 | 6 | glass shower walls on the board, partitions added at generation (entrance out of the living room's sight, an en-suite's entrance by the wardrobe), partitions run to the corner | planned |
 
@@ -319,6 +319,10 @@ AI check's problems).
 
 ## Known gaps
 
+- From the second round's lighting: no track-light product exists, so a track is a row of
+  cylinder spots; bedside lighting is the wall lights over the nightstands (a pendant each side
+  would need a low-hung pendant model); a living room's large chandelier is the matcher's pendant,
+  not chosen by the room's size.
 - From the second round: no dressing table in a large bedroom yet — the catalogue has no dressing
   table or stool (the owner is sending references); the bedroom keeps its dresser from 13 m². A
   wine cabinet is the bookcase until the catalogue has one; a bathroom's storage cabinet likewise

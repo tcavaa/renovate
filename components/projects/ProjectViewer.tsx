@@ -17,6 +17,7 @@ import { useLocale, useT } from '@/lib/i18n/client';
 import { fill } from '@/lib/admin/list';
 import { cn, formatM2 } from '@/lib/utils';
 import { ruleNotes } from '@/components/design/ruleText';
+import { lightingSheet } from '@/components/plan/lightingSheet';
 
 // Three.js stays out of the server render and out of every page that does not show a flat.
 const Viewer3D = dynamic(() => import('@/components/design/Viewer3D').then((m) => m.Viewer3D), { ssr: false, loading: () => <Loading /> });
@@ -94,6 +95,7 @@ export function ProjectViewer({
         itemLabel: (item) => archetypeLabel(item.kind, locale),
         notes: ruleNotes(t, locale, plan, items, electrical),
         notesTitle: t.design.rulesTitle,
+        lighting: lightingSheet(t, locale, plan, items, electrical),
       });
     } catch {
       setError(v.pdfError);
@@ -180,7 +182,7 @@ export function ProjectViewer({
             <PlanViewControls
               layers={layers}
               onLayers={setLayers}
-              layerKeys={['furniture', 'electrical', 'technical', 'zones', 'dimensions', 'labels']}
+              layerKeys={['furniture', 'electrical', 'lighting', 'technical', 'zones', 'dimensions', 'labels']}
               onFit={planApi ? () => planApi.fit() : undefined}
               onZoom={planApi ? (factor) => planApi.zoom(factor) : undefined}
               vertical

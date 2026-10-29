@@ -34,6 +34,7 @@ import { designStepHref, designStepCount, designStepPosition, previousStep, prev
 import { downloadPlanPdf } from '@/lib/design/planPdfExport';
 import type { FloorPlan } from '@/lib/design/types';
 import { ruleNotes } from '@/components/design/ruleText';
+import { lightingSheet } from '@/components/plan/lightingSheet';
 
 /**
  * Step 7: the budget. Materials + products + labour = the estimated project cost, every line
@@ -175,6 +176,7 @@ export default function BudgetPage() {
         itemLabel: (item) => archetypeLabel(item.kind, locale),
         notes: ruleNotes(t, locale, plan, items, electrical),
         notesTitle: t.design.rulesTitle,
+        lighting: lightingSheet(t, locale, plan, items, electrical),
       });
     } catch (e) {
       setError((e as Error).message);

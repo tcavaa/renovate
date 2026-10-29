@@ -118,7 +118,8 @@ deterministic, so a person who swaps one product does not have the rest of the f
   far above the spread, so a toilet stays by the sewer. A corner piece takes any corner nearly as
   empty as the emptiest, a wall-hung piece any wall wide enough (the longer the likelier), the
   kitchen run any long-enough wall when the plan shows no water point.
-- **Decor comes and goes** (`OPTIONAL_DECOR`): a print 80 %, a plant 70 %, a floor lamp 70 %,
+- **Decor comes and goes** (`OPTIONAL_DECOR`): a print 80 %, a plant 70 %, a floor lamp 95 % (the
+  owner wants more of them: bedrooms from 12 m² and offices from 9 m² have one in their program too),
   an armchair or a bookshelf 75 %, a dresser 80 %, a rug 85 % (under the bed 80 %), curtains
   90 % — of the rooms they would fit in. The pieces a room is for (a bed, a sofa, a toilet) are
   always laid out.

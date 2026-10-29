@@ -85,6 +85,13 @@
       "when": 1793137566246,
       "tag": "0011_boiler_cabinet_materials",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793250000000,
+      "tag": "0012_floor_lamps_bedroom_office",
+      "breakpoints": true
     }
   ]
 }

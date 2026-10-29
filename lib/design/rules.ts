@@ -151,6 +151,18 @@ export const SHAFT_FIXTURES: SlotKind[] = ['toilet', 'washer', 'kitchen_run'];
 // ---------------------------------------------------------------------------
 
 /** Living areas and bedrooms at 2700–3000 K; the kitchen and the workspace at 3500–4000 K. */
+/**
+ * The owner's lighting notes (29 Oct 2026). A hallway has a light every 3 m or nearer, evenly down
+ * its middle; a kitchen's main light is a row of spots over the working floor, one every 90 cm of
+ * the run, 10 cm in front of the worktop's edge — apart from the pendant over the table and the
+ * light under the wall cabinets; an industrial bedroom's main light is a track of cylinder spots.
+ */
+export const HALL_LIGHT_SPACING_M = 3;
+export const KITCHEN_SPOT_SPACING_M = 0.9;
+export const KITCHEN_SPOT_AHEAD_M = 0.1;
+export const TRACK_SPOTS = 3;
+export const TRACK_SPOT_SPACING_M = 0.7;
+
 export const WARM_LIGHT_K = { min: 2700, max: 3000 } as const;
 export const NEUTRAL_LIGHT_K = { min: 3500, max: 4000 } as const;
 

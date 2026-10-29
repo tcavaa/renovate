@@ -31,7 +31,7 @@ store) · [../ui-design-system.md](../ui-design-system.md) (the full-window boar
 | `components/plan/draw.ts` | plain canvas drawing routines (rooms, walls, openings, chains, finishes) — shared with the PDF export |
 | `components/plan/palette.ts`, `icons.ts` | the board's colours (`EDITOR`: black walls, white floors, red doors, green railings, a black frame's walls still to build grey, dashed separators), room-type swatches for the lists, origin and system colours; one icon per technical system and electrical kind |
 | `components/plan/sheet.ts` | `drawPlanSheet`: the plan as an architect's sheet (rooms, solid walls, openings, labels, chains) — the PDF page and the project cards' picture (`PlanDrawing`) |
-| `lib/design/planPdfExport.ts` | the plan as an A4 PDF |
+| `lib/design/planPdfExport.ts` | the plan as an A4 PDF, and its lighting sheet (`lightingPlan`, `components/plan/lightingSheet.ts`) |
 | `lib/calculator/planSync.ts`, `hooks/useCalculatorPlan.ts` | keep the calculator's rooms in step with its board |
 
 ## Walls are lines; rooms are what they enclose (`lib/design/walls.ts`)
@@ -497,7 +497,19 @@ neighbour's. The calculator's summary exports its own board the same way (its pl
 technical points and fittings, no furniture). A vector page would have meant embedding and subsetting a font
 for the Georgian room names, while a JPEG goes into a PDF as it is (`/DCTDecode`). The
 cross-reference table is the only fiddly part and `tests/unit/design/planPdfExport.test.ts`
-parses the result back with pdf.js.
+parses the result back with pdf.js; the writer takes a page per image (`pdfOfImages`).
+
+**The lighting sheet** is the PDF's second page when the flat has a light (`PlanPdfOptions.lighting`,
+`lightingSheet` in `components/plan/lightingSheet.ts` over `lightingPlan` in
+`lib/design/lightingPlan.ts`; the design summary, the calculator's summary and the project page
+pass it): the plan with its lights alone — the light points and the lamps among the furniture
+(pendants, floor lamps) — over a table of every room's fittings, a row per kind: the fitting, what
+it lights (main, accent, furniture, bedside, indirect, decorative — the point's `category`; a
+pendant over a table lights the table), where it is fixed and how high (on the ceiling at the
+ceiling's height, on a wall at its height, hanging at its shade's, on the floor at its top), how
+many; rows that run past the page are counted. **The board has a Lighting layer** (განათება,
+`EditorLayers.lighting`) beside the Electrical one (sockets, switches, TV and data): the lights
+show, and can be picked, only with it on.
 
 ## Tests
 

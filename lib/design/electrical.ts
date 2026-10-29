@@ -28,14 +28,19 @@ import {
   CABINET_LIGHT_SOCKET_M,
   DESK_SOCKET_ABOVE_M,
   FRIDGE_SOCKET_M,
+  HALL_LIGHT_SPACING_M,
   HIGH_SOCKET_M,
   HOOD_SOCKET_M,
   KITCHEN_SOCKET_M,
+  KITCHEN_SPOT_AHEAD_M,
+  KITCHEN_SPOT_SPACING_M,
   NIGHTSTAND_SOCKET_ABOVE_M,
   NIGHTSTAND_SOCKET_RANGE_M,
   SOCKET_M,
   SWITCH_FROM_OPENING_M,
   SWITCH_M,
+  TRACK_SPOT_SPACING_M,
+  TRACK_SPOTS,
   TV_SOCKET_M,
   TWO_WAY_CORRIDOR_M,
   WALL_UNIT_BOTTOM_M,
@@ -180,7 +185,7 @@ function wiredByHand(existing: ElectricalPoint[]): { kept: ElectricalPoint[]; sk
  * (`standardElectrical`), then what the furniture standing in it calls for. A room the person
  * has wired by hand is kept as it is (`wiredByHand`); only the others are filled in.
  */
-export function suggestElectrical(plan: FloorPlan, items: PlacedItem[], existing: ElectricalPoint[] = []): ElectricalPoint[] {
+export function suggestElectrical(plan: FloorPlan, items: PlacedItem[], existing: ElectricalPoint[] = [], styleId?: StyleId | null): ElectricalPoint[] {
   let counter = existing.length;
   const b: Builder = { points: [], next: () => `e${Date.now().toString(36)}-${counter++}` };
   const { kept, skip } = wiredByHand(existing);
@@ -191,7 +196,7 @@ export function suggestElectrical(plan: FloorPlan, items: PlacedItem[], existing
     // Ceiling lights at the ceiling one sees — a new one hangs lower than the slab.
     const ceiled = underCeiling(room, plan);
     standardFor(b, ceiled);
-    furnitureFor(b, ceiled, items.filter((i) => i.roomId === room.id), plan.technical?.points ?? []);
+    furnitureFor(b, ceiled, items.filter((i) => i.roomId === room.id), plan.technical?.points ?? [], styleId ?? null);
   }
 
   return [...kept, ...b.points];
@@ -226,8 +231,11 @@ function standardFor(b: Builder, room: PlanRoom): void {
   const centre = { x: room.polygon.reduce((s, p) => s + p.x, 0) / room.polygon.length, z: room.polygon.reduce((s, p) => s + p.z, 0) / room.polygon.length };
   const before = b.points.length;
 
-  // Every room: a main light and a switch on the handle side of each door, 20 cm from the opening.
-  make(b, room, 'light_ceiling', centre);
+  // Every room: a main light — a hallway one every 3 m or nearer, evenly down its middle (the
+  // owner: one light is not enough for a hallway) — and a switch on the handle side of each door,
+  // 20 cm from the opening.
+  if (room.type === 'hallway') for (const at of hallLightSpots(room)) make(b, room, 'light_ceiling', at);
+  else make(b, room, 'light_ceiling', centre);
   for (const door of room.openings.filter(isPassage)) {
     const edge = edges.find((e) => e.index === door.wallIndex);
     if (!edge) continue;
@@ -246,6 +254,40 @@ function standardFor(b: Builder, room: PlanRoom): void {
     const wanted = room.type === 'living_room' || room.type === 'studio' ? 2 : 1;
     for (const edge of free.slice(0, wanted)) makeOnWall(b, room, 'socket', edge, 0.5);
   }
+}
+
+/**
+ * Where a hallway's lights go: one every `HALL_LIGHT_SPACING_M` or nearer along its length, evenly
+ * spaced, each in the middle of the hallway's width where it stands (an L's arm too).
+ */
+export function hallLightSpots(room: PlanRoom): Vec2[] {
+  const bounds = polygonBounds(room.polygon);
+  const alongX = bounds.maxX - bounds.minX >= bounds.maxZ - bounds.minZ;
+  const from = alongX ? bounds.minX : bounds.minZ;
+  const length = alongX ? bounds.maxX - bounds.minX : bounds.maxZ - bounds.minZ;
+  const n = Math.max(1, Math.ceil(length / HALL_LIGHT_SPACING_M - 1e-6));
+  const out: Vec2[] = [];
+  for (let i = 0; i < n; i++) {
+    const u = from + ((i + 0.5) * length) / n;
+    const middle = crossMiddle(room.polygon, alongX, u);
+    if (middle != null) out.push(alongX ? { x: u, z: middle } : { x: middle, z: u });
+  }
+  return out;
+}
+
+/** The middle of the widest stretch of the outline across the line at `u` (x = u, or z = u). */
+function crossMiddle(polygon: Vec2[], alongX: boolean, u: number): number | null {
+  const hits: number[] = [];
+  for (let i = 0; i < polygon.length; i++) {
+    const a = polygon[i];
+    const b = polygon[(i + 1) % polygon.length];
+    const [ua, ub, va, vb] = alongX ? [a.x, b.x, a.z, b.z] : [a.z, b.z, a.x, b.x];
+    if ((ua <= u && ub > u) || (ub <= u && ua > u)) hits.push(va + ((u - ua) / (ub - ua)) * (vb - va));
+  }
+  hits.sort((p, q) => p - q);
+  let best: [number, number] | null = null;
+  for (let i = 0; i + 1 < hits.length; i += 2) if (!best || hits[i + 1] - hits[i] > best[1] - best[0]) best = [hits[i], hits[i + 1]];
+  return best ? (best[0] + best[1]) / 2 : null;
 }
 
 /**
@@ -292,9 +334,26 @@ export function bedsideSocketHeight(stand: PlacedItem | undefined): number {
   return Math.round(Math.max(NIGHTSTAND_SOCKET_RANGE_M.min, Math.min(NIGHTSTAND_SOCKET_RANGE_M.max, top + NIGHTSTAND_SOCKET_ABOVE_M)) * 100) / 100;
 }
 
+/** The room's one ceiling light (the standard fittings') swapped for spots at these points — the main light all the same. */
+function replaceMainLight(b: Builder, room: PlanRoom, spots: Vec2[]): void {
+  const at = b.points.findIndex((p) => p.roomId === room.id && p.kind === 'light_ceiling');
+  if (at >= 0) b.points.splice(at, 1);
+  for (const spot of spots) make(b, room, 'light_spot', spot, { category: 'primary' });
+}
+
 /** What the furniture standing in a room calls for: sockets and lamps by the bed, the TV, the sofa, the desk, the kitchen, the basin. */
-function furnitureFor(b: Builder, room: PlanRoom, here: PlacedItem[], technical: TechnicalPoint[]): void {
+function furnitureFor(b: Builder, room: PlanRoom, here: PlacedItem[], technical: TechnicalPoint[], styleId: StyleId | null = null): void {
   const beds = here.filter((i) => i.slot === 'bed');
+  // An industrial bedroom's main light is a track of cylinder spots across the room's middle,
+  // square to the bed (the owner's notes), not the one ceiling light.
+  if (room.type === 'bedroom' && styleId === 'industrial' && beds.length > 0) {
+    const centre = { x: room.polygon.reduce((sum, p) => sum + p.x, 0) / room.polygon.length, z: room.polygon.reduce((sum, p) => sum + p.z, 0) / room.polygon.length };
+    const across = { x: Math.cos(beds[0].rotation), z: -Math.sin(beds[0].rotation) };
+    replaceMainLight(b, room, Array.from({ length: TRACK_SPOTS }, (_, i) => {
+      const off = (i - (TRACK_SPOTS - 1) / 2) * TRACK_SPOT_SPACING_M;
+      return { x: centre.x + across.x * off, z: centre.z + across.z * off };
+    }));
+  }
   for (const bed of beds) {
     const wall = backWall(room, bed);
     if (!wall) continue;
@@ -373,6 +432,20 @@ function furnitureFor(b: Builder, room: PlanRoom, here: PlacedItem[], technical:
     makeOnWall(b, room, 'socket_high', edge, at(zones.farEndS - Math.sign(zones.farEndS - zones.sinkS) * 0.3), { elevationM: CABINET_LIGHT_SOCKET_M });
     const wallT = along(edge, run.position) / edge.length;
     makeOnWall(b, room, 'light_furniture', edge, wallT, { elevationM: WALL_UNIT_BOTTOM_M, lengthM: Math.min(run.size.width, edge.length - 0.2), category: 'furniture' });
+    // The main light: spots in a row over the working floor, just in front of the worktop, one
+    // every 90 cm of the run — kept to the run, apart from the pendant over the table (the owner's
+    // three layers: the table's pendant, the main light, the light under the cabinets). A
+    // kitchen's own ceiling light gives way to them; a studio's stays for its living half.
+    const forward = { x: Math.sin(run.rotation), z: Math.cos(run.rotation) };
+    const right = { x: forward.z, z: -forward.x };
+    const n = Math.max(2, Math.round(run.size.width / KITCHEN_SPOT_SPACING_M));
+    const ahead = run.size.depth / 2 + KITCHEN_SPOT_AHEAD_M;
+    const spots = Array.from({ length: n }, (_, i) => {
+      const lateral = ((i + 0.5) / n - 0.5) * run.size.width;
+      return { x: run.position.x + forward.x * ahead + right.x * lateral, z: run.position.z + forward.z * ahead + right.z * lateral };
+    });
+    if (room.type === 'kitchen') replaceMainLight(b, room, spots);
+    else for (const at of spots) make(b, room, 'light_spot', at, { category: 'primary' });
   }
   const fridge = here.find((i) => i.slot === 'fridge');
   if (fridge) {
@@ -560,8 +633,13 @@ export function fixtureCandidates(kind: ElectricalKind, catalog: CatalogProduct[
     const cct = lampCct(p);
     return cct == null ? 0 : cct >= range.min && cct <= range.max ? 1 : -1;
   };
-  return catalog.filter((p) => !!p.model3dUrl && p.model3dKind === wanted).sort((a, b) => affinity(b) - affinity(a) || light(b) - light(a) || a.pricePerUnit - b.pricePerUnit);
+  // Industrial lights are cylinders (the owner's notes): a spot or a ceiling light whose name says so first.
+  const shape = (p: CatalogProduct) => (styleId === 'industrial' && (kind === 'light_spot' || kind === 'light_ceiling') && CYLINDER_WORDS.test(`${p.slug} ${p.nameKa} ${(p as { nameEn?: string | null }).nameEn ?? ''}`) ? 1 : 0);
+  return catalog.filter((p) => !!p.model3dUrl && p.model3dKind === wanted).sort((a, b) => affinity(b) - affinity(a) || shape(b) - shape(a) || light(b) - light(a) || a.pricePerUnit - b.pricePerUnit);
 }
+
+/** What a cylinder light is called in a product's name or slug. */
+const CYLINDER_WORDS = /cylind|tube|tubular|track|ცილინდრ|цилиндр|трек/i;
 
 /** A lamp's colour temperature in kelvin, when its specs say (`specs.cct`). */
 export function lampCct(product: Pick<CatalogProduct, 'specs'>): number | null {
