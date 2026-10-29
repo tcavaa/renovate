@@ -393,13 +393,26 @@ describe('the technical setup', () => {
     store.setWorkChoices({ floor: 'parquet' });
     store.markTechnicalChecked(['existing', 'choices']);
     useDesignStore.getState().addTechnicalPoint('water_supply', { x: 1, z: 1 }, 'r1');
-    useDesignStore.getState().suggestRadiators();
-    useDesignStore.getState().suggestTechnical();
+    useDesignStore.getState().placeTechnical();
     const technical = useDesignStore.getState().plan!.technical!;
     expect(technical.points.length).toBeGreaterThan(0);
     expect(technical.existing).toEqual(['plumbing']);
     expect(technical.choices).toEqual({ floor: 'parquet' });
     expect(technical.checked).toEqual(['existing', 'choices']);
+  });
+
+  it('places the points and the radiators at one press, undone as one step', () => {
+    const before = useDesignStore.getState().plan!.technical?.points.length ?? 0;
+    const placed = useDesignStore.getState().placeTechnical();
+    expect(placed.radiators).toBeGreaterThan(0);
+    const points = useDesignStore.getState().plan!.technical!.points;
+    expect(points.length).toBe(before + placed.points + placed.radiators);
+    expect(points.some((p) => p.kind === 'radiator')).toBe(true);
+    useDesignStore.getState().undo();
+    expect(useDesignStore.getState().plan!.technical?.points.length ?? 0).toBe(before);
+    // Pressed again with everything in place, nothing more goes in.
+    useDesignStore.getState().placeTechnical();
+    expect(useDesignStore.getState().placeTechnical()).toEqual({ points: 0, radiators: 0 });
   });
 
   it('records each check once', () => {

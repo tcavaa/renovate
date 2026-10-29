@@ -131,10 +131,7 @@ export default function CalculatorPlanPage() {
   const trayDock =
     tray === 'technical' ? (
       <Tray>
-        <TechnicalTray kind={technicalKind} onKind={setTechnicalKind} armed={armed} onArm={setArmed} counts={technicalCounts} onAuto={() => {
-            actions.suggestTechnical();
-            actions.suggestRadiators(catalog);
-          }} />
+        <TechnicalTray kind={technicalKind} onKind={setTechnicalKind} armed={armed} onArm={setArmed} counts={technicalCounts} onAuto={() => actions.placeTechnical(catalog)} />
       </Tray>
     ) : tray === 'electrical' ? (
       <Tray>

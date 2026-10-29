@@ -3,8 +3,9 @@
 /**
  * The technical step's checks, one at a time in a modal over the plan.
  *
- * The automatic placement, the radiators room by room, the works, how the floor and the ceiling
- * are done and what the flat already has are the part of the journey people skip — and every
+ * The automatic placement (the points and the radiators, each heated room's sections under
+ * it), the works, how the floor and the ceiling are done and what the flat already has are the
+ * part of the journey people skip — and every
  * answer left at its default is a guess in the budget: a flat with no pipes marked is priced as
  * though it needed no plumbing. They used to be cards down the side of the board, easy to scroll
  * past. Now going on from the step opens them in order, each lit up in the list down the
@@ -59,7 +60,6 @@ const STAGE_DESC = {
 
 const CHECK_ICON: Record<TechnicalCheck, typeof Sparkles> = {
   auto: Sparkles,
-  radiators: Flame,
   works: ListChecks,
   choices: SlidersHorizontal,
   existing: House,
@@ -69,8 +69,6 @@ function checkTitle(t: Dictionary, check: TechnicalCheck): string {
   switch (check) {
     case 'auto':
       return t.build.autoTechnical;
-    case 'radiators':
-      return t.build.radiatorTable;
     case 'works':
       return t.build.worksTitle;
     case 'choices':
@@ -84,8 +82,6 @@ function checkHint(t: Dictionary, check: TechnicalCheck): string {
   switch (check) {
     case 'auto':
       return t.build.autoTechnicalHint;
-    case 'radiators':
-      return t.build.suggestRadiatorsHint;
     case 'works':
       return t.build.worksHint;
     case 'choices':
@@ -93,13 +89,6 @@ function checkHint(t: Dictionary, check: TechnicalCheck): string {
     case 'existing':
       return t.build.alreadyHaveHint;
   }
-}
-
-/** The rooms that want heat, and how many of them have a radiator. */
-function heating(plan: FloorPlan): { heated: number; hung: number } {
-  const heated = plan.rooms.filter(isHeatedRoom);
-  const points = radiatorPoints(plan);
-  return { heated: heated.length, hung: heated.filter((room) => points.some((p) => radiatorRoom(plan, p)?.id === room.id)).length };
 }
 
 /**
@@ -126,7 +115,7 @@ export function useTechnicalChecks() {
   return { plan, works, existing, checks, unchecked };
 }
 
-/** One line on where a check stands: the points placed, the rooms heated, the works ticked… */
+/** One line on where a check stands: the points and radiators placed, the works ticked… */
 function useCheckStatus(): (check: TechnicalCheck) => string {
   const t = useT();
   const { plan, works, existing } = useTechnicalChecks();
@@ -134,12 +123,9 @@ function useCheckStatus(): (check: TechnicalCheck) => string {
     if (!plan) return '';
     switch (check) {
       case 'auto': {
-        const n = (plan.technical?.points ?? []).filter((p) => p.kind !== 'radiator').length;
-        return n > 0 ? fill(t.build.pointsPlaced, { n }) : t.build.checkAutoEmpty;
-      }
-      case 'radiators': {
-        const { heated, hung } = heating(plan);
-        return fill(t.build.checkRadiatorsStatus, { n: hung, total: heated });
+        const points = plan.technical?.points ?? [];
+        const radiators = points.filter((p) => p.kind === 'radiator').length;
+        return points.length > 0 ? fill(t.build.checkAutoStatus, { n: points.length - radiators, radiators }) : t.build.checkAutoEmpty;
       }
       case 'works':
         return fill(t.build.checkWorksStatus, { n: works.length });
@@ -293,7 +279,6 @@ export function TechnicalChecksDialog({ open, onOpenChange, at, onAt, finish }: 
             </div>
             <div className="mt-5">
               {current === 'auto' && <AutoCheck plan={plan} onTouch={touch} />}
-              {current === 'radiators' && <RadiatorsCheck plan={plan} onTouch={touch} />}
               {current === 'works' && <WorksCheck onTouch={touch} />}
               {current === 'choices' && <ChoicesCheck onTouch={touch} />}
               {current === 'existing' && <ExistingCheck onTouch={touch} />}
@@ -317,10 +302,14 @@ export function TechnicalChecksDialog({ open, onOpenChange, at, onAt, finish }: 
   );
 }
 
-/** The points the rules can place, at a click, and what is on the plan now. */
+/**
+ * The points and the radiators the rules place, at one click, what is on the plan now, and how
+ * many sections each heated room wants against what hangs in it.
+ */
 function AutoCheck({ plan, onTouch }: { plan: FloorPlan; onTouch: () => void }) {
   const t = useT();
-  const suggestTechnical = useDesignStore((s) => s.suggestTechnical);
+  const placeTechnical = useDesignStore((s) => s.placeTechnical);
+  const { products } = useDesignCatalog();
   /** What the last placement did, for the line beside the button. */
   const [placed, setPlaced] = useState<number | null>(null);
   const points = plan.technical?.points ?? [];
@@ -331,7 +320,8 @@ function AutoCheck({ plan, onTouch }: { plan: FloorPlan; onTouch: () => void }) 
         <button
           type="button"
           onClick={() => {
-            setPlaced(suggestTechnical());
+            const added = placeTechnical(products);
+            setPlaced(added.points + added.radiators);
             onTouch();
           }}
           className="flex h-10 items-center gap-2 rounded-full bg-ink px-4 text-sm font-semibold text-white transition-colors hover:bg-brand"
@@ -366,37 +356,27 @@ function AutoCheck({ plan, onTouch }: { plan: FloorPlan; onTouch: () => void }) 
           </ul>
         )}
       </div>
+      <RadiatorRooms plan={plan} />
       <p className="text-[11px] leading-snug text-ink-muted">{t.build.checkAutoByHand}</p>
     </div>
   );
 }
 
-/** How many sections each room wants, and a radiator under every window at a click. */
-function RadiatorsCheck({ plan, onTouch }: { plan: FloorPlan; onTouch: () => void }) {
+/** Each heated room's heat and the sections it wants, against the radiators hanging in it. */
+function RadiatorRooms({ plan }: { plan: FloorPlan }) {
   const t = useT();
-  const suggestRadiators = useDesignStore((s) => s.suggestRadiators);
-  const { products } = useDesignCatalog();
-  /** What the last "hang the radiators" did: how many were added, or 0 when every room had one. */
-  const [hung, setHung] = useState<number | null>(null);
+  const rooms = plan.rooms.filter(isHeatedRoom);
+  if (rooms.length === 0) return null;
   const points = radiatorPoints(plan);
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          onClick={() => {
-            setHung(suggestRadiators(products));
-            onTouch();
-          }}
-          className="flex h-10 items-center gap-2 rounded-full bg-ink px-4 text-sm font-semibold text-white transition-colors hover:bg-brand"
-        >
-          <Flame className="h-4 w-4" />
-          {t.build.suggestRadiators}
-        </button>
-        {hung != null && <p className="text-xs font-medium text-success" role="status">{hung > 0 ? fill(t.build.radiatorsAdded, { n: hung }) : t.build.radiatorsNone}</p>}
-      </div>
-      <ul className="grid gap-1.5 md:grid-cols-2">
-        {plan.rooms.filter(isHeatedRoom).map((room) => {
+    <div>
+      <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+        <Flame className="h-3.5 w-3.5" />
+        {t.build.radiatorTable}
+      </p>
+      <p className="mt-0.5 text-[11px] leading-snug text-ink-muted">{t.build.radiatorTableHint}</p>
+      <ul className="mt-2 grid gap-1.5 md:grid-cols-2">
+        {rooms.map((room) => {
           const here = points.filter((p) => radiatorRoom(plan, p)?.id === room.id);
           const sections = here.reduce((sum, p) => sum + radiatorSections(plan, p), 0);
           const wanted = sectionsForRoom(plan, room, here[0]?.radiator?.wattsPerSection);

@@ -58,9 +58,10 @@ bathroom with no floor drain or sewer; a radiator on an interior wall; no extrac
 or toilet). `suggestTechnical`
 (`lib/design/autoTechnical.ts`) places the water, drains, extractors, gas, air conditioning, one
 panel and one boiler by a fitter's rules at a click, all `origin: 'user'` — and **one button**
-("ავტომატური განლაგება") does it and hangs the radiators too (`suggestTechnical` then
-`suggestRadiators`, both checks counted), on the technical step, in the studio's Technical section
-and on the calculator's board; the radiators had a button of their own. **The boiler** goes where
+("ავტომატური განლაგება") does it and hangs the radiators too, as one step of history
+(`designStore.placeTechnical`: `suggestTechnical` then `suggestRadiators`, the check counted), on
+the technical step, in the studio's Technical section, in the checks dialog and on the
+calculator's board; the radiators have no button or check of their own. **The boiler** goes where
 the owner put it on 29 Oct 2026 (`boilerSpot`, `BOILER_ROOMS`): in the hall by the entrance, in
 the cupboard with the technical things — a hall at least 1.4 m wide (`BOILER_HALL_MIN_WIDTH_M`)
 with 80 cm of wall clear of its doors (`BOILER_CUPBOARD_M`), the cupboard's middle as near the
@@ -111,9 +112,9 @@ system, shared with the toolbar and the inspector; between `lg` and `xl`, where 
 the bottom is narrow, only the icon, the name on hover): none is in hand at first, a chip arms
 the point tool with that kind and stays armed until it is clicked again, and a click on a point
 already placed picks it up instead of stacking another. **The tray's head places them by the
-rules at a click** — "ავტომატური განლაგება" (`suggestTechnical`) and "რადიატორები"
-(`suggestRadiators`, in the catalogue's radiator) — says what that did in its hint line, and
-counts as having looked at the check of the same name (`markTechnicalChecked`). The works checklist is four collapsible groups by the stage the works take the
+rules at a click** — "ავტომატური განლაგება" (`placeTechnical`: the points, then the radiators in
+the catalogue's radiator) — says what that did in its hint line, and counts as having looked at
+the check of the same name (`markTechnicalChecked`). The works checklist is four collapsible groups by the stage the works take the
 house through (`WORK_STAGES`: old renovation → black frame, black → white frame, white →
 green, green → moving in), each with an all / none toggle — one of the step's checks (below).
 Every action that adds points (`addTechnicalPoint`, `suggestTechnical`, `suggestRadiators`)
@@ -266,20 +267,23 @@ The answers the budget is counted from are the part of the journey people skip, 
 left at its default is a guess in the estimate — a flat with no pipes marked is priced as
 though it needed no plumbing. They used to be cards down the side of the board, easy to scroll
 past; now they are **checks** (`TECHNICAL_CHECKS`, in the order they are asked): the automatic
-placement, the radiators room by room, the works, how the floor and the ceiling are done (the
-`WorkChoicesPicker`), what the flat already has. A renovation is asked all five — "how it is
-done" only while the laminate or the ceiling is among its works — and a design-only project the
-first three (`technicalChecks`).
+placement, the works, how the floor and the ceiling are done (the `WorkChoicesPicker`), what the
+flat already has. A renovation is asked all four — "how it is done" only while the laminate or
+the ceiling is among its works — and a design-only project the first two (`technicalChecks`).
+The automatic placement is one check for the points and the radiators: its button places both
+(`placeTechnical`), "გეგმაზე ახლა" (on the plan now) counts each kind placed, and under it every
+heated room's area, heat demand and the sections it wants against what hangs there
+(`RadiatorRooms`).
 
 - **Going on asks first.** The step's "next" (the bar's and the narrow screen's `StepNav`)
   opens `TechnicalChecksDialog` on the first check not looked at yet (`uncheckedTechnical`),
   and only when every one has been does it go on. The modal sits over the plan with a light
   backdrop (`DialogContent`'s `overlayClassName`): the checks down its left, the one in view lit
   up and the rest marked with their number or a tick and one line of where each stands (points
-  placed, rooms with a radiator, works ticked, the two choices, things ticked); what the check
+  and radiators placed, works ticked, the two choices, things ticked); what the check
   asks on the right; back, the count looked at, and next along the bottom.
 - **A check counts once it was looked at** — something in it changed (the automatic placement
-  pressed, the radiators hung, a work or a tick or a choice changed), or the person went on
+  pressed, a work or a tick or a choice changed), or the person went on
   from it. `markTechnicalChecked` keeps the keys in `plan.technical.checked`, so they are saved
   with the project (`technicalSetupSchema.checked`) and the modal does not come back on a later
   visit once all are done. "Next" goes to the following check; after the last, to the first
@@ -304,7 +308,7 @@ How many sections is arithmetic, not a guess: ~100 W per m² at a 2.7 m ceiling,
 in a room with two outside walls (`outsideEdges`, from the wall pieces), divided by the
 product's `wattsPerSection`, then shared between the radiators in the room and kept between
 4 and 14 — above 14 the far end runs cold and the card says to add a second. The technical
-step's radiators check shows the demand per room and hangs radiators at a click (`suggestRadiators`: as many
+step's automatic placement shows the demand per room and hangs radiators with the points (`suggestRadiators`: as many
 as the room's sections call for — `ceil(sections / 14)`, at least one — under its widest
 windows and never more than it has windows, on the longest outside wall when it has none;
 rooms that already have one, unheated rooms (balcony, storage, closet) and rooms under 3.5 m²
@@ -583,7 +587,7 @@ lines), `openings.test.ts`,
 `tests/unit/summary/calculatorSheet.test.ts` (the standard fittings and a whole-flat pick on
 them, as the calculator and the design both price them),
 `budget.test.ts` (points, doors and fittings priced, existing),
-`tests/unit/store/designStore.test.ts` (the setup kept when points are added, checks recorded
+`tests/unit/store/designStore.test.ts` (the setup kept when points are added, the one button's points and radiators undone as one step, checks recorded
 once), `tests/integration/save-routes.test.ts` (forged door, socket, radiator and equipment
 prices are refused), `e2e/design-studio.spec.ts` (going on through the checks). The modal and the card
 have no tests of their own.

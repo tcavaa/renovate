@@ -697,11 +697,10 @@ export default function StudioPage() {
     setTrayOpen(true);
     setChecksOpen({ at: technicalUnchecked[0], goingOn: true });
   };
-  // One press places the technical points and the radiators, and counts for both checks.
+  // One press places the technical points and the radiators, and counts for the check.
   const generateTechnical = () => {
-    store.suggestTechnical();
-    store.suggestRadiators(products);
-    store.markTechnicalChecked(['auto', 'radiators']);
+    store.placeTechnical(products);
+    store.markTechnicalChecked(['auto']);
   };
 
   const focusRoom = plan.rooms.find((r) => r.id === focusRoomId) ?? null;

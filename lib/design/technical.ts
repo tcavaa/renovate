@@ -171,17 +171,17 @@ export function effectivePhases(homeState: HomeState, works?: string[] | null): 
 
 /**
  * What the technical step asks the person to look at before going on, in the order it asks:
- * the automatic placement, the radiators room by room, the works — and, for a renovation, how
- * the floor and the ceiling are done and what the flat already has. It is the part of the
- * journey people skip, and every answer left at its default is a guess in the budget: a flat
- * with no pipes marked is priced as though it needed no plumbing.
+ * the automatic placement (the points and the radiators, with each heated room's sections), the
+ * works — and, for a renovation, how the floor and the ceiling are done and what the flat
+ * already has. It is the part of the journey people skip, and every answer left at its default
+ * is a guess in the budget: a flat with no pipes marked is priced as though it needed no plumbing.
  */
-export const TECHNICAL_CHECKS = ['auto', 'radiators', 'works', 'choices', 'existing'] as const;
+export const TECHNICAL_CHECKS = ['auto', 'works', 'choices', 'existing'] as const;
 export type TechnicalCheck = (typeof TECHNICAL_CHECKS)[number];
 
 /**
  * The checks this project is asked: all of them for a renovation, where "how it is done" only
- * while the laminate or the ceiling is among the works; the first three for a design only,
+ * while the laminate or the ceiling is among the works; the first two for a design only,
  * which prices neither works nor what is already there.
  */
 export function technicalChecks(mode: DesignMode, works: readonly string[]): TechnicalCheck[] {

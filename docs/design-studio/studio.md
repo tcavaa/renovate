@@ -560,8 +560,8 @@ carry up), `tests/unit/design3d/footprintFromModel.test.ts`, and `e2e/design-stu
 The studio's "budget" button (`StudioTopBar.onNext`) goes to the budget — the finishes are the
 studio's Materials section, not a step of their own. A renovation does its technical setup in the
 studio's Technical section ([overview.md](overview.md), `lib/design/steps.ts`), so while any of its
-checks has not been looked at (`useTechnicalChecks`: the automatic placement and the radiators, the
-works, how it is done, what the flat has) the button opens the Technical section and the checks
+checks has not been looked at (`useTechnicalChecks`: the automatic placement of the points and
+the radiators, the works, how it is done, what the flat has) the button opens the Technical section and the checks
 dialog on the first one waiting, and going on from the last goes to the budget.
 
 Once the person goes on from the budget to the brigade (`designStore.handedOver`, set by the

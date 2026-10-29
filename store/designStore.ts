@@ -342,8 +342,6 @@ export interface DesignActions {
   removeTechnicalPoint: (id: string) => void;
   /** The real product a radiator is (null: back to the estimate). */
   setRadiatorProduct: (id: string, product: CatalogProduct | null) => void;
-  /** A radiator under every window of the heated rooms that have none; with the catalogue each is a product at once. Returns how many were hung. */
-  suggestRadiators: (catalog?: CatalogProduct[]) => number;
   /** Gives every radiator without a product the catalogue's best, and re-counts the sections of the rest — no history entry. */
   ensureRadiatorProducts: (catalog: CatalogProduct[]) => void;
   /** The real product a panel, a boiler, an air conditioner, a hood or fan, a floor drain is (null: back to the estimate). */
@@ -357,10 +355,12 @@ export interface DesignActions {
    */
   ensureEquipmentProducts: (catalog: CatalogProduct[]) => void;
   /**
-   * Places the technical points the plan implies — water, waste, drains, gas, the panel,
-   * the extractors, the air conditioners, one boiler — and returns how many went in.
+   * The technical setup's one button, as one step of history: the points the plan implies —
+   * water, waste, drains, gas, the panel, the extractors, the air conditioners, one boiler
+   * (`suggestTechnical`) — then a radiator under the windows of every heated room that has none
+   * (`suggestRadiators`), with the catalogue each a product at once. Returns how many of each went in.
    */
-  suggestTechnical: () => number;
+  placeTechnical: (catalog?: CatalogProduct[]) => { points: number; radiators: number };
   setWorks: (works: string[]) => void;
   /** What the flat already has, so the budget leaves it out (`lib/design/existing`). */
   setExisting: (keys: string[]) => void;
@@ -1095,19 +1095,6 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             const plan = s.plan;
             return { plan: { ...plan, technical: { ...plan.technical!, points: plan.technical!.points.map((p) => (p.id === id ? { ...withRadiatorProduct(plan, p, product), origin: p.origin } : p)) } } };
           }),
-        suggestRadiators: (catalog = []) => {
-          let hung = 0;
-          commit((s) => {
-            if (!s.plan) return null;
-            let n = 0;
-            const added = suggestRadiators(s.plan, () => `${uid('t')}${n++}`, catalog);
-            if (added.length === 0) return null;
-            hung = added.length;
-            const plan: FloorPlan = { ...s.plan, technical: { ...s.plan.technical, points: [...(s.plan.technical?.points ?? []), ...added] } };
-            return { plan: withRadiatorProducts(plan, catalog, s.styleId) };
-          });
-          return hung;
-        },
         ensureRadiatorProducts: (catalog) => {
           const { plan, styleId } = get();
           if (!plan || catalog.length === 0) return;
@@ -1132,15 +1119,21 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
           const next = withEquipmentProducts(plan, catalog, styleId);
           if (next !== plan) set({ plan: next });
         },
-        suggestTechnical: () => {
-          let placed = 0;
+        placeTechnical: (catalog = []) => {
+          const placed = { points: 0, radiators: 0 };
           commit((s) => {
             if (!s.plan) return null;
             let n = 0;
-            const { points } = suggestTechnicalIn(s.plan, s.items, () => `${uid('t')}${n++}`);
-            if (points.length === 0) return null;
-            placed = points.length;
-            return { plan: { ...s.plan, technical: { ...s.plan.technical, points: [...(s.plan.technical?.points ?? []), ...points] } } };
+            const nextId = () => `${uid('t')}${n++}`;
+            const points = suggestTechnicalIn(s.plan, s.items, nextId).points;
+            const withPoints: FloorPlan = { ...s.plan, technical: { ...s.plan.technical, points: [...(s.plan.technical?.points ?? []), ...points] } };
+            const radiators = suggestRadiators(withPoints, nextId, catalog);
+            if (points.length === 0 && radiators.length === 0) return null;
+            placed.points = points.length;
+            placed.radiators = radiators.length;
+            if (radiators.length === 0) return { plan: withPoints };
+            const plan: FloorPlan = { ...withPoints, technical: { ...withPoints.technical!, points: [...withPoints.technical!.points, ...radiators] } };
+            return { plan: withRadiatorProducts(plan, catalog, s.styleId) };
           });
           return placed;
         },

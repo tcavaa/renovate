@@ -161,10 +161,11 @@ export default function TechnicalPage() {
   };
 
   // One press places what the rules place — the points, then the radiators under the windows —
-  // with a line saying what it did, and counts as having looked at both checks.
+  // with a line saying what it did, and counts as having looked at the check.
   const generate = () => {
-    const n = actions.suggestTechnical() + actions.suggestRadiators(products);
-    actions.markTechnicalChecked(['auto', 'radiators']);
+    const added = actions.placeTechnical(products);
+    const n = added.points + added.radiators;
+    actions.markTechnicalChecked(['auto']);
     setPlaced(n > 0 ? fill(t.build.autoTechnicalDone, { n }) : t.build.autoTechnicalNone);
   };
 

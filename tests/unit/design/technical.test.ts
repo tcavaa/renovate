@@ -134,20 +134,20 @@ describe('how high a technical point sits', () => {
 
 describe('the checks before going on', () => {
   it('asks a renovation everything, and how the floor and ceiling are done only while those works are in it', () => {
-    expect(technicalChecks('full', defaultWorksForHomeState('white_frame'))).toEqual(['auto', 'radiators', 'works', 'choices', 'existing']);
-    expect(technicalChecks('full', ['plumbing', 'electrical'])).toEqual(['auto', 'radiators', 'works', 'existing']);
+    expect(technicalChecks('full', defaultWorksForHomeState('white_frame'))).toEqual(['auto', 'works', 'choices', 'existing']);
+    expect(technicalChecks('full', ['plumbing', 'electrical'])).toEqual(['auto', 'works', 'existing']);
     expect(technicalChecks('full', ['ceiling'])).toContain('choices');
   });
 
   it('asks a design only about the points, the radiators and the works', () => {
-    expect(technicalChecks('design_only', defaultWorksForHomeState('green_frame'))).toEqual(['auto', 'radiators', 'works']);
+    expect(technicalChecks('design_only', defaultWorksForHomeState('green_frame'))).toEqual(['auto', 'works']);
   });
 
   it('says which are still to be looked at, in the order they are asked', () => {
     const checks = technicalChecks('full', defaultWorksForHomeState('black_frame'));
     expect(uncheckedTechnical(checks, undefined)).toEqual(checks);
-    expect(uncheckedTechnical(checks, ['works', 'auto'])).toEqual(['radiators', 'choices', 'existing']);
+    expect(uncheckedTechnical(checks, ['works', 'auto'])).toEqual(['choices', 'existing']);
     // One asked of another project once does not count here.
-    expect(uncheckedTechnical(['auto', 'radiators', 'works'], ['choices', 'existing', 'auto', 'radiators', 'works'])).toEqual([]);
+    expect(uncheckedTechnical(['auto', 'works'], ['choices', 'existing', 'auto', 'works'])).toEqual([]);
   });
 });

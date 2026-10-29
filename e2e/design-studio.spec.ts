@@ -57,13 +57,12 @@ test('sample plan reaches a furnished studio with a build bar and a cost', async
   await page.getByRole('button', { name: /ტექნიკური პირობები/ }).click();
 
   // Step 3: the technical setup. Going on asks first: the checks a design-only project is
-  // asked — the automatic placement, the radiators, the works — one by one in a modal over the
-  // plan, its last button going on.
+  // asked — the automatic placement (the points and the radiators), the works — one by one in a
+  // modal over the plan, its last button going on.
   await expect(page).toHaveURL(/\/design\/\d+\/technical/);
   await page.getByRole('button', { name: /სტილის ტესტი/ }).click();
   const checks = page.getByRole('dialog');
   await expect(checks.getByText(/შეამოწმე ტექნიკური პირობები/)).toBeVisible();
-  await checks.getByRole('button', { name: /^შემდეგი$/ }).click();
   await checks.getByRole('button', { name: /^შემდეგი$/ }).click();
   await expect(checks.getByRole('heading', { name: /რა სამუშაოებია საჭირო/ })).toBeVisible();
   await checks.getByRole('button', { name: /სტილის ტესტი/ }).click();
