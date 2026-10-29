@@ -284,7 +284,8 @@ Walk through every room as a designer would and fix what is wrong:
 - a piece that clashes with the style or the room's other pieces, or a set that does not belong together;
 - a piece the room is better without (a second storage piece blocking a passage, a plant crowding a small bathroom);
 - what breaks the owner's design rules — the PROBLEMS name the rule (a WC the door opens onto, a kitchen facing the entrance, a squeezed bed, the TV too near or too far): move the piece to a better wall or swap it for one that fits;
-- built-in decor in the wrong place: a niche wall behind a bath or a washing machine, a backsplash away from the kitchen run, decor a piece stands in — move it to another wall or take it out.
+- built-in decor in the wrong place: a niche wall behind a bath or a washing machine, a backsplash away from the kitchen run, decor a piece stands in — move it to another wall or take it out;
+- the owner's layout rules: in a bathroom every fixture keeps free floor in front of it (never a basin facing the WC across a narrow room), the basin is what the door opens onto and the mirror hangs over the basin only; a wardrobe stands beside the bed, never facing it from its foot; the sofa faces the TV, not a window; a bookcase stands beside or behind the sofa, not on the TV's wall; the kitchen's fridge stands at the end of the run and 1.2 m in front of the run stays clear of the table and chairs.
 
 Actions (one per fix; "target" is the piece's or the decor's id as listed):
 - "replace": the piece with one of its own alternatives (product = that id). Pieces of one kind in a room are a set (two nightstands): replacing one replaces them all.

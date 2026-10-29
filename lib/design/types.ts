@@ -387,6 +387,12 @@ export interface PlacedItem {
    * kitchen model they placed stays.
    */
   kitchenMaterialChosen?: boolean;
+  /**
+   * A shower: the floor it takes — its tray and the glass round it — which the product (a shower
+   * column or panel, about 50 cm across) stands at the back of. At least 80 × 80 cm, larger where
+   * the bathroom allows (`SHOWER_SIZES_M`); the size check measures it, not the column.
+   */
+  areaM?: { width: number; depth: number };
 }
 
 /** The product data the 3D scene and its hover card need. Denormalised on purpose. */

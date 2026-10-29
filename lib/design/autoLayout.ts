@@ -43,14 +43,22 @@ import { blocksWindow } from './manipulate';
 import { anchorsFor, type TechnicalAnchor } from './technical';
 import { pickNearBest, weightedOrder, type Rng } from './random';
 import {
+  ARMCHAIR_DINING_GAP_M,
+  BATH_PASSAGE_M,
+  BATH_PASSAGE_MIN_M,
   BED_SIDE_FREE_M,
   CURTAIN_UNDER_CEILING_M,
   DINING_SEAT_M,
   FACING_COUNTERS_M,
+  KITCHEN_CIRCULATION_M,
   SHALLOW_WARDROBE_DEPTH_M,
+  SHOWER_ROOMY_M2,
+  SHOWER_SIZES_M,
   SOFA_TV_M,
+  TV_UNIT_CLEAR_M,
   WARDROBE_DEPTH_M,
   WC_SIDE_M,
+  WET_ROOM_TYPES,
   footprintQuad,
   quadsOverlap,
   rayToPolygon,
@@ -98,6 +106,12 @@ interface RuleContext {
   doorBands: Quad[];
   entranceBands: Quad[];
   placed: PlacedItem[];
+  /**
+   * A bathroom's or toilet's free floor in front of each fixture placed so far (`BATH_PASSAGE_M`):
+   * the next fixture keeps out of it, and keeps its own clear of what stands — a basin facing the
+   * WC across a narrow room left nobody room to pass (the owner's screenshot).
+   */
+  passages: Box[];
 }
 
 /** Decor a generated room may go without, and how likely each is to be laid out when it fits. */
@@ -116,6 +130,53 @@ const OPTIONAL_DECOR: Record<string, number> = {
 /** How high a TV over its unit reaches, metres: the band of the unit's wall that is kept clear of windows. */
 const TV_TOP_M = 1.5;
 
+/** The fixtures of a bathroom or a toilet that each want free floor in front (`BATH_PASSAGE_M`). */
+const WET_FIXTURES = new Set(['toilet', 'sink', 'shower', 'bathtub', 'washer']);
+
+/** What each of a wet room's fixtures is worth to it, for choosing among layouts (`wetScore`). */
+const WET_WEIGHT: Record<string, number> = { toilet: 10, sink: 6, shower: 5, bathtub: 5, washer: 2 };
+
+/**
+ * The orders a wet room's fixtures are tried in, best first on a tie: the basin first (it takes
+ * the wall seen from the door — the owner: "you could have placed the washbasin directly in front
+ * of the wall you see when you open the door"), then the bath and the shower their corners, then
+ * the WC; the WC after the basin; the WC first; the bath and the shower first. A WC laid out first
+ * in the middle of a wall left no corner wide enough for a shower, and the shower first can leave a
+ * narrow room no place for the WC. What is not a fixture (the mirror) keeps its place after them.
+ */
+const WET_ORDERS = [
+  ['sink', 'bathtub', 'shower', 'toilet', 'washer'],
+  ['sink', 'toilet', 'bathtub', 'shower', 'washer'],
+  ['toilet', 'sink', 'bathtub', 'shower', 'washer'],
+  ['bathtub', 'shower', 'sink', 'toilet', 'washer'],
+];
+
+function wetOrders(program: ProgramEntry[]): ProgramEntry[][] {
+  const fixtures = program.filter((e) => WET_FIXTURES.has(getArchetype(e.kind)?.slot ?? ''));
+  const rest = program.filter((e) => !fixtures.includes(e));
+  const seen = new Set<string>();
+  const out: ProgramEntry[][] = [];
+  for (const kinds of WET_ORDERS) {
+    const ordered = [...kinds.map((k) => fixtures.find((e) => e.kind === k)).filter((e): e is ProgramEntry => !!e), ...fixtures.filter((e) => !kinds.includes(e.kind))];
+    const key = ordered.map((e) => e.kind).join(',');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push([...ordered, ...rest]);
+  }
+  return out;
+}
+
+/** How good a wet room's layout is: its fixtures by worth, less for each that leaves no way to it. */
+function wetScore(items: PlacedItem[]): number {
+  const fixtures = items.filter((i) => WET_FIXTURES.has(i.slot));
+  let score = fixtures.reduce((sum, i) => sum + (WET_WEIGHT[i.slot] ?? 0), 0);
+  for (const item of fixtures) {
+    const front = clearanceBox({ position: item.position, rotation: item.rotation, size: item.size, elevationM: 0 }, BATH_PASSAGE_MIN_M - 0.02);
+    if (fixtures.some((o) => o !== item && overlaps(front, boxFor({ position: o.position, rotation: o.rotation, size: o.size, elevationM: 0 })))) score -= 4;
+  }
+  return score;
+}
+
 /** How far below the best spot's score a spot may be and still be drawn (`pickNearBest`). */
 const SPOT_SPREAD = 10;
 /** A double bed's spread: another wall of the same merit, not another stretch of its wall. */
@@ -126,8 +187,24 @@ const BED_SPREAD = 3;
 // ---------------------------------------------------------------------------
 
 export function layoutPlan(rooms: PlanRoom[], options: LayoutOptions = {}): PlacedItem[] {
-  return rooms.flatMap((room) => layoutRoom(room, options));
+  const placed = rooms.flatMap((room) => layoutRoom(room, options));
+  // The washing machine is the bathroom's; when no bathroom has room for it, the hall's (by the
+  // entrance, with the technical things), else the kitchen's.
+  if (!placed.some((p) => p.slot === 'washer') && rooms.some((r) => r.type === 'bathroom')) {
+    for (const type of WASHER_FALLBACK_ROOMS) {
+      const room = rooms.filter((r) => r.type === type).sort((a, b) => b.areaM2 - a.areaM2)[0];
+      const washer = room ? placeAdditional(room, 'washer', placed, undefined, options.obstacles?.[room.id] ?? []) : null;
+      if (washer) {
+        placed.push({ ...washer, id: `${room!.id}-washer-0` });
+        break;
+      }
+    }
+  }
+  return placed;
 }
+
+/** Where the washing machine goes when no bathroom has room for it, in this order. */
+const WASHER_FALLBACK_ROOMS: RoomType[] = ['hallway', 'kitchen'];
 
 export function layoutRoom(room: PlanRoom, options: LayoutOptions = {}): PlacedItem[] {
   // A studio is furnished part by part: the kitchen's program in the kitchen half, the living
@@ -151,8 +228,21 @@ export function layoutRoom(room: PlanRoom, options: LayoutOptions = {}): PlacedI
   return layoutArea(room, options, '', roomSightBands(room).map((b) => b.quad));
 }
 
-function layoutArea(room: PlanRoom, options: LayoutOptions, idPrefix: string, doorBands: Quad[] = []): PlacedItem[] {
-  const program = ROOM_PROGRAMS[room.type] ?? [];
+function layoutArea(room: PlanRoom, options: LayoutOptions, idPrefix: string, doorBands: Quad[] = [], order?: ProgramEntry[]): PlacedItem[] {
+  // A bathroom's or a toilet's fixtures are laid out in whichever of a few orders gives the best
+  // room: the WC, then the most fixtures, each with a way past it. No one order serves every room —
+  // the basin first gives a narrow bathroom its basin at the end, the shower first a square one its
+  // corner, and either can leave a narrow room no place for the WC.
+  if (!order && WET_ROOM_TYPES.includes(room.type)) {
+    let best: { items: PlacedItem[]; score: number } | null = null;
+    for (const candidate of wetOrders(ROOM_PROGRAMS[room.type] ?? [])) {
+      const items = layoutArea(room, options, idPrefix, doorBands, candidate);
+      const score = wetScore(items);
+      if (!best || score > best.score) best = { items, score };
+    }
+    return best?.items ?? [];
+  }
+  const program = order ?? ROOM_PROGRAMS[room.type] ?? [];
   const edges = roomEdges(room.polygon);
   if (edges.length === 0) return [];
 
@@ -169,6 +259,8 @@ function layoutArea(room: PlanRoom, options: LayoutOptions, idPrefix: string, do
 
   let counter = 0;
   const nextId = (kind: string) => `${room.id}-${idPrefix}${kind}-${counter++}`;
+  const passages: Box[] = [];
+  const wet = WET_ROOM_TYPES.includes(room.type);
 
   for (const entry of program) {
     const kind = resolveVariant(entry, room.areaM2);
@@ -186,7 +278,7 @@ function layoutArea(room: PlanRoom, options: LayoutOptions, idPrefix: string, do
       entry.count === 'fill' ? seatCountFor(archetype, placed) : entry.count;
 
     for (let i = 0; i < count; i++) {
-      const rules: RuleContext = { doorBands, entranceBands: options.entranceSight?.[room.id] ?? [], placed };
+      const rules: RuleContext = { doorBands, entranceBands: options.entranceSight?.[room.id] ?? [], placed, passages };
       const pose = resolvePose(archetype, i, room, edges, placed, occupied, { anchors: anchorsFor(kind, anchors), rng: options.rng, rules });
       // A ring of seats keeps going past a slot that hits a wall; anything else stops at the
       // first failure, because its second copy has no better chance than its first.
@@ -203,10 +295,16 @@ function layoutArea(room: PlanRoom, options: LayoutOptions, idPrefix: string, do
         elevationM: pose.elevationM,
         size: pose.size,
         product: null,
+        // A shower's slot is its tray and glass; the product (a column) stands at its back.
+        ...(archetype.slot === 'shower' ? { areaM: { width: pose.size.width, depth: pose.size.depth } } : {}),
       });
 
       // A WC keeps its 40 cm either side of its centre (`WC_SIDE_M`): nothing placed after it stands there.
       if (!archetype.ghost) occupied.push(boxFor(archetype.slot === 'toilet' ? { ...pose, size: { ...pose.size, width: Math.max(pose.size.width, 2 * WC_SIDE_M + 0.02) } } : pose));
+      // A fixture's free floor in a bathroom or a toilet: what comes after keeps out of it.
+      if (wet && WET_FIXTURES.has(archetype.slot)) passages.push(clearanceBox(pose, BATH_PASSAGE_MIN_M));
+      // The kitchen run's 1.2 m of working floor: the table and its chairs stand beyond it.
+      if (archetype.slot === 'kitchen_run') occupied.push(clearanceBox(pose, KITCHEN_CIRCULATION_M));
     }
   }
 
@@ -267,7 +365,7 @@ function resolvePose(
 ): Pose | null {
   const rule = archetype.placement;
   const rng = options.rng;
-  const rules = options.rules ?? { doorBands: [], entranceBands: [], placed };
+  const rules = options.rules ?? { doorBands: [], entranceBands: [], placed, passages: [] };
   // A room separator is no wall: nothing stands against it, runs along it or hangs on it.
   const walled = edges.filter((e) => !isOpenEdge(room, e.index));
 
@@ -290,13 +388,14 @@ function resolvePose(
     case 'relative':
       return placeRelative(archetype, index, room, placed, occupied);
     case 'corner':
-      return placeInCorner(archetype, room, edges, occupied, rule.clearanceM, rng);
+      return placeInCorner(archetype, room, walled, occupied, rule.clearanceM, rng, rules);
     case 'ceiling':
       return placeOnCeiling(archetype, room, placed);
     case 'wall-mounted':
       // Over its piece when the room has one (the wall cabinets over the run, the mirror over the
       // basin, a print over the bed, the TV over its unit), else on a wall — the TV nowhere.
-      return (rule.above ? placeAbove(archetype, room, walled, placed, rule) : null) ?? (rule.onlyAbove ? null : placeOnWall(archetype, index, room, walled, rule.heightM, placed, rng));
+      // A bathroom's mirror hangs over its basin and nowhere else.
+      return (rule.above ? placeAbove(archetype, room, walled, placed, rule) : null) ?? (rule.onlyAbove || (archetype.slot === 'mirror' && WET_ROOM_TYPES.includes(room.type)) ? null : placeOnWall(archetype, index, room, walled, rule.heightM, placed, rng));
     case 'under':
       return placeUnder(archetype, room, placed);
     case 'window':
@@ -373,6 +472,21 @@ function inSight(pose: Pose, bands: Quad[]): boolean {
   return bands.some((band) => quadsOverlap(quad, band));
 }
 
+/** Whether a wall faces this way (within a few degrees). */
+function facesWay(facing: number, way: number): boolean {
+  const turn = facing - way;
+  return Math.abs(Math.atan2(Math.sin(turn), Math.cos(turn))) < 0.1;
+}
+
+/** How far a pose's footprint overlaps a piece's width, across the piece's facing — whether it stands in front of it. */
+function acrossOverlap(pose: Pose, piece: PlacedItem): number {
+  const right = { x: Math.cos(piece.rotation), z: -Math.sin(piece.rotation) };
+  const along = (p: Vec2) => (p.x - piece.position.x) * right.x + (p.z - piece.position.z) * right.z;
+  const centre = along(pose.position);
+  const half = (Math.abs(Math.cos(pose.rotation - piece.rotation)) * pose.size.width + Math.abs(Math.sin(pose.rotation - piece.rotation)) * pose.size.depth) / 2;
+  return Math.min(centre + half, piece.size.width / 2) - Math.max(centre - half, -piece.size.width / 2);
+}
+
 /** The width beside a double bed for a nightstand and the step to it: 60–70 cm free (`BED_SIDE_FREE_M`). */
 const BEDSIDE_M = BED_SIDE_FREE_M;
 
@@ -397,8 +511,13 @@ function bestAlongWalls(
 ): Pose | null {
   const { width, depth, height } = size;
   const anchorPoints = anchors.map((a) => a.point);
-  const spots: Array<{ value: Pose; score: number; seen?: boolean }> = [];
+  const spots: Array<{ value: Pose; score: number; seen?: boolean; cramped?: boolean }> = [];
   const bounds = polygonBounds(room.polygon);
+  // In a bathroom or a toilet each fixture keeps free floor in front of it, and out of the others'.
+  const wetFixture = WET_ROOM_TYPES.includes(room.type) && WET_FIXTURES.has(archetype.slot);
+  const standing = (rules?.placed ?? []).filter((p) => p.roomId === room.id && !ARCHETYPES[p.kind]?.ghost).map((p) => boxFor({ position: p.position, rotation: p.rotation, size: p.size, elevationM: 0 }));
+  const sofa = rules?.placed.find((p) => p.roomId === room.id && p.slot === 'sofa');
+  const bed = rules?.placed.find((p) => p.roomId === room.id && p.slot === 'bed');
 
   for (const edge of edges) {
     if (edge.length < width + 0.25) continue;
@@ -470,6 +589,26 @@ function bestAlongWalls(
       // not — though it is no fault if it is.
       const seen = inSight(pose, rules?.doorBands ?? []);
       if (seen && archetype.slot === 'bed') score -= 12;
+      // Opening a bathroom's door one sees the basin, the shower or the bath; and the long walls
+      // take the basin and the bath, the WC the rest.
+      if (wetFixture && (archetype.slot === 'sink' || archetype.slot === 'bathtub')) {
+        if (seen) score += 6;
+        score += edge.length * 2;
+      }
+      // Less than `BATH_PASSAGE_MIN_M` in front of it (or standing in another's) is no way past;
+      // less than the full `BATH_PASSAGE_M` is tight, and taken only when nothing roomier is.
+      const cramped = wetFixture && (overlapsAny(clearanceBox(pose, BATH_PASSAGE_MIN_M), standing) || overlapsAny(boxFor(pose), rules?.passages ?? []));
+      if (wetFixture && !cramped && overlapsAny(clearanceBox(pose, Math.max(clearanceM, BATH_PASSAGE_M)), standing)) score -= 10;
+      // A bookcase beside or behind the sofa, not in its line of sight (on the TV's wall).
+      if (archetype.kind === 'bookshelf' && sofa) {
+        if (facesWay(edge.facing, sofa.rotation + Math.PI)) score -= 20;
+        else score += facesWay(edge.facing, sofa.rotation) ? 8 : 4;
+      }
+      // A wardrobe beside the bed, never facing it from the foot.
+      if (archetype.slot === 'wardrobe' && bed) {
+        if (facesWay(edge.facing, bed.rotation + Math.PI) && acrossOverlap(pose, bed) > 0.2) score -= 20;
+        else if (!facesWay(edge.facing, bed.rotation)) score += 6;
+      }
       // The sofa 2.5–3.5 m from the screen on the wall it faces.
       if (archetype.slot === 'sofa') {
         const ahead = rayToPolygon(centre, { x: Math.sin(edge.facing), z: Math.cos(edge.facing) }, room.polygon);
@@ -477,6 +616,10 @@ function bestAlongWalls(
           const screen = ahead - 0.05;
           const off = screen < SOFA_TV_M.min ? SOFA_TV_M.min - screen : screen > SOFA_TV_M.max ? screen - SOFA_TV_M.max : 0;
           score += off === 0 ? 10 : -off * 16;
+          // It faces the TV, which hangs on the wall ahead: not a wall of windows.
+          const ahead2 = { x: Math.sin(edge.facing), z: Math.cos(edge.facing) };
+          const tvPose = { position: { x: centre.x + ahead2.x * (ahead - 0.25), z: centre.z + ahead2.z * (ahead - 0.25) }, rotation: edge.facing + Math.PI, size: { width: 1.6, depth: 0.4, height: TV_TOP_M }, elevationM: 0 };
+          if (blocksWindow({ ...tvPose, slot: 'tv_unit' }, room)) score -= 14;
         }
       }
 
@@ -484,10 +627,12 @@ function bestAlongWalls(
       // enough to outweigh the wall preferences, which are about looks, not plumbing.
       if (anchorPoints.length > 0) score += Math.max(0, 40 - minDistance(centre, anchorPoints) * 12);
 
-      spots.push({ value: pose, score, seen });
+      spots.push({ value: pose, score, seen, cramped });
     }
   }
 
+  // A fixture that would leave no way past it goes only when nothing else fits.
+  if (wetFixture && spots.some((s) => !s.cramped)) spots.splice(0, spots.length, ...spots.filter((s) => !s.cramped));
   // A WC is not what the door opens onto: the spots seen through a doorway go, unless no other fits.
   if (archetype.slot === 'toilet' && spots.some((s) => !s.seen)) return pickNearBest(spots.filter((s) => !s.seen), SPOT_SPREAD, rng);
 
@@ -639,7 +784,11 @@ function placeCentre(archetype: Archetype, room: PlanRoom, occupied: Box[], plac
       height: archetype.size.height,
     };
 
-    for (const offset of spiralOffsets(1.8, 0.3)) {
+    // A kitchen's table stands beyond the run's working floor (in `occupied`) and as far from the
+    // run as it can — at the short wall of a long kitchen, not in the middle of the cooking.
+    const run = archetype.slot === 'dining_table' ? placed.find((p) => p.roomId === room.id && p.slot === 'kitchen_run') : undefined;
+    let farthest: { pose: Pose; distance: number } | null = null;
+    for (const offset of spiralOffsets(run ? Math.max(1.8, Math.max(bounds.width, bounds.depth) / 2) : 1.8, 0.3)) {
       for (const rot of [rotation, rotation + Math.PI / 2]) {
         const pose: Pose = {
           position: { x: centroid.x + offset.x, z: centroid.z + offset.z },
@@ -651,9 +800,12 @@ function placeCentre(archetype: Archetype, room: PlanRoom, occupied: Box[], plac
         // Free-standing items need space all round, not just their own footprint.
         if (overlapsAny(inflate(boxFor(pose), gap), occupied)) continue;
         if (runs.length > 0 && overlapsAny(inflate(boxFor(pose), FACING_COUNTERS_M - 0.01), runs)) continue;
-        return pose;
+        if (!run) return pose;
+        const distance = Math.hypot(pose.position.x - run.position.x, pose.position.z - run.position.z);
+        if (!farthest || distance > farthest.distance + 1e-6) farthest = { pose, distance };
       }
     }
+    if (farthest) return farthest.pose;
   }
 
   return null;
@@ -692,7 +844,32 @@ function placeRelative(
   // A desk chair stands with its seat under the desk (`gapM` below zero): like the chairs at a
   // table, it is tested against everything but the piece it slides under.
   const anchorBox = boxFor({ position: anchor.position, rotation: anchor.rotation, size: anchor.size, elevationM: 0 });
-  const others = rule.gapM != null && rule.gapM < 0 ? occupied.filter((b) => !overlaps(b, anchorBox)) : occupied;
+  // An armchair keeps its distance from the dining table and its chairs.
+  const dining = archetype.slot === 'armchair' ? placed.filter((p) => p.roomId === room.id && (p.slot === 'dining_table' || p.slot === 'dining_chair')).map((p) => inflate(boxFor({ position: p.position, rotation: p.rotation, size: p.size, elevationM: 0 }), ARMCHAIR_DINING_GAP_M)) : [];
+  const others = [...(rule.gapM != null && rule.gapM < 0 ? occupied.filter((b) => !overlaps(b, anchorBox)) : occupied), ...dining];
+
+  // An armchair beside the sofa, turned about 45° towards the TV (the owner's notes): either end
+  // of the sofa, a little ahead of its front, turned in towards the middle.
+  if (archetype.slot === 'armchair' && rule.to === 'sofa') {
+    for (const side of [preferredSide, -preferredSide]) {
+      for (const ahead of [anchor.size.depth / 2 + 0.15, anchor.size.depth / 2 + 0.45, anchor.size.depth / 2 - 0.05]) {
+        const lateral = side * (anchor.size.width / 2 + archetype.size.width * 0.62 + 0.12);
+        const pose: Pose = {
+          position: { x: anchor.position.x + forward.x * ahead + right.x * lateral, z: anchor.position.z + forward.z * ahead + right.z * lateral },
+          rotation: anchor.rotation - side * (Math.PI / 4),
+          size: archetype.size,
+          elevationM: 0,
+        };
+        if (fitsInRoom(pose, room.polygon) && !overlapsAny(boxFor(pose), others)) return pose;
+      }
+    }
+  }
+
+  // The TV unit leaves 60 cm of floor (`TV_UNIT_CLEAR_M`) before the coffee table; with no spot
+  // that does, there is no TV unit.
+  const coffee = archetype.slot === 'tv_unit' ? placed.find((p) => p.roomId === room.id && p.slot === 'coffee_table') : undefined;
+  const coffeeBox = coffee ? [boxFor({ position: coffee.position, rotation: coffee.rotation, size: coffee.size, elevationM: 0 })] : [];
+
   const tries = relativeSpots(archetype, rule, anchor, room, preferredSide);
   // The TV unit: the TV hangs over it, so a stretch of its wall with no window over it comes
   // first — a low unit may stand under a sill, the TV over it may not (`placeAbove`).
@@ -705,6 +882,7 @@ function placeRelative(
     const pose: Pose = { position, rotation, size: archetype.size, elevationM: 0 };
     if (!fitsInRoom(pose, room.polygon)) continue;
     if (overlapsAny(boxFor(pose), others)) continue;
+    if (coffeeBox.length > 0 && overlapsAny(inflate(boxFor(pose), TV_UNIT_CLEAR_M - 0.01), coffeeBox)) continue;
     if (rule.toWall && blocksWindow({ ...pose, slot: archetype.slot, size: { ...pose.size, height: TV_TOP_M } }, room)) {
       underWindow ??= pose;
       continue;
@@ -887,48 +1065,56 @@ function seatCountFor(archetype: Archetype, placed: PlacedItem[]): number {
 function placeInCorner(
   archetype: Archetype,
   room: PlanRoom,
-  edges: PlanEdge[],
+  walled: PlanEdge[],
   occupied: Box[],
   clearanceM: number,
-  rng?: Rng
+  rng?: Rng,
+  rules?: RuleContext
 ): Pose | null {
-  const { width, depth } = archetype.size;
-  const inset = Math.max(width, depth) / 2 + clearanceM * 0.4;
+  // A shower takes the largest area the bathroom allows, 80 × 80 at least (`SHOWER_SIZES_M`).
+  const shower = archetype.slot === 'shower';
+  const sizes: Size3[] = shower
+    ? SHOWER_SIZES_M.filter((s) => room.areaM2 >= SHOWER_ROOMY_M2 || s.width <= 0.9).map((s) => ({ ...s, height: archetype.size.height }))
+    : [archetype.size];
+  const wetFixture = WET_ROOM_TYPES.includes(room.type) && WET_FIXTURES.has(archetype.slot);
+  const standing = (rules?.placed ?? []).filter((p) => p.roomId === room.id && !ARCHETYPES[p.kind]?.ghost).map((p) => boxFor({ position: p.position, rotation: p.rotation, size: p.size, elevationM: 0 }));
+  const all = roomEdges(room.polygon);
+  const byIndex = new Map(all.map((e) => [e.index, e]));
+  const isWalled = new Set(walled.map((e) => e.index));
+  const n = room.polygon.length;
 
-  const spots: Array<{ value: Pose; score: number }> = [];
-
-  for (let i = 0; i < room.polygon.length; i++) {
-    const corner = room.polygon[i];
-    const prev = edges[(i - 1 + edges.length) % edges.length];
-    const next = edges[i % edges.length];
-    if (!prev || !next) continue;
-
-    // Step diagonally inward, away from both walls meeting at this corner.
-    const inward = normalise({
-      x: prev.inward.x + next.inward.x,
-      z: prev.inward.z + next.inward.z,
-    });
-
-    const pose: Pose = {
-      position: { x: corner.x + inward.x * inset, z: corner.z + inward.z * inset },
-      rotation: next.facing,
-      size: archetype.size,
-      elevationM: 0,
-    };
-
-    if (!fitsInRoom(pose, room.polygon)) continue;
-    if (overlapsAny(inflate(boxFor(pose), 0.1), occupied)) continue;
-
-    // Prefer the emptiest corner.
-    const crowding = occupied.reduce(
-      (sum, box) => sum + 1 / (1 + distanceToBox(pose.position, box)),
-      0
-    );
-    spots.push({ value: pose, score: -crowding });
+  for (const size of sizes) {
+    const spots: Array<{ value: Pose; score: number; cramped: boolean }> = [];
+    for (let i = 0; i < n; i++) {
+      const corner = room.polygon[i];
+      const prev = byIndex.get((i - 1 + n) % n);
+      const next = byIndex.get(i);
+      if (!prev || !next || !isWalled.has(prev.index) || !isWalled.has(next.index)) continue;
+      // Square into the corner: its back on one of the two walls, its side on the other.
+      // A centimetre off both walls, so a box on the wall's line does not count as through it.
+      const w = size.width / 2 + 0.01;
+      const d = size.depth / 2 + 0.01;
+      const candidates: Pose[] = [
+        { position: { x: corner.x + next.dir.x * w + next.inward.x * d, z: corner.z + next.dir.z * w + next.inward.z * d }, rotation: next.facing, size, elevationM: 0 },
+        { position: { x: corner.x - prev.dir.x * w + prev.inward.x * d, z: corner.z - prev.dir.z * w + prev.inward.z * d }, rotation: prev.facing, size, elevationM: 0 },
+      ];
+      for (const pose of candidates) {
+        if (!fitsInRoom(pose, room.polygon)) continue;
+        if (overlapsAny(boxFor(pose), occupied)) continue;
+        // Prefer the emptiest corner; a bathroom's shower one seen from the door.
+        const crowding = occupied.reduce((sum, box) => sum + 1 / (1 + distanceToBox(pose.position, box)), 0);
+        const seen = shower && inSight(pose, rules?.doorBands ?? []);
+        const cramped = wetFixture && (overlapsAny(clearanceBox(pose, BATH_PASSAGE_MIN_M), standing) || overlapsAny(boxFor(pose), rules?.passages ?? []));
+        const tight = wetFixture && overlapsAny(clearanceBox(pose, Math.max(clearanceM, BATH_PASSAGE_M)), standing);
+        spots.push({ value: pose, score: -crowding + (seen ? 1.5 : 0) - (tight ? 1 : 0), cramped });
+      }
+    }
+    const open = spots.filter((s) => !s.cramped);
+    // The largest size with a corner that leaves a way past it; the last size takes any corner.
+    if (open.length > 0) return pickNearBest(open, 1, rng);
+    if (size === sizes[sizes.length - 1] && spots.length > 0) return pickNearBest(spots, 1, rng);
   }
-
-  // The emptiest corner; generating, any corner nearly as empty.
-  return pickNearBest(spots, 1, rng);
+  return null;
 }
 
 /**
@@ -1219,10 +1405,12 @@ function sampleAlong(edge: PlanEdge, itemWidth: number): number[] {
 
 function boxFor(pose: Pose): Box {
   const { width, depth } = pose.size;
-  // Rooms are rectilinear, so every rotation is a right angle and an AABB is exact.
-  const sideways = Math.abs(Math.sin(pose.rotation)) > 0.5;
-  const halfX = (sideways ? depth : width) / 2;
-  const halfZ = (sideways ? width : depth) / 2;
+  // The bounding box of the turned footprint: exact at right angles (rooms are rectilinear), and
+  // the whole of an armchair turned 45° towards the TV.
+  const c = Math.abs(Math.cos(pose.rotation));
+  const sn = Math.abs(Math.sin(pose.rotation));
+  const halfX = (c * width + sn * depth) / 2;
+  const halfZ = (sn * width + c * depth) / 2;
   return {
     minX: pose.position.x - halfX,
     maxX: pose.position.x + halfX,

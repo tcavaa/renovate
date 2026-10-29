@@ -64,6 +64,47 @@ scene ──tightSpots──▶ amber warnings (not a rule)
   at 1.05 m, the wall cabinets' bottom 55 cm over the worktop (1.45 m; their middle `heightM`
   1.81), nothing in front of a radiator (`radiatorKeepouts`).
 
+## The owner's layout rules of 29 Oct 2026 ([design-rules.md](design-rules.md#the-second-round-the-guidelines-for-ai-website-owner-29-oct-2026))
+
+- **A bathroom's fixtures each keep a way to them** (`BATH_PASSAGE_M` 60 cm preferred,
+  `BATH_PASSAGE_MIN_M` 40 cm at least): a fixture's spot is refused while its front would run
+  into another piece or it would stand in another's free floor (`RuleContext.passages`), unless
+  nothing else fits; under 60 cm scores 10 less. The owner's screenshot had a basin facing the WC
+  across a 1.1 m bathroom and no way past either.
+- **Which order a wet room is laid out in is tried, not fixed** (`wetOrders`, `wetScore`): the basin
+  first, then the bath and the shower, then the WC; the WC after the basin; the WC first; the bath
+  and shower first — the layout with the WC, then the most fixtures (by worth), each with its way,
+  is kept (the first on a tie). A WC laid out first in the middle of a wall left a 7 m² bathroom no
+  corner wide enough for a shower; the shower first left a narrow one no place for the WC. The
+  program's own order (`ROOM_PROGRAMS`) stays the shelf's.
+- **The basin is what the door opens onto and the basin and the bath take the long walls** (+6 in
+  a doorway's sight, + twice the wall's length); the WC still keeps out of sight when anything
+  else fits. **The mirror hangs over the basin only** in a bathroom or a toilet (no basin, no
+  mirror).
+- **The shower is an area** (`PlacedItem.areaM`): the largest of `SHOWER_SIZES_M` (120 × 90,
+  100 × 90, 90 × 90, 80 × 80 — the larger only from 5 m², `SHOWER_ROOMY_M2`) that fits a corner with
+  its way, squared into the corner a centimetre off both walls, either wall at its back; the
+  product (a shower column or panel, about 50 cm across) stands at the back of it (the matcher's
+  corner settle). The size check measures the area (`shower_too_small`); it measured the column and
+  warned of a 49 cm shower the engine had laid out. A bath (from 7.5 m²) comes before a separate
+  shower, which goes in only when there is room besides; a smaller bathroom has the shower alone.
+- **The washing machine** is the bathroom's (from 4.5 m²); when no bathroom has room for it, the
+  hall's, else the kitchen's (`layoutPlan`, `WASHER_FALLBACK_ROOMS`).
+- **The kitchen run keeps 1.2 m of working floor** in front of it (`KITCHEN_CIRCULATION_M`, a
+  keepout once the run stands): the table and its chairs go beyond it, the table as far from the
+  run as the room allows — the short wall of a long kitchen (`placeCentre`). The run already takes
+  the longest wall and the fridge the run's end (`beside`, +40).
+- **The armchair beside the sofa is turned 45° towards the TV** (`placeRelative`): at either end of
+  the sofa, a little ahead of its front, turned in; it keeps 80 cm from the dining table and its
+  chairs (`ARMCHAIR_DINING_GAP_M`). The old rule (facing the sofa across the room) is the fallback.
+  The layout's boxes are the turned footprint's bounding box (`boxFor`), exact at right angles.
+- **The sofa faces the TV, not a window**: a sofa spot whose wall ahead has a window where the TV
+  would hang scores 14 less. **The TV unit leaves 60 cm before the coffee table**
+  (`TV_UNIT_CLEAR_M`); with no spot that does, there is no TV unit (and so no TV).
+- **A bookcase stands beside or behind the sofa** (+8 behind, +4 beside), never on the TV's wall in
+  its line of sight (−20). **A wardrobe stands beside the bed** (+6 on a side wall), never facing it
+  from its foot (−20), and every bedroom has one (no area gate).
+
 ## Generating is random
 
 The same plan generated twice gives two flats. `generate` draws a fresh seed (`randomSeed`) and

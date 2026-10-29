@@ -279,8 +279,11 @@ function layoutRules(plan: FloorPlan, items: PlacedItem[]): RuleViolation[] {
         }
       }
 
-      if (item.slot === 'shower' && Math.min(item.size.width, item.size.depth) < SHOWER_MIN_M - 0.005) {
-        out.push({ code: 'shower_too_small', roomId: room.id, itemId: item.id, valueM: round2(Math.min(item.size.width, item.size.depth)), limitM: SHOWER_MIN_M });
+      // A shower is the floor it takes — its tray and glass (`areaM`) — not the column standing in it:
+      // the check measured a 49 cm shower column and warned of a shower the engine itself laid out.
+      const showerArea = item.areaM ?? item.size;
+      if (item.slot === 'shower' && Math.min(showerArea.width, showerArea.depth) < SHOWER_MIN_M - 0.005) {
+        out.push({ code: 'shower_too_small', roomId: room.id, itemId: item.id, valueM: round2(Math.min(showerArea.width, showerArea.depth)), limitM: SHOWER_MIN_M });
       }
 
       if (item.slot === 'sink' && WET_ROOM_TYPES.includes(room.type)) {

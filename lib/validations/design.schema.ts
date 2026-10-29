@@ -193,6 +193,8 @@ export const placedItemSchema = z.object({
   origin: itemOriginSchema.optional(),
   mirrored: z.boolean().optional(),
   locked: z.boolean().optional(),
+  // A shower's tray and glass (`PlacedItem.areaM`).
+  areaM: z.object({ width: z.number().positive().max(5), depth: z.number().positive().max(5) }).optional(),
 });
 
 export const finishZoneSchema = z.object({

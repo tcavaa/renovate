@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { layoutRoom } from '@/lib/design/autoLayout';
+import { blocksWindow } from '@/lib/design/manipulate';
 import { matchProducts, type CatalogProduct } from '@/lib/design/matcher';
 import { refreshRoom, roomEdges as roomEdgesOf } from '@/lib/design/planGeometry';
 import { reviewFindings, validateReview, type ReviewOffer } from '@/lib/design/aiReview';
@@ -660,9 +661,14 @@ describe('what the generation of 20 Oct got wrong', () => {
     const tv = items.find((i) => i.slot === 'tv')!;
     expect(unit).toBeDefined();
     expect(tv).toBeDefined();
-    // Wall 2 runs from (5.2, 4.4) to (0, 4.4): the window takes x 0.756–2.156.
-    expect(tv.position.x - tv.size.width / 2 >= 2.156 - 1e-6 || tv.position.x + tv.size.width / 2 <= 0.756 + 1e-6).toBe(true);
-    expect(Math.abs(tv.position.x - unit.position.x) + tv.size.width / 2).toBeLessThanOrEqual(unit.size.width / 2 + 1e-6);
+    // Wall 2 runs from (5.2, 4.4) to (0, 4.4): the window takes x 0.756–2.156. The sofa now looks
+    // for a wall to face that is not a window wall (the owner's notes), so the TV is on that wall
+    // only when nothing better was found — and then off the window.
+    if (Math.abs(tv.position.z - 4.4) < 0.3) {
+      expect(tv.position.x - tv.size.width / 2 >= 2.156 - 1e-6 || tv.position.x + tv.size.width / 2 <= 0.756 + 1e-6).toBe(true);
+      expect(Math.abs(tv.position.x - unit.position.x) + tv.size.width / 2).toBeLessThanOrEqual(unit.size.width / 2 + 1e-6);
+    }
+    expect(blocksWindow({ ...tv, size: { ...tv.size, height: 1.5 } }, living)).toBe(false);
   });
 
   it('never takes a range cooker for the kitchen run', async () => {

@@ -246,6 +246,30 @@ export const WARDROBE_DEPTH_M = 0.6;
 export const SHALLOW_WARDROBE_DEPTH_M = 0.38;
 /** A shower: at least 80 × 80, preferably 90 × 90. */
 export const SHOWER_MIN_M = 0.8;
+/**
+ * The shower areas the layout tries, largest first (the owner: at least 80 × 80, larger when the
+ * bathroom allows): the larger only in a bathroom of `SHOWER_ROOMY_M2` or more.
+ */
+export const SHOWER_SIZES_M: Array<{ width: number; depth: number }> = [
+  { width: 1.2, depth: 0.9 },
+  { width: 1.0, depth: 0.9 },
+  { width: 0.9, depth: 0.9 },
+  { width: 0.8, depth: 0.8 },
+];
+export const SHOWER_ROOMY_M2 = 5;
+/**
+ * Free floor kept in front of a WC, a basin, a shower, a bath or a washer — a person has to get to
+ * it: 60 cm where the bathroom allows, never under 40 (a narrow bathroom's WC beside the way to a
+ * basin at its end, as the owner drew it).
+ */
+export const BATH_PASSAGE_M = 0.6;
+export const BATH_PASSAGE_MIN_M = 0.4;
+/** Clear floor in front of the kitchen run before the dining table and its chairs. */
+export const KITCHEN_CIRCULATION_M = 1.2;
+/** Clear floor between the TV unit and the coffee table; less, and no TV unit. */
+export const TV_UNIT_CLEAR_M = 0.6;
+/** Clear floor between an armchair and the dining table or its chairs. */
+export const ARMCHAIR_DINING_GAP_M = 0.8;
 /** A WC's centre from a side wall (or anything beside it): 40 cm. */
 export const WC_SIDE_M = 0.4;
 /**

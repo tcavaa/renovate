@@ -571,7 +571,8 @@ export const ROOM_PROGRAMS: Record<RoomType, ProgramEntry[]> = {
   bedroom: [
     { kind: 'bed_double', count: 1 },
     { kind: 'nightstand', count: 2 },
-    { kind: 'wardrobe', count: 1, minAreaM2: 8 },
+    // Always a wardrobe (the owner's notes): built into a niche when the room has one.
+    { kind: 'wardrobe', count: 1 },
     { kind: 'dresser', count: 1, minAreaM2: 13 },
     { kind: 'rug_bed', count: 1 },
     { kind: 'pendant', count: 1 },
@@ -606,11 +607,16 @@ export const ROOM_PROGRAMS: Record<RoomType, ProgramEntry[]> = {
     { kind: 'pendant', count: 1 },
     { kind: 'curtain', count: 1 },
   ],
+  // The bath before the shower: a bath has its own shower, and a separate shower goes in only when
+  // there is room for one besides; a bathroom too small for a bath has the shower alone.
+  // The engine tries the fixtures in a few orders and keeps the best room (`wetOrders` in
+  // autoLayout); the order here is the shelf's. A bath has its own shower, and a separate shower
+  // goes in only when there is room for one besides.
   bathroom: [
     { kind: 'toilet', count: 1 },
     { kind: 'sink', count: 1 },
-    { kind: 'shower', count: 1 },
     { kind: 'bathtub', count: 1, minAreaM2: 7.5 },
+    { kind: 'shower', count: 1 },
     { kind: 'washer', count: 1, minAreaM2: 4.5 },
     { kind: 'mirror', count: 1 },
   ],
