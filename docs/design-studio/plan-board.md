@@ -205,6 +205,17 @@ go in the wall between the balcony and the flat, cut in both rooms like a door
 draws a railing along the wall instead ([technical-and-fittings.md](technical-and-fittings.md#balcony-railings)): the wall is gone
 there, floor to ceiling.
 
+**The partitions the app adds when it lays a flat out** (`lib/design/autoPartitions.ts`): a screen
+in front of a front door that opens into the living room, a lobby in front of an en-suite's door —
+ordinary walls of the plan (10 cm plasterboard, `origin: 'generated'`, ids `partition-entry-…` /
+`partition-ensuite-…`), each joined to one wall at most so the room stays whole (`keepWhole`).
+See [layout-and-matching.md](layout-and-matching.md).
+
+**A shower's glass is drawn as thin walls of glass** (`drawShowerGlass`, on the board and the plan
+PDF): its tray dashed, and a pale blue pane its thickness to scale on each side of the tray off
+the walls. It is not a wall of the plan — the shower would have become a room — but the shower's
+own (`lib/design/shower.ts`), so it moves with the shower and is sized on its card.
+
 ## A studio is one room in two parts (`lib/design/studio.ts`)
 
 `studio` (სტუდიო) is a room type for an open plan — most often a kitchen and a living room.

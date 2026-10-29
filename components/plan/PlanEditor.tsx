@@ -44,7 +44,7 @@ import type { RoomSplit } from '@/lib/calculator/types';
 import type { ElementSelection } from '@/store/designStore';
 import type { ElectricalKind, ElectricalPoint, FloorPlan, Opening, OpeningKind, PlacedItem, PlanRoom, SurfaceFinish, TechnicalKind, Vec2, Wall } from '@/lib/design/types';
 import { cellAt, cellPolygon, patchAt, patchSpans, stripAt, wallSpotAt, type PaintTarget } from '@/lib/design/paint';
-import { drawBaseFinishes, drawBeam, drawRadiatorBody, drawColumn, drawDraftRect, drawDraftWall, drawElectrical, drawFurniture, drawGhostPoint, drawGrid, drawGuides, drawMeasure, drawNodeHandles, drawOpening, drawOuterDimensions, drawPaintedCell, drawRoom, drawRoomGhost, drawTechnical, drawWall, drawWallBand, drawWallGhost, drawWallLength, drawZone, outerDimensionChains, toWorld, wallEndExtensions, type Transform } from './draw';
+import { drawBaseFinishes, drawBeam, drawRadiatorBody, drawColumn, drawDraftRect, drawDraftWall, drawElectrical, drawFurniture, drawShowerGlass, drawGhostPoint, drawGrid, drawGuides, drawMeasure, drawNodeHandles, drawOpening, drawOuterDimensions, drawPaintedCell, drawRoom, drawRoomGhost, drawTechnical, drawWall, drawWallBand, drawWallGhost, drawWallLength, drawZone, outerDimensionChains, toWorld, wallEndExtensions, type Transform } from './draw';
 import { EDITOR, ELECTRICAL_COLOR, TECHNICAL_COLOR } from './palette';
 
 /**
@@ -764,6 +764,9 @@ export function PlanEditor(props: PlanEditorProps) {
           hovered: hover.kind === 'item' && hover.id === item.id,
           invalid: dragging && !gesture.valid,
         });
+        // A shower's tray and glass, round the column that stands in it.
+        const itemRoom = live.areaM ? plan.rooms.find((r) => r.id === live.roomId) : undefined;
+        if (itemRoom) drawShowerGlass(ctx, tr, live, itemRoom, { selected: item.id === selectedItemId });
       }
       if (carried && carryPose) {
         drawFurniture(ctx, tr, { ...carried, position: carryPose.position, rotation: carryPose.rotation }, archetypeLabel(carried.kind, locale), { carried: true, invalid: !carryPose.valid });

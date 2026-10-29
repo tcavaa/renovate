@@ -9,6 +9,7 @@ import { leafOnOtherSide } from '@/lib/design/openings';
 import { isBaseFinish } from '@/lib/design/zones';
 import { isStyleFinish } from '@/lib/design/surfaces';
 import { dividerSegments, studioParts } from '@/lib/design/studio';
+import { showerArea, showerGlass } from '@/lib/design/shower';
 import { ROOM_TYPES } from '@/lib/calculator/constants';
 import type { RoomType } from '@/lib/calculator/types';
 import type { Beam, Column, ElectricalPoint, FinishZone, FloorPlan, Opening, PlacedItem, PlanRoom, SurfaceFinish, TechnicalPoint, Vec2, Wall } from '@/lib/design/types';
@@ -756,6 +757,40 @@ export function drawFurniture(ctx: CanvasRenderingContext2D, t: Transform, item:
     }
   }
   ctx.restore();
+}
+
+/**
+ * A shower's floor and its glass on the plan (`lib/design/shower`): the tray dashed, and each pane
+ * drawn as a thin wall of glass — its thickness to scale (2–5 cm), pale blue with a darker edge —
+ * on every side of the tray that is not on a wall.
+ */
+export function drawShowerGlass(ctx: CanvasRenderingContext2D, t: Transform, item: PlacedItem, room: Pick<PlanRoom, 'polygon'>, state: { selected?: boolean; ui?: number } = {}): void {
+  const area = showerArea(item);
+  if (!area) return;
+  const ui = state.ui ?? 1;
+  const c = toScreen(t, area.centre);
+  ctx.save();
+  ctx.translate(c.x, c.y);
+  ctx.rotate(-area.rotation);
+  ctx.setLineDash([4 * ui, 3 * ui]);
+  ctx.strokeStyle = state.selected ? EDITOR.selected : EDITOR.furniture;
+  ctx.lineWidth = 1 * ui;
+  ctx.strokeRect((-area.width / 2) * t.scale, (-area.depth / 2) * t.scale, area.width * t.scale, area.depth * t.scale);
+  ctx.restore();
+  for (const pane of showerGlass(item, room)) {
+    const a = toScreen(t, pane.a);
+    const b = toScreen(t, pane.b);
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.lineCap = 'butt';
+    ctx.strokeStyle = state.selected ? EDITOR.selected : '#5F8FB0';
+    ctx.lineWidth = Math.max(2 * ui, pane.thicknessM * t.scale + 1.5 * ui);
+    ctx.stroke();
+    ctx.strokeStyle = '#D6E8F3';
+    ctx.lineWidth = Math.max(1 * ui, pane.thicknessM * t.scale - 1 * ui);
+    ctx.stroke();
+  }
 }
 
 export function drawGuides(ctx: CanvasRenderingContext2D, t: Transform, guides: SnapGuide[], width: number, height: number): void {

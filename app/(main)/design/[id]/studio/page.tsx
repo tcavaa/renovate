@@ -1241,6 +1241,7 @@ export default function StudioPage() {
                   onVariant={(product, variantId) => gate('catalog') && store.setItemVariant(selected.id, product, variantId)}
                   onKitchenLength={isCustomKitchenItem(selected) ? (widthM) => gate('catalog') && store.setKitchenLength(selected.id, widthM) : undefined}
                   onKitchenToWall={isCustomKitchenItem(selected) ? () => gate('catalog') && store.stretchKitchenToWall(selected.id) : undefined}
+                  onShower={selected.areaM ? (change) => gate('moveFurniture') && store.setShowerSize(selected.id, change) : undefined}
                   swapLock={needs('catalog')}
                   moveLock={needs('moveFurniture')}
                   onLockedSwap={() => gate('catalog')}

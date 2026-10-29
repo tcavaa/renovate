@@ -200,7 +200,8 @@ studio then lets the person change ([subscriptions.md](../subscriptions.md)); a 
 the old per-m² fee still shows it under its total (`FeePaidNote`).
 
 **One function lays the flat out: `generateScene`** (`lib/design/generateScene.ts`, pure and
-isomorphic) — the layout engine's slots, the products matched to them, the style's floors and
+isomorphic) — the partitions the app adds first (`withGeneratedPartitions`: the entrance screen, an
+en-suite's lobby), the layout engine's slots, the products matched to them, the style's floors and
 walls, the calculation's picks, the fittings and openings as products, the designer's decor and the
 tidy-up. The store's `generate(catalog, proposal, seed?)` runs it in the browser (the engine's flat,
 no key) and the server's generation job runs it on the server (the AI designer's flat), so the two

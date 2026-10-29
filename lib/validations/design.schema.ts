@@ -195,6 +195,8 @@ export const placedItemSchema = z.object({
   locked: z.boolean().optional(),
   // A shower's tray and glass (`PlacedItem.areaM`).
   areaM: z.object({ width: z.number().positive().max(5), depth: z.number().positive().max(5) }).optional(),
+  // A shower's glass (`PlacedItem.glass`).
+  glass: z.object({ thicknessM: z.number().positive().max(0.2), heightM: z.number().positive().max(4) }).optional(),
 });
 
 export const finishZoneSchema = z.object({

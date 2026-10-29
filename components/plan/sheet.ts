@@ -7,7 +7,7 @@
 
 import { primaryHalf } from '@/lib/design/openings';
 import type { ElectricalPoint, FloorPlan, PlacedItem } from '@/lib/design/types';
-import { drawBeam, drawColumn, drawElectrical, drawFurniture, drawOpening, drawOpeningSize, drawOuterDimensions, drawRoom, drawRoomLabel, drawTechnical, drawWall, outerDimensionChains, wallEndExtensions, type Transform } from './draw';
+import { drawBeam, drawColumn, drawElectrical, drawFurniture, drawShowerGlass, drawOpening, drawOpeningSize, drawOuterDimensions, drawRoom, drawRoomLabel, drawTechnical, drawWall, outerDimensionChains, wallEndExtensions, type Transform } from './draw';
 
 export interface PlanSheetOptions {
   /** Multiplies every pixel size (strokes, type, gaps) — the PDF renders at print resolution. */
@@ -60,7 +60,13 @@ export function drawPlanSheet(ctx: CanvasRenderingContext2D, t: Transform, plan:
     for (const point of plan.technical?.points ?? []) drawTechnical(ctx, t, point, {});
   }
   for (const point of options.electrical ?? []) drawElectrical(ctx, t, point, {});
-  if (options.furniture) for (const item of options.furniture.items) drawFurniture(ctx, t, item, options.furniture.label(item), { ui });
+  if (options.furniture) {
+    for (const item of options.furniture.items) {
+      drawFurniture(ctx, t, item, options.furniture.label(item), { ui });
+      const room = item.areaM ? plan.rooms.find((r) => r.id === item.roomId) : undefined;
+      if (room) drawShowerGlass(ctx, t, item, room, { ui });
+    }
+  }
   // The room labels over everything, on a white plate.
   const labels = options.labels ?? 'full';
   if (labels !== 'none') for (const room of plan.rooms) drawRoomLabel(ctx, t, room, { unitM2: options.unitM2, ui, halo: true, areaOnly: labels === 'area' });

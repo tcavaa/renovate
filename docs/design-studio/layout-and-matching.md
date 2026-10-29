@@ -88,6 +88,15 @@ scene ──tightSpots──▶ amber warnings (not a rule)
   corner settle). The size check measures the area (`shower_too_small`); it measured the column and
   warned of a 49 cm shower the engine had laid out. A bath (from 7.5 m²) comes before a separate
   shower, which goes in only when there is room besides; a smaller bathroom has the shower alone.
+  **Its glass** stands on the sides of the tray off the walls (`showerGlass`, `lib/design/shower.ts`:
+  the tray found from the piece, so it follows it; 3 cm on the plan, 2–5, and 2 m tall,
+  `PlacedItem.glass`), drawn on the board and in 3D; the card resizes the tray and the glass.
+- **Partitions at generation** (`withGeneratedPartitions`, `lib/design/autoPartitions.ts`, first in
+  `generateScene`): a front door into a living room or a studio gets a screen 1.3 m in front of it
+  (`ENTRY_DEPTH_M`), an en-suite's door a lobby 1.1 m deep in its bedroom (`ENSUITE_DEPTH_M`, a
+  bedroom from 12 m²) — parallel to the door's wall, across the door and 30 cm past it, an end
+  within 90 cm of a wall run on to it (`PASSAGE_M`), the other end leaving a way through. The room
+  stays one (`keepWhole`) and the floor behind the screen is an obstacle for the layout.
 - **The washing machine** is the bathroom's (from 4.5 m²); when no bathroom has room for it, the
   hall's, else the kitchen's (`layoutPlan`, `WASHER_FALLBACK_ROOMS`).
 - **The kitchen run keeps 1.2 m of working floor** in front of it (`KITCHEN_CIRCULATION_M`, a
@@ -373,6 +382,10 @@ rule: the layout is still saved as arranged.
 
 ## Tests
 
+`tests/unit/design/showerGlass.test.ts` (the tray found from the piece, the glass off the walls
+and round the matched column, following the shower, resized with its wall side kept),
+`tests/unit/design/autoPartitions.test.ts` (the entrance screen run to the corner, a free one, none
+into a hall or a shallow room, an en-suite's lobby, nothing added twice),
 `tests/unit/design/styleRules.test.ts` (the flat's one floor and wall, an open kitchen and a
 floor chosen by hand; no black in a Scandinavian flat; a picture's height; blinds or curtains by
 style and room, a blind's size and height, sold one a window),

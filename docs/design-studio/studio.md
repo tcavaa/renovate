@@ -31,6 +31,7 @@ doors and windows) · [plan-board.md](plan-board.md) (the 2D view) ·
 | `components/design/SwapPanel.tsx`, `ItemCard.tsx`, `HoverCard.tsx` | the selected piece's card (turn, mirror, duplicate, lock, delete, angle, its product's material variants — [material-variants.md](material-variants.md) — a made-to-measure kitchen's material, alternatives); the hover card |
 | `components/studio/FixturePanel.tsx`, `OpeningPanel.tsx`, `VersionsPanel.tsx` | a fitting's card, a door/window's card, the versions list |
 | `components/studio/DecorPanel.tsx` | a custom wall decor piece's card: its size (width, height, off the floor), materials per part, colours, light line, cost; selected, the piece has arrows in 3D to resize it ([decor.md](decor.md#the-studio-decorpanel)) |
+| `components/design/SwapPanel.tsx` (`ShowerSize`) | a shower's card also sets its tray's width and depth and its glass's thickness (2–5 cm) and height (`setShowerSize` → `resizedShower`, `lib/design/shower.ts`) |
 | `components/studio/StudioTopBar.tsx`, `TutorialOverlay.tsx`, `NavHelp.tsx` | the top bar, the first-visit tour, the controls card |
 | `components/design/StudioControls.tsx` | `ViewSwitch` (2D / 3D / walk, the walls and time-of-day menus — `WallModeMenu`, `DaylightMenu` — start from scratch, photo) and `ZoomControls` |
 | `components/design/PhotoDialog.tsx`, `components/projects/ProjectRenders.tsx` | photos and the realistic renders queued from them |

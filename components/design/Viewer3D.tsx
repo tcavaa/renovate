@@ -55,6 +55,7 @@ import { lightingForHour, type Daylight } from '@/lib/design3d/daylight';
 import { cameraFacesWall, DEFAULT_WALL_MODE, wallPartVisible, type WallMode } from '@/lib/design3d/wallMode';
 import { buildGround, FOG_FAR_M, FOG_NEAR_M, skyTexture } from '@/lib/design3d/environment';
 import { buildDecor, releaseDecorMaterials } from '@/lib/design3d/decor';
+import { buildShowerGlass, releaseShowerGlassMaterials } from '@/lib/design3d/showerGlass';
 import { decorDepth, hideDecorHandles, makeDecorHandles, placeDecorHandles, scaleDecorHandles } from '@/lib/design3d/decorHandles';
 import { decorExtent, dragDecorHandle, isResizable, type DecorExtent, type DecorHandle } from '@/lib/design/decor/resize';
 import type { DecorPiece, DesignScene, ElectricalKind, ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, Vec2 } from '@/lib/design/types';
@@ -585,6 +586,7 @@ function SceneContent({
       releaseGhostMaterials();
       releaseDecorMaterials();
       releaseVariantMaterials();
+      releaseShowerGlassMaterials();
     },
     []
   );
@@ -619,6 +621,9 @@ function SceneContent({
   // The custom wall decor, rebuilt when it, the plan or the rooms in view change — not with the furniture.
   const decorGroup = useMemo(() => buildDecor(plan, scene.decor, roomFilter), [plan, scene.decor, roomFilter]);
   useEffect(() => () => disposeOwnedGeometry(decorGroup), [decorGroup]);
+  // The showers' trays and glass, rebuilt with the furniture (a few boxes a shower).
+  const showerGlassGroup = useMemo(() => buildShowerGlass(plan, scene.items, roomFilter), [plan, scene.items, roomFilter]);
+  useEffect(() => () => disposeOwnedGeometry(showerGlassGroup), [showerGlassGroup]);
   // The selected wall decor piece's arrows, to resize it (`decorHandles`): one group for the viewer's life.
   const decorHandles = useMemo(() => makeDecorHandles(), []);
   useEffect(() => () => disposeOwnedGeometry(decorHandles), [decorHandles]);
@@ -1862,6 +1867,7 @@ function SceneContent({
         <primitive object={decorGroup} />
         <primitive object={decorHandles} />
         <primitive object={itemsGroup} />
+        <primitive object={showerGlassGroup} />
         <primitive object={electricalGroup} />
         <primitive object={radiatorGroup} />
         <primitive object={equipmentGroup} />

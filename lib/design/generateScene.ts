@@ -20,6 +20,7 @@ import { generatedFinish, isStyleFinish, withFlatFinish } from './surfaces';
 import { technicalAnchors } from './technical';
 import { defaultTrim, hasTrims } from './trims';
 import { columnFootprints } from './walls';
+import { withGeneratedPartitions } from './autoPartitions';
 import { radiatorKeepouts } from './ruleChecks';
 import { entranceSightBands, underCeiling, type Quad } from './rules';
 import { isBaseFinish } from './zones';
@@ -58,13 +59,17 @@ export interface GeneratedScene {
 }
 
 export function generateScene(input: GenerateSceneInput): GeneratedScene {
-  const { plan, styleId, budgetGel, catalog, proposal = null, calculatorPicks = null } = input;
+  const { styleId, budgetGel, catalog, proposal = null, calculatorPicks = null } = input;
+  // The partitions the app adds (the entrance out of the living room's sight, an en-suite's lobby),
+  // before anything is laid out round them; the floor behind each stays free.
+  const partitioned = withGeneratedPartitions(input.plan);
+  const plan = partitioned.plan;
   // Every generation draws from its own seed: the same plan gives another layout, other products
   // and other floors and walls each time.
   const rng = seededRng(input.seed);
   // Columns are in the way, and so is the floor in front of a radiator: nothing is stood there.
   const radiators = radiatorKeepouts(plan);
-  const obstacles = Object.fromEntries(plan.rooms.map((r) => [r.id, [...columnFootprints(plan, r.id), ...(radiators[r.id] ?? [])]]));
+  const obstacles = Object.fromEntries(plan.rooms.map((r) => [r.id, [...columnFootprints(plan, r.id), ...(radiators[r.id] ?? []), ...(partitioned.keepouts[r.id] ?? [])]]));
   // What is seen coming in through the front door: the kitchen keeps out of it where it can.
   const entranceSight: Record<string, Quad[]> = {};
   for (const band of entranceSightBands(plan.rooms)) (entranceSight[band.roomId] ??= []).push(band.quad);

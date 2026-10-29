@@ -93,6 +93,7 @@ import type {
   Vec2,
   Wall,
 } from '@/lib/design/types';
+import { resizedShower } from '@/lib/design/shower';
 import { WC_BOX_HALF_M, underCeiling } from '@/lib/design/rules';
 import { withCeiling } from '@/lib/design/ceiling';
 import { withBoilerCabinet } from '@/lib/design/boilerCabinet';
@@ -519,6 +520,8 @@ export interface DesignActions {
   setItemVariant: (itemId: string, product: CatalogProduct, variantId: string | null) => void;
   /** A made-to-measure kitchen made `widthM` long along its wall; false when at that length it would not fit (`stretchedKitchen`). */
   setKitchenLength: (itemId: string, widthM: number) => boolean;
+  /** A shower's tray (width, depth) and glass (thickness, height), resized on its card (`lib/design/shower`). */
+  setShowerSize: (itemId: string, change: { widthM?: number; depthM?: number; glassThicknessM?: number; glassHeightM?: number }) => void;
   /** A made-to-measure kitchen stretched as far along its wall as the room and its neighbours let it; false when it cannot grow. */
   stretchKitchenToWall: (itemId: string) => boolean;
   /** Gives every made-to-measure piece without a material the style's, and buys the rest again for the façade they have now — no history entry. */
@@ -1750,6 +1753,14 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
           if (!next) return false;
           commit((s) => ({ items: s.items.map((i) => (i.id === itemId ? next : i)) }));
           return true;
+        },
+        setShowerSize: (itemId, change) => {
+          const { items, plan } = get();
+          const item = items.find((i) => i.id === itemId);
+          const room = item && plan?.rooms.find((r) => r.id === item.roomId);
+          const next = item && room ? resizedShower(item, room, change) : null;
+          if (!next) return;
+          commit((s) => ({ items: s.items.map((i) => (i.id === itemId ? { ...i, ...next } : i)) }));
         },
         stretchKitchenToWall: (itemId) => {
           const { items, plan } = get();

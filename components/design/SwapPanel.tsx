@@ -17,6 +17,7 @@ import { IconAction } from '@/components/plan/ElementInspector';
 import { candidatesFor, type CatalogProduct } from '@/lib/design/matcher';
 import { KITCHEN_LENGTH_M, kitchenFacadeM2, kitchenMaterialCandidates } from '@/lib/design/kitchen';
 import { productVariants, variantUnitPrice, type ProductVariant } from '@/lib/design/variants';
+import { SHOWER_AREA_MAX_M, SHOWER_AREA_MIN_M, SHOWER_GLASS_MAX_THICKNESS_M, SHOWER_GLASS_MIN_THICKNESS_M, glassOf } from '@/lib/design/shower';
 import { fill } from '@/lib/admin/list';
 import { formatGEL, formatM2, cn } from '@/lib/utils';
 import { useLocale, useT } from '@/lib/i18n/client';
@@ -49,6 +50,8 @@ interface SwapPanelProps {
   onKitchenLength?: (widthM: number) => boolean;
   /** Stretches a made-to-measure kitchen to the end of its wall; false when it cannot grow. */
   onKitchenToWall?: () => boolean;
+  /** A shower: its tray's width and depth and its glass's thickness and height (`lib/design/shower`). */
+  onShower?: (change: { widthM?: number; depthM?: number; glassThicknessM?: number; glassHeightM?: number }) => void;
   /** The plan swapping and removing need, when the person's has not got it. */
   swapLock?: PaidPlanId | null;
   /** The plan moving, turning and mirroring need, when the person's has not got it. */
@@ -107,6 +110,7 @@ export function SwapPanel({
   onVariant,
   onKitchenMaterial,
   onKitchenLength,
+  onShower,
   onKitchenToWall,
   swapLock,
   moveLock,
@@ -191,6 +195,7 @@ export function SwapPanel({
         )}
         {item.locked && <p className="text-[11px] text-ink-muted">{t.build.itemLockedHint}</p>}
         {onKitchenLength && !item.locked && <KitchenLength item={item} onLength={onKitchenLength} onToWall={onKitchenToWall} />}
+        {onShower && item.areaM && !item.locked && <ShowerSize item={item} onChange={onShower} />}
         {onVariant && catalogProduct && variants.length > 0 && (
           <VariantSwatches item={item} product={catalogProduct} variants={variants} locked={!!swapLock} onPick={(variantId) => onVariant(catalogProduct, variantId)} />
         )}
@@ -321,6 +326,43 @@ function VariantSwatches({ item, product, variants, locked, onPick }: { item: Pl
  * stretches it to the end of its wall. A length at which it would leave the room or stand on
  * another piece is refused, and says so.
  */
+/** A shower's tray and glass, in centimetres: the glass is drawn on the plan as thin walls and stands in 3D. */
+function ShowerSize({ item, onChange }: { item: PlacedItem; onChange: NonNullable<SwapPanelProps['onShower']> }) {
+  const t = useT();
+  const glass = glassOf(item);
+  const field = (label: string, cm: number, min: number, max: number, step: number, apply: (cm: number) => void) => (
+    <label className="flex items-center gap-2">
+      <span className="w-24 shrink-0 text-xs text-ink-soft">{label}</span>
+      <input
+        key={cm}
+        type="number"
+        min={min}
+        max={max}
+        step={step}
+        defaultValue={cm}
+        onBlur={(e) => {
+          const n = Number(e.target.value);
+          if (Number.isFinite(n) && n !== cm) apply(n);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+        }}
+        className="h-8 w-20 rounded-[6px] border border-line bg-bg-surface px-1.5 text-right text-xs tabular-nums"
+      />
+      <span className="text-[11px] text-ink-muted">{t.units.cm}</span>
+    </label>
+  );
+  return (
+    <section className="space-y-1.5 rounded-[10px] border border-line bg-bg-base/60 p-2.5">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">{t.build.showerGlass}</p>
+      {field(t.build.showerWidth, Math.round(item.areaM!.width * 100), SHOWER_AREA_MIN_M * 100, SHOWER_AREA_MAX_M * 100, 5, (cm) => onChange({ widthM: cm / 100 }))}
+      {field(t.build.showerDepth, Math.round(item.areaM!.depth * 100), SHOWER_AREA_MIN_M * 100, SHOWER_AREA_MAX_M * 100, 5, (cm) => onChange({ depthM: cm / 100 }))}
+      {field(t.build.glassThickness, Math.round(glass.thicknessM * 100), SHOWER_GLASS_MIN_THICKNESS_M * 100, SHOWER_GLASS_MAX_THICKNESS_M * 100, 1, (cm) => onChange({ glassThicknessM: cm / 100 }))}
+      {field(t.build.glassHeight, Math.round(glass.heightM * 100), 160, 260, 5, (cm) => onChange({ glassHeightM: cm / 100 }))}
+    </section>
+  );
+}
+
 function KitchenLength({ item, onLength, onToWall }: { item: PlacedItem; onLength: (widthM: number) => boolean; onToWall?: () => boolean }) {
   const t = useT();
   const [blocked, setBlocked] = useState(false);

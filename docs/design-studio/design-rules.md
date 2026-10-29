@@ -38,7 +38,7 @@ in six stages:
 | 3 | room layout rules: kitchen, living room, bedroom, bathroom, washing machine, bookcases (windows' blinds with stage 5) | **built** ([layout-and-matching.md](layout-and-matching.md)) |
 | 4 | lighting: kitchen's three layers, bedroom, hallway, living room, style fixtures, more floor lamps, the lighting plan (LED strips with stage 5's decor) | **built** ([technical-and-fittings.md](technical-and-fittings.md), [plan-board.md](plan-board.md)) |
 | 5 | styles, finishes and decor: one floor through the flat, walls consistent, Scandinavian without black, no mouldings in Scandinavian, no cornices in Industrial, panels only in Modern, decor on free walls at gallery height, decor resizable, windows by style (roller blinds or curtains) | **built** ([finishes.md](finishes.md), [decor.md](decor.md), [layout-and-matching.md](layout-and-matching.md), [studio.md](studio.md)) |
-| 6 | glass shower walls on the board, partitions added at generation (entrance out of the living room's sight, an en-suite's entrance by the wardrobe), partitions run to the corner | planned |
+| 6 | glass shower walls on the board, partitions added at generation (entrance out of the living room's sight, an en-suite's entrance by the wardrobe), partitions run to the corner | **built** ([layout-and-matching.md](layout-and-matching.md), [plan-board.md](plan-board.md), [studio.md](studio.md)) |
 
 **Plans and the board**
 
@@ -165,6 +165,23 @@ the head, let down a third of the way (`placeAtWindow`). Decor is resized with `
 - Partitions are added at generation, automatically: the entrance door kept out of the living
   room's sight, an en-suite's entrance enclosed beside the wardrobe; a partition the app draws runs
   to the corner, never leaving a 10–20 cm gap.
+
+How stage 6 built it: a shower's glass rides on the shower (`lib/design/shower.ts`) rather than
+being walls of the plan — a wall bounds rooms, and an enclosure of walls would have made the
+shower a room. Its tray is found from the piece (its back on the piece's back, centred across
+it), so it follows the shower when dragged or turned; a pane stands on each side of the tray off
+the walls, inside the tray, `PlacedItem.glass` thick (3 cm, 2–5) and tall (2 m), drawn on the board
+and the PDF as thin glass walls (`drawShowerGlass`) and in 3D as clear sheets with a metal top rail
+(`lib/design3d/showerGlass.ts`); the piece's card sets the tray's width and depth and the glass's
+thickness and height (`resizedShower`: a side on a wall stays on it). The partitions are
+`withGeneratedPartitions` (`lib/design/autoPartitions.ts`), run first in `generateScene`: a front
+door opening into a living room or a studio gets a screen parallel to its wall 1.3 m in, across
+the door and 30 cm past it; a bathroom whose doors all open into one bedroom (12 m² or more) gets a
+lobby in the bedroom 1.1 m deep the same way (the wardrobe can stand against its far side). An end
+that would leave less than 90 cm to a wall runs on to that wall and joins it; the other end must
+leave a way through, or there is no screen. The screen joins one wall at most, so the room stays
+one room (`keepWhole`, no separator drawn on from it); the floor behind it is kept free of
+furniture. A screen is a 10 cm plasterboard wall, `origin: 'generated'`, priced like any partition.
 
 ## The decisions (owner, 28 Oct 2026)
 
@@ -335,6 +352,15 @@ sub-style in the designer's brief); `nightLights.test.ts` (the light's colour by
 AI check's problems).
 
 ## Known gaps
+
+- From the second round's stage 6: a shower's glass in 3D follows a dragged shower on release, not
+  live; a pane has no door drawn in it (a walk-in screen leaves its open end). The en-suite's lobby
+  is a screen in front of its door — the owner's "entrance enclosed beside the wardrobe" read as
+  that; the wardrobe is not yet pushed against it. The AI designer is not told about the
+  partitions (they come after its answer, and the room stays one room). A partition the person
+  draws is not run on to the corner: the rule is the app's own partitions'.
+- From the second round's stage 5: a blind's look is not chosen by the room beyond the style's
+  tags (white, charcoal, linen); the blinds are drawn let down a third, whatever the time of day.
 
 - From the second round's lighting: no track-light product exists, so a track is a row of
   cylinder spots; bedside lighting is the wall lights over the nightstands (a pendant each side

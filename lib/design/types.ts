@@ -393,6 +393,8 @@ export interface PlacedItem {
    * the bathroom allows (`SHOWER_SIZES_M`); the size check measures it, not the column.
    */
   areaM?: { width: number; depth: number };
+  /** A shower's glass, as the person set it (`lib/design/shower`): unset, 3 cm thick and 2 m tall. */
+  glass?: { thicknessM: number; heightM: number };
 }
 
 /** The product data the 3D scene and its hover card need. Denormalised on purpose. */
