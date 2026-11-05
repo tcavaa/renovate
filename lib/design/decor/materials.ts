@@ -8,6 +8,9 @@
 import type { CatalogProduct } from '@/lib/design/matcher';
 import type { SceneProduct } from '@/lib/design/types';
 
+/** The kitchen maker's materials' category (`lib/design/catalog` names it too; kept here so this module stays a leaf). */
+const KITCHEN_MATERIAL_CATEGORY = 'kitchen-custom';
+
 /** The parent category of every decor material. Not `decor`: that one holds artwork, plants and mirrors. */
 export const DECOR_MATERIAL_CATEGORY = 'decor-materials';
 
@@ -26,17 +29,19 @@ export const DECOR_MATERIAL_KINDS = [
   'wallpaper', // murals and wallpaper
   'trim', // edge trims: steel-look, brass, timber
 ] as const;
-export type DecorMaterialKind = (typeof DECOR_MATERIAL_KINDS)[number];
+/** `joinery`: the kitchen maker's materials (`kitchen-custom`, by the m² of façade), which the made-to-measure cabinets are made in. */
+export type DecorMaterialKind = (typeof DECOR_MATERIAL_KINDS)[number] | 'joinery';
 
 /** The sub-category a kind lives in. */
 export function decorKindSlug(kind: DecorMaterialKind): string {
+  if (kind === 'joinery') return KITCHEN_MATERIAL_CATEGORY;
   return `decor-${kind}`;
 }
 
 /** Every slug the catalogue loader has to know so a product's nearest category is its kind. */
 export const DECOR_MATERIAL_SLUGS = [DECOR_MATERIAL_CATEGORY, ...DECOR_MATERIAL_KINDS.map(decorKindSlug)];
 
-const KIND_BY_SLUG = new Map<string, DecorMaterialKind>(DECOR_MATERIAL_KINDS.map((kind) => [decorKindSlug(kind), kind]));
+const KIND_BY_SLUG = new Map<string, DecorMaterialKind>([...DECOR_MATERIAL_KINDS.map((kind): [string, DecorMaterialKind] => [decorKindSlug(kind), kind]), [KITCHEN_MATERIAL_CATEGORY, 'joinery']]);
 
 /** The kind of a decor material from its category, or null for anything else. */
 export function decorMaterialKind(product: Pick<CatalogProduct, 'categorySlug'> | Pick<SceneProduct, 'categorySlug'>): DecorMaterialKind | null {

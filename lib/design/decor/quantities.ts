@@ -9,6 +9,7 @@ import type { DecorPiece, DecorSlot, PlanRoom, SceneProduct } from '@/lib/design
 import { hasLed } from './families';
 import { decorDepth, decorWall, fitField, fitLight, fitMoulding, fitNiche, fitSlats, paramsOf } from './layout';
 import { isDecorUnit, type DecorUnit } from './materials';
+import { cabinetFacadeM2 } from './joinery';
 
 /** What one slot of a piece uses, in each of the units a material may be sold by. */
 export interface DecorUse {
@@ -58,6 +59,11 @@ export function decorUses(piece: DecorPiece, room: PlanRoom): DecorUse[] {
       const m2 = wall.width * wall.height + 2 * depth * wall.height + (full ? 0 : wall.width * depth);
       record('body', m2);
       if (piece.materials.face?.product) record('face', m2);
+      break;
+    }
+    case 'cabinet': {
+      // The joiner prices the façade: every section's front and the sides that show.
+      record('face', cabinetFacadeM2(piece));
       break;
     }
     case 'niche': {

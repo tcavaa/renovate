@@ -55,6 +55,9 @@ import {
   FACING_COUNTERS_M,
   KITCHEN_CIRCULATION_M,
   SHALLOW_WARDROBE_DEPTH_M,
+  BATH_WITH_SHOWER_M2,
+  SHOWER_FIRST_STYLES,
+  SHOWER_LONG_M2,
   SHOWER_ROOMY_M2,
   SHOWER_SIZES_M,
   SOFA_TV_M,
@@ -133,6 +136,7 @@ const OPTIONAL_DECOR: Record<string, number> = {
   rug_bed: 0.8,
   curtain: 0.9,
   blind: 0.95,
+  stool: 0.6,
 };
 
 /** How high a TV over its unit reaches, metres: the band of the unit's wall that is kept clear of windows. */
@@ -279,6 +283,8 @@ function layoutArea(room: PlanRoom, options: LayoutOptions, idPrefix: string, do
 
     const gate = entry.minAreaM2 ?? archetype.minRoomAreaM2 ?? 0;
     if (room.areaM2 < gate) continue;
+    // A Scandinavian or Industrial bathroom is a shower first: a bath only where both fit.
+    if (archetype.slot === 'bathtub' && options.styleId && SHOWER_FIRST_STYLES.includes(options.styleId) && room.areaM2 < BATH_WITH_SHOWER_M2) continue;
     // A curtain or a blind needs a window: a room without one draws nothing for it.
     if (archetype.placement.type === 'window' && !room.openings.some((o) => o.kind === 'window')) continue;
     // A generated room varies its decor: a plant here, a print there, not every piece every time.
@@ -319,6 +325,15 @@ function layoutArea(room: PlanRoom, options: LayoutOptions, idPrefix: string, do
   }
 
   return placed;
+}
+
+/** 0.8 when a piece turned `rotation` has its width along the room's longer side, else 0. */
+function alongLength(rotation: number, room: PlanRoom): number {
+  const b = polygonBounds(room.polygon);
+  const wide = b.maxX - b.minX >= b.maxZ - b.minZ;
+  // A piece's width runs along its right: across x when it faces ±z.
+  const widthAlongX = Math.abs(Math.cos(rotation)) > 0.7;
+  return widthAlongX === wide ? 0.8 : 0;
 }
 
 /**
@@ -410,6 +425,8 @@ function resolvePose(
       return placeUnder(archetype, room, placed);
     case 'window':
       return placeAtWindow(archetype, index, room, edges);
+    case 'entrance':
+      return placeAtEntrance(archetype, room, edges);
     default:
       return null;
   }
@@ -421,7 +438,7 @@ function placeAgainstWall(
   room: PlanRoom,
   edges: PlanEdge[],
   occupied: Box[],
-  prefer: 'longest' | 'opposite-door' | 'beside-window' | 'shortest' | 'any',
+  prefer: 'longest' | 'opposite-door' | 'beside-window' | 'shortest' | 'any' | 'near-entrance',
   clearanceM: number,
   exact = false,
   anchors: TechnicalAnchor[] = [],
@@ -510,7 +527,7 @@ function bestAlongWalls(
   room: PlanRoom,
   edges: PlanEdge[],
   occupied: Box[],
-  prefer: 'longest' | 'opposite-door' | 'beside-window' | 'shortest' | 'any',
+  prefer: 'longest' | 'opposite-door' | 'beside-window' | 'shortest' | 'any' | 'near-entrance',
   clearanceM: number,
   doorPoints: Vec2[],
   windowPoints: Vec2[],
@@ -528,6 +545,7 @@ function bestAlongWalls(
   const standing = (rules?.placed ?? []).filter((p) => p.roomId === room.id && !ARCHETYPES[p.kind]?.ghost).map((p) => boxFor({ position: p.position, rotation: p.rotation, size: p.size, elevationM: 0 }));
   const sofa = rules?.placed.find((p) => p.roomId === room.id && p.slot === 'sofa');
   const bed = rules?.placed.find((p) => p.roomId === room.id && p.slot === 'bed');
+  const entrancePoints = openingPoints(room, edges, (o) => o.kind === 'door' && !!o.exterior);
 
   for (const edge of edges) {
     if (edge.length < width + 0.25) continue;
@@ -563,6 +581,10 @@ function bestAlongWalls(
       if (prefer === 'opposite-door') score += minDistance(pointOnEdge(edge, 0.5), doorPoints) * 6;
       if (prefer === 'beside-window') score += 24 - minDistance(centre, windowPoints) * 5;
       if (prefer === 'any') score += edge.length;
+      // By the flat's front door (coats where one comes in).
+      if (prefer === 'near-entrance') score += entrancePoints.length > 0 ? 24 - minDistance(centre, entrancePoints) * 6 : edge.length;
+      // A WC stands in the middle of its wall (the rulebook, BA-5), not pushed to one end.
+      if (archetype.slot === 'toilet') score += (1 - Math.abs(t - 0.5) * 2) * 8;
 
       // Centred on the wall looks deliberate; jammed in a corner looks accidental.
       score += (1 - Math.abs(t - 0.5) * 2) * 3;
@@ -1084,7 +1106,7 @@ function placeInCorner(
   // A shower takes the largest area the bathroom allows, 80 × 80 at least (`SHOWER_SIZES_M`).
   const shower = archetype.slot === 'shower';
   const sizes: Size3[] = shower
-    ? SHOWER_SIZES_M.filter((s) => room.areaM2 >= SHOWER_ROOMY_M2 || s.width <= 0.9).map((s) => ({ ...s, height: archetype.size.height }))
+    ? SHOWER_SIZES_M.filter((s) => (room.areaM2 >= SHOWER_ROOMY_M2 || s.width <= 0.9) && (room.areaM2 >= SHOWER_LONG_M2 || s.width <= 1.2)).map((s) => ({ ...s, height: archetype.size.height }))
     : [archetype.size];
   const wetFixture = WET_ROOM_TYPES.includes(room.type) && WET_FIXTURES.has(archetype.slot);
   const standing = (rules?.placed ?? []).filter((p) => p.roomId === room.id && !ARCHETYPES[p.kind]?.ghost).map((p) => boxFor({ position: p.position, rotation: p.rotation, size: p.size, elevationM: 0 }));
@@ -1116,7 +1138,9 @@ function placeInCorner(
         const seen = shower && inSight(pose, rules?.doorBands ?? []);
         const cramped = wetFixture && (overlapsAny(clearanceBox(pose, BATH_PASSAGE_MIN_M), standing) || overlapsAny(boxFor(pose), rules?.passages ?? []));
         const tight = wetFixture && overlapsAny(clearanceBox(pose, Math.max(clearanceM, BATH_PASSAGE_M)), standing);
-        spots.push({ value: pose, score: -crowding + (seen ? 1.5 : 0) - (tight ? 1 : 0), cramped });
+        // A long shower runs along the room's length, not across it (the rulebook, BA-11).
+        const along = shower && size.width > size.depth ? alongLength(pose.rotation, room) : 0;
+        spots.push({ value: pose, score: -crowding + (seen ? 1.5 : 0) - (tight ? 1 : 0) + along, cramped });
       }
     }
     const open = spots.filter((s) => !s.cramped);
@@ -1357,6 +1381,18 @@ function placeUnder(
   }
 
   return null;
+}
+
+/** A door mat on the floor just inside the flat's front door, centred on it; null in a room it does not open into. */
+function placeAtEntrance(archetype: Archetype, room: PlanRoom, edges: PlanEdge[]): Pose | null {
+  const door = room.openings.find((o) => o.kind === 'door' && o.exterior);
+  const edge = door && edges.find((e) => e.index === door.wallIndex);
+  if (!door || !edge) return null;
+  const at = pointOnEdge(edge, door.t);
+  const size = { ...archetype.size, width: Math.min(archetype.size.width, Math.max(0.5, door.widthM)) };
+  const inset = size.depth / 2 + 0.03;
+  const pose: Pose = { position: { x: at.x + edge.inward.x * inset, z: at.z + edge.inward.z * inset }, rotation: edge.facing, size, elevationM: 0 };
+  return fitsInRoom(pose, room.polygon) ? pose : null;
 }
 
 function placeAtWindow(

@@ -24,6 +24,7 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
 import { decorDepth, decorWall, fitField, fitLight, fitMoulding, fitNiche, fitSlats, paramsOf, type DecorWall, type Rect } from '@/lib/design/decor/layout';
 import { hasLed } from '@/lib/design/decor/families';
+import { CARCASS_M, sectionSpans } from '@/lib/design/decor/joinery';
 import { ledColor } from '@/lib/design/decor/materials';
 import type { DecorMaterial, DecorPiece, FloorPlan, PlanRoom } from '@/lib/design/types';
 import { loadStarted } from './loadProgress';
@@ -376,7 +377,66 @@ function buildBox(piece: DecorPiece, wall: DecorWall): THREE.Group {
   const g = new THREE.Group();
   const depth = decorDepth(piece);
   const material = piece.materials.face?.product ? decorMaterial(piece.materials.face, '#E8E4DE', 0.4) : decorMaterial(piece.materials.body, '#F2EEE7', 0.9);
+  if (piece.anchor === 'bath') {
+    // A bath's enclosure is hollow — its front and its ends round the bath standing in it, a ledge on top.
+    const t = 0.08;
+    const cx = (wall.x0 + wall.x1) / 2;
+    const h = wall.height;
+    g.add(mesh(metreBox(wall.width, h, t), material, cx, wall.y0 + h / 2, depth - t / 2));
+    g.add(mesh(metreBox(t, h, depth - t), material, wall.x0 + t / 2, wall.y0 + h / 2, (depth - t) / 2));
+    g.add(mesh(metreBox(t, h, depth - t), material, wall.x1 - t / 2, wall.y0 + h / 2, (depth - t) / 2));
+    g.add(mesh(metreBox(wall.width, h, 0.03), material, cx, wall.y0 + h / 2, 0.015));
+    return g;
+  }
   g.add(mesh(metreBox(wall.width, wall.height, depth), material, (wall.x0 + wall.x1) / 2, wall.y0 + wall.height / 2, depth / 2));
+  return g;
+}
+
+/**
+ * Made-to-measure joinery (`lib/design/decor/joinery`): each section a carcass in the face material
+ * with its doors marked by thin shadow gaps — a vanity's two doors, a column open round the washing
+ * machine (and a shelf for the dryer on it), the boiler's cupboard with louvres, shelves left open.
+ * Heights and depths per section; the machine, the basin and the dryer are products drawn by their
+ * own models inside it.
+ */
+function buildCabinet(piece: DecorPiece): THREE.Group {
+  const g = new THREE.Group();
+  const face = decorMaterial(piece.materials.face, '#E9E4DC', 0.6);
+  const gap = plain('#2A2622', 0.9);
+  const t = CARCASS_M;
+  for (const { section, x0, x1 } of sectionSpans(piece)) {
+    const w = x1 - x0;
+    const h = section.heightMm / 1000;
+    const d = section.depthMm / 1000;
+    const cx = (x0 + x1) / 2;
+    if (w < 0.05 || h < 0.05) continue;
+    if (section.kind === 'washer' || section.kind === 'open') {
+      // Sides and a top, open in front (the machine shows), a shelf for the dryer half way.
+      g.add(mesh(metreBox(t, h, d), face, x0 + t / 2, h / 2, d / 2));
+      g.add(mesh(metreBox(t, h, d), face, x1 - t / 2, h / 2, d / 2));
+      g.add(mesh(metreBox(w, t, d), face, cx, h - t / 2, d / 2));
+      if (section.kind === 'open') {
+        const shelves = Math.max(1, Math.floor(h / 0.4) - 1);
+        for (let i = 1; i <= shelves; i++) g.add(mesh(metreBox(w - 2 * t, t, d - 0.02), face, cx, (h * i) / (shelves + 1), d / 2));
+      } else if (section.dryer) {
+        g.add(mesh(metreBox(w - 2 * t, t, d), face, cx, h / 2, d / 2));
+      }
+      continue;
+    }
+    // A closed carcass, a plinth set back under it.
+    const plinth = section.kind === 'basin' ? 0 : 0.08;
+    g.add(mesh(metreBox(w, h - plinth, d), face, cx, plinth + (h - plinth) / 2, d / 2));
+    if (plinth > 0) g.add(mesh(metreBox(w, plinth, d - 0.05), gap, cx, plinth / 2, (d - 0.05) / 2));
+    // The doors: as many as keep each under 60 cm, a shadow gap between them; a tall section is split at 2.1 m too.
+    const doors = Math.max(1, Math.ceil(w / 0.6 - 1e-6));
+    for (let i = 1; i < doors; i++) g.add(mesh(metreBox(0.004, h - plinth - 0.01, 0.004), gap, x0 + (w * i) / doors, plinth + (h - plinth) / 2, d + 0.001));
+    if (h > 2.3) g.add(mesh(metreBox(w - 0.01, 0.004, 0.004), gap, cx, 2.1, d + 0.001));
+    if (section.kind === 'shoes') g.add(mesh(metreBox(w - 0.01, 0.004, 0.004), gap, cx, Math.min(h, 1.0), d + 0.001));
+    if (section.kind === 'boiler') {
+      // Louvres across the top and the bottom of its door, for the air the boiler needs.
+      for (const band of [h - 0.35, plinth + 0.08]) for (let k = 0; k < 5; k++) g.add(mesh(metreBox(w - 0.08, 0.008, 0.006), gap, cx, band + k * 0.05, d + 0.002));
+    }
+  }
   return g;
 }
 
@@ -513,7 +573,7 @@ export function buildDecorPiece(piece: DecorPiece, room: PlanRoom): THREE.Object
     const wall = decorWall(piece, room);
     if (!wall) return null;
     const content =
-      piece.family === 'slats' ? buildSlats(piece, wall) : piece.family === 'moulding' ? buildMoulding(piece, wall, room) : piece.family === 'niche' ? buildNiche(piece, wall) : piece.family === 'box' ? buildBox(piece, wall) : buildField(piece, wall);
+      piece.family === 'slats' ? buildSlats(piece, wall) : piece.family === 'moulding' ? buildMoulding(piece, wall, room) : piece.family === 'niche' ? buildNiche(piece, wall) : piece.family === 'box' ? buildBox(piece, wall) : piece.family === 'cabinet' ? buildCabinet(piece) : buildField(piece, wall);
     built = onEdge(wall.edge, content);
     built.userData.wallCut = cutFor(wall.edge);
   }

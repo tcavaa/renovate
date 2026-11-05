@@ -10,6 +10,7 @@
  * and swap it, and the same inputs always give the same room.
  */
 
+import { isBuiltInBath, isRectangularBath, isShowerDoor } from './productRoles';
 import { blockingItems, blocksWindow, clampInsideRoom, footprintInRoom, footprintOf, footprintsOverlap, isPlacementValid, PIECE_TOUCH_M, TUCKS_UNDER, tucksUnder } from './manipulate';
 import { getArchetype, isKitchenMaterial, type Archetype } from './catalog';
 import { roomEdges } from './planGeometry';
@@ -208,9 +209,9 @@ export function matchProducts(
     // What the slot can hold as laid out: a basin that stands on the floor (pedestal or vanity —
     // a countertop basin needs a counter the flat has not got), a mirror over a basin that hangs
     // flat and no taller than 1.2 m. The swap list still offers the rest.
-    const fitting = slotPool(item, candidates, room, settled);
+    const fitting = slotPool(item, candidates, room, settled, options.styleId, level);
     // No TV is better than one across the window beside its unit.
-    if (item.slot === 'tv' && fitting.length === 0) return finish({ ...item, product: null });
+    if ((item.slot === 'tv' || item.slot === 'towel_rack') && fitting.length === 0) return finish({ ...item, product: null });
     if (fitting.length > 0 && fitting.length < candidates.length) {
       candidates.splice(0, candidates.length, ...fitting);
     }
@@ -441,8 +442,35 @@ function lowestPendant(item: PlacedItem, settled: PlacedItem[]): number {
 }
 
 /** Products a slot can hold as the engine laid it out (`slotPool` is applied before the draw). */
-export function slotPool(item: PlacedItem, candidates: CatalogProduct[], room: PlanRoom | undefined, settled: PlacedItem[] = []): CatalogProduct[] {
-  if (item.slot === 'sink') return candidates.filter((p) => (p.heightCm ?? 0) >= 60);
+export function slotPool(item: PlacedItem, candidates: CatalogProduct[], room: PlanRoom | undefined, settled: PlacedItem[] = [], styleId?: StyleId, level?: BudgetLevel): CatalogProduct[] {
+  const wetRoom = room?.type === 'bathroom' || room?.type === 'toilet';
+  if (item.slot === 'sink') {
+    // A bathroom's basin sits on a vanity made to measure in every style but Vintage (the rulebook,
+    // BA-7: `lib/design/bathroom`), so it is a countertop or vessel basin; Vintage's — and any room
+    // with no countertop basin to offer — stands on the floor (pedestal or a vanity product).
+    const standing = candidates.filter((p) => (p.heightCm ?? 0) >= 60);
+    if (wetRoom && styleId && styleId !== 'vintage') {
+      const counter = candidates.filter((p) => (p.heightCm ?? 0) > 5 && (p.heightCm ?? 0) < 45 && (p.widthCm ?? 0) >= 30 && (p.widthCm ?? 0) / 100 <= item.size.width + 0.3);
+      if (counter.length > 0) return counter;
+    }
+    return standing;
+  }
+  // The bath by style (BA-16, BA-18): Modern a freestanding one; Vintage a rectangular one standing
+  // in its tiled enclosure; Scandinavian and Industrial a built-in one, boxed and tiled.
+  if (item.slot === 'bathtub' && styleId) {
+    const builtIn = candidates.filter((p) => isBuiltInBath(p));
+    const free = candidates.filter((p) => !isBuiltInBath(p));
+    const wanted = styleId === 'modern' ? free : styleId === 'vintage' ? free.filter((p) => isRectangularBath(p)) : builtIn;
+    if (wanted.length > 0) return wanted;
+    return styleId === 'vintage' && free.length > 0 ? free : candidates;
+  }
+  // Showers are built — a column or panel in a glass enclosure the studio draws — never a shower-door product (BA-24).
+  if (item.slot === 'shower') {
+    const columns = candidates.filter((p) => !isShowerDoor(p));
+    return columns.length > 0 ? columns : candidates;
+  }
+  // A towel shelf only at the highest budget; else the towels hang on the heated rail (BA-19).
+  if (item.slot === 'towel_rack' && level && level !== 'premium') return [];
   // A TV no wider than its slot — the layout slid or shrank it off a window beside the unit — and
   // one on its stand only where it fits on the unit's top; a flat one on the wall over any.
   // Over a unit standing free in the room there is no wall to hang one on: a TV on a stand only.
@@ -674,6 +702,11 @@ function scoreProduct(product: CatalogProduct, styleId: StyleId, level: BudgetLe
  * Rather than dropping items when money runs short — which produces a half-empty room — the
  * whole scheme shifts down a tier, which is what a designer working to a number would do.
  */
+/** The budget level a flat is matched at (`inferLevel`), for passes after the matcher (the bathroom's dryer). */
+export function budgetLevel(items: PlacedItem[], catalog: CatalogProduct[], options: MatchOptions): BudgetLevel {
+  return options.level ?? inferLevel(items, catalog, options);
+}
+
 function inferLevel(
   items: PlacedItem[],
   catalog: CatalogProduct[],

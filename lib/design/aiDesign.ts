@@ -223,7 +223,8 @@ export function buildBrief(request: AiDesignRequest): { text: string; offer: Off
 
   const productList = [...products.values()].map(productLine).join('\n');
 
-  for (const p of catalog) if (isDecorMaterial(p)) offer.decorMaterials.set(p.id, p);
+  // Not the joiner's materials: the made-to-measure cabinets are the engine's, not the designer's to compose.
+  for (const p of catalog) if (isDecorMaterial(p) && decorMaterialKind(p) !== 'joinery') offer.decorMaterials.set(p.id, p);
   // In no particular order, so the list's first lines are not the designer's habit.
   const materialList = weightedOrder([...offer.decorMaterials.values()], () => 1, rng)
     .map((p) => `${p.id} | ${decorMaterialKind(p)} | ${p.nameEn ?? p.nameKa} | ${Math.round(p.pricePerUnit)}₾/${p.unit === 'linear_m' ? 'm' : p.unit === 'piece' ? 'pc' : 'm²'} | ${p.colorHex ?? ''}${decorSpecs(p).tintable ? ' | tintable' : ''}`)

@@ -23,8 +23,8 @@
 import { pointOnEdge, polygonCentroid, roomEdges, wallEdges, type PlanEdge } from './planGeometry';
 import { toSceneProduct, type CatalogProduct } from './matcher';
 import { planEdgeWalls, edgeWallKey } from './wallPieces';
-import { RADIATOR_BESIDE_WINDOW_M, RADIATOR_FLOOR_GAP_M, RADIATOR_SILL_GAP_M, TOWEL_RAIL_BOTTOM_M, TOWEL_RAIL_DEPTH_M, TOWEL_RAIL_HEIGHT_M, TOWEL_RAIL_ROOMS, TOWEL_RAIL_WIDTH_M } from './rules';
-import type { FloorPlan, Opening, PlanRoom, StyleId, TechnicalPoint, Vec2 } from './types';
+import { WC_BOX_HALF_M, RADIATOR_BESIDE_WINDOW_M, RADIATOR_FLOOR_GAP_M, RADIATOR_SILL_GAP_M, TOWEL_RAIL_BOTTOM_M, TOWEL_RAIL_DEPTH_M, TOWEL_RAIL_HEIGHT_M, TOWEL_RAIL_ROOMS, TOWEL_RAIL_WIDTH_M } from './rules';
+import type { FloorPlan, Opening, PlacedItem, PlanRoom, StyleId, TechnicalPoint, Vec2 } from './types';
 import type { RoomType } from '@/lib/calculator/types';
 
 export const RADIATOR_PRODUCT_KIND = 'radiator';
@@ -211,7 +211,7 @@ export function withRadiatorProducts(plan: FloorPlan, catalog: CatalogProduct[],
  * all — while one that was asked for has to be in the budget even in a finished home, where
  * only what the person added is new work.
  */
-export function suggestRadiators(plan: FloorPlan, nextId: () => string, catalog: CatalogProduct[] = []): TechnicalPoint[] {
+export function suggestRadiators(plan: FloorPlan, nextId: () => string, catalog: CatalogProduct[] = [], items: PlacedItem[] = []): TechnicalPoint[] {
   // The lowest radiator there is: a window whose sill leaves less room than this has its radiator beside it.
   const heights = catalog.filter((p) => p.model3dKind === RADIATOR_PRODUCT_KIND && p.heightCm).map((p) => p.heightCm! / 100);
   const lowest = heights.length > 0 ? Math.min(...heights) : LOWEST_RADIATOR_M;
@@ -226,7 +226,10 @@ export function suggestRadiators(plan: FloorPlan, nextId: () => string, catalog:
     if (TOWEL_RAIL_ROOMS.includes(room.type)) {
       // A bathroom's heater is a towel rail, on the longest stretch of wall clear of its door and
       // window (not under the window, where a radiator goes).
-      const spot = towelRailSpot(room, edges);
+      // Over the WC when the room has one (the rulebook, BA-19: with no towel shelf the towels hang
+      // there), its bottom clear of the WC's box; else the longest clear wall.
+      const overWc = towelRailOverWc(room, items);
+      const spot = overWc?.at ?? towelRailSpot(room, edges);
       if (spot) {
         out.push({
           id: nextId(),
@@ -234,7 +237,7 @@ export function suggestRadiators(plan: FloorPlan, nextId: () => string, catalog:
           towelRail: true,
           roomId: room.id,
           position: { x: round2(spot.x), z: round2(spot.z) },
-          elevationM: TOWEL_RAIL_BOTTOM_M,
+          elevationM: overWc?.bottomM ?? TOWEL_RAIL_BOTTOM_M,
           radiator: { wattsPerSection: TOWEL_RAIL_WATTS, sectionWidthM: TOWEL_RAIL_WIDTH_M, heightM: TOWEL_RAIL_HEIGHT_M, depthM: TOWEL_RAIL_DEPTH_M },
           origin: 'user',
         });
@@ -273,6 +276,22 @@ export function suggestRadiators(plan: FloorPlan, nextId: () => string, catalog:
     }
   }
   return out;
+}
+
+/**
+ * A towel rail on the wall behind the room's WC, centred over it: its bottom 10 cm over the WC's
+ * half-height box (1.1 m), lowered to fit under the ceiling but never under 0.9 m. Null with no WC,
+ * or a ceiling too low for it there.
+ */
+function towelRailOverWc(room: PlanRoom, items: PlacedItem[]): { at: Vec2; bottomM: number } | null {
+  const wc = items.find((i) => i.roomId === room.id && i.slot === 'toilet');
+  if (!wc) return null;
+  const f = { x: Math.sin(wc.rotation), z: Math.cos(wc.rotation) };
+  const back = { x: wc.position.x - f.x * (wc.size.depth / 2), z: wc.position.z - f.z * (wc.size.depth / 2) };
+  const bottom = Math.min(WC_BOX_HALF_M + 0.1, room.heightM - TOWEL_RAIL_HEIGHT_M - 0.1);
+  if (bottom < 0.9) return null;
+  // On the box's face when the WC stands off its wall in front of one.
+  return { at: { x: back.x + f.x * 0.06, z: back.z + f.z * 0.06 }, bottomM: Math.round(bottom * 100) / 100 };
 }
 
 /** What a towel rail gives, W: a bathroom's heat in one piece. */

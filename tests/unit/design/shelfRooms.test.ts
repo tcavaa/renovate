@@ -19,7 +19,7 @@ describe('the furniture shelf’s rooms', () => {
     expect(living.slice(0, 2)).toEqual(['sofa_3seat', 'sofa_corner']);
     expect(living).toEqual(expect.arrayContaining(['coffee_table', 'tv_unit', 'bookshelf', 'storage_shelf', 'dining_table']));
 
-    expect(kindsForRoom('toilet')).toEqual(['toilet', 'sink', 'mirror']);
+    expect(kindsForRoom('toilet')).toEqual(['toilet', 'sink', 'mirror', 'tap']);
     expect(kindsForRoom('bathroom')).toEqual(expect.arrayContaining(['shower', 'bathtub', 'washer']));
     expect(kindsForRoom('bathroom')).not.toContain('sofa_3seat');
   });

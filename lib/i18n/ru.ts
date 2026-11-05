@@ -3361,6 +3361,7 @@ export const ru: Dictionary = {
     fMural: 'Мурал',
     fTile: 'Плиточное поле',
     fBox: 'Короб инсталляции',
+    fCabinet: 'Встроенный шкаф на заказ',
     boxHeight: 'Высота',
     boxHalf: 'Половина, с полкой',
     boxFull: 'До потолка',

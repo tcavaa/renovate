@@ -13,7 +13,8 @@ import type { AiReview } from './aiReview';
 import { layoutPlan } from './autoLayout';
 import { suggestElectrical, withFixtureProducts } from './electrical';
 import { applyBoardPicks, applyFinishPicks, applyFurniturePicks, type CalculatorPicks } from './fromCalculator';
-import { matchProducts, type CatalogProduct } from './matcher';
+import { budgetLevel, matchProducts, type CatalogProduct } from './matcher';
+import { fitBathrooms } from './bathroom';
 import { withOpeningProducts } from './openings';
 import { seededRng, type Rng } from './random';
 import { generatedFinish, isStyleFinish, withFlatFinish } from './surfaces';
@@ -78,7 +79,13 @@ export function generateScene(input: GenerateSceneInput): GeneratedScene {
   const placed = layoutPlan(underCeilings, { anchors: technicalAnchors(plan), obstacles, rng, entranceSight, styleId });
   // A slot no partner product can fill is dropped rather than shown as a stand-in. The AI
   // designer's product picks go in where they fit their slot (`MatchOptions.picks`).
-  let items = placeableOnly(matchProducts(placed, catalog, { styleId, budgetGel, rooms: underCeilings, rng, picks: proposalPicks(proposal) }));
+  const matchOptions = { styleId, budgetGel, rooms: underCeilings, rng, picks: proposalPicks(proposal) };
+  let items = placeableOnly(matchProducts(placed, catalog, matchOptions));
+  // The bathrooms finished as a joiner and a plumber would (the rulebook): a vanity made to measure
+  // under the basin, a tap on it, the washer's column (a dryer on the machine at the top budget), the
+  // bath boxed or enclosed and its mixer at its head.
+  const fitted = fitBathrooms({ rooms: underCeilings, items, catalog, styleId, level: budgetLevel(placed, catalog, matchOptions), rng });
+  items = fitted.items;
   // Every floor and wall is the style's product for its room — tiles in the bathroom, laminate
   // and paint elsewhere — so the budget buys what the flat is shown in. Re-laying out the
   // furniture is not a reason to lose the tiles someone picked. The designer's floors and walls
@@ -103,7 +110,7 @@ export function generateScene(input: GenerateSceneInput): GeneratedScene {
   // unit (`proposalDecor`). An engine generation has none.
   // A box behind every WC for its concealed cistern (the design rules), whoever designed the rest.
   const designed = proposalDecor(laid, proposal, items, catalog);
-  const decor = [...designed, ...wcBoxes(laid.rooms, items, catalog, designed)];
+  const decor = [...designed, ...fitted.decor, ...wcBoxes(laid.rooms, items, catalog, designed)];
   // Tidied once everything stands: every wall piece back on its wall, nothing in the decor, the
   // hanging lamps and ceiling points under a lowered ceiling hung from it.
   items = clearOfDecor(settleToWalls(withoutArtOverDecor(items, decor, laid), laid), decor, laid);

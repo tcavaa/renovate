@@ -356,7 +356,7 @@ export function fitLight(piece: Pick<DecorPiece, 'params' | 'wallIndex' | 'span'
  * a slab on its stand-off, a panel or cladding its thickness, a moulding its profile. A cove or a
  * light line takes no floor.
  */
-export function decorDepth(piece: Pick<DecorPiece, 'family' | 'params'>): number {
+export function decorDepth(piece: Pick<DecorPiece, 'family' | 'params'> & { anchor?: DecorPiece['anchor'] }): number {
   const params = paramsOf(piece);
   switch (piece.family) {
     case 'slats':
@@ -364,7 +364,13 @@ export function decorDepth(piece: Pick<DecorPiece, 'family' | 'params'>): number
     case 'niche':
       return Math.min(0.45, Math.max(0.12, mm(params.depthMm, 300)));
     case 'box':
-      return Math.min(0.4, Math.max(0.1, mm(params.depthMm, 200)));
+      // A WC's box is 10–40 cm; a bath's enclosure is as deep as the bath.
+      return Math.min(piece.anchor === 'bath' ? 1.0 : 0.4, Math.max(0.1, mm(params.depthMm, 200)));
+    case 'cabinet': {
+      const sections = params.sections ?? [];
+      const deepest = sections.length > 0 ? Math.max(...sections.map((s) => s.depthMm)) : params.depthMm ?? 600;
+      return Math.min(0.9, Math.max(0.1, deepest / 1000));
+    }
     case 'slab':
       return mm(params.standoffMm, 40) + mm(params.thicknessMm, 20);
     case 'panel':

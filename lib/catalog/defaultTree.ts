@@ -109,6 +109,12 @@ const TREE: Spec[] = [
       kind('shower', 'showers', 'შხაპები', 'Showers', 'Душевые', 'shower-head'),
       kind('bathtub', 'bathtubs', 'აბაზანები', 'Bathtubs', 'Ванны', 'bath'),
       kind('washer', 'washing-machines', 'სარეცხი მანქანები', 'Washing machines', 'Стиральные машины', 'washing-machine'),
+      // The rulebook's pieces (migration 0014): the library filed them under the kinds above; the
+      // studio reads them by name (`refinedKind`) until the team moves them here.
+      kind('tap', 'taps', 'ონკანები', 'Taps', 'Смесители', 'sink'),
+      kind('bath_mixer', 'bath-mixers', 'აბაზანის შემრევები', 'Bath mixers', 'Смесители для ванны', 'bath'),
+      kind('dryer', 'tumble-dryers', 'საშრობი მანქანები', 'Tumble dryers', 'Сушильные машины', 'washing-machine'),
+      kind('towel_rack', 'towel-racks', 'პირსახოცის თაროები', 'Towel shelves', 'Полки для полотенец', 'rows-3'),
     ],
   }),
   add('furniture', 'ავეჯი', 'Furniture', 'Мебель', 'sofa', {
@@ -132,7 +138,11 @@ const TREE: Spec[] = [
         ],
       }),
       old('chairs', 'სკამები', 'Chairs', 'Стулья', 'dining-chair', {
-        children: [kind('dining_chair', 'dining-chairs', 'სასადილო სკამები', 'Dining chairs', 'Обеденные стулья', 'dining-chair'), kind('office_chair', 'office-chairs', 'საოფისე სკამები', 'Office chairs', 'Офисные кресла', 'office-chair')],
+        children: [
+          kind('dining_chair', 'dining-chairs', 'სასადილო სკამები', 'Dining chairs', 'Обеденные стулья', 'dining-chair'),
+          kind('office_chair', 'office-chairs', 'საოფისე სკამები', 'Office chairs', 'Офисные кресла', 'office-chair'),
+          kind('stool', 'stools', 'ტაბურეტები', 'Stools', 'Табуреты', 'dining-chair'),
+        ],
       }),
       old('wardrobes', 'კარადები', 'Wardrobes', 'Шкафы', 'wardrobe', { model3dKind: 'wardrobe' }),
       old('storage', 'შენახვა/თარო', 'Storage & Shelving', 'Хранение и полки', 'dresser', {
@@ -144,6 +154,7 @@ const TREE: Spec[] = [
           kind('storage_shelf', 'open-shelving', 'ღია სტელაჟები', 'Open shelving', 'Открытые стеллажи', 'rows-3'),
           kind('console_table', 'console-tables', 'კონსოლები', 'Console tables', 'Консоли', 'console-table'),
           kind('shoe_cabinet', 'shoe-cabinets', 'ფეხსაცმლის კარადები', 'Shoe cabinets', 'Обувницы', 'footprints'),
+          kind('coat_rack', 'coat-racks', 'საკიდები', 'Coat racks', 'Вешалки', 'footprints'),
         ],
       }),
       kind('tv', 'tvs', 'ტელევიზორები', 'TVs', 'Телевизоры', 'tv'),
@@ -172,7 +183,11 @@ const TREE: Spec[] = [
       kind('curtain', 'curtains', 'ფარდები', 'Curtains', 'Шторы', 'blinds'),
       kind('blind', 'roller-blinds', 'რულონური ფარდები', 'Roller blinds', 'Рулонные шторы', 'blinds'),
       old('rugs', 'ხალიჩები', 'Rugs', 'Ковры', 'rug', {
-        children: [kind('rug', 'area-rugs', 'ოთახის ხალიჩები', 'Area rugs', 'Ковры для комнаты', 'rug'), kind('rug_bed', 'bedside-rugs', 'საწოლის ხალიჩები', 'Bedside rugs', 'Прикроватные коврики', 'rug-bedside')],
+        children: [
+          kind('rug', 'area-rugs', 'ოთახის ხალიჩები', 'Area rugs', 'Ковры для комнаты', 'rug'),
+          kind('rug_bed', 'bedside-rugs', 'საწოლის ხალიჩები', 'Bedside rugs', 'Прикроватные коврики', 'rug-bedside'),
+          kind('door_mat', 'door-mats', 'ფეხსაწმენდები', 'Door mats', 'Придверные коврики', 'rug'),
+        ],
       }),
     ],
   }),

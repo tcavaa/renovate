@@ -97,6 +97,14 @@ scene ──tightSpots──▶ amber warnings (not a rule)
   bedroom from 12 m²) — parallel to the door's wall, across the door and 30 cm past it, an end
   within 90 cm of a wall run on to it (`PASSAGE_M`), the other end leaving a way through. The room
   stays one (`keepWhole`) and the floor behind the screen is an obstacle for the layout.
+- **The rulebook's bathrooms** (6 Nov 2026, [design-rules.md](design-rules.md#the-third-round-the-rulebook-nini-6-nov-2026)):
+  a Scandinavian or Industrial bathroom takes a bath only from 9 m² (the shower first); a 1.4 m
+  walk-in shower from 7 m², along the room's length; the WC in the middle of its wall; a towel shelf
+  and a stool from 6 m²; after matching, the bathroom pass (`lib/design/bathroom.ts`) builds the
+  vanity, the taps, the washer's column and the bath's enclosure and mixer. The hallway's program
+  starts with a door mat at the front door (`entrance` placement, `placeAtEntrance`) and a coat
+  rack near it (`prefer: 'near-entrance'`). Products by style in `slotPool`: a countertop basin but
+  in Vintage, the bath's kind by style, no shower door, no towel shelf below `premium`.
 - **The washing machine** is the bathroom's (from 4.5 m²); when no bathroom has room for it, the
   hall's, else the kitchen's (`layoutPlan`, `WASHER_FALLBACK_ROOMS`).
 - **The kitchen run keeps 1.2 m of working floor** in front of it (`KITCHEN_CIRCULATION_M`, a

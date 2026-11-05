@@ -25,6 +25,7 @@ import { decorPieceSchema, electricalPointSchema, floorPlanSchema, placedItemSch
 import type { AiProposal } from '@/lib/design/aiProposal';
 import { defaultFinishes, generateScene, keepChosen, placeableOnly } from '@/lib/design/generateScene';
 import { reanchorDecor } from '@/lib/design/decor/resolve';
+import { withWcBoxes } from '@/lib/design/decor/wcBox';
 import { decorMaterialFrom } from '@/lib/design/decor/resolve';
 import { slotTakes } from '@/lib/design/decor/families';
 import { decorMaterialKind, isDecorMaterial } from '@/lib/design/decor/materials';
@@ -1127,7 +1128,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             const nextId = () => `${uid('t')}${n++}`;
             const points = suggestTechnicalIn(s.plan, s.items, nextId).points;
             const withPoints: FloorPlan = { ...s.plan, technical: { ...s.plan.technical, points: [...(s.plan.technical?.points ?? []), ...points] } };
-            const radiators = suggestRadiators(withPoints, nextId, catalog);
+            const radiators = suggestRadiators(withPoints, nextId, catalog, s.items);
             if (points.length === 0 && radiators.length === 0) return null;
             placed.points = points.length;
             placed.radiators = radiators.length;
@@ -1159,7 +1160,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             const nextId = () => `${uid('t')}${n++}`;
             const points = suggestTechnicalIn(s.plan, s.items, nextId).points;
             let plan: FloorPlan = { ...s.plan, technical: { ...s.plan.technical, points: [...(s.plan.technical?.points ?? []), ...points] } };
-            const radiators = suggestRadiators(plan, nextId, catalog);
+            const radiators = suggestRadiators(plan, nextId, catalog, s.items);
             plan = withRadiatorProducts({ ...plan, technical: { ...plan.technical!, points: [...(plan.technical?.points ?? []), ...radiators] } }, catalog, s.styleId);
             plan = withEquipmentProducts(plan, catalog, s.styleId);
             const before = s.electrical.filter((p) => p.origin !== 'generated').length;
@@ -1527,7 +1528,8 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
           if (!extra) return null;
           const id = `${extra.id}-${Date.now().toString(36)}`;
           const placed = applySwap([...items, { ...extra, id }], id, product);
-          commit((s) => ({ items: placed, selectedItemId: id, focusRoomId: s.focusRoomId ?? null }));
+          // A WC added by hand gets its installation box like a generated one.
+          commit((s) => ({ items: placed, decor: withWcBoxes(plan.rooms, placed, s.decor), selectedItemId: id, focusRoomId: s.focusRoomId ?? null }));
           return id;
         },
 
@@ -1586,7 +1588,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
          * shelf or the swap was asked for, however many times it was turned on the way.
          */
         finishCarry: () =>
-          set((s) => (s.carryingItemId ? { carryingItemId: null, carryRestore: null, history: pushHistory(s.history, beforeCarry(s)) } : s)),
+          set((s) => (s.carryingItemId ? { carryingItemId: null, carryRestore: null, decor: s.plan ? withWcBoxes(s.plan.rooms, s.items, s.decor) : s.decor, history: pushHistory(s.history, beforeCarry(s)) } : s)),
 
         cancelCarry: () => {
           const state = get();

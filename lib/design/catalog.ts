@@ -25,7 +25,7 @@ export type PlacementRule =
   | {
       type: 'wall';
       /** Which wall to prefer when several are free. */
-      prefer: 'longest' | 'opposite-door' | 'beside-window' | 'shortest' | 'any';
+      prefer: 'longest' | 'opposite-door' | 'beside-window' | 'shortest' | 'any' | 'near-entrance';
       /** Keep this much walking space in front of the item. */
       clearanceM: number;
       /** Slide along the wall: 0.5 = centred, 0 = hard against the start corner. */
@@ -84,7 +84,9 @@ export type PlacementRule =
    */
   | { type: 'wall-run'; prefer: 'longest' | 'shortest'; clearanceM: number; leaveFor?: SlotKind }
   /** Hangs at a window. */
-  | { type: 'window' };
+  | { type: 'window' }
+  /** On the floor inside the flat's front door (the door mat). */
+  | { type: 'entrance' };
 
 export interface Archetype {
   kind: string;
@@ -421,6 +423,91 @@ export const ARCHETYPES: Record<string, Archetype> = {
   },
 
   // --- hallway ---
+  // --- the third round's pieces (the rulebook, 6 Nov 2026) ---
+  // A tap on a basin that has none of its own; the bath's mixer at its head; a dryer on the washing
+  // machine. Placed by the bathroom pass after matching (`lib/design/bathroom`), from the basin, the
+  // bath and the machine as matched — their archetypes give the size and the label.
+  tap: {
+    kind: 'tap',
+    slot: 'tap',
+    labelKa: 'ონკანი',
+    labelEn: 'Tap',
+    labelRu: 'Смеситель',
+    categorySlug: 'sanitary',
+    size: { width: 0.2, depth: 0.18, height: 0.25 },
+    placement: { type: 'wall-mounted', heightM: 1.0, above: 'sink', onlyAbove: true },
+    priority: 29,
+    ghost: true,
+  },
+  bath_mixer: {
+    kind: 'bath_mixer',
+    slot: 'bath_mixer',
+    labelKa: 'აბაზანის შემრევი',
+    labelEn: 'Bath mixer',
+    labelRu: 'Смеситель для ванны',
+    categorySlug: 'sanitary',
+    size: { width: 0.25, depth: 0.3, height: 1.0 },
+    placement: { type: 'relative', to: 'bathtub', forward: 0, lateral: 0, align: 'same', beside: 0.06 },
+    priority: 29,
+    ghost: true,
+  },
+  dryer: {
+    kind: 'dryer',
+    slot: 'dryer',
+    labelKa: 'საშრობი მანქანა',
+    labelEn: 'Tumble dryer',
+    labelRu: 'Сушильная машина',
+    categorySlug: 'sanitary',
+    size: { width: 0.6, depth: 0.62, height: 0.86 },
+    placement: { type: 'wall-mounted', heightM: 1.3, above: 'washer', onlyAbove: true },
+    priority: 29,
+    ghost: true,
+  },
+  door_mat: {
+    kind: 'door_mat',
+    slot: 'door_mat',
+    labelKa: 'ფეხსაწმენდი',
+    labelEn: 'Door mat',
+    labelRu: 'Придверный коврик',
+    categorySlug: 'rugs',
+    size: { width: 0.8, depth: 0.5, height: 0.015 },
+    placement: { type: 'entrance' },
+    priority: 21,
+    ghost: true,
+  },
+  coat_rack: {
+    kind: 'coat_rack',
+    slot: 'coat_rack',
+    labelKa: 'საკიდი',
+    labelEn: 'Coat rack',
+    labelRu: 'Вешалка',
+    categorySlug: 'storage',
+    size: { width: 0.6, depth: 0.35, height: 1.8 },
+    placement: { type: 'wall', prefer: 'near-entrance', clearanceM: 0.6 },
+    priority: 78,
+  },
+  stool: {
+    kind: 'stool',
+    slot: 'stool',
+    labelKa: 'ტაბურეტი',
+    labelEn: 'Stool',
+    labelRu: 'Табурет',
+    categorySlug: 'chairs',
+    size: { width: 0.38, depth: 0.38, height: 0.46 },
+    placement: { type: 'wall', prefer: 'any', clearanceM: 0.4 },
+    priority: 15,
+  },
+  towel_rack: {
+    kind: 'towel_rack',
+    slot: 'towel_rack',
+    labelKa: 'პირსახოცის თარო',
+    labelEn: 'Towel shelf',
+    labelRu: 'Полка для полотенец',
+    categorySlug: 'sanitary',
+    size: { width: 0.45, depth: 0.35, height: 1.4 },
+    placement: { type: 'wall', prefer: 'any', clearanceM: 0.5 },
+    priority: 25,
+  },
   console_table: {
     kind: 'console_table',
     slot: 'console',
@@ -638,6 +725,9 @@ export const ROOM_PROGRAMS: Record<RoomType, ProgramEntry[]> = {
     { kind: 'washer', count: 1, minAreaM2: 4.5 },
     { kind: 'mirror', count: 1 },
     { kind: 'blind', count: 1 },
+    // With room (and, for the shelf, a higher budget — the matcher's): else the towels hang on the heated rail.
+    { kind: 'towel_rack', count: 1, minAreaM2: 6 },
+    { kind: 'stool', count: 1, minAreaM2: 6 },
   ],
   toilet: [
     { kind: 'toilet', count: 1 },
@@ -645,6 +735,9 @@ export const ROOM_PROGRAMS: Record<RoomType, ProgramEntry[]> = {
     { kind: 'mirror', count: 1 },
   ],
   hallway: [
+    // The mat at the front door (the rulebook, E-9) and coats where one comes in (E-6).
+    { kind: 'door_mat', count: 1 },
+    { kind: 'coat_rack', count: 1 },
     { kind: 'console_table', count: 1 },
     { kind: 'shoe_cabinet', count: 1 },
     { kind: 'mirror', count: 1 },
@@ -749,6 +842,16 @@ export const SHELF_ROOMS: RoomType[] = ['living_room', 'bedroom', 'kitchen', 'ba
  * "living room" the corner sofa too. An archetype added later lands in the right rooms by
  * having the right slot, with nothing to register here.
  */
+/**
+ * Kinds a room lists on its shelf that its program does not lay out itself: the bathroom pass
+ * places the tap, the bath's mixer and the dryer from the basin, the bath and the machine
+ * (`lib/design/bathroom`).
+ */
+const SHELF_EXTRAS: Partial<Record<RoomType, string[]>> = {
+  bathroom: ['tap', 'bath_mixer', 'dryer'],
+  toilet: ['tap'],
+};
+
 export function kindsForRoom(type: RoomType): string[] {
   const out: string[] = [];
   for (const entry of ROOM_PROGRAMS[type] ?? []) {
@@ -759,6 +862,7 @@ export function kindsForRoom(type: RoomType): string[] {
       if (!out.includes(kind)) out.push(kind);
     }
   }
+  for (const kind of SHELF_EXTRAS[type] ?? []) if (ARCHETYPES[kind] && !out.includes(kind)) out.push(kind);
   return out;
 }
 

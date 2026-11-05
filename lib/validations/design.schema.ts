@@ -276,7 +276,7 @@ const decorSlotEnum = z.enum(['face', 'backing', 'led', 'profile', 'body', 'shel
 export const decorPieceSchema = z.object({
   id: z.string().min(1).max(64),
   roomId: z.string().max(64),
-  family: z.enum(['slats', 'moulding', 'niche', 'slab', 'light', 'panel', 'cladding', 'mural', 'tile', 'box']),
+  family: z.enum(['slats', 'moulding', 'niche', 'slab', 'light', 'panel', 'cladding', 'mural', 'tile', 'box', 'cabinet']),
   wallIndex: z.number().int().min(0).max(64).nullable(),
   span: z.object({ from: z.number().min(-1).max(100), to: z.number().min(-1).max(100) }),
   height: z.object({ from: z.number().min(0).max(20), to: z.number().min(0).max(20) }),
@@ -284,7 +284,7 @@ export const decorPieceSchema = z.object({
     .object({
       slatWidthMm: z.number().min(5).max(200).optional(),
       gapMm: z.number().min(0).max(200).optional(),
-      depthMm: z.number().min(5).max(600).optional(),
+      depthMm: z.number().min(5).max(1000).optional(),
       backing: z.boolean().optional(),
       led: z.enum(['none', 'bottom', 'top', 'halo', 'inside']).optional(),
       dadoMm: z.number().min(300).max(2000).optional(),
@@ -307,13 +307,25 @@ export const decorPieceSchema = z.object({
       border: z.boolean().optional(),
       path: z.enum(['cove', 'line']).optional(),
       full: z.boolean().optional(),
+      sections: z
+        .array(
+          z.object({
+            kind: z.enum(['basin', 'washer', 'boiler', 'coats', 'shoes', 'doors', 'open']),
+            widthMm: z.number().min(100).max(8000),
+            heightMm: z.number().min(100).max(4000),
+            depthMm: z.number().min(100).max(900),
+            dryer: z.boolean().optional(),
+          })
+        )
+        .max(24)
+        .optional(),
     })
     .strip(),
   materials: z.record(decorSlotEnum, decorMaterialSchema),
   reference: z.object({ entryId: z.string().max(64), concept: z.string().max(300) }).nullable().optional(),
   note: z.string().max(600).nullable().optional(),
   origin: z.enum(['ai', 'studio']).optional(),
-  anchor: z.enum(['bed', 'tv', 'sofa', 'desk', 'dining', 'kitchen', 'wall', 'room', 'wc']).nullable().optional(),
+  anchor: z.enum(['bed', 'tv', 'sofa', 'desk', 'dining', 'kitchen', 'wall', 'room', 'wc', 'joinery', 'bath']).nullable().optional(),
 });
 
 /** How the flat was generated: by the engine or by the AI designer, with its per-room notes. */

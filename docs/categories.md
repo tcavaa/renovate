@@ -139,6 +139,17 @@ make a missing category where the tree puts it (`defaultPlacement`) and leave an
 where admin put it. Nothing reads the definition at run time; a change to the starting tree
 takes a new migration (and the test reading it beside 0001).
 
+**The rulebook's kinds (migration 0014).** Taps, bath mixers, tumble dryers and towel shelves
+under Sanitary, stools under Chairs, coat racks under Storage and door mats under Rugs each have a
+category of their kind (`tap`, `bath_mixer`, `dryer`, `towel_rack`, `stool`, `coat_rack`,
+`door_mat`), and the studio rooms that place them list them (the bathroom its taps, mixers,
+dryers, towel shelves and stools; the toilet its taps; the hallway its mats and coat racks).
+Insert-only: the library's products of these kinds were filed under the nearest kind (a tap under
+sinks) and stay there; the studio reads them by name (`refinedKind`,
+[../catalog.md](../catalog.md#key-3d-relevant-columns)) until the team moves them. The bathroom's
+tap, mixer and dryer are placed by the bathroom pass, not a program, so `kindsForRoom` adds them
+(`SHELF_EXTRAS`).
+
 ## The studio's rooms (`shelf_rooms`, `shelf_room_categories`)
 
 The furniture shelf's top row is **rooms admin makes**: a name in three languages, a slug, an

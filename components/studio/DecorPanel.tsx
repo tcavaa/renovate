@@ -37,7 +37,7 @@ const LED_OPTIONS: Partial<Record<DecorFamily, Array<NonNullable<DecorParams['le
 };
 
 export function familyLabel(t: Dictionary, family: DecorFamily): string {
-  const map: Record<DecorFamily, string> = { slats: t.decor.fSlats, moulding: t.decor.fMoulding, niche: t.decor.fNiche, slab: t.decor.fSlab, light: t.decor.fLight, panel: t.decor.fPanel, cladding: t.decor.fCladding, mural: t.decor.fMural, tile: t.decor.fTile, box: t.decor.fBox };
+  const map: Record<DecorFamily, string> = { slats: t.decor.fSlats, moulding: t.decor.fMoulding, niche: t.decor.fNiche, slab: t.decor.fSlab, light: t.decor.fLight, panel: t.decor.fPanel, cladding: t.decor.fCladding, mural: t.decor.fMural, tile: t.decor.fTile, box: t.decor.fBox, cabinet: t.decor.fCabinet };
   return map[family];
 }
 

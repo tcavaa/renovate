@@ -162,6 +162,9 @@ export const KITCHEN_SPOT_SPACING_M = 0.9;
 export const KITCHEN_SPOT_AHEAD_M = 0.1;
 export const TRACK_SPOTS = 3;
 export const TRACK_SPOT_SPACING_M = 0.7;
+/** A bathroom's or a toilet's spots: at least three, one a metre or nearer (the rulebook, WC-3). */
+export const WET_ROOM_SPOTS = 3;
+export const WET_SPOT_SPACING_M = 1;
 
 export const WARM_LIGHT_K = { min: 2700, max: 3000 } as const;
 export const NEUTRAL_LIGHT_K = { min: 3500, max: 4000 } as const;
@@ -281,12 +284,22 @@ export const SHOWER_MIN_M = 0.8;
  * bathroom allows): the larger only in a bathroom of `SHOWER_ROOMY_M2` or more.
  */
 export const SHOWER_SIZES_M: Array<{ width: number; depth: number }> = [
+  { width: 1.4, depth: 0.9 },
   { width: 1.2, depth: 0.9 },
   { width: 1.0, depth: 0.9 },
   { width: 0.9, depth: 0.9 },
   { width: 0.8, depth: 0.8 },
 ];
 export const SHOWER_ROOMY_M2 = 5;
+/** A walk-in 1.4 m long — the shower lengthened along the room (the rulebook, BA-11) — from this. */
+export const SHOWER_LONG_M2 = 7;
+/**
+ * Styles whose bathroom is a shower first (the rulebook, BA-18): Scandinavian and Industrial take a
+ * bath only where it leaves room for the shower too (`BATH_WITH_SHOWER_M2`); Modern (a freestanding
+ * bath) and Vintage (a tiled enclosure round one) take the bath from 7.5 m² as before.
+ */
+export const SHOWER_FIRST_STYLES: readonly StyleId[] = ['scandinavian', 'industrial'];
+export const BATH_WITH_SHOWER_M2 = 9;
 /**
  * Free floor kept in front of a WC, a basin, a shower, a bath or a washer — a person has to get to
  * it: 60 cm where the bathroom allows, never under 40 (a narrow bathroom's WC beside the way to a

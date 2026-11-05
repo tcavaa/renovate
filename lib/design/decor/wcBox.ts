@@ -17,6 +17,19 @@ import { decorMaterialFrom, wallBehind } from './resolve';
 /** What is left of the wall beside the box below which the box takes the whole wall. */
 const SLIVER_M = 0.3;
 
+/**
+ * The decor with a box behind every WC, a WC set down in the studio too (the rulebook, BA-4): the
+ * studio has no catalogue to hand, so a new box takes its materials from one the flat already has
+ * (else it is plain, painted plasterboard until the person picks a finish). The same array when
+ * nothing was added.
+ */
+export function withWcBoxes(rooms: readonly PlanRoom[], items: PlacedItem[], decor: DecorPiece[]): DecorPiece[] {
+  const added = wcBoxes(rooms, items, [], decor);
+  if (added.length === 0) return decor;
+  const model = decor.find((d) => d.family === 'box' && d.anchor === 'wc');
+  return [...decor, ...added.map((d) => (model ? { ...d, materials: model.materials } : d))];
+}
+
 /** A box behind every WC that has none yet. */
 export function wcBoxes(rooms: readonly PlanRoom[], items: PlacedItem[], catalog: CatalogProduct[], decor: DecorPiece[] = []): DecorPiece[] {
   const out: DecorPiece[] = [];

@@ -3371,6 +3371,7 @@ export const ka = {
     fMural: 'მურალი',
     fTile: 'ფილის ზოლი',
     fBox: 'ინსტალაციის ყუთი',
+    fCabinet: 'მორგებული კარადა',
     boxHeight: 'სიმაღლე',
     boxHalf: 'ნახევარი, თაროთი',
     boxFull: 'ჭერამდე',

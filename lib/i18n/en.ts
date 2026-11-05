@@ -3363,6 +3363,7 @@ export const en: Dictionary = {
     fMural: 'Mural',
     fTile: 'Tiled field',
     fBox: 'WC installation box',
+    fCabinet: 'Made-to-measure cabinet',
     boxHeight: 'Height',
     boxHalf: 'Half, with a shelf',
     boxFull: 'To the ceiling',

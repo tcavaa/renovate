@@ -3,6 +3,7 @@
  * mapped as it reads them. `designCatalog.ts` caches it for the route; scripts (the product audit)
  * read it here, outside Next — this module imports nothing of Next's.
  */
+import { refinedKind } from '@/lib/design/productRoles';
 import { and, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm';
 import { desc } from '@/lib/db/order';
 import { db } from '@/lib/db';
@@ -99,7 +100,8 @@ function mapProduct(product: ProductRow, store: StoreRow | null, tree: CategoryT
     imageUrl: product.imageUrl,
     colorHex: product.colorHex,
     textureUrl: product.textureUrl,
-    model3dKind: product.model3dKind,
+    // Read by name where the library filed a piece under the nearest kind (a tap under `sink`).
+    model3dKind: refinedKind(product),
     model3dUrl: product.model3dStatus === 'ready' ? product.model3dUrl : null,
     widthCm: product.widthCm,
     depthCm: product.depthCm,

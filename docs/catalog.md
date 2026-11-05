@@ -189,7 +189,13 @@ stays listed (marked `?`) rather than silently blanking the select and being los
 
 - **`products.model3dKind`** — the archetype the layout engine places the product as
   (`'sofa_3seat'`, `'bed_double'`, `'dining_table'`, …): which slot in which room program.
-  See `ARCHETYPES` in `lib/design/catalog.ts`.
+  See `ARCHETYPES` in `lib/design/catalog.ts`. The design catalogue reads a few by name where the
+  library filed them under the nearest kind (`refinedKind`, `lib/design/productRoles.ts`, applied in
+  `loadDesignCatalog`): a basin tap or mixer under `sink` is a `tap`, a bath's mixer a `bath_mixer`,
+  a kitchen sink a `kitchen_sink` (not a bathroom's basin); a tumble dryer under `washer` a `dryer`;
+  a doormat under `rug` a `door_mat`; a coat rack under `shoe_cabinet` a `coat_rack`; a stool under
+  `dining_chair` a `stool` (not a bar stool) and a towel rack a `towel_rack`. The database keeps the
+  team's kind; a product given the new kind in admin keeps it.
 - **`products.model3dUrl`** — the GLB (under `public/models/` for seeded models, in Supabase's
   `uploads` bucket for uploads — `/uploads/models/` locally), and the thing that makes a product placeable at
   all; the design catalogue exposes it only when `model3dStatus` is `ready`. The viewer creates

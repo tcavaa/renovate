@@ -22,10 +22,14 @@ export interface DecorFamilySpec {
   params: DecorParams;
 }
 
-export const DECOR_FAMILY_LIST: DecorFamily[] = ['slats', 'moulding', 'niche', 'slab', 'light', 'panel', 'cladding', 'mural', 'tile', 'box'];
+export const DECOR_FAMILY_LIST: DecorFamily[] = ['slats', 'moulding', 'niche', 'slab', 'light', 'panel', 'cladding', 'mural', 'tile', 'box', 'cabinet'];
 
-/** The families the AI designer composes with: not the WC's box, which the generation builds behind every WC itself (`wcBoxes`). */
-export const AI_DECOR_FAMILIES: DecorFamily[] = DECOR_FAMILY_LIST.filter((f) => f !== 'box');
+/**
+ * The families the AI designer composes with: not the WC's box, which the generation builds behind
+ * every WC itself (`wcBoxes`), nor the made-to-measure cabinets it builds round the fixtures
+ * (`lib/design/bathroom`, `joinery.ts`).
+ */
+export const AI_DECOR_FAMILIES: DecorFamily[] = DECOR_FAMILY_LIST.filter((f) => f !== 'box' && f !== 'cabinet');
 
 export const DECOR_FAMILIES: Record<DecorFamily, DecorFamilySpec> = {
   slats: {
@@ -69,6 +73,11 @@ export const DECOR_FAMILIES: Record<DecorFamily, DecorFamilySpec> = {
     slots: { body: { kinds: ['gypsum'] }, face: { kinds: ['tile', 'stone'], optional: true } },
     params: { depthMm: 200, full: false },
   },
+  // Made-to-measure joinery (`joinery.ts`): its fronts in the kitchen maker's materials.
+  cabinet: {
+    slots: { face: { kinds: ['joinery', 'board', 'wood'] } },
+    params: { depthMm: 600 },
+  },
 };
 
 /** A piece's knobs with its family's defaults under them. */
@@ -99,10 +108,10 @@ export function hasLed(family: DecorFamily, params: DecorParams): boolean {
  * WC's box and a kitchen's tiled backsplash are every style's. A person adds any family by hand.
  */
 export const STYLE_DECOR_FAMILIES: Record<StyleId, readonly DecorFamily[]> = {
-  modern: ['slats', 'moulding', 'niche', 'slab', 'light', 'panel', 'cladding', 'mural', 'tile', 'box'],
-  scandinavian: ['slats', 'niche', 'tile', 'box'],
-  industrial: ['slats', 'niche', 'slab', 'cladding', 'mural', 'tile', 'box'],
-  vintage: ['slats', 'moulding', 'niche', 'slab', 'cladding', 'mural', 'tile', 'box'],
+  modern: ['slats', 'moulding', 'niche', 'slab', 'light', 'panel', 'cladding', 'mural', 'tile', 'box', 'cabinet'],
+  scandinavian: ['slats', 'niche', 'tile', 'box', 'cabinet'],
+  industrial: ['slats', 'niche', 'slab', 'cladding', 'mural', 'tile', 'box', 'cabinet'],
+  vintage: ['slats', 'moulding', 'niche', 'slab', 'cladding', 'mural', 'tile', 'box', 'cabinet'],
 };
 
 /** Whether a style's designed flat may have LED in its decor (a slat's, a niche's, a slab's halo): Modern only. */

@@ -113,7 +113,8 @@ describe('mirrors and basins', () => {
       product(13, 'mirror', 60, 3, 80),
       product(14, 'mirror', 59, 50, 164),
     ];
-    const matched = matchProducts(layoutRoom(bathroom), catalog, { styleId: 'scandinavian', rooms: [bathroom] });
+    // Vintage keeps a standing basin; the other styles set a countertop one on a vanity made to measure (below).
+    const matched = matchProducts(layoutRoom(bathroom), catalog, { styleId: 'vintage', rooms: [bathroom] });
     const sink = matched.find((i) => i.slot === 'sink')!;
     const mirror = matched.find((i) => i.slot === 'mirror')!;
     expect(sink.product?.productId).toBe(11);

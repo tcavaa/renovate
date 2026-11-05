@@ -99,6 +99,13 @@
       "when": 1793260000000,
       "tag": "0013_roller_blinds",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1793270000000,
+      "tag": "0014_rulebook_kinds",
+      "breakpoints": true
     }
   ]
 }

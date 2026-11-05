@@ -299,6 +299,12 @@ heated room's area, heat demand and the sections it wants against what hangs the
 
 ## Radiators are bought by the section (`lib/design/radiators.ts`)
 
+A bathroom's heated towel rail hangs over its WC when it has one — centred on it, its bottom 10 cm
+over the WC's half-height box (`towelRailOverWc`; `suggestRadiators` takes the furniture), where the
+towels hang when the bathroom has no towel shelf (the rulebook, BA-19); else on the longest clear
+wall. A bathroom's and a toilet's main light is spots, at least three, evenly down its length
+(`wetRoomSpots`, [design-rules.md](design-rules.md#the-third-round-the-rulebook-nini-6-nov-2026)).
+
 A radiator is a `technical` point of kind `radiator` that carries a product, and the product
 is **one section**: `pnpm models:radiators` writes four designs (a steel panel module, an
 aluminium sectional, a cast-iron column, a classic), each a single section framed exactly one

@@ -183,6 +183,74 @@ leave a way through, or there is no screen. The screen joins one wall at most, s
 one room (`keepWhole`, no separator drawn on from it); the floor behind it is kept free of
 furniture. A screen is a 10 cm plasterboard wall, `origin: 'generated'`, priced like any partition.
 
+## The third round: the rulebook (Nini, 6 Nov 2026)
+
+The owner's draft notes ("დრაფტი კლოდისთვის", 37 notes and 8 screenshots) were turned into a
+numbered rulebook — every rule the app already followed, per room, and the draft's as new rows —
+and Nini marked each keep, change or drop (`docs/design-studio/PLAYCE-design-rules-plan.docx`, the
+rule numbers below are its). Built in six stages:
+
+| Stage | What | State |
+|---|---|---|
+| 1 | bathrooms: taps with every basin, the bath's mixer, the made-to-measure vanity and washer column (dryer over it), the built-in and the Vintage bath, a shower in every style, the WC centred and boxed, towel shelf, stool, three spots | **built** |
+| 2 | kitchen: island 1.2 m all round, hood, no second hob or oven, four chairs or a counter, a long table, lighting in the room's middle, hidden LED, the style's kitchen along the whole wall | see below |
+| 3 | entrance and living room: the hall's built-in wardrobe (coats, boiler, shoes), full-height mirror, door mat; the TV out of the way through, the dining table at least 1.2 m, curtains at every window, no entrance screen in Industrial or a small studio | see below |
+| 4 | bedrooms, office, storage: a full-wall wardrobe, no extra chest (a desk or a dressing table may stay), a tall headboard takes no panel, stool, clothes rack, no closet mirror on a balcony | see below |
+| 5 | the whole flat: one main fixture per room, one large light and spots round it (Scandinavian, Modern, Vintage), wall lights on walls, front and interior doors in their places, no glass doors into bedrooms or bathrooms, panels a whole wall | see below |
+| 6 | the plan board: inner walls' lengths, distances to windows and doors, opposite windows in line, the beam named რიგელი | see below |
+
+Nini's answers that change earlier rules: main lights are rails, spots and small pendants (a
+chandelier, wall and floor lamps are not "main"), all of one model in a room (G-9); every window has
+curtains or a blind (G-20); the hall's coats, boiler and shoes are one built-in wardrobe to the
+ceiling, the boiler's section ventilated with room to service it (E-4, E-6, E-7); the living room's
+dining table is at least 1.2 m, centred in the free floor (L-6); no entrance screen in an Industrial
+flat or a studio short of room (L-13); the vanity is made to measure in every style but Vintage, with
+a basin and a matching tap (BA-7); Vintage builds a tiled enclosure round a freestanding rectangular
+bath, the WC boxed and the basins' taps on the wall (BA-18); a towel shelf only with room and a
+higher budget, else the towels hang on the heated rail (BA-19); no shower-door model — showers are
+built (BA-24); at least three lights in a bathroom, evenly spaced and the same distance from the
+walls (WC-3); Modern and Vintage take mouldings, and one large light per room with spots or pendants
+round it (Y-4, Y-6); the beam is labelled რიგელი in Georgian, beam in English (P-2); a cabinet beside
+a full-wall wardrobe only when it is a desk or a dressing table with a mirror (B-10); the dryer stands
+on the washer, and the joinery may run on from the basin as one piece (G-29). Dropped: S-3, Y-8, BA-24.
+
+How stage 1 built it — **the bathroom pass** (`lib/design/bathroom.ts`, `fitBathrooms`, run by
+`generateScene` after matching):
+
+- **Vanity** (BA-7): in every style but Vintage the basin slot takes a countertop or vessel basin
+  (`slotPool`: under 45 cm tall), set on a `cabinet` piece's `basin` section — its top 90 cm less
+  the basin's height (70–85 cm), 50 cm deep, from the basin's width and 40 cm up to 1.8 m, run on
+  to a corner rather than leave a sliver under 30 cm (`JOINERY_SLIVER_M`), clear of the other
+  pieces on the wall (`freeStretch`). Vintage keeps a standing basin (60 cm or taller).
+- **Taps** (BA-8, BA-18): every basin not sold with its tap (`includesTap`: "…with … tap/mixer")
+  gets one — a wall tap 12 cm over the rim, or a deck tap behind the bowl on the vanity (on the wall
+  when there is no room behind a vessel basin) or on a standing basin's top; Vintage's on the wall;
+  never a floor-standing mixer at a basin.
+- **Washer column** (BA-12–15): but in Vintage, the machine is built into a `washer` section 65 cm
+  deep, its width and 2 × 1.8 cm sides, up to its top (and the dryer's): beside the vanity on its
+  wall when there is room, the column at the end of the wall and the gap between filled with doors
+  at the vanity's height — one piece; else its own column where it stands, moved to the wall's end
+  when that is a sliver away. A **dryer** (`dryer`, the library's tumble dryer) stacked on the
+  machine inside the column at the `premium` budget level with a ceiling of 2.2 m or more (G-29).
+- **Bath by style** (BA-16–18): Modern a freestanding bath (`slotPool` leaves built-in ones out);
+  Scandinavian and Industrial a built-in one (a bath only from 9 m², `SHOWER_FIRST_STYLES`,
+  `BATH_WITH_SHOWER_M2` — the shower first), boxed and tiled to just under its rim (a `box` piece,
+  anchor `bath`); Vintage a freestanding rectangular bath in a tiled enclosure 10 cm wider each
+  side and 6 cm over the rim. The **mixer** at the bath's head (the end nearer a corner): on the
+  wall over a boxed bath (`isWallTap`), standing on the floor by a freestanding one.
+- **Showers** (BA-11, BA-24): a 1.4 × 0.9 m walk-in from 7 m² (`SHOWER_LONG_M2`), its long side
+  along the room's length (`alongLength`); a shower-door product is never taken for the shower
+  (`isShowerDoor`) — the glass is built.
+- **WC** (BA-4, BA-5): it stands in the middle of its wall (+8 at the middle); a WC set down in the
+  studio is boxed too (`withWcBoxes`).
+- **Towel shelf and stool** (BA-19, BA-20): both from 6 m² in the bathroom's program, the stool 60 %
+  of the time; the shelf only at the `premium` budget (`slotPool`), else the towels hang on the
+  heated rail, which hangs over the WC — centred on it, its bottom 10 cm over the WC's box
+  (`towelRailOverWc` in `radiators.ts`; `suggestRadiators` takes the furniture).
+- **Light** (BA-21, WC-3): a bathroom's and a toilet's main light is spots down its length, at least
+  three, one a metre or nearer, the gaps to the walls equal to the gaps between them
+  (`wetRoomSpots`, `WET_ROOM_SPOTS`, in the standard fittings — the calculator's board too).
+
 ## The decisions (owner, 28 Oct 2026)
 
 **Part 1 — technical**
@@ -352,6 +420,11 @@ sub-style in the designer's brief); `nightLights.test.ts` (the light's colour by
 AI check's problems).
 
 ## Known gaps
+
+- From the third round's stage 1: the joinery, the taps, the bath's mixer and enclosure and the
+  dryer are placed at generation and do not follow the basin, the bath or the machine when it is
+  dragged or swapped afterwards (the WC's box does); a cabinet's sections cannot be edited on its
+  card yet (only resized whole). Vintage's bath enclosure is a tiled surround, not a raised alcove.
 
 - From the second round's stage 6: a shower's glass in 3D follows a dragged shower on release, not
   live; a pane has no door drawn in it (a walk-in screen leaves its open end). The en-suite's lobby

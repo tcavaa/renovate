@@ -241,7 +241,7 @@ export function clearOfDecor(items: PlacedItem[], decor: DecorPiece[], plan: Flo
     const bottom = hung ? item.elevationM : 0;
     const top = bottom + item.size.height;
     const need = Math.max(0, ...decor
-      .filter((d) => d.roomId === room.id && d.wallIndex === wall.edge.index && STANDS_OUT.has(d.family))
+      .filter((d) => d.roomId === room.id && d.wallIndex === wall.edge.index && STANDS_OUT.has(d.family) && !(d.anchor === 'bath' && item.slot === 'bathtub'))
       .filter((d) => wall.along + item.size.width / 2 > d.span.from + 0.02 && wall.along - item.size.width / 2 < d.span.to - 0.02 && d.height.from < top - 0.02 && d.height.to > bottom + 0.02)
       .map((d) => decorDepth(d) + 0.01));
     if (need <= wall.gap) return;

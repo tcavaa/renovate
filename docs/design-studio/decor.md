@@ -100,7 +100,23 @@ The reference library's rules, as code:
   sides and, half height, its top. **Not the AI's**: `AI_DECOR_FAMILIES` leaves it out of the
   prompt, the schema and the validation; `generateScene` puts one behind every WC (`wcBoxes`,
   anchor `wc`, so it follows its WC — `reanchorDecor`), and the WC stands in front of it
-  (`clearOfDecor`, `STANDS_OUT`). A WC added in the studio afterwards gets none.
+  (`clearOfDecor`, `STANDS_OUT`). A WC set down in the studio gets one too (`withWcBoxes`, in
+  `addItem` and `finishCarry`), its materials copied from a box the flat has (the store has no
+  catalogue). A **bath's enclosure** is a box too (anchor `bath`, `lib/design/bathroom.ts`): as
+  deep as the bath (up to 1 m), drawn hollow — its front, its ends and a strip on the wall round
+  the bath standing in it — and the bath is not pushed out of it (`clearOfDecor`).
+- **cabinet** — made-to-measure joinery (`lib/design/decor/joinery.ts`, the rulebook of 6 Nov
+  2026): `params.sections`, left to right along the wall, each `{ kind, widthMm, heightMm,
+  depthMm, dryer? }` — `basin` (a vanity), `washer` (a column open in front round the machine, a
+  shelf for a dryer on it), `boiler` (louvred doors), `coats`, `shoes`, `doors`, `open` (shelves).
+  A piece resized to another width stretches its sections in proportion (`sectionSpans`). Slot:
+  face, in the kitchen maker's materials (`kitchen-custom`, kind `joinery` — `decorMaterialKind`),
+  the flat's kitchen run's own when it has one (`joineryMaterial`), so the joinery is one design.
+  Measured as the joiner prices it: every section's front and the sides that show
+  (`cabinetFacadeM2`). Drawn as carcasses with shadow gaps between doors (a door under 60 cm), a
+  plinth, the boiler's louvres. **Not the AI's** (`AI_DECOR_FAMILIES`; its materials are not
+  offered to it); every style takes it (`STYLE_DECOR_FAMILIES`). Not in `STANDS_OUT`: what it
+  houses — the basin on the vanity, the washer in its column — stays where it stands.
 
 ## What it costs (`quantities.ts`)
 

@@ -34,6 +34,8 @@ import {
   KITCHEN_SOCKET_M,
   KITCHEN_SPOT_AHEAD_M,
   KITCHEN_SPOT_SPACING_M,
+  WET_ROOM_SPOTS,
+  WET_SPOT_SPACING_M,
   NIGHTSTAND_SOCKET_ABOVE_M,
   NIGHTSTAND_SOCKET_RANGE_M,
   SOCKET_M,
@@ -235,6 +237,10 @@ function standardFor(b: Builder, room: PlanRoom): void {
   // owner: one light is not enough for a hallway) — and a switch on the handle side of each door,
   // 20 cm from the opening.
   if (room.type === 'hallway') for (const at of hallLightSpots(room)) make(b, room, 'light_ceiling', at);
+  // A bathroom or a toilet: never one light — spots down its length, the same distance from one
+  // another and from the walls, at least three, which falls over the basin, the WC and the shower
+  // (the rulebook, BA-21 and WC-3).
+  else if (room.type === 'bathroom' || room.type === 'toilet') for (const at of wetRoomSpots(room)) make(b, room, 'light_spot', at, { category: 'primary' });
   else make(b, room, 'light_ceiling', centre);
   for (const door of room.openings.filter(isPassage)) {
     const edge = edges.find((e) => e.index === door.wallIndex);
@@ -254,6 +260,22 @@ function standardFor(b: Builder, room: PlanRoom): void {
     const wanted = room.type === 'living_room' || room.type === 'studio' ? 2 : 1;
     for (const edge of free.slice(0, wanted)) makeOnWall(b, room, 'socket', edge, 0.5);
   }
+}
+
+/** A wet room's spots: one a metre or nearer down its length, at least three, evenly spaced so the gaps to the walls equal the gaps between them, each in the middle of the room's width there. */
+export function wetRoomSpots(room: PlanRoom): Vec2[] {
+  const bounds = polygonBounds(room.polygon);
+  const alongX = bounds.maxX - bounds.minX >= bounds.maxZ - bounds.minZ;
+  const from = alongX ? bounds.minX : bounds.minZ;
+  const length = alongX ? bounds.maxX - bounds.minX : bounds.maxZ - bounds.minZ;
+  const n = Math.max(WET_ROOM_SPOTS, Math.ceil(length / WET_SPOT_SPACING_M - 1e-6) - 1);
+  const out: Vec2[] = [];
+  for (let i = 0; i < n; i++) {
+    const u = from + ((i + 1) * length) / (n + 1);
+    const middle = crossMiddle(room.polygon, alongX, u);
+    if (middle != null) out.push(alongX ? { x: u, z: middle } : { x: middle, z: u });
+  }
+  return out;
 }
 
 /**

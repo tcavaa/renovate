@@ -340,7 +340,16 @@ export type SlotKind =
   | 'pendant'
   | 'plant'
   | 'artwork'
-  | 'curtain';
+  | 'curtain'
+  // The third round's pieces (the rulebook, 6 Nov 2026): found in the catalogue by name among the
+  // kinds they were filed under (`refinedKind`, lib/design/productRoles.ts).
+  | 'tap'
+  | 'bath_mixer'
+  | 'dryer'
+  | 'door_mat'
+  | 'coat_rack'
+  | 'stool'
+  | 'towel_rack';
 
 /** A single object placed in the 3D scene. */
 /** Who put this product here: the style matcher, the user in the calculator, or the user in the studio. */
@@ -577,7 +586,23 @@ export interface ElectricalPoint {
  * panels, brick or concrete cladding, murals and tiled fields. None of them is a model: each is
  * fitted to its wall by code and bought by the material it uses.
  */
-export type DecorFamily = 'slats' | 'moulding' | 'niche' | 'slab' | 'light' | 'panel' | 'cladding' | 'mural' | 'tile' | 'box';
+export type DecorFamily = 'slats' | 'moulding' | 'niche' | 'slab' | 'light' | 'panel' | 'cladding' | 'mural' | 'tile' | 'box' | 'cabinet';
+
+/**
+ * One section of a made-to-measure cabinet (`cabinet` family, lib/design/decor/joinery.ts), left to
+ * right as one faces the wall: a basin's vanity, a washing machine's (and a dryer's) column, the
+ * boiler's ventilated cupboard, coats, shoes, plain doors or open shelves. Each its own width,
+ * height and depth.
+ */
+export type CabinetSectionKind = 'basin' | 'washer' | 'boiler' | 'coats' | 'shoes' | 'doors' | 'open';
+export interface CabinetSection {
+  kind: CabinetSectionKind;
+  widthMm: number;
+  heightMm: number;
+  depthMm: number;
+  /** A washer's column with a dryer stacked on the machine. */
+  dryer?: boolean;
+}
 
 /** The parts of a piece that wear a material of their own (`DECOR_FAMILIES` says which a family has). */
 export type DecorSlot = 'face' | 'backing' | 'led' | 'profile' | 'body' | 'shelf' | 'surround' | 'border' | 'trim';
@@ -629,6 +654,8 @@ export interface DecorParams {
   path?: 'cove' | 'line';
   /** Box (a wall-hung WC's gypsum box): to the ceiling, or half height with a shelf on top. */
   full?: boolean;
+  /** Cabinet (made-to-measure joinery): its sections, left to right along the wall. */
+  sections?: CabinetSection[];
 }
 
 /**
@@ -651,7 +678,7 @@ export interface DecorPiece {
   note?: string | null;
   origin?: 'ai' | 'studio';
   /** What it was centred on (the bed, the kitchen run…): it follows that piece to its wall (`reanchorDecor`). */
-  anchor?: 'bed' | 'tv' | 'sofa' | 'desk' | 'dining' | 'kitchen' | 'wall' | 'room' | 'wc' | null;
+  anchor?: 'bed' | 'tv' | 'sofa' | 'desk' | 'dining' | 'kitchen' | 'wall' | 'room' | 'wc' | 'joinery' | 'bath' | null;
 }
 
 /** How the flat was generated: by the rule engine or by the AI designer — kept so a flat can be explained. */
