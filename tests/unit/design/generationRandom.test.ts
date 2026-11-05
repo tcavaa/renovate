@@ -76,15 +76,25 @@ describe('every product with a model can be generated', () => {
     product(5, { styleTags: [], pricePerUnit: 5000 }),
   ];
 
-  it('draws every sofa over enough generations, the style’s own most often', () => {
+  it('draws every armchair over enough generations, the style’s own most often', () => {
+    const chair: PlacedItem = { ...sofa, slot: 'armchair', kind: 'armchair', size: { width: 0.8, depth: 0.8, height: 0.8 } };
+    const chairs = catalog.map((p) => ({ ...p, model3dKind: 'armchair', widthCm: 80, depthCm: 80 }));
     const counts = new Map<number, number>();
     for (let seed = 1; seed <= 400; seed++) {
-      const [placed] = matchProducts([sofa], catalog, { styleId: 'scandinavian', rooms: [room], rng: seededRng(seed) });
+      const [placed] = matchProducts([chair], chairs, { styleId: 'scandinavian', rooms: [room], rng: seededRng(seed) });
       const id = placed.product!.productId;
       counts.set(id, (counts.get(id) ?? 0) + 1);
     }
-    for (const p of catalog) expect(counts.get(p.id) ?? 0, `product ${p.id}`).toBeGreaterThan(0);
+    for (const p of chairs) expect(counts.get(p.id) ?? 0, `product ${p.id}`).toBeGreaterThan(0);
     expect((counts.get(1) ?? 0) + (counts.get(2) ?? 0)).toBeGreaterThan(200);
+  });
+
+  it('draws the big pieces — a sofa — only from the style’s own when it has any (the rulebook, Y-7)', () => {
+    const drawn = new Set<number>();
+    for (let seed = 1; seed <= 200; seed++) drawn.add(matchProducts([sofa], catalog, { styleId: 'scandinavian', rooms: [room], rng: seededRng(seed) })[0].product!.productId);
+    expect([...drawn].sort()).toEqual([1, 2]);
+    // A style with none of its own still gets a sofa.
+    expect(matchProducts([sofa], catalog, { styleId: 'modern', rooms: [room], rng: seededRng(3) })[0].product).not.toBeNull();
   });
 
   it('takes the best, as before, without an rng', () => {

@@ -23,14 +23,19 @@ describe('the owner\'s lighting rules', () => {
     expect(points.filter((p) => p.kind === 'light_ceiling')).toHaveLength(3);
   });
 
-  it('gives a kitchen spots over its working floor instead of the one ceiling light, apart from the table\'s pendant', () => {
+  it('gives a kitchen a row of spots across the middle of the room instead of the one ceiling light, apart from the table\'s pendant', () => {
     const kitchen = room('k', 'kitchen', 4, 3);
     const run = piece('run', 'k', 'kitchen_run', 1.5, 0.33, 0, 3, 0.62);
     const points = suggestElectrical(plan(kitchen), [run]);
     expect(points.some((p) => p.kind === 'light_ceiling')).toBe(false);
     const spots = points.filter((p) => p.kind === 'light_spot');
     expect(spots.length).toBeGreaterThanOrEqual(3);
-    for (const spot of spots) expect(spot.position.z).toBeLessThan(1.2);
+    // Along the run, through the room's middle (the rulebook, K-13), not hugging the worktop.
+    for (const spot of spots) expect(spot.position.z).toBeCloseTo(1.5, 5);
+    // With the table's pendant on that line, halfway between the worktop and the table.
+    const table = piece('t', 'k', 'dining_table', 2, 1.5, 0, 1.4, 0.8, 0.75);
+    const shifted = suggestElectrical(plan(kitchen), [run, table]).filter((p) => p.kind === 'light_spot');
+    for (const spot of shifted) expect(spot.position.z).toBeLessThan(1.2);
     expect(points.some((p) => p.kind === 'light_furniture')).toBe(true);
   });
 

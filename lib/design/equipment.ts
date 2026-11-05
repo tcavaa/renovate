@@ -11,6 +11,7 @@
  * Pure: plain data in, plain data out.
  */
 
+import { isRoundHood } from './productRoles';
 import { toSceneProduct, type CatalogProduct } from './matcher';
 import { radiatorRoom } from './radiators';
 import { COOKER_HOOD_ELEVATION_M, HOOD_ROOM_TYPES, TECHNICAL_KINDS } from './technical';
@@ -88,12 +89,16 @@ export function equipmentCandidates(productKind: EquipmentProductKind, catalog: 
     return cover >= room.areaM2 ? [0, cover] : [1, -cover];
   };
   const rank = (p: CatalogProduct) => equipmentSpecs(p).rank ?? 99;
+  // A cooker hood is round — a cylinder — where there is one, else a thick rectangular one; never a
+  // built-in insert or a slim one that disappears (the rulebook, K-7). A wall's hood is no wider
+  // than 1.3 m (an island's suspended shelf frame is not a wall hood).
+  const hoodShape = (p: CatalogProduct) => (productKind !== 'cooker_hood' ? 0 : isRoundHood(p) ? 0 : (p.heightCm ?? 0) >= 50 ? 1 : 2);
   return catalog
-    .filter((p) => p.model3dKind === productKind && !!p.model3dUrl)
+    .filter((p) => p.model3dKind === productKind && !!p.model3dUrl && (productKind !== 'cooker_hood' || (p.widthCm ?? 0) <= 130))
     .sort((a, b) => {
       const [fa, sa] = fit(a);
       const [fb, sb] = fit(b);
-      return affinity(b) - affinity(a) || fa - fb || sa - sb || rank(a) - rank(b) || a.pricePerUnit - b.pricePerUnit;
+      return hoodShape(a) - hoodShape(b) || affinity(b) - affinity(a) || fa - fb || sa - sb || rank(a) - rank(b) || a.pricePerUnit - b.pricePerUnit;
     });
 }
 

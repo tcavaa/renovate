@@ -452,8 +452,12 @@ function furnitureFor(b: Builder, room: PlanRoom, here: PlacedItem[], technical:
     // The hood's, high over the hob; the under-cabinet light's, in the wall cabinets at the far end.
     makeOnWall(b, room, 'socket_high', edge, at(zones.hobS), { elevationM: HOOD_SOCKET_M });
     makeOnWall(b, room, 'socket_high', edge, at(zones.farEndS - Math.sign(zones.farEndS - zones.sinkS) * 0.3), { elevationM: CABINET_LIGHT_SOCKET_M });
-    const wallT = along(edge, run.position) / edge.length;
-    makeOnWall(b, room, 'light_furniture', edge, wallT, { elevationM: WALL_UNIT_BOTTOM_M, lengthM: Math.min(run.size.width, edge.length - 0.2), category: 'furniture' });
+    // The light under the wall cabinets: set into their underside, its length theirs (the
+    // rulebook, K-14 — the strip never shows below the cabinets, only its light).
+    const cabinets = here.find((i) => i.slot === 'kitchen_wall' && backWall(room, i)?.edge.index === edge.index);
+    const wallT = along(edge, (cabinets ?? run).position) / edge.length;
+    const under = cabinets ? Math.round(cabinets.elevationM * 1000) / 1000 : WALL_UNIT_BOTTOM_M;
+    makeOnWall(b, room, 'light_furniture', edge, wallT, { elevationM: under, lengthM: Math.max(0.3, Math.min((cabinets ?? run).size.width - 0.04, edge.length - 0.2)), category: 'furniture' });
     // The main light: spots in a row over the working floor, just in front of the worktop, one
     // every 90 cm of the run — kept to the run, apart from the pendant over the table (the owner's
     // three layers: the table's pendant, the main light, the light under the cabinets). A
@@ -461,7 +465,15 @@ function furnitureFor(b: Builder, room: PlanRoom, here: PlacedItem[], technical:
     const forward = { x: Math.sin(run.rotation), z: Math.cos(run.rotation) };
     const right = { x: forward.z, z: -forward.x };
     const n = Math.max(2, Math.round(run.size.width / KITCHEN_SPOT_SPACING_M));
-    const ahead = run.size.depth / 2 + KITCHEN_SPOT_AHEAD_M;
+    // The row runs as the run does, through the middle of the room rather than hugging the worktop
+    // (the rulebook, K-13); halfway to the table when the table's pendant hangs on that line.
+    const centre = { x: room.polygon.reduce((s, p) => s + p.x, 0) / room.polygon.length, z: room.polygon.reduce((s, p) => s + p.z, 0) / room.polygon.length };
+    const toCentre = (centre.x - run.position.x) * forward.x + (centre.z - run.position.z) * forward.z;
+    const table = here.find((i) => i.slot === 'dining_table');
+    const toTable = table ? (table.position.x - run.position.x) * forward.x + (table.position.z - run.position.z) * forward.z : null;
+    const near = run.size.depth / 2 + KITCHEN_SPOT_AHEAD_M;
+    let ahead = Math.max(near, toCentre);
+    if (toTable != null && Math.abs(toTable - ahead) < 0.6) ahead = Math.max(near, (near + toTable) / 2);
     const spots = Array.from({ length: n }, (_, i) => {
       const lateral = ((i + 0.5) / n - 0.5) * run.size.width;
       return { x: run.position.x + forward.x * ahead + right.x * lateral, z: run.position.z + forward.z * ahead + right.z * lateral };

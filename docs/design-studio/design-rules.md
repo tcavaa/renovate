@@ -193,7 +193,7 @@ rule numbers below are its). Built in six stages:
 | Stage | What | State |
 |---|---|---|
 | 1 | bathrooms: taps with every basin, the bath's mixer, the made-to-measure vanity and washer column (dryer over it), the built-in and the Vintage bath, a shower in every style, the WC centred and boxed, towel shelf, stool, three spots | **built** |
-| 2 | kitchen: island 1.2 m all round, hood, no second hob or oven, four chairs or a counter, a long table, lighting in the room's middle, hidden LED, the style's kitchen along the whole wall | see below |
+| 2 | kitchen: island 1.2 m all round, hood, no second hob or oven, four chairs or a counter, a long table, lighting in the room's middle, hidden LED, the style's kitchen along the whole wall | **built** |
 | 3 | entrance and living room: the hall's built-in wardrobe (coats, boiler, shoes), full-height mirror, door mat; the TV out of the way through, the dining table at least 1.2 m, curtains at every window, no entrance screen in Industrial or a small studio | see below |
 | 4 | bedrooms, office, storage: a full-wall wardrobe, no extra chest (a desk or a dressing table may stay), a tall headboard takes no panel, stool, clothes rack, no closet mirror on a balcony | see below |
 | 5 | the whole flat: one main fixture per room, one large light and spots round it (Scandinavian, Modern, Vintage), wall lights on walls, front and interior doors in their places, no glass doors into bedrooms or bathrooms, panels a whole wall | see below |
@@ -250,6 +250,32 @@ How stage 1 built it — **the bathroom pass** (`lib/design/bathroom.ts`, `fitBa
 - **Light** (BA-21, WC-3): a bathroom's and a toilet's main light is spots down its length, at least
   three, one a metre or nearer, the gaps to the walls equal to the gaps between them
   (`wetRoomSpots`, `WET_ROOM_SPOTS`, in the standard fittings — the calculator's board too).
+
+How stage 2 built it — **the kitchen**:
+
+- **Island** (K-6, K-8): placed after the table and its chairs (the program's order), only where 1.2 m
+  of floor stays free on every side of it — to the walls and to every piece (`ISLAND_CLEAR_M`), and
+  nothing placed after it stands in that ring; beside a run, never a product with its own hob, oven,
+  sink or burners (`slotPool`) — the screenshot's "second hob and oven" was such an island against a
+  wall.
+- **Hood** (K-7): the extractor's product is a round (cylindrical) hood first, then a thick one
+  (50 cm or taller), a built-in insert last; nothing wider than 1.3 m — an island's suspended shelf
+  frame is not a wall's hood (`equipmentCandidates`).
+- **Sink and hob** (K-9): the made-to-measure run's model has both; a shop's run is taken only when
+  its name says it has a sink and a hob (`hasSinkAndHob`), and only when it fills 90 % of the run's
+  wall (K-16) — else the run is made to measure along the whole wall.
+- **Table** (K-10–K-12, L-6, L-8): 1.2 × 0.82 m at least (chairs at its ends too), never smaller; 1.8 m
+  in a long room (1.6 : 1 or longer); 42 cm or more from the walls for the chairs; with no room to
+  stand free, against a wall (`placeAgainstWall`, the table's three open sides). A living room's
+  table keeps 1 m from the sofa, the coffee table, the armchair and the TV unit
+  (`DINING_LOUNGE_GAP_M`) and takes the spot with the most room round it, walls included.
+- **Light** (K-13, K-14): the kitchen's row of spots runs along the run through the middle of the
+  room (halfway to the table when the table's pendant hangs on that line); the light under the
+  wall cabinets is set into their underside at their real height and length, the strip's lowest
+  point there (`sitOnPoint` in `buildStructure`), so it never shows below them.
+- **Style** (K-15, Y-7): the kitchen maker's material, the kitchen, the sofas, beds, baths,
+  wardrobes and dining tables are drawn only from the style's own products when the catalogue has
+  any (`STRICT_STYLE_KINDS`, `styleMaterials`).
 
 ## The decisions (owner, 28 Oct 2026)
 

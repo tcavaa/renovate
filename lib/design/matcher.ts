@@ -87,6 +87,24 @@ export interface MatchOptions {
 /** How often a generated kitchen run is a shop's kitchen unit (that fits the wall) rather than made to measure. */
 const STORE_KITCHEN_SHARE = 0.35;
 
+/** The kinds a flat takes only in its own style when the catalogue has any (K-15, Y-7). */
+const STRICT_STYLE_KINDS = new Set(['kitchen_run', 'kitchen_wall', 'kitchen_island', 'sofa_3seat', 'sofa_corner', 'bed_double', 'bed_single', 'bathtub', 'wardrobe', 'dining_table']);
+
+/**
+ * A shop's kitchen run that comes with its sink and its hob (its name says so): a kitchen is never
+ * laid out without either (the rulebook, K-9). The made-to-measure run's model has both.
+ */
+function hasSinkAndHob(p: CatalogProduct): boolean {
+  const name = `${p.nameEn ?? ''} ${p.nameKa}`;
+  return /\bsink\b|ნიჟარ/i.test(name) && /\b(hob|cooker|range|stove|burners?)\b|ქურ/i.test(name);
+}
+
+/** The kitchen maker's materials of the style when it has any, else them all (K-15). */
+function styleMaterials(materials: CatalogProduct[], styleId: StyleId): CatalogProduct[] {
+  const own = materials.filter((m) => styleAffinity(styleId, m.styleTags, m.tags) === 2);
+  return own.length > 0 ? own : materials;
+}
+
 /** How strongly a style tag counts in the draw (`generationWeight`): its own style, a kindred tag, none. */
 const STYLE_WEIGHT = [1, 3, 10];
 
@@ -134,7 +152,11 @@ export function matchProducts(
     // would leave the kind with nothing at all.
     const all = candidatesFor(item.kind, catalog, options.styleId);
     const kept = all.filter((p) => !styleRejects(p, options.styleId));
-    byKind.set(item.kind, kept.length > 0 ? kept : all);
+    const pool = kept.length > 0 ? kept : all;
+    // The big pieces are strictly the style's own when the catalogue has any (the rulebook, K-15 and
+    // Y-7: a Scandinavian flat's kitchen, sofa and bed are Scandinavian).
+    const own = STRICT_STYLE_KINDS.has(item.kind) ? pool.filter((p) => styleAffinity(options.styleId, p.styleTags, p.tags) === 2) : [];
+    byKind.set(item.kind, own.length > 0 ? own : pool);
   }
 
   // Same kind in the same room → the same product (six matching dining chairs). Same kind in
@@ -172,7 +194,7 @@ export function matchProducts(
     if (item.slot === 'kitchen_wall') {
       const run = settled.find((i) => i.roomId === item.roomId && i.slot === 'kitchen_run');
       if (run && run.custom === false) return finish({ ...item, product: null });
-      const materials = kitchenMaterialCandidates(catalog, options.styleId, item.slot).filter((m) => m.model3dKind === item.slot);
+      const materials = styleMaterials(kitchenMaterialCandidates(catalog, options.styleId, item.slot).filter((m) => m.model3dKind === item.slot), options.styleId);
       if (materials.length > 0) {
         const runFinish = run?.kitchenMaterial?.slug?.split('-').pop();
         const rng = options.rng;
@@ -182,14 +204,14 @@ export function matchProducts(
     }
 
     if (item.slot === 'kitchen_run') {
-      const materials = kitchenMaterialCandidates(catalog, options.styleId, item.slot).filter((m) => !m.model3dKind || m.model3dKind === item.slot);
+      const materials = styleMaterials(kitchenMaterialCandidates(catalog, options.styleId, item.slot).filter((m) => !m.model3dKind || m.model3dKind === item.slot), options.styleId);
       // Only what is a run — floor-standing, worktop-high or more, wider than deep: the library files
       // hobs, coffee machines and a wall cabinet under the same kind.
       const runRoom = roomsById.get(item.roomId);
       // …and not one whose wall cabinets would stand across the window over the run.
       // A run is at least 1.8 m long, a cabinet's depth (55–72 cm) and worktop-high: a range cooker
       // filed under kitchen units (166 × 67 × 80 cm) was taken for the whole kitchen.
-      const units = candidates.filter((p) => !!p.widthCm && !!p.depthCm && !!p.heightCm && p.widthCm / 100 <= item.size.width + 0.01 && p.heightCm >= 85 && p.depthCm >= 55 && p.depthCm <= 72 && p.widthCm >= 180 && !(runRoom && blocksWindow({ ...item, size: sizeFromProduct(p, item) }, runRoom)));
+      const units = candidates.filter((p) => !!p.widthCm && !!p.depthCm && !!p.heightCm && p.widthCm / 100 <= item.size.width + 0.01 && p.widthCm / 100 >= item.size.width * 0.9 && hasSinkAndHob(p) && p.heightCm >= 85 && p.depthCm >= 55 && p.depthCm <= 72 && p.widthCm >= 180 && !(runRoom && blocksWindow({ ...item, size: sizeFromProduct(p, item) }, runRoom)));
       const rng = options.rng;
       if (materials.length > 0 && !(rng && units.length > 0 && rng() < STORE_KITCHEN_SHARE)) {
         const material = rng ? (weightedPick(materials, (m) => STYLE_WEIGHT[styleAffinity(options.styleId, m.styleTags, m.tags)] ?? 1, rng) ?? materials[0]) : materials[0];
@@ -211,7 +233,7 @@ export function matchProducts(
     // flat and no taller than 1.2 m. The swap list still offers the rest.
     const fitting = slotPool(item, candidates, room, settled, options.styleId, level);
     // No TV is better than one across the window beside its unit.
-    if ((item.slot === 'tv' || item.slot === 'towel_rack') && fitting.length === 0) return finish({ ...item, product: null });
+    if ((item.slot === 'tv' || item.slot === 'towel_rack' || item.slot === 'kitchen_island') && fitting.length === 0) return finish({ ...item, product: null });
     if (fitting.length > 0 && fitting.length < candidates.length) {
       candidates.splice(0, candidates.length, ...fitting);
     }
@@ -468,6 +490,12 @@ export function slotPool(item: PlacedItem, candidates: CatalogProduct[], room: P
   if (item.slot === 'shower') {
     const columns = candidates.filter((p) => !isShowerDoor(p));
     return columns.length > 0 ? columns : candidates;
+  }
+  // An island is a worktop to stand round: not one with its own hob, oven or sink beside a run that
+  // has them (the rulebook, K-8 — a second hob and oven in the kitchen).
+  if (item.slot === 'kitchen_island') {
+    const runHere = settled.some((p) => p.roomId === item.roomId && p.slot === 'kitchen_run');
+    if (runHere) return candidates.filter((p) => !/\b(hob|oven|cooker|range|sink|burner)\b/i.test(`${p.nameEn ?? ''} ${p.nameKa}`));
   }
   // A towel shelf only at the highest budget; else the towels hang on the heated rail (BA-19).
   if (item.slot === 'towel_rack' && level && level !== 'premium') return [];

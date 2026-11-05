@@ -706,9 +706,11 @@ export const ROOM_PROGRAMS: Record<RoomType, ProgramEntry[]> = {
     { kind: 'kitchen_run', count: 1 },
     { kind: 'fridge', count: 1 },
     { kind: 'kitchen_wall', count: 1 },
-    { kind: 'kitchen_island', count: 1, minAreaM2: 17 },
+    // The table and its four chairs before the island (the rulebook, K-10): an island only where
+    // it still has its 1.2 m round it.
     { kind: 'dining_table', count: 1, minAreaM2: 10 },
     { kind: 'dining_chair', count: 'fill', minAreaM2: 10 },
+    { kind: 'kitchen_island', count: 1, minAreaM2: 17 },
     { kind: 'pendant', count: 1 },
     { kind: 'blind', count: 1 },
   ],

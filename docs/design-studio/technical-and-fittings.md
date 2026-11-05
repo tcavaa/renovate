@@ -297,6 +297,11 @@ heated room's area, heat demand and the sections it wants against what hangs the
   `technicalCheckFrom` reads it; the URL is put back to the bare step once it is open): the
   studio's technical tray links "რა სამუშაოებია საჭირო?" to the works this way.
 
+The kitchen's main light is a row of spots along the run through the middle of the room (halfway
+to the table when its pendant is on that line), and the light under the wall cabinets is set into
+their underside at their real height and length (the rulebook, K-13 and K-14). A kitchen's cooker
+hood is a round one first, then a thick one (`equipmentCandidates`).
+
 ## Radiators are bought by the section (`lib/design/radiators.ts`)
 
 A bathroom's heated towel rail hangs over its WC when it has one — centred on it, its bottom 10 cm

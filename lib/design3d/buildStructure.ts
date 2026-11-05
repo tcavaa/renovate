@@ -258,7 +258,11 @@ export function buildFitting(room: PlanRoom, point: ElectricalPoint, materials: 
   if (point.kind === 'light_furniture') {
     const holder = new THREE.Group();
     piece.add(holder);
-    attach(holder, spec, 'wall', (model) => stretchTo(model, point.lengthM ?? 1.5));
+    // Up into the cabinets' underside from its point: the strip hidden, only its light below (K-14).
+    attach(holder, spec, 'wall', (model) => {
+      stretchTo(model, point.lengthM ?? 1.5);
+      sitOnPoint(model);
+    });
     return piece;
   }
   // Sockets, switches, TV and data points: one plate per outlet, side by side; a wall lamp is one.
@@ -282,6 +286,16 @@ function stretchTo(model: THREE.Object3D, length: number): void {
   model.updateMatrixWorld(true);
   const width = new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3()).x;
   if (width > 1e-6 && Number.isFinite(length) && length > 0) model.scale.x = Math.min(length, MAX_STRIP_M) / width;
+  parent?.add(model);
+}
+
+/** Lifts a model so its lowest point is its origin — a strip set up into the cabinet bottom it lights from. Measured in its own frame. */
+function sitOnPoint(model: THREE.Object3D): void {
+  const parent = model.parent;
+  parent?.remove(model);
+  model.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(model);
+  if (Number.isFinite(box.min.y)) model.position.y -= box.min.y;
   parent?.add(model);
 }
 

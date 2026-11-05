@@ -17,6 +17,7 @@
  */
 
 import { partRoom, studioParts } from './studio';
+import { closestOnSegment } from './walls';
 import type { RoomType } from '@/lib/calculator/types';
 import {
   ARCHETYPES,
@@ -189,6 +190,13 @@ function wetScore(items: PlacedItem[]): number {
   return score;
 }
 
+/** A dining table seats four at least (the rulebook, K-10 and L-6). */
+const MIN_DINING_TABLE_M = 1.2;
+/** A living room's dining table stands this far from the sofa, its coffee table, the armchair and the TV unit. */
+const DINING_LOUNGE_GAP_M = 1.0;
+/** Free floor all round a kitchen island (K-6). */
+const ISLAND_CLEAR_M = 1.2;
+
 /** How far below the best spot's score a spot may be and still be drawn (`pickNearBest`). */
 const SPOT_SPREAD = 10;
 /** A double bed's spread: another wall of the same merit, not another stretch of its wall. */
@@ -321,10 +329,24 @@ function layoutArea(room: PlanRoom, options: LayoutOptions, idPrefix: string, do
       if (wet && WET_FIXTURES.has(archetype.slot)) passages.push(clearanceBox(pose, BATH_PASSAGE_MIN_M));
       // The kitchen run's 1.2 m of working floor: the table and its chairs stand beyond it.
       if (archetype.slot === 'kitchen_run') occupied.push(clearanceBox(pose, KITCHEN_CIRCULATION_M));
+      // An island's 1.2 m round it: nothing placed after it stands there (K-6).
+      if (archetype.slot === 'kitchen_island') occupied.push(inflate(boxFor(pose), ISLAND_CLEAR_M - 0.01));
     }
   }
 
   return placed;
+}
+
+/** How far a box's nearest side is from the room's walls (the outline's edges), metres. */
+function toWalls(box: Box, polygon: Vec2[]): number {
+  const corners = [{ x: box.minX, z: box.minZ }, { x: box.maxX, z: box.minZ }, { x: box.maxX, z: box.maxZ }, { x: box.minX, z: box.maxZ }];
+  let best = Infinity;
+  for (let i = 0; i < polygon.length; i++) {
+    const a = polygon[i];
+    const b = polygon[(i + 1) % polygon.length];
+    for (const c of corners) best = Math.min(best, closestOnSegment(c, a, b).distance);
+  }
+  return best;
 }
 
 /** 0.8 when a piece turned `rotation` has its width along the room's longer side, else 0. */
@@ -409,7 +431,14 @@ function resolvePose(
       return placeWallRun(archetype, room, walled, occupied, rule.prefer, rule.clearanceM, options.anchors ?? [], rng, leave, rules.entranceBands);
     }
     case 'center':
-      return placeCentre(archetype, room, occupied, rules.placed);
+      // A table with no room to stand free (1.2 m round it in a kitchen) stands against a wall
+      // instead (the rulebook, K-11) — seats on its three open sides — never a smaller one.
+      return (
+        placeCentre(archetype, room, occupied, rules.placed) ??
+        (archetype.slot === 'dining_table' && !options.exact
+          ? placeAgainstWall({ ...archetype, size: { width: MIN_DINING_TABLE_M, depth: 0.82, height: archetype.size.height } }, room, walled, occupied, 'any', 0.7, true, [], rng, undefined, rules)
+          : null)
+      );
     case 'relative':
       return placeRelative(archetype, index, room, placed, occupied);
     case 'corner':
@@ -794,33 +823,35 @@ function besideSpots(edge: PlanEdge, piece: PlacedItem, width: number): number[]
 
 /** Free-standing in the middle, nudged outward until it stops colliding. */
 function placeCentre(archetype: Archetype, room: PlanRoom, occupied: Box[], placed: PlacedItem[] = []): Pose | null {
-  // An island keeps 120 cm from the run it faces (`FACING_COUNTERS_M`).
-  const runs = archetype.slot === 'kitchen_island' ? placed.filter((p) => p.roomId === room.id && p.slot === 'kitchen_run').map((p) => boxFor({ position: p.position, rotation: p.rotation, size: p.size, elevationM: 0 })) : [];
+  const island = archetype.slot === 'kitchen_island';
+  const table = archetype.slot === 'dining_table';
+  // An island keeps 120 cm from the run it faces (`FACING_COUNTERS_M`) — and from every wall and
+  // piece round it (the rulebook, K-6): it never stands against a wall.
+  const runs = island ? placed.filter((p) => p.roomId === room.id && p.slot === 'kitchen_run').map((p) => boxFor({ position: p.position, rotation: p.rotation, size: p.size, elevationM: 0 })) : [];
+  const standing = placed.filter((p) => p.roomId === room.id && !ARCHETYPES[p.kind]?.ghost).map((p) => boxFor({ position: p.position, rotation: p.rotation, size: p.size, elevationM: 0 }));
+  // A living room's table stands well away from the sofa and its coffee table (L-6, L-8).
+  const lounge = table ? placed.filter((p) => p.roomId === room.id && (p.slot === 'sofa' || p.slot === 'coffee_table' || p.slot === 'armchair' || p.slot === 'tv_unit')).map((p) => inflate(boxFor({ position: p.position, rotation: p.rotation, size: p.size, elevationM: 0 }), DINING_LOUNGE_GAP_M)) : [];
   const centroid = polygonCentroid(room.polygon);
   const bounds = polygonBounds(room.polygon);
 
   // Lay the long axis of the item along the long axis of the room.
   const rotation = bounds.width >= bounds.depth ? 0 : Math.PI / 2;
 
-  // A dining table in a tight kitchen is better small than absent, so the search tries a
-  // couple of smaller sizes and a tighter walking gap before giving up.
-  for (const [shrink, gap] of [
-    [1, 0.45],
-    [1, 0.32],
-    [0.85, 0.32],
-    [0.72, 0.26],
-  ] as const) {
-    const size: Size3 = {
-      width: archetype.size.width * shrink,
-      depth: archetype.size.depth * shrink,
-      height: archetype.size.height,
-    };
+  // A dining table seats four at least — never a small table and one chair (K-10, L-6: 1.2 m or
+  // more) — and a long kitchen takes a long table (K-12). Smaller sizes and a tighter walking gap
+  // are tried before giving up; anything else keeps the old shrinking search.
+  const long = Math.max(bounds.width, bounds.depth) / Math.max(0.1, Math.min(bounds.width, bounds.depth)) >= 1.6;
+  const tries: Array<[Size3, number]> = table
+    ? ([...(long ? [[1.8, 0.9, 0.45]] : []), [1.6, 0.9, 0.45], [1.6, 0.9, 0.32], [1.4, 0.85, 0.32], [MIN_DINING_TABLE_M, 0.82, 0.3]] as Array<[number, number, number]>).map(([w, d, g]): [Size3, number] => [{ width: w, depth: d, height: archetype.size.height }, g])
+    : ([[1, 0.45], [1, 0.32], [0.85, 0.32], [0.72, 0.26]] as const).map(([shrink, g]): [Size3, number] => [{ width: archetype.size.width * shrink, depth: archetype.size.depth * shrink, height: archetype.size.height }, g]);
 
+  for (const [size, gap] of tries) {
     // A kitchen's table stands beyond the run's working floor (in `occupied`) and as far from the
-    // run as it can — at the short wall of a long kitchen, not in the middle of the cooking.
-    const run = archetype.slot === 'dining_table' ? placed.find((p) => p.roomId === room.id && p.slot === 'kitchen_run') : undefined;
-    let farthest: { pose: Pose; distance: number } | null = null;
-    for (const offset of spiralOffsets(run ? Math.max(1.8, Math.max(bounds.width, bounds.depth) / 2) : 1.8, 0.3)) {
+    // run as it can — at the short wall of a long kitchen, not in the middle of the cooking. A
+    // living room's in the middle of the floor left free: the spot with the most room round it.
+    const run = table ? placed.find((p) => p.roomId === room.id && p.slot === 'kitchen_run') : undefined;
+    let best: { pose: Pose; score: number } | null = null;
+    for (const offset of spiralOffsets(Math.max(1.8, Math.max(bounds.width, bounds.depth) / 2), 0.3)) {
       for (const rot of [rotation, rotation + Math.PI / 2]) {
         const pose: Pose = {
           position: { x: centroid.x + offset.x, z: centroid.z + offset.z },
@@ -829,15 +860,26 @@ function placeCentre(archetype: Archetype, room: PlanRoom, occupied: Box[], plac
           elevationM: 0,
         };
         if (!fitsInRoom(pose, room.polygon)) continue;
-        // Free-standing items need space all round, not just their own footprint.
-        if (overlapsAny(inflate(boxFor(pose), gap), occupied)) continue;
+        if (island) {
+          const ring = boxFor({ ...pose, size: { ...size, width: size.width + 2 * ISLAND_CLEAR_M, depth: size.depth + 2 * ISLAND_CLEAR_M } });
+          if (!fitsInRoom({ ...pose, size: boxSize(ring, size.height) }, room.polygon)) continue;
+          if (overlapsAny(boxFor(pose), occupied) || overlapsAny(ring, standing)) continue;
+        } else if (overlapsAny(inflate(boxFor(pose), gap), occupied)) continue;
+        // A free-standing table has room for a chair on every side (else it stands against a wall — K-11).
+        if (table && toWalls(boxFor(pose), room.polygon) < 0.42) continue;
         if (runs.length > 0 && overlapsAny(inflate(boxFor(pose), FACING_COUNTERS_M - 0.01), runs)) continue;
-        if (!run) return pose;
-        const distance = Math.hypot(pose.position.x - run.position.x, pose.position.z - run.position.z);
-        if (!farthest || distance > farthest.distance + 1e-6) farthest = { pose, distance };
+        if (lounge.length > 0 && overlapsAny(boxFor(pose), lounge)) continue;
+        const score = run
+          ? Math.hypot(pose.position.x - run.position.x, pose.position.z - run.position.z)
+          : table && lounge.length > 0
+            ? Math.min(5, toWalls(boxFor(pose), room.polygon), ...standing.map((b) => distanceToBox(pose.position, b))) - Math.hypot(offset.x, offset.z) * 0.05
+            : -Math.hypot(offset.x, offset.z);
+        if (!best || score > best.score + 1e-6) best = { pose, score };
+        if (!run && !(table && lounge.length > 0)) break;
       }
+      if (best && !run && !(table && lounge.length > 0)) return best.pose;
     }
-    if (farthest) return farthest.pose;
+    if (best) return best.pose;
   }
 
   return null;
