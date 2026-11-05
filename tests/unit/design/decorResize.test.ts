@@ -22,6 +22,12 @@ describe('dragging a decor piece\'s arrows', () => {
     expect(dragDecorHandle(piece({ anchor: 'bed' }), room, 'left', -2, 1.5)?.span).toEqual({ from: 0, to: 4 });
   });
 
+  it('keeps growing a centred piece near a corner: once its far side reaches the wall\'s end, the dragged side goes on alone', () => {
+    // Slats behind a TV near the corner: middle 1 m from the wall's start.
+    expect(dragDecorHandle(piece({ anchor: 'tv', span: { from: 0.4, to: 1.6 } }), room, 'right', 3, 1.5)?.span).toEqual({ from: 0, to: 3 });
+    expect(dragDecorHandle(piece({ anchor: 'tv', span: { from: 2.4, to: 3.6 } }), room, 'left', 1, 1.5)?.span).toEqual({ from: 1, to: 4 });
+  });
+
   it('keeps it on its wall, under the ceiling, and never smaller than a piece can be', () => {
     expect(dragDecorHandle(piece(), room, 'left', -1, 1)?.span.from).toBe(0);
     expect(dragDecorHandle(piece(), room, 'right', 9, 1)?.span.to).toBe(4);

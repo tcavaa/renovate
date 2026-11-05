@@ -22,6 +22,9 @@ export function makeOutline(): THREE.LineSegments {
   line.visible = false;
   // Drawn last and without depth testing, so the outline is never hidden by the item itself.
   line.renderOrder = 999;
+  // Never picked: a line answers the pointer up to a metre round it (the raycaster's threshold),
+  // which would take clicks meant for what stands near the selection.
+  line.raycast = () => {};
   return line;
 }
 

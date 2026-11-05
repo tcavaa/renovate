@@ -43,6 +43,9 @@ export function makeDecorHandles(): THREE.Group {
   const frame = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({ color: ARROW_COLOR, depthTest: false, transparent: true, opacity: 0.9 }));
   frame.name = 'decor-handle-frame';
   frame.renderOrder = 999;
+  // Never picked: a line answers the pointer a whole metre round it (the raycaster's line
+  // threshold), so the frame took the second click on the piece and the press meant for an arrow.
+  frame.raycast = () => {};
   frame.userData.ownsGeometry = true;
   group.add(frame);
   return group;

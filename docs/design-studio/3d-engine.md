@@ -285,6 +285,11 @@ Each of these cost real debugging time. Don't undo them.
     write) and its meshes cast no shadow. Only for openings: a hob's black glass or a lamp's
     frosted globe keeps its look. The files are unchanged, so the catalogue's turntable still
     shows those windows opaque.
+31. **Lines are picked a metre round them.** three's raycaster gives a `Line`/`LineSegments` a
+    1-unit (here 1 m) threshold, so a selection outline or a decor piece's frame in the scene
+    answered clicks meant for the piece under it (the second click on a wall panel did nothing) and
+    for the resize arrows. Every helper line drawn over the scene empties its `raycast`
+    (`makeOutline`, `makeDecorHandles`).
 
 ## A gap to the top of the wall: a balcony's railing
 

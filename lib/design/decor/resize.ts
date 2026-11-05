@@ -67,9 +67,13 @@ export function dragDecorHandle(piece: DecorPiece, room: Pick<PlanRoom, 'polygon
     return settle({ span, height: next }, edge.length, ceiling);
   }
   if (resizesFromMiddle(piece)) {
-    // Both sides move: the half-width is how far the pointer is from the middle, as far as the wall lets it.
-    const half = clamp(Math.abs(along - middle), DECOR_MIN_WIDTH_M / 2, Math.min(middle, edge.length - middle));
-    return settle({ span: { from: middle - half, to: middle + half }, height }, edge.length, ceiling);
+    // Both sides move from the middle; once the far side reaches the end of the wall, the dragged
+    // side keeps following the pointer on its own — a piece near a corner still grows.
+    const half = Math.max(DECOR_MIN_WIDTH_M / 2, Math.abs(along - middle));
+    const reach = handle === 'left' ? clamp(along, 0, middle - DECOR_MIN_WIDTH_M / 2) : clamp(along, middle + DECOR_MIN_WIDTH_M / 2, edge.length);
+    const other = handle === 'left' ? clamp(middle + half, middle + DECOR_MIN_WIDTH_M / 2, edge.length) : clamp(middle - half, 0, middle - DECOR_MIN_WIDTH_M / 2);
+    const next = handle === 'left' ? { from: reach, to: other } : { from: other, to: reach };
+    return settle({ span: next, height }, edge.length, ceiling);
   }
   const next = handle === 'left' ? { from: clamp(along, 0, span.to - DECOR_MIN_WIDTH_M), to: span.to } : { from: span.from, to: clamp(along, span.from + DECOR_MIN_WIDTH_M, edge.length) };
   return settle({ span: next, height }, edge.length, ceiling);

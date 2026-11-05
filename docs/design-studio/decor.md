@@ -194,7 +194,11 @@ arrows just in front of it, at its sides and on its top and bottom, with a frame
 moves that edge to the pointer on the plane of the piece's face (`dragDecorHandle`); the arrows and
 the frame follow live and the piece is rebuilt at its new size on release (`setDecorExtent`, one
 undo step). A piece centred on furniture (`anchor` bed, sofa, TV…) grows both ways from its middle,
-so it stays centred when `reanchorDecor` follows the furniture; any other moves the dragged side.
+so it stays centred when `reanchorDecor` follows the furniture — and once its far side reaches the
+end of the wall, the dragged side goes on following the pointer alone, so a piece near a corner
+still grows; any other moves the dragged side. The frame round it and the selection outline are
+never picked (`raycast` emptied): a line answers the pointer up to a metre round it, and the frame
+took the second click on the piece and some presses meant for an arrow.
 A piece keeps to its wall, under the (lowered) ceiling, and is never narrower than 20 cm or lower
 than 10 cm (`DECOR_MIN_WIDTH_M`, `DECOR_MIN_HEIGHT_M`). The arrows show only where the flat can be
 changed — not in a view that only looks, nor while building, wiring or painting.
