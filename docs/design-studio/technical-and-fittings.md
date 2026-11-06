@@ -306,6 +306,12 @@ The boiler goes into the hall wardrobe's boiler section when the generation buil
 (`housedBoilerSpot`, `lib/design/hall.ts`; `suggestTechnical` takes the decor) and takes no cabinet of
 its own there (`cabinet: null`) — the wardrobe is its cupboard (the rulebook, E-4).
 
+A socket or a switch on a wall covered by decor is drawn on the decor's face (`decorFaceAt`,
+`lib/design/decor/layout.ts`; `buildElectrical` takes the flat's decor). A Scandinavian, Modern or
+Vintage living room, bedroom or office from 10 m² has four spots round its main ceiling light
+(`ringSpots`). Doors laid out take their own kind (interior, entrance) and never glass into a bedroom
+or a bathroom (`openingCandidates` with the rooms either side, `isGlassDoor`).
+
 ## Radiators are bought by the section (`lib/design/radiators.ts`)
 
 A bathroom's heated towel rail hangs over its WC when it has one — centred on it, its bottom 10 cm

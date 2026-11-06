@@ -446,8 +446,11 @@ function buildTrim(
   group.name = kind;
   for (const [from, to] of runs) {
     if (to - from < 0.05) continue;
-    const startCut = from < 1e-6 && level(corner.top, corner.previousTop) ? mitre(previous, edge) : 0;
-    const endCut = to > edge.length - 1e-6 && level(corner.top, corner.nextTop) ? mitre(edge, next) : 0;
+    // Where the wall runs on into the next room across a room separator (an open edge), the moulding
+    // is cut square, so the next room's meets it flat: mitred against the separator, the two left a
+    // notch at every room crossing (the rulebook, G-24).
+    const startCut = from < 1e-6 && !isOpenEdge(room, previous.index) && level(corner.top, corner.previousTop) ? mitre(previous, edge) : 0;
+    const endCut = to > edge.length - 1e-6 && !isOpenEdge(room, next.index) && level(corner.top, corner.nextTop) ? mitre(edge, next) : 0;
     const mesh = own(new THREE.Mesh(buildMouldingGeometry(edge, from, to, kind === 'skirting' ? 0 : corner.top, outline, startCut, endCut), material));
     mesh.castShadow = kind === 'skirting';
     mesh.receiveShadow = true;

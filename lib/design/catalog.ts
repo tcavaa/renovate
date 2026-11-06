@@ -738,6 +738,7 @@ export const ROOM_PROGRAMS: Record<RoomType, ProgramEntry[]> = {
     { kind: 'sink', count: 1 },
     { kind: 'mirror', count: 1 },
   ],
+  // No pendant: a hall's main lights are its row of ceiling lights, all one model (the rulebook, G-9).
   hallway: [
     // The mat at the front door (the rulebook, E-9) and coats where one comes in (E-6).
     { kind: 'door_mat', count: 1 },
@@ -745,7 +746,6 @@ export const ROOM_PROGRAMS: Record<RoomType, ProgramEntry[]> = {
     { kind: 'console_table', count: 1 },
     { kind: 'shoe_cabinet', count: 1 },
     { kind: 'mirror', count: 1 },
-    { kind: 'pendant', count: 1 },
     { kind: 'plant', count: 1, minAreaM2: 8 },
   ],
   office: [
@@ -761,7 +761,6 @@ export const ROOM_PROGRAMS: Record<RoomType, ProgramEntry[]> = {
   ],
   storage: [
     { kind: 'storage_shelf', count: 2 },
-    { kind: 'pendant', count: 1 },
   ],
   balcony: [
     { kind: 'armchair', count: 1, minAreaM2: 4 },
@@ -770,7 +769,6 @@ export const ROOM_PROGRAMS: Record<RoomType, ProgramEntry[]> = {
   closet: [
     { kind: 'wardrobe', count: 2 },
     { kind: 'mirror', count: 1 },
-    { kind: 'pendant', count: 1 },
   ],
   // Never laid out as one room: a studio is furnished part by part, each part by its own
   // type's program (`layoutRoom`). This list is what the shelf offers under "studio".

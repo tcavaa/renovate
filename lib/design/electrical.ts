@@ -18,7 +18,7 @@
  * Pure geometry over the plan and the placed items; no React, no THREE.
  */
 
-import { isPassage, openingSpanUp, pointOnEdge, polygonBounds, roomEdges, wallEdges, type PlanEdge } from './planGeometry';
+import { isPassage, openingSpanUp, pointInPolygon, pointOnEdge, polygonBounds, roomEdges, wallEdges, type PlanEdge } from './planGeometry';
 import { closestOnSegment } from './walls';
 import { toSceneProduct, type CatalogProduct } from './matcher';
 import {
@@ -262,6 +262,24 @@ function standardFor(b: Builder, room: PlanRoom): void {
   }
 }
 
+/** The styles whose rooms take a ring of spots round the main light, the rooms, and from what size. */
+const RING_STYLES: readonly StyleId[] = ['scandinavian', 'modern', 'vintage'];
+const RING_ROOMS: ReadonlyArray<PlanRoom['type']> = ['living_room', 'bedroom', 'office'];
+const RING_MIN_M2 = 10;
+
+/** Four spots at the quarters of a room's bounding box, each moved into the room if the outline is not a rectangle there. */
+export function ringSpots(room: PlanRoom): Vec2[] {
+  const b = polygonBounds(room.polygon);
+  const w = b.maxX - b.minX;
+  const d = b.maxZ - b.minZ;
+  const out: Vec2[] = [];
+  for (const [u, v] of [[0.25, 0.25], [0.75, 0.25], [0.75, 0.75], [0.25, 0.75]]) {
+    const p = { x: b.minX + w * u, z: b.minZ + d * v };
+    if (pointInPolygon(p, room.polygon)) out.push(p);
+  }
+  return out;
+}
+
 /** A wet room's spots: one a metre or nearer down its length, at least three, evenly spaced so the gaps to the walls equal the gaps between them, each in the middle of the room's width there. */
 export function wetRoomSpots(room: PlanRoom): Vec2[] {
   const bounds = polygonBounds(room.polygon);
@@ -399,6 +417,13 @@ function furnitureFor(b: Builder, room: PlanRoom, here: PlacedItem[], technical:
     let added = 0;
     for (const { t } of reach) if (makeOnWall(b, room, 'switch_two_way', wall.edge, t, { elevationM: BEDSIDE_SWITCH_M })) added += 1;
     if (added > 0) for (const p of b.points) if (p.roomId === room.id && p.kind === 'switch') p.kind = 'switch_two_way';
+  }
+
+  // One large main light in the middle and spots round it (the rulebook, Y-3, Y-4, Y-6): in a
+  // Scandinavian, Modern or Vintage living room, bedroom or office of 10 m² or more, four spots at the
+  // quarters of the room round its one ceiling light — same spots, one model, a ring of point light.
+  if (styleId && RING_STYLES.includes(styleId) && RING_ROOMS.includes(room.type) && room.areaM2 >= RING_MIN_M2 && b.points.some((p) => p.roomId === room.id && p.kind === 'light_ceiling')) {
+    for (const at of ringSpots(room)) make(b, room, 'light_spot', at, { category: 'secondary' });
   }
 
   const tv = here.find((i) => i.slot === 'tv_unit');

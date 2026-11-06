@@ -11,6 +11,7 @@
  */
 
 import * as THREE from 'three';
+import { fitSeams } from './seams';
 import type { StyleDefinition, StyleSurface } from '@/lib/design/types';
 import { loadStarted } from './loadProgress';
 
@@ -248,6 +249,8 @@ export class StyleMaterials {
         this.pending.delete(key);
         // Disposed while the file was on its way (the style changed): nobody wants it now.
         if (this.textures.get(key) !== loaded) return;
+        // A colour map whose repeats would show a join is fixed in its image (the rulebook, G-25).
+        if (srgb) fitSeams(loaded);
         for (const callback of waiting) callback(loaded);
       },
       undefined,

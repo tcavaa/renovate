@@ -497,13 +497,32 @@ export function openingProductKind(opening: Pick<Opening, 'kind' | 'exterior'>):
  * for an interior one comes after the interior doors), the style's before the rest, the
  * cheapest first within that. Empty for an archway and a railing.
  */
-export function openingCandidates(opening: Pick<Opening, 'kind' | 'exterior'>, catalog: CatalogProduct[], styleId: StyleId): CatalogProduct[] {
+export function openingCandidates(opening: Pick<Opening, 'kind' | 'exterior'>, catalog: CatalogProduct[], styleId: StyleId, between: ReadonlyArray<PlanRoom['type']> = []): CatalogProduct[] {
   const wanted = openingProductKind(opening);
   if (!wanted) return [];
   const family = wanted === 'window' ? ['window'] : ['door', 'entrance_door'];
   const rank = (p: CatalogProduct) => (p.model3dKind === wanted ? 0 : 1);
   const affinity = (p: CatalogProduct) => (Array.isArray(p.styleTags) && (p.styleTags as string[]).includes(styleId) ? 0 : 1);
-  return catalog.filter((p) => !!p.model3dUrl && family.includes(p.model3dKind ?? '')).sort((a, b) => rank(a) - rank(b) || affinity(a) - affinity(b) || a.pricePerUnit - b.pricePerUnit);
+  const all = catalog.filter((p) => !!p.model3dUrl && family.includes(p.model3dKind ?? '')).sort((a, b) => rank(a) - rank(b) || affinity(a) - affinity(b) || a.pricePerUnit - b.pricePerUnit);
+  // Laying the flat out (`between` given): a front door only at the entrance, an interior door only
+  // between rooms, when the catalogue has both (the rulebook, G-11); no glass door into a bedroom or a
+  // bathroom (G-12, BA-25). The person's swap list (no `between`) still offers every door.
+  if (between.length === 0) return all;
+  const own = all.filter((p) => p.model3dKind === wanted);
+  let pool = own.length > 0 ? own : all;
+  if (wanted === 'door' && between.some((t) => PRIVATE_ROOMS.includes(t))) {
+    const solid = pool.filter((p) => !isGlassDoor(p));
+    if (solid.length > 0) pool = solid;
+  }
+  return pool;
+}
+
+/** Rooms no glass door opens into. */
+const PRIVATE_ROOMS: ReadonlyArray<PlanRoom['type']> = ['bedroom', 'bathroom', 'toilet'];
+
+/** A door of glass, or mostly glass (its name says so). */
+export function isGlassDoor(product: { nameEn?: string | null; nameKa?: string | null }): boolean {
+  return /\bglass|glazed|მინის/i.test(`${product.nameEn ?? ''} ${product.nameKa ?? ''}`);
 }
 
 /** The opening with `product` as what it is (or none). One of it: an interior door is one leaf however many halves it has. */
@@ -528,10 +547,10 @@ export function withOpeningProducts(rooms: PlanRoom[], catalog: CatalogProduct[]
   for (const room of rooms) {
     for (const opening of room.openings) {
       if (done.has(opening.id) || !openingProductKind(opening)) continue;
-      const candidates = openingCandidates(opening, catalog, styleId);
+      const twin = opening.connectsToRoomId ? twinOf(out, opening) : null;
+      const candidates = openingCandidates(opening, catalog, styleId, [room.type, ...(twin ? [twin.room.type] : [])]);
       const current = opening.product ? candidates.find((c) => c.id === opening.product?.productId) : undefined;
       const chosen = current ?? candidates[0] ?? null;
-      const twin = opening.connectsToRoomId ? twinOf(out, opening) : null;
       done.add(opening.id);
       if (twin) done.add(twin.opening.id);
       // Nothing of this family in the catalogue: whatever is chosen stays as it is.

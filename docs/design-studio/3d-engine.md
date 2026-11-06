@@ -290,6 +290,12 @@ Each of these cost real debugging time. Don't undo them.
     answered clicks meant for the piece under it (the second click on a wall panel did nothing) and
     for the resize arrows. Every helper line drawn over the scene empties its `raycast`
     (`makeOutline`, `makeDecorHandles`).
+32. **A finish that does not tile shows its join on every repeat.** `fitSeams` (`seams.ts`) reads a
+    colour map on a 64 × 64 canvas when it loads and repeats an axis mirrored when the jump across
+    its join is greater than any jump inside the image. Kept conservative on purpose: a judgement
+    by edge difference alone mirrored two correct checkerboards whose squares end at the edge.
+33. **Mouldings at a room separator are cut square** (`buildTrim`): the mitre is for a corner of
+    walls; against an open edge it left a V-shaped notch where two rooms' skirting or cornices meet.
 
 ## A gap to the top of the wall: a balcony's railing
 

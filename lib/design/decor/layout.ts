@@ -385,3 +385,24 @@ export function decorDepth(piece: Pick<DecorPiece, 'family' | 'params'> & { anch
       return 0;
   }
 }
+
+/** The decor families a socket or a switch on the wall is set on the face of (a flat paint-thin mural not). */
+const FACED = new Set(['slats', 'slab', 'panel', 'cladding', 'tile', 'niche', 'moulding', 'box', 'cabinet']);
+
+/**
+ * How far in front of the wall the face of the decor is at a point on it (`along` metres from the
+ * wall's first corner, `up` metres off the floor) — where a socket or a switch on that wall is set,
+ * so it sits on the slats or the panel rather than behind them (the owner, 6 Nov 2026). 0 where the
+ * wall is bare.
+ */
+export function decorFaceAt(decor: readonly DecorPiece[] | undefined, roomId: string, wallIndex: number, along: number, up: number): number {
+  let depth = 0;
+  for (const piece of decor ?? []) {
+    if (piece.roomId !== roomId || piece.wallIndex !== wallIndex || !FACED.has(piece.family)) continue;
+    const lo = Math.min(piece.span.from, piece.span.to);
+    const hi = Math.max(piece.span.from, piece.span.to);
+    if (along < lo - 0.01 || along > hi + 0.01 || up < piece.height.from - 0.01 || up > piece.height.to + 0.01) continue;
+    depth = Math.max(depth, decorDepth(piece));
+  }
+  return depth;
+}

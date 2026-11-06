@@ -196,7 +196,7 @@ rule numbers below are its). Built in six stages:
 | 2 | kitchen: island 1.2 m all round, hood, no second hob or oven, four chairs or a counter, a long table, lighting in the room's middle, hidden LED, the style's kitchen along the whole wall | **built** |
 | 3 | entrance and living room: the hall's built-in wardrobe (coats, boiler, shoes), full-height mirror, door mat; the TV out of the way through, the dining table at least 1.2 m, curtains at every window, no entrance screen in Industrial or a small studio | **built** |
 | 4 | bedrooms, office, storage: a full-wall wardrobe, no extra chest (a desk or a dressing table may stay), a tall headboard takes no panel, stool, clothes rack, no closet mirror on a balcony | **built** (but the clothes rack and the closet mirror — see the gaps) |
-| 5 | the whole flat: one main fixture per room, one large light and spots round it (Scandinavian, Modern, Vintage), wall lights on walls, front and interior doors in their places, no glass doors into bedrooms or bathrooms, panels a whole wall | see below |
+| 5 | the whole flat: one main fixture per room, one large light and spots round it (Scandinavian, Modern, Vintage), wall lights on walls, front and interior doors in their places, no glass doors into bedrooms or bathrooms, panels a whole wall, sockets on the decor's face, cornices through room crossings, seams | **built** |
 | 6 | the plan board: inner walls' lengths, distances to windows and doors, opposite windows in line, the beam named რიგელი | see below |
 
 Nini's answers that change earlier rules: main lights are rails, spots and small pendants (a
@@ -314,6 +314,32 @@ its vanity, the washer, the dryer, the taps, the bath's mixer or the door mat; a
 stays on its vanity, and its alternatives are the style's (`slotPool` with the style). Before this,
 the check moved a toilet's vanity to another wall — its sections lost — and swapped a bathroom's
 countertop basin for a pedestal left at the vanity's height.
+
+How stage 5 built it — **the whole flat**:
+
+- **Main lights** (G-9, Y-3, Y-4, Y-6): a hall, a storage room and a closet are lit by their ceiling
+  lights alone (no program pendant beside them — the screenshot's hall mixed the two). A
+  Scandinavian, Modern or Vintage living room, bedroom or office of 10 m² or more keeps its one
+  large ceiling light in the middle and gets four spots round it at the room's quarters
+  (`ringSpots`, category secondary).
+- **Doors** (G-11, G-12, BA-25): laid out, an interior door takes an interior door product and the
+  front door an entrance door when the catalogue has both; a door into a bedroom, a bathroom or a
+  toilet is never a glass one (`isGlassDoor`) — `openingCandidates` takes the rooms on either side;
+  the person's swap list still offers every door.
+- **Panels** (G-23): a wall panel the designer asks for takes its whole clear stretch of the wall
+  (`WHOLE_WALL`, its width asked ignored); it stays resizable by hand.
+- **Sockets and switches on decor** (the owner, 6 Nov 2026): a fitting on a wall covered by decor —
+  slats, a slab, a panel, cladding, tiles, a niche, a box, joinery — is drawn on the decor's face,
+  not behind it (`decorFaceAt`; `buildElectrical` takes the decor).
+- **Room crossings** (G-24): a skirting board or a cornice that reaches a room separator is cut
+  square there, so the next room's run meets it flat — mitred against the separator, the two left a
+  notch at the crossing.
+- **Seams** (G-25): a colour map whose join jumps more than the image does anywhere inside it (a photo
+  crop whose edges do not meet) is repeated mirrored on that axis when it loads (`fitSeams`,
+  `lib/design3d/seams.ts`). It is conservative: none of the 51 shipped finish textures is changed (a
+  checkerboard whose squares end at its edge tiles as it is and is left alone); a texture whose
+  pattern simply does not repeat (the screenshot's arrows) needs a properly tiled image from the
+  team.
 
 ## The decisions (owner, 28 Oct 2026)
 

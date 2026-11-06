@@ -12,13 +12,14 @@
  * moves the group and the store re-projects it onto its wall on release.
  */
 
+import { decorFaceAt } from '@/lib/design/decor/layout';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { pointOnEdge, polygonBounds, polygonCentroid, roomEdges } from '@/lib/design/planGeometry';
 import { orphanWallSegments, wallHeightFor } from '@/lib/design/walls';
 import { ELECTRICAL_KINDS } from '@/lib/design/electrical';
 import { cellPolygon } from '@/lib/design/paint';
-import type { ElectricalKind, ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, StyleDefinition, SurfaceFinish, Vec2 } from '@/lib/design/types';
+import type { DecorPiece, ElectricalKind, ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, StyleDefinition, SurfaceFinish, Vec2 } from '@/lib/design/types';
 import { StyleMaterials } from './materials';
 import { box, tag } from './primitives';
 import { FIXTURE_MODELS, type FixtureModel } from './fixtureManifest';
@@ -96,6 +97,8 @@ export interface ElectricalBuildOptions {
   hangingLamps?: HangingLamp[];
   /** A ghost riding on the pointer: one translucent material, no models. */
   preview?: boolean;
+  /** The flat's wall decor: a socket or a switch on it is set on its face (`decorFaceAt`). */
+  decor?: DecorPiece[];
 }
 
 /** A hanging lamp from the catalogue, as much of it as the fittings read: its room and where it hangs. */
@@ -249,7 +252,8 @@ export function buildFitting(room: PlanRoom, point: ElectricalPoint, materials: 
 
   // On the wall: local +x along the wall, +z into the room; the point sits a hair off the plaster.
   const p = pointOnEdge(edge, point.t ?? 0.5);
-  const inset = 0.006;
+  // On the face of the decor covering the wall there (slats, a panel, a tiled field), not behind it.
+  const inset = 0.006 + decorFaceAt(options.decor, room.id, edge.index, (point.t ?? 0.5) * edge.length, point.elevationM);
   piece.position.set(p.x + edge.inward.x * inset, point.elevationM, p.z + edge.inward.z * inset);
   piece.rotation.y = edge.facing;
   const spec = modelFor(point);

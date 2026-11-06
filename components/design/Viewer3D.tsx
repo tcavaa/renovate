@@ -607,7 +607,7 @@ function SceneContent({
   // leaves them as they are.
   const lampsKey = hangingLampsKey(scene.items);
   const hangingLamps = useMemo(() => JSON.parse(lampsKey) as HangingLamp[], [lampsKey]);
-  const electricalGroup = useMemo(() => buildElectrical(plan, electrical, materials, { rooms: roomFilter, hangingLamps }), [plan, electrical, materials, roomFilter, hangingLamps]);
+  const electricalGroup = useMemo(() => buildElectrical(plan, electrical, materials, { rooms: roomFilter, hangingLamps, decor: scene.decor }), [plan, electrical, materials, roomFilter, hangingLamps, scene.decor]);
   useEffect(() => () => disposeOwnedGeometry(electricalGroup), [electricalGroup]);
   // After dusk: a light per room, its switched-on fittings merged (`nightLights`, gotcha 25).
   const roomLights = useMemo(() => nightLights(plan, electrical, roomFilter), [plan, electrical, roomFilter]);
@@ -1067,7 +1067,7 @@ function SceneContent({
           return false;
         }
         const placed = placeElectrical(underCeiling(room, plan), kind, spot.position, 'preview');
-        const ghost = buildFitting(underCeiling(room, plan), placed, materials, { preview: true });
+        const ghost = buildFitting(underCeiling(room, plan), placed, materials, { preview: true, decor: scene.decor });
         clearPreview();
         if (!ghost) return false;
         ghost.renderOrder = 6;

@@ -222,7 +222,8 @@ function defaultHeight(family: DecorFamily, anchor: DecorAnchor, roomHeight: num
 }
 
 /** Families that take a whole wall: they are built along it, around its doors and windows. */
-const WHOLE_WALL: DecorFamily[] = ['moulding', 'niche'];
+/** Families that take their whole clear stretch: a wall panel too — never a small panel on its own (the rulebook, G-23). */
+const WHOLE_WALL: DecorFamily[] = ['moulding', 'niche', 'panel'];
 
 /**
  * The materials of a piece: the designer's where they are real decor materials of a kind the
@@ -349,7 +350,7 @@ export function resolveDecor(intent: DecorIntent, room: PlanRoom, items: PlacedI
     const clear = b - a;
     // A backsplash is as long as the run, whatever width was asked: a 1.2 m strip of marble
     // behind a 2.5 m worktop looked unfinished.
-    const widthAsked = anchor === 'kitchen' ? null : num(intent.widthM);
+    const widthAsked = anchor === 'kitchen' || family === 'panel' ? null : num(intent.widthM);
     const auto = WHOLE_WALL.includes(family) || centre == null ? clear : anchorWidth + 2 * (ANCHOR_MARGIN[anchor] ?? 0.4);
     const width = clamp(widthAsked ?? auto, 0.3, clear);
     const c = centre ?? (a + b) / 2;
