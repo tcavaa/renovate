@@ -32,7 +32,7 @@ import { archetypeLabel } from '@/lib/design/catalog';
 import { beamAt, columnAt, pointElementAt, polygonsOverlap, pressMoves, roomUnderRect, snapPoint, snapRectangle, snapRoomMove, snapWallOffset, wallAt, type BoardMoves, type BoardTarget, type SnapGuide } from '@/lib/design/drawing';
 import { DEFAULT_SECTION_WIDTH_M, radiatorSections, radiatorWallSpot } from '@/lib/design/radiators';
 import { isLight } from '@/lib/design/electrical';
-import { MIN_RAILING_M, OPENING_DEFAULTS, cornerMargin, distanceToSegment, holdsRailings, nearestWall, openingWorldPoint, projectToEdge, railingClash, railingFits, type WallTarget } from '@/lib/design/openings';
+import { MIN_RAILING_M, OPENING_DEFAULTS, alignAcross, cornerMargin, distanceToSegment, holdsRailings, nearestWall, openingWorldPoint, projectToEdge, railingClash, railingFits, type WallTarget } from '@/lib/design/openings';
 import { wallsToBuild } from '@/lib/design/partitions';
 import { pointInPolygon, pointOnEdge, roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
 import { roomAtPoint, snapPlacement } from '@/lib/design/manipulate';
@@ -44,7 +44,7 @@ import type { RoomSplit } from '@/lib/calculator/types';
 import type { ElementSelection } from '@/store/designStore';
 import type { ElectricalKind, ElectricalPoint, FloorPlan, Opening, OpeningKind, PlacedItem, PlanRoom, SurfaceFinish, TechnicalKind, Vec2, Wall } from '@/lib/design/types';
 import { cellAt, cellPolygon, patchAt, patchSpans, stripAt, wallSpotAt, type PaintTarget } from '@/lib/design/paint';
-import { drawBaseFinishes, drawBeam, drawRadiatorBody, drawColumn, drawDraftRect, drawDraftWall, drawElectrical, drawFurniture, drawShowerGlass, drawGhostPoint, drawGrid, drawGuides, drawMeasure, drawNodeHandles, drawOpening, drawOuterDimensions, drawPaintedCell, drawRoom, drawRoomGhost, drawTechnical, drawWall, drawWallBand, drawWallGhost, drawWallLength, drawZone, outerDimensionChains, toWorld, wallEndExtensions, type Transform } from './draw';
+import { drawBaseFinishes, drawBeam, drawRadiatorBody, drawColumn, drawDraftRect, drawDraftWall, drawElectrical, drawFurniture, drawShowerGlass, drawGhostPoint, drawGrid, drawGuides, drawMeasure, drawNodeHandles, drawOpening, drawOuterDimensions, drawPaintedCell, drawRoom, drawRoomGhost, drawTechnical, drawWall, drawWallBand, drawWallGhost, drawWallLength, drawZone, drawOpeningOffsets, isInteriorWall, outerDimensionChains, toWorld, wallEndExtensions, type Transform } from './draw';
 import { EDITOR, ELECTRICAL_COLOR, TECHNICAL_COLOR } from './palette';
 
 /**
@@ -778,6 +778,7 @@ export function PlanEditor(props: PlanEditorProps) {
     // plate, live, so the number changes under the pointer instead of after the fact.
     if (layers.walls) {
       const measured: Array<{ wall: Pick<Wall, 'a' | 'b'>; extra?: string }> = [];
+      const inner: Wall[] = [];
       // Room separators first: where one meets a wall, the wall is drawn over its end.
       for (const wall of [...walls.filter((w) => w.separator), ...walls.filter((w) => !w.separator)]) {
         let live = wall;
@@ -804,7 +805,10 @@ export function PlanEditor(props: PlanEditorProps) {
         if (gesture?.kind === 'wall-drag' && gesture.wall.id === wall.id) measured.push({ wall: live, extra: `${gesture.distance >= 0 ? '+' : ''}${gesture.distance.toFixed(2)} ${t.units.m}` });
         else if (gesture?.kind === 'node-drag' && live !== wall) measured.push({ wall: live });
         else if (!gesture && layers.dimensions && (isSelected || (hover.kind === 'wall' && hover.id === wall.id))) measured.push({ wall: live });
+        // A wall inside the flat always shows its length — the outside chains measure only the outline (the rulebook, P-1).
+        else if (!gesture && layers.dimensions && !wall.separator && isInteriorWall(wall, plan.rooms)) inner.push(wall);
       }
+      for (const wall of inner) drawWallLength(ctx, tr, wall, t.units.m, undefined, EDITOR.label);
       if (selection?.kind === 'wall' && !locked) {
         const wall = walls.find((w) => w.id === selection.id);
         if (wall) drawNodeHandles(ctx, tr, wall);
@@ -855,6 +859,18 @@ export function PlanEditor(props: PlanEditorProps) {
           });
         }
       }
+      // The selected window's or door's distances to its wall's ends, or the one being placed (P-3).
+      const offsetsOf = ghostOpening
+        ? { edge: ghostOpening.edge, t: ghostOpening.t, widthM: ghostOpening.widthM }
+        : selection?.kind === 'opening'
+          ? (() => {
+              const room = plan.rooms.find((r) => r.openings.some((o) => o.id === selection.id));
+              const opening = room?.openings.find((o) => o.id === selection.id);
+              const edge = room && opening ? roomEdges(room.polygon).find((e) => e.index === opening.wallIndex) : undefined;
+              return edge && opening ? { edge, t: opening.t, widthM: opening.widthM } : null;
+            })()
+          : null;
+      if (offsetsOf && layers.dimensions) drawOpeningOffsets(ctx, tr, offsetsOf.edge, offsetsOf.t, offsetsOf.widthM, t.units.m);
       if (ghostOpening) {
         const preview: Opening = { id: 'ghost', kind: ghostOpening.kind, wallIndex: ghostOpening.edge.index, t: ghostOpening.t, widthM: ghostOpening.widthM, heightM: 2, sillM: 0, roomId: ghostOpening.room.id, exterior: false };
         // Red over a railing's stretch (or, a railing dragged, over a door or window): it will not go there.
@@ -1276,7 +1292,7 @@ export function PlanEditor(props: PlanEditorProps) {
         const target = wallTargetFor(world);
         if (!target) return;
         const widthM = Math.min(OPENING_DEFAULTS[tool].widthM, Math.max(0.5, target.edge.length - 0.3));
-        const tt = projectToEdge(target.edge, world, widthM);
+        const tt = alignAcross(plan.rooms, target.edge, projectToEdge(target.edge, world, widthM), widthM, tool);
         const id = callbacks.current.onAddOpening?.(tool, { roomId: target.room.id, wallIndex: target.edge.index, t: tt }) ?? null;
         if (id === null) callbacks.current.onRefused?.(railingClash(target.room, { kind: tool, wallIndex: target.edge.index, widthM }, tt, target.edge.length) ? 'onRailing' : 'opening');
         else {
@@ -1449,7 +1465,7 @@ export function PlanEditor(props: PlanEditorProps) {
           const target = callbacks.current.onMoveOpeningToWall ? wallTargetFor(world, gesture.room.id) : null;
           const room = target?.room ?? gesture.room;
           const edge = target?.edge ?? gesture.edge;
-          const tt = projectToEdge(edge, world, gesture.opening.widthM, cornerMargin(gesture.opening.kind));
+          const tt = alignAcross(plan.rooms, edge, projectToEdge(edge, world, gesture.opening.widthM, cornerMargin(gesture.opening.kind)), gesture.opening.widthM, gesture.opening.kind, gesture.opening.id, cornerMargin(gesture.opening.kind));
           gesture.target = { room, edge, t: tt };
           gesture.moved = true;
           setGhostOpening({ room, edge, t: tt, widthM: gesture.opening.widthM, kind: gesture.opening.kind, openingId: gesture.opening.id, faded: false });
@@ -1567,7 +1583,7 @@ export function PlanEditor(props: PlanEditorProps) {
         return;
       }
       const widthM = Math.min(OPENING_DEFAULTS[tool].widthM, Math.max(0.5, target.edge.length - 0.3));
-      setGhostOpening({ room: target.room, edge: target.edge, t: projectToEdge(target.edge, world, widthM), widthM, kind: tool, openingId: null, faded: false });
+      setGhostOpening({ room: target.room, edge: target.edge, t: alignAcross(plan.rooms, target.edge, projectToEdge(target.edge, world, widthM), widthM, tool), widthM, kind: tool, openingId: null, faded: false });
       return;
     }
     // A board only looked at hovers nothing: nothing on it answers the pointer.

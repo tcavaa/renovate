@@ -12,6 +12,14 @@ board) · [finishes.md](finishes.md) (what the board draws of finishes) ·
 [../calculator.md](../calculator.md) (the calculator's plan step uses this board with its own
 store) · [../ui-design-system.md](../ui-design-system.md) (the full-window board steps).
 
+## The rulebook's board rules (6 Nov 2026)
+
+With the dimensions layer on, every inner wall shows its length (`isInteriorWall`); a selected
+window or door, or one being placed or dragged, shows its distances to its wall's ends
+(`drawOpeningOffsets`); a window or door within 15 cm of one of its kind on an opposite wall snaps into
+line with it (`alignAcross` in `lib/design/openings.ts`). The beam is "რიგელი" in Georgian, and the
+hallway type reads "დერეფანი / ჰოლი" ([design-rules.md](design-rules.md#the-third-round-the-rulebook-nini-6-nov-2026)).
+
 ## Key files
 
 | File | Responsibility |

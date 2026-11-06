@@ -120,6 +120,38 @@ export function projectToEdge(edge: PlanEdge, point: Vec2, widthM: number, corne
   return Math.min(1 - margin, Math.max(margin, raw));
 }
 
+/** How near an opening's middle must come to one on an opposite wall to snap into line with it (the rulebook, P-4). */
+export const ALIGN_ACROSS_M = 0.15;
+
+/**
+ * An opening's place on `edge` (`t`) moved into line with a window (or a door) of the same kind on
+ * a wall opposite it — parallel, across a room — when its middle comes within `ALIGN_ACROSS_M` of
+ * that one's: two windows facing each other line up (the rulebook, P-4). Kept on the wall clear of
+ * its corners; `t` as it was when nothing is near.
+ */
+export function alignAcross(rooms: readonly PlanRoom[], edge: PlanEdge, t: number, widthM: number, kind: Opening['kind'], exceptId: string | null = null, cornerM: number = CORNER_MARGIN_M): number {
+  const at = t * edge.length;
+  let best: { s: number; d: number } | null = null;
+  for (const room of rooms) {
+    for (const other of room.openings) {
+      if (other.id === exceptId || other.kind !== kind) continue;
+      const otherEdge = roomEdges(room.polygon).find((e) => e.index === other.wallIndex);
+      if (!otherEdge || Math.abs(otherEdge.dir.x * edge.dir.x + otherEdge.dir.z * edge.dir.z) < 0.98) continue;
+      // Across, not on the same line: the other wall stands off this one.
+      const mid = pointOnEdge(otherEdge, other.t);
+      const off = Math.abs((mid.x - edge.a.x) * edge.inward.x + (mid.z - edge.a.z) * edge.inward.z);
+      if (off < 0.5) continue;
+      const s = (mid.x - edge.a.x) * edge.dir.x + (mid.z - edge.a.z) * edge.dir.z;
+      const d = Math.abs(s - at);
+      if (d <= ALIGN_ACROSS_M && (!best || d < best.d)) best = { s, d };
+    }
+  }
+  if (!best) return t;
+  const margin = widthM / 2 + cornerM;
+  if (best.s < margin || best.s > edge.length - margin) return t;
+  return best.s / edge.length;
+}
+
 /**
  * Edge of `room` that is the other face of the wall `edge` is on (a shared wall), at `point`, if
  * any: side by side with it and within `tolerance` of the point, in any direction — a slanted

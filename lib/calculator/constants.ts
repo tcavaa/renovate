@@ -51,7 +51,8 @@ export const ROOM_TYPES: Record<RoomType, { labelKa: string }> = {
   kitchen: { labelKa: 'სამზარეულო' },
   bathroom: { labelKa: 'სველი წერტილი' },
   toilet: { labelKa: 'ტუალეტი' },
-  hallway: { labelKa: 'დერეფანი' },
+  // The hall is the entrance too (the rulebook, E-10): the front door is in it, the inner doors off it.
+  hallway: { labelKa: 'დერეფანი / ჰოლი' },
   balcony: { labelKa: 'აივანი' },
   storage: { labelKa: 'საწყობი' },
   office: { labelKa: 'საოფისე ოთახი' },

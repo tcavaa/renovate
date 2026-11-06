@@ -42,17 +42,21 @@ at runtime yet; the last one was seen on the sample plan.
 
 ## Next features
 
-- **The interior design rules, what is left** — the first brief (five stages) and the second round
-  (six stages) are built; left: island sockets, a bidet, a box for a WC added in the studio, the
+- **The interior design rules, what is left** — the first brief (five stages), the second round
+  (six stages) and Nini's rulebook (six stages) are built; left: island sockets, a bidet, the
   boiler cabinet in 3D, a sofa floated to the TV's range, lamps with a colour temperature, a track
-  light, a dressing table and a wine cabinet (no products yet), the shower glass following a live
-  drag in 3D, the wardrobe against an en-suite's lobby — [design-studio/design-rules.md](design-studio/design-rules.md#known-gaps).
+  light, a dressing table, a wine cabinet and a clothes rack (no products yet), the shower glass
+  following a live drag in 3D, the wardrobe against an en-suite's lobby; from the rulebook: the
+  joinery, taps and mixers not following their fixture when it is moved, a cabinet's sections not
+  editable on its card, a panel's door not built into the panel, the closet mirror by its corners —
+  [design-studio/design-rules.md](design-studio/design-rules.md#known-gaps).
 - **AI generation, what is left** — phase 1 and the wall decor are built
   ([design-studio/decor.md](design-studio/decor.md#the-ai-designer)); next: the rules module and
   metrics, layout intent per piece (phase 2), an evaluation set, a retry with violations —
   [design-studio/ai-layout-plan.md](design-studio/ai-layout-plan.md).
-- **The catalogue's library rows**: some sizes are wrong (a dresser listed 138 × 166 cm), taps and
-  mixer panels are filed as basins, 96 models' facing was left unconfirmed by the audit
+- **The catalogue's library rows**: some sizes are wrong (a dresser listed 138 × 166 cm), taps,
+  mixers, a dryer, doormats, coat racks, stools and a towel rack are filed under the nearest kind (the
+  studio reads them by name — `refinedKind`; the team can move them to their new categories), 96 models' facing was left unconfirmed by the audit
   ([3d-assets.md](3d-assets.md#known-gaps)); coffee machines, an oven and range cookers are filed as
   kitchen runs, and only TVs of the electronics are placed
   ([design-studio/layout-and-matching.md](design-studio/layout-and-matching.md#known-gaps)).

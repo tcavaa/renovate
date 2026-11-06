@@ -26,7 +26,8 @@ export interface NamedRoom {
 
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 /** Any type's name, alone or followed by a number. */
-const AUTO_NAME = new RegExp(`^(?:${Object.values(ROOM_TYPES).map((t) => escape(t.labelKa)).join('|')})(?: (\\d+))?$`);
+// The hall's name before it was the entrance's too ('დერეფანი') counts as the app's, and is dealt again.
+const AUTO_NAME = new RegExp(`^(?:${[...Object.values(ROOM_TYPES).map((t) => t.labelKa), 'დერეფანი'].map(escape).join('|')})(?: (\\d+))?$`);
 
 /** The name a room of this type is given: the type's own. */
 export function roomTypeName(type: RoomType): string {

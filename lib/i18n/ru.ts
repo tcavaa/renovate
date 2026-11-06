@@ -115,7 +115,7 @@ export const ru: Dictionary = {
     kitchen: 'Кухня',
     bathroom: 'Санузел',
     toilet: 'Туалет',
-    hallway: 'Коридор',
+    hallway: 'Коридор / прихожая',
     balcony: 'Балкон',
     storage: 'Кладовая',
     office: 'Кабинет',

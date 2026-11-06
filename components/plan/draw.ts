@@ -893,13 +893,43 @@ export function drawMeasure(ctx: CanvasRenderingContext2D, x: number, y: number,
 }
 
 /** One wall's length, on a plate at its middle — the live ruler while it is being edited. */
-export function drawWallLength(ctx: CanvasRenderingContext2D, t: Transform, wall: Pick<Wall, 'a' | 'b'>, unitM: string, extra?: string): void {
+export function drawWallLength(ctx: CanvasRenderingContext2D, t: Transform, wall: Pick<Wall, 'a' | 'b'>, unitM: string, extra?: string, color: string = EDITOR.selected): void {
   const a = toScreen(t, wall.a);
   const b = toScreen(t, wall.b);
   const length = Math.hypot(wall.b.x - wall.a.x, wall.b.z - wall.a.z);
   if (length < 0.05) return;
   const text = extra ? `${length.toFixed(2)} ${unitM} · ${extra}` : `${length.toFixed(2)} ${unitM}`;
-  drawMeasure(ctx, (a.x + b.x) / 2, (a.y + b.y) / 2, text, EDITOR.selected);
+  drawMeasure(ctx, (a.x + b.x) / 2, (a.y + b.y) / 2, text, color);
+}
+
+/**
+ * Whether a wall stands inside the flat — a room on both of its faces, or one room round a wall
+ * standing in it — rather than on its outline, which the outside chains already measure. Its length
+ * is shown on the board (the rulebook, P-1).
+ */
+export function isInteriorWall(wall: Pick<Wall, 'a' | 'b' | 'thicknessM'>, rooms: ReadonlyArray<Pick<PlanRoom, 'polygon'>>): boolean {
+  const len = Math.hypot(wall.b.x - wall.a.x, wall.b.z - wall.a.z);
+  if (len < 0.3) return false;
+  const mid = { x: (wall.a.x + wall.b.x) / 2, z: (wall.a.z + wall.b.z) / 2 };
+  const n = { x: -(wall.b.z - wall.a.z) / len, z: (wall.b.x - wall.a.x) / len };
+  const off = (wall.thicknessM ?? 0.12) / 2 + 0.1;
+  const inside = (p: Vec2) => rooms.some((r) => pointInPolygon(p, r.polygon));
+  return inside({ x: mid.x + n.x * off, z: mid.z + n.z * off }) && inside({ x: mid.x - n.x * off, z: mid.z - n.z * off });
+}
+
+/**
+ * The distances from a window's or a door's sides to the ends of its wall, on plates just inside
+ * the room — so it can be set exactly where it belongs (the rulebook, P-3).
+ */
+export function drawOpeningOffsets(ctx: CanvasRenderingContext2D, t: Transform, edge: PlanEdge, centreT: number, widthM: number, unitM: string): void {
+  const centre = centreT * edge.length;
+  const gaps: Array<[number, number]> = [[0, centre - widthM / 2], [centre + widthM / 2, edge.length]];
+  for (const [from, to] of gaps) {
+    if (to - from < 0.05) continue;
+    const mid = pointOnEdge(edge, (from + to) / 2 / edge.length);
+    const at = toScreen(t, { x: mid.x + edge.inward.x * 0.3, z: mid.z + edge.inward.z * 0.3 });
+    drawMeasure(ctx, at.x, at.y, formatDimension(to - from, unitM), EDITOR.label);
+  }
 }
 
 /** A wall being drawn: its stroke, its length, and a dot at the start. */

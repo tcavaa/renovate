@@ -117,7 +117,7 @@ export const en: Dictionary = {
     kitchen: 'Kitchen',
     bathroom: 'Bathroom',
     toilet: 'Toilet',
-    hallway: 'Hallway',
+    hallway: 'Hallway / entrance hall',
     balcony: 'Balcony',
     storage: 'Storage',
     office: 'Office',

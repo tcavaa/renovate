@@ -197,7 +197,7 @@ rule numbers below are its). Built in six stages:
 | 3 | entrance and living room: the hall's built-in wardrobe (coats, boiler, shoes), full-height mirror, door mat; the TV out of the way through, the dining table at least 1.2 m, curtains at every window, no entrance screen in Industrial or a small studio | **built** |
 | 4 | bedrooms, office, storage: a full-wall wardrobe, no extra chest (a desk or a dressing table may stay), a tall headboard takes no panel, stool, clothes rack, no closet mirror on a balcony | **built** (but the clothes rack and the closet mirror — see the gaps) |
 | 5 | the whole flat: one main fixture per room, one large light and spots round it (Scandinavian, Modern, Vintage), wall lights on walls, front and interior doors in their places, no glass doors into bedrooms or bathrooms, panels a whole wall, sockets on the decor's face, cornices through room crossings, seams | **built** |
-| 6 | the plan board: inner walls' lengths, distances to windows and doors, opposite windows in line, the beam named რიგელი | see below |
+| 6 | the plan board: inner walls' lengths, distances to windows and doors, opposite windows in line, the beam named რიგელი | **built** |
 
 Nini's answers that change earlier rules: main lights are rails, spots and small pendants (a
 chandelier, wall and floor lamps are not "main"), all of one model in a room (G-9); every window has
@@ -340,6 +340,20 @@ How stage 5 built it — **the whole flat**:
   checkerboard whose squares end at its edge tiles as it is and is left alone); a texture whose
   pattern simply does not repeat (the screenshot's arrows) needs a properly tiled image from the
   team.
+
+How stage 6 built it — **the plan board**:
+
+- **Inner walls** (P-1): with the dimensions layer on, every wall with a room on both faces (or one
+  room round it) shows its length on a plate (`isInteriorWall` in `components/plan/draw.ts`); the
+  outline keeps its outside chains; room separators are not measured.
+- **Openings** (P-3): the selected window or door — and one being placed or dragged — shows its
+  distances to the two ends of its wall, just inside the room (`drawOpeningOffsets`).
+- **In line** (P-4): a window or door placed or dragged within 15 cm of the middle of one of its kind
+  on an opposite wall snaps into line with it (`alignAcross`, `ALIGN_ACROSS_M`).
+- **რიგელი** (P-2): the beam is რიგელი in Georgian (its tool, hint, layer, inspector, depth); "Beam"
+  and "Балка" stay.
+- **The hall** (E-10, P-5): the hallway type reads "დერეფანი / ჰოლი" (Hallway / entrance hall,
+  Коридор / прихожая); a room still called "დერეფანი" counts as the app's name and is dealt again.
 
 ## The decisions (owner, 28 Oct 2026)
 
@@ -510,6 +524,13 @@ sub-style in the designer's brief); `nightLights.test.ts` (the light's colour by
 AI check's problems).
 
 ## Known gaps
+
+- From the third round's stages 5–6: "move the beam" (P-2) was read as renaming it; its place in the
+  toolbar is unchanged. A wall panel's door is not yet built into the panel (G-23: the panel takes
+  the whole wall, the door keeps its own leaf). Walls and beams line up through the board's existing
+  snapping guides; only openings snap across the room (P-4). A finish texture whose pattern does not
+  repeat cleanly (the arrow pattern in the draft's screenshot) is not caught by the seam check and
+  needs a properly tiled image.
 
 - From the third round's stages 3–4: no clothes rack (B-5) — the catalogue has no such product; a
   balcony closet's mirror (S-2) is not decided by its corners yet; "wider passages" and "use the whole
