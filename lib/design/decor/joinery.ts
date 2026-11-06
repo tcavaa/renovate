@@ -17,6 +17,7 @@ import type { CatalogProduct } from '@/lib/design/matcher';
 import { roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
 import type { CabinetSection, DecorMaterial, DecorPiece, PlacedItem, PlanRoom, StyleId } from '@/lib/design/types';
 import { freeSpans } from './layout';
+import { WC_BOX_WIDTH_M, WC_SIDE_M } from '@/lib/design/rules';
 import { decorMaterialFrom } from './resolve';
 
 /** A column's side panels and the gap round a machine, metres. */
@@ -134,7 +135,9 @@ export function freeStretch(room: PlanRoom, edge: PlanEdge, at: number, items: P
   for (const item of items) {
     if (item.roomId !== room.id || except.includes(item.id) || item.elevationM > 1.2 || ['rug', 'curtain', 'pendant', 'artwork', 'mirror', 'blind', 'door_mat', 'tap', 'bath_mixer', 'dryer'].includes(item.slot)) continue;
     // The piece's footprint as seen along the wall, where it comes within the joinery's depth of it.
-    const corners = footprint(item);
+    // A WC takes its box's 80 cm and its 40 cm either side of its middle, not its own 36 cm: a
+    // washer's column 18 cm off a WC's middle left no room to sit and its box ran into the column.
+    const corners = footprint(item.slot === 'toilet' ? { ...item, size: { ...item.size, width: Math.max(item.size.width, 2 * WC_SIDE_M + 0.02, WC_BOX_WIDTH_M) } } : item);
     const off = corners.map((p) => (p.x - edge.a.x) * edge.inward.x + (p.z - edge.a.z) * edge.inward.z);
     if (Math.min(...off) > depth + 0.05) continue;
     const along = corners.map((p) => (p.x - edge.a.x) * edge.dir.x + (p.z - edge.a.z) * edge.dir.z);

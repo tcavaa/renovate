@@ -249,3 +249,27 @@ describe('the bathroom\'s light and heat', () => {
     expect(withWcBoxes([r], [wc], out)).toBe(out);
   });
 });
+
+describe('the joinery beside a WC', () => {
+  it('leaves the WC its box and 40 cm either side when it fits the joinery round it', async () => {
+    const { freeStretch } = await import('@/lib/design/decor/joinery');
+    const r = room('j2', 'bathroom', 4.7, 2.1, [door(3, 0.5)]);
+    const edge = (await import('@/lib/design/planGeometry')).roomEdges(r.polygon).find((e) => e.index === 0)!;
+    const wc: PlacedItem = { id: 'wc', roomId: 'j2', slot: 'toilet', kind: 'toilet', position: { x: 1.4, z: 0.25 }, rotation: 0, elevationM: 0, size: { width: 0.36, depth: 0.47, height: 0.46 }, product: null };
+    const stretch = freeStretch(r, edge, 3, [wc], [], 0.65)!;
+    // The joinery starts at least 40 cm past the WC's middle.
+    expect(stretch[0]).toBeGreaterThanOrEqual(1.4 + 0.4 - 1e-6);
+  });
+
+  it('drops a fix of the AI check that would stand a piece in the joinery', async () => {
+    const { applyReviewFixes } = await import('@/lib/design/aiProposal');
+    const r = room('k2', 'bathroom', 4.7, 2.1, [door(3, 0.5)]);
+    const plan = { rooms: [r], metresPerPixel: null, bounds: { width: 0, depth: 0 }, source: 'manual', wallThicknessM: 0.12 } as unknown as FloorPlan;
+    const wc: PlacedItem = { id: 'wc', roomId: 'k2', slot: 'toilet', kind: 'toilet', position: { x: 4.4, z: 1.2 }, rotation: -Math.PI / 2, elevationM: 0, size: { width: 0.36, depth: 0.47, height: 0.46 }, product: { productId: 1, nameKa: 'wc', slug: 'wc', brand: null, pricePerUnit: 1, unit: 'piece', qty: 1, totalPrice: 1, imageUrl: null, colorHex: null, textureUrl: null, model3dUrl: '/m.glb', categorySlug: null, store: null } };
+    const joinery = { id: 'j', roomId: 'k2', family: 'cabinet' as const, wallIndex: 0, span: { from: 0.5, to: 4.2 }, height: { from: 0, to: 1.8 }, params: { sections: [{ kind: 'basin' as const, widthMm: 3700, heightMm: 800, depthMm: 500 }] }, materials: {}, anchor: 'joinery' as const };
+    const review = { model: 'm', notes: {}, fixes: [{ target: 'wc', action: 'move_to_wall' as const, productId: null, wallIndex: 0, reason: '' }] };
+    const out = applyReviewFixes([wc], [joinery], review, plan, []);
+    const moved = out.items.find((i) => i.id === 'wc')!;
+    expect(moved.position.z).toBeGreaterThan(0.6);
+  });
+});

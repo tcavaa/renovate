@@ -230,7 +230,9 @@ How stage 1 built it — **the bathroom pass** (`lib/design/bathroom.ts`, `fitBa
   deep, its width and 2 × 1.8 cm sides, up to its top (and the dryer's): beside the vanity on its
   wall when there is room, the column at the end of the wall and the gap between filled with doors
   at the vanity's height — one piece; else its own column where it stands, moved to the wall's end
-  when that is a sliver away. A **dryer** (`dryer`, the library's tumble dryer) stacked on the
+  when that is a sliver away. The joinery keeps clear of a WC by its box's 80 cm and 40 cm either side
+  of its middle (`freeStretch`): on a generated flat the column had stood 18 cm off the WC's middle,
+  its box running into the column. A **dryer** (`dryer`, the library's tumble dryer) stacked on the
   machine inside the column at the `premium` budget level with a ceiling of 2.2 m or more (G-29).
 - **Bath by style** (BA-16–18): Modern a freestanding bath (`slotPool` leaves built-in ones out);
   Scandinavian and Industrial a built-in one (a bath only from 9 m², `SHOWER_FIRST_STYLES`,
@@ -313,7 +315,9 @@ box and the bath's enclosure as fixed and cannot move or remove them, nor move o
 its vanity, the washer, the dryer, the taps, the bath's mixer or the door mat; a basin it replaces
 stays on its vanity, and its alternatives are the style's (`slotPool` with the style). Before this,
 the check moved a toilet's vanity to another wall — its sections lost — and swapped a bathroom's
-countertop basin for a pedestal left at the vanity's height.
+countertop basin for a pedestal left at the vanity's height. And a fix that would stand a piece in a
+cabinet or a box (the WC moved against the washer's column) is dropped (`inEngineDecor`). A bath
+mixer the library filed under showers is never taken for the shower.
 
 How stage 5 built it — **the whole flat**:
 

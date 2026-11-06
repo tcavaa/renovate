@@ -13,7 +13,7 @@ import { applySwap, PAIRED_SLOTS, rehung, settledPosition, type CatalogProduct }
 import { getArchetype } from './catalog';
 import { seatSlots } from './autoLayout';
 import { decorDepth, fitLight, paramsOf } from './decor/layout';
-import { blocksWindow, fitSwapped, footprintInRoom, footprintOf, inDoorway, isPlacementValid, pieceWall } from './manipulate';
+import { blocksWindow, fitSwapped, footprintInRoom, footprintOf, footprintsOverlap, inDoorway, isPlacementValid, pieceWall } from './manipulate';
 import { roomEdges, type PlanEdge } from './planGeometry';
 import type { AiReview } from './aiReview';
 import { finishFromProduct, isWetRoom, surfaceOptions, surfaceSpecs } from './surfaces';
@@ -397,6 +397,9 @@ export function applyReviewFixes(items: PlacedItem[], decor: DecorPiece[], revie
       placed = edge ? againstWall(item, room, edge, edge.length / 2, others, plan.rooms) : null;
     }
     if (!placed) continue;
+    // Nothing the check moves or swaps in lands in the engine's joinery or a box (a WC moved
+    // against the washer's column): such a fix is dropped.
+    if (placed.elevationM < 0.05 && inEngineDecor(placed, pieces, room)) continue;
     out[index] = placed;
     changed.add(`${item.roomId}|${item.slot}`);
   }
@@ -418,6 +421,25 @@ export function applyReviewFixes(items: PlacedItem[], decor: DecorPiece[], revie
   pieces = reanchorDecor(pieces, out, plan.rooms);
   out = clearOfDecor(settleToWalls(out, plan), pieces, plan);
   return { items: out, decor: pieces };
+}
+
+/** Whether a floor piece's footprint runs into a made-to-measure cabinet or a box on one of its room's walls. */
+function inEngineDecor(item: PlacedItem, decor: DecorPiece[], room: PlanRoom): boolean {
+  const footprint = footprintOf(item.position, item.size, item.rotation);
+  return decor.some((piece) => {
+    if (piece.roomId !== item.roomId || piece.wallIndex == null || (piece.family !== 'cabinet' && piece.family !== 'box')) return false;
+    const edge = roomEdges(room.polygon).find((e) => e.index === piece.wallIndex);
+    if (!edge) return false;
+    // The piece's own WC or bath stands in its box by design.
+    if ((piece.anchor === 'wc' && item.slot === 'toilet') || (piece.anchor === 'bath' && item.slot === 'bathtub')) return false;
+    const depth = decorDepth(piece);
+    const at = (s: number, d: number) => ({ x: edge.a.x + edge.dir.x * s + edge.inward.x * d, z: edge.a.z + edge.dir.z * s + edge.inward.z * d });
+    const lo = Math.min(piece.span.from, piece.span.to) + 0.02;
+    const hi = Math.max(piece.span.from, piece.span.to) - 0.02;
+    const corners = [at(lo, 0), at(hi, 0), at(hi, depth), at(lo, depth)];
+    const box = { minX: Math.min(...corners.map((c) => c.x)), maxX: Math.max(...corners.map((c) => c.x)), minZ: Math.min(...corners.map((c) => c.z)), maxZ: Math.max(...corners.map((c) => c.z)) };
+    return footprintsOverlap(footprint, box);
+  });
 }
 
 /**

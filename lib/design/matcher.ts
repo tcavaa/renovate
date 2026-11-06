@@ -488,7 +488,8 @@ export function slotPool(item: PlacedItem, candidates: CatalogProduct[], room: P
   }
   // Showers are built — a column or panel in a glass enclosure the studio draws — never a shower-door product (BA-24).
   if (item.slot === 'shower') {
-    const columns = candidates.filter((p) => !isShowerDoor(p));
+    // Nor a bath's mixer the library filed under showers.
+    const columns = candidates.filter((p) => !isShowerDoor(p) && !/\bbath\b[^|]*\b(mixer|tap|spout)\b/i.test(`${p.nameEn ?? ''} ${p.nameKa}`));
     return columns.length > 0 ? columns : candidates;
   }
   // An island is a worktop to stand round: not one with its own hob, oven or sink beside a run that
