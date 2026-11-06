@@ -15,6 +15,8 @@ import { suggestElectrical, withFixtureProducts } from './electrical';
 import { applyBoardPicks, applyFinishPicks, applyFurniturePicks, type CalculatorPicks } from './fromCalculator';
 import { budgetLevel, matchProducts, type CatalogProduct } from './matcher';
 import { fitBathrooms } from './bathroom';
+import { fitHall } from './hall';
+import { fitWardrobes } from './bedroom';
 import { withOpeningProducts } from './openings';
 import { seededRng, type Rng } from './random';
 import { generatedFinish, isStyleFinish, withFlatFinish } from './surfaces';
@@ -63,7 +65,7 @@ export function generateScene(input: GenerateSceneInput): GeneratedScene {
   const { styleId, budgetGel, catalog, proposal = null, calculatorPicks = null } = input;
   // The partitions the app adds (the entrance out of the living room's sight, an en-suite's lobby),
   // before anything is laid out round them; the floor behind each stays free.
-  const partitioned = withGeneratedPartitions(input.plan);
+  const partitioned = withGeneratedPartitions(input.plan, styleId);
   const plan = partitioned.plan;
   // Every generation draws from its own seed: the same plan gives another layout, other products
   // and other floors and walls each time.
@@ -86,6 +88,13 @@ export function generateScene(input: GenerateSceneInput): GeneratedScene {
   // bath boxed or enclosed and its mixer at its head.
   const fitted = fitBathrooms({ rooms: underCeilings, items, catalog, styleId, level: budgetLevel(placed, catalog, matchOptions), rng });
   items = fitted.items;
+  // The hall's built-in wardrobe by the front door (coats, the boiler's cupboard, shoes) and the
+  // full-height mirror across from it.
+  const hall = fitHall({ rooms: underCeilings, items, catalog, styleId });
+  items = hall.items;
+  // A bedroom's wall of wardrobe where the wardrobe's wall is otherwise empty (no chest besides).
+  const wardrobes = fitWardrobes({ rooms: underCeilings, items, catalog, styleId });
+  items = wardrobes.items;
   // Every floor and wall is the style's product for its room — tiles in the bathroom, laminate
   // and paint elsewhere — so the budget buys what the flat is shown in. Re-laying out the
   // furniture is not a reason to lose the tiles someone picked. The designer's floors and walls
@@ -110,7 +119,7 @@ export function generateScene(input: GenerateSceneInput): GeneratedScene {
   // unit (`proposalDecor`). An engine generation has none.
   // A box behind every WC for its concealed cistern (the design rules), whoever designed the rest.
   const designed = proposalDecor(laid, proposal, items, catalog);
-  const decor = [...designed, ...fitted.decor, ...wcBoxes(laid.rooms, items, catalog, designed)];
+  const decor = [...designed, ...fitted.decor, ...hall.decor, ...wardrobes.decor, ...wcBoxes(laid.rooms, items, catalog, designed)];
   // Tidied once everything stands: every wall piece back on its wall, nothing in the decor, the
   // hanging lamps and ceiling points under a lowered ceiling hung from it.
   items = clearOfDecor(settleToWalls(withoutArtOverDecor(items, decor, laid), laid), decor, laid);

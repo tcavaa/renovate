@@ -110,6 +110,10 @@ scene ──tightSpots──▶ amber warnings (not a rule)
   or more (1.8 m in a long room) or against a wall, a living room's table 1 m off the lounge pieces
   in the most open spot; the big pieces strictly the style's own (`STRICT_STYLE_KINDS`) — which
   narrows "every product can appear" below to the other kinds.
+- **The rulebook's entrance, living room and bedrooms** (stages 3–4): the hall's wardrobe and mirror
+  (`lib/design/hall.ts`), a bedroom's wall of wardrobe (`lib/design/bedroom.ts`), a stool in a bedroom
+  from 12 m², every window dressed, the sofa–TV floor off the ways between doors, no entrance screen in
+  Industrial or a small studio.
 - **The washing machine** is the bathroom's (from 4.5 m²); when no bathroom has room for it, the
   hall's, else the kitchen's (`layoutPlan`, `WASHER_FALLBACK_ROOMS`).
 - **The kitchen run keeps 1.2 m of working floor** in front of it (`KITCHEN_CIRCULATION_M`, a

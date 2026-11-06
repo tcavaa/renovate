@@ -194,8 +194,8 @@ rule numbers below are its). Built in six stages:
 |---|---|---|
 | 1 | bathrooms: taps with every basin, the bath's mixer, the made-to-measure vanity and washer column (dryer over it), the built-in and the Vintage bath, a shower in every style, the WC centred and boxed, towel shelf, stool, three spots | **built** |
 | 2 | kitchen: island 1.2 m all round, hood, no second hob or oven, four chairs or a counter, a long table, lighting in the room's middle, hidden LED, the style's kitchen along the whole wall | **built** |
-| 3 | entrance and living room: the hall's built-in wardrobe (coats, boiler, shoes), full-height mirror, door mat; the TV out of the way through, the dining table at least 1.2 m, curtains at every window, no entrance screen in Industrial or a small studio | see below |
-| 4 | bedrooms, office, storage: a full-wall wardrobe, no extra chest (a desk or a dressing table may stay), a tall headboard takes no panel, stool, clothes rack, no closet mirror on a balcony | see below |
+| 3 | entrance and living room: the hall's built-in wardrobe (coats, boiler, shoes), full-height mirror, door mat; the TV out of the way through, the dining table at least 1.2 m, curtains at every window, no entrance screen in Industrial or a small studio | **built** |
+| 4 | bedrooms, office, storage: a full-wall wardrobe, no extra chest (a desk or a dressing table may stay), a tall headboard takes no panel, stool, clothes rack, no closet mirror on a balcony | **built** (but the clothes rack and the closet mirror — see the gaps) |
 | 5 | the whole flat: one main fixture per room, one large light and spots round it (Scandinavian, Modern, Vintage), wall lights on walls, front and interior doors in their places, no glass doors into bedrooms or bathrooms, panels a whole wall | see below |
 | 6 | the plan board: inner walls' lengths, distances to windows and doors, opposite windows in line, the beam named რიგელი | see below |
 
@@ -276,6 +276,44 @@ How stage 2 built it — **the kitchen**:
 - **Style** (K-15, Y-7): the kitchen maker's material, the kitchen, the sofas, beds, baths,
   wardrobes and dining tables are drawn only from the style's own products when the catalogue has
   any (`STRICT_STYLE_KINDS`, `styleMaterials`).
+
+How stage 3 built it — **the entrance and the living room**:
+
+- **The hall's wardrobe** (E-4, E-6, E-7; `lib/design/hall.ts`, `fitHall`): in the hall with the front
+  door, 1.4 m wide or more (a shallow 38 cm one from 1.2 m), one `cabinet` piece to the ceiling on the
+  free stretch nearest the front door, 2.8 m at most: a ventilated `boiler` section (65 cm, louvred)
+  at the door's end when the hall is wide enough for the boiler's cupboard, the `coats` (80 cm–1.4 m),
+  the `shoes` (60 cm). It replaces the program's coat rack and shoe cabinet. The technical placement
+  hangs the boiler in its section (`housedBoilerSpot`; `suggestTechnical` takes the decor) with no
+  cabinet of its own (`cabinet: null`). A narrower hall keeps the coat rack (`prefer:
+  'near-entrance'`) and the shoe cabinet.
+- **Mirror** (E-8): the hall's mirror is a tall flat one when the catalogue has any (140 cm or taller,
+  `slotPool`), moved to the wall across from the wardrobe, standing just off the floor.
+- **Door mat** (E-9): in the hallway's program, on the floor inside the front door (`placeAtEntrance`).
+- **TV out of the way** (L-5): a sofa spot whose floor between it and the TV wall crosses the way
+  between two of the room's doors (a 70 cm strip, `passagePaths`, `viewingQuad`) scores 25 less.
+- **Every window dressed** (G-20, L-11): curtains or a blind at every window of a room (the window
+  archetypes' count is the room's windows), never left out at random.
+- **Entrance screen** (L-13): none in an Industrial flat, nor in a studio under 30 m²
+  (`withGeneratedPartitions` takes the style; `SMALL_STUDIO_M2`).
+
+How stage 4 built it — **bedrooms**:
+
+- **A wall of wardrobe** (B-9, B-10; `lib/design/bedroom.ts`, `fitWardrobes`): when the wall the
+  bedroom's wardrobe stands on is otherwise free for 85 % of its length or more (a niche's back counts),
+  a `cabinet` piece fills that stretch to the ceiling, in sections of 1.2 m at most, in place of the
+  shop's wardrobe; and the room's chest of drawers goes (a desk or a dressing table is another slot
+  and stays).
+- **Headboard** (B-6): a bed 1.2 m tall or more (`TALL_HEADBOARD_M`) has a headboard of its own; the
+  AI designer's decor anchored on it is dropped (`proposalDecor`).
+- **Stool** (B-8): in a bedroom's program from 12 m² (migration 0015 lists the stools on its shelf).
+
+**The AI check and the engine's work**: the room check (`aiReview`) is shown the joinery, the WC's
+box and the bath's enclosure as fixed and cannot move or remove them, nor move or remove a basin on
+its vanity, the washer, the dryer, the taps, the bath's mixer or the door mat; a basin it replaces
+stays on its vanity, and its alternatives are the style's (`slotPool` with the style). Before this,
+the check moved a toilet's vanity to another wall — its sections lost — and swapped a bathroom's
+countertop basin for a pedestal left at the vanity's height.
 
 ## The decisions (owner, 28 Oct 2026)
 
@@ -446,6 +484,11 @@ sub-style in the designer's brief); `nightLights.test.ts` (the light's colour by
 AI check's problems).
 
 ## Known gaps
+
+- From the third round's stages 3–4: no clothes rack (B-5) — the catalogue has no such product; a
+  balcony closet's mirror (S-2) is not decided by its corners yet; "wider passages" and "use the whole
+  room" (L-9, L-10) are the existing tight-passage scoring, not rules of their own; the hall wardrobe's
+  sections cannot be edited on its card; a boiler already placed before the wardrobe stays where it is.
 
 - From the third round's stage 1: the joinery, the taps, the bath's mixer and enclosure and the
   dryer are placed at generation and do not follow the basin, the bath or the machine when it is

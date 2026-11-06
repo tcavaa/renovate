@@ -135,8 +135,7 @@ const OPTIONAL_DECOR: Record<string, number> = {
   dresser: 0.8,
   rug: 0.85,
   rug_bed: 0.8,
-  curtain: 0.9,
-  blind: 0.95,
+  // Every window is dressed (the rulebook, G-20): curtains and blinds are never left out.
   stool: 0.6,
 };
 
@@ -298,8 +297,9 @@ function layoutArea(room: PlanRoom, options: LayoutOptions, idPrefix: string, do
     // A generated room varies its decor: a plant here, a print there, not every piece every time.
     if (options.rng && kind in OPTIONAL_DECOR && options.rng() > OPTIONAL_DECOR[kind]) continue;
 
+    // A curtain or a blind at every window, not one a room (G-20).
     const count =
-      entry.count === 'fill' ? seatCountFor(archetype, placed) : entry.count;
+      entry.count === 'fill' ? seatCountFor(archetype, placed) : archetype.placement.type === 'window' ? room.openings.filter((o) => o.kind === 'window').length : entry.count;
 
     for (let i = 0; i < count; i++) {
       const rules: RuleContext = { doorBands, entranceBands: options.entranceSight?.[room.id] ?? [], placed, passages };
@@ -335,6 +335,32 @@ function layoutArea(room: PlanRoom, options: LayoutOptions, idPrefix: string, do
   }
 
   return placed;
+}
+
+/** The floor between a sofa (its middle at `centre`, facing `facing`) and the wall `ahead` metres in front of its back, as wide as the sofa. */
+function viewingQuad(centre: Vec2, facing: number, width: number, depth: number, ahead: number): Quad {
+  const f = { x: Math.sin(facing), z: Math.cos(facing) };
+  const r = { x: f.z, z: -f.x };
+  const near = depth / 2 + 0.05;
+  const far = Math.max(near + 0.1, ahead - 0.45);
+  const at = (u: number, v: number): Vec2 => ({ x: centre.x + r.x * u + f.x * v, z: centre.z + r.z * u + f.z * v });
+  return [at(-width / 2, near), at(width / 2, near), at(width / 2, far), at(-width / 2, far)];
+}
+
+/** The ways through a room: a strip 70 cm wide from each doorway's inside point to every other's. */
+function passagePaths(doorPoints: Vec2[]): Quad[] {
+  const out: Quad[] = [];
+  for (let i = 0; i < doorPoints.length; i++) {
+    for (let j = i + 1; j < doorPoints.length; j++) {
+      const a = doorPoints[i];
+      const b = doorPoints[j];
+      const len = Math.hypot(b.x - a.x, b.z - a.z);
+      if (len < 0.3) continue;
+      const n = { x: -(b.z - a.z) / len * 0.35, z: (b.x - a.x) / len * 0.35 };
+      out.push([{ x: a.x + n.x, z: a.z + n.z }, { x: b.x + n.x, z: b.z + n.z }, { x: b.x - n.x, z: b.z - n.z }, { x: a.x - n.x, z: a.z - n.z }]);
+    }
+  }
+  return out;
 }
 
 /** How far a box's nearest side is from the room's walls (the outline's edges), metres. */
@@ -681,6 +707,10 @@ function bestAlongWalls(
           const ahead2 = { x: Math.sin(edge.facing), z: Math.cos(edge.facing) };
           const tvPose = { position: { x: centre.x + ahead2.x * (ahead - 0.25), z: centre.z + ahead2.z * (ahead - 0.25) }, rotation: edge.facing + Math.PI, size: { width: 1.6, depth: 0.4, height: TV_TOP_M }, elevationM: 0 };
           if (blocksWindow({ ...tvPose, slot: 'tv_unit' }, room)) score -= 14;
+          // Nobody walks between the sofa and the TV to get through the room (the rulebook, L-5):
+          // the floor between them stays off the way from one door to another.
+          const view = viewingQuad(centre, edge.facing, width, depth, ahead);
+          if (passagePaths(doorPoints).some((path) => quadsOverlap(path, view))) score -= 25;
         }
       }
 

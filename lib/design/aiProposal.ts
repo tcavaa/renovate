@@ -87,9 +87,17 @@ export function proposalDecor(plan: FloorPlan, proposal: AiProposal | null | und
   if (!proposal) return [];
   return plan.rooms.flatMap((room) => {
     const asked = proposal.rooms.find((r) => r.roomId === room.id);
-    return asked ? resolveRoomDecor(asked.decor, underCeiling(room, plan), items, catalog) : [];
+    if (!asked) return [];
+    // A bed with a tall headboard of its own takes no panel or slats behind it (the rulebook, B-6).
+    const bed = items.find((i) => i.roomId === room.id && i.slot === 'bed');
+    const ownHeadboard = !!bed && bed.size.height >= TALL_HEADBOARD_M;
+    const wanted = ownHeadboard ? asked.decor.filter((d) => d.anchor !== 'bed') : asked.decor;
+    return resolveRoomDecor(wanted, underCeiling(room, plan), items, catalog);
   });
 }
+
+/** A bed this tall has a headboard that is its own wall panel (B-6). */
+export const TALL_HEADBOARD_M = 1.2;
 
 /** The designer's notes per room id, for the generation record. */
 export function proposalNotes(proposal: AiProposal | null | undefined): Record<string, string> {
@@ -378,7 +386,9 @@ export function applyReviewFixes(items: PlacedItem[], decor: DecorPiece[], revie
       // A hung piece at the height and place the new product hangs or stands at (a TV on its stand
       // onto the unit); a standing one re-measured as the matcher would — a wider fridge against the
       // end of the run, not 2 cm under its wall cabinets.
-      const hung = rehung(item, swapped, product, others);
+      // A basin on its vanity stays on the vanity's top, where it stands (the rulebook's bathroom pass).
+      const onVanity = item.slot === 'sink' && item.elevationM > 0.3;
+      const hung = onVanity ? { ...swapped, elevationM: item.elevationM, position: item.position } : rehung(item, swapped, product, others);
       placed = hung.elevationM >= 0.05 ? hung : fitSwapped(room, { ...hung, position: settledPosition(item, hung.size, room, others) }, others, plan.rooms);
     } else if (fix.action === 'to_wall') {
       placed = backToWall(item, room, others, plan.rooms);

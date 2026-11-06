@@ -64,7 +64,15 @@ export interface AiReviewRequest {
 /** The pieces a room is for: replaced when wrong, never taken out. */
 const KEEP_KINDS = new Set(['bed_double', 'bed_single', 'sofa_3seat', 'sofa_corner', 'toilet', 'sink', 'kitchen_run', 'desk', 'dining_table']);
 /** Kinds made to measure or sized to the room: nothing to swap them for here. */
-const NOT_REVIEWED = new Set(['kitchen_run', 'kitchen_wall', 'kitchen_island', 'rug', 'rug_bed', 'curtain', 'pendant']);
+const NOT_REVIEWED = new Set(['kitchen_run', 'kitchen_wall', 'kitchen_island', 'rug', 'rug_bed', 'curtain', 'pendant', 'tap', 'bath_mixer', 'dryer', 'door_mat']);
+/**
+ * Pieces the engine fitted into its joinery or onto another piece (the rulebook's bathroom and hall
+ * passes): a basin on its vanity, the washer and dryer in their column, the taps, the bath's mixer,
+ * the door mat. The check neither moves nor removes them — moved, they would leave their cabinet.
+ */
+const FITTED_KINDS = new Set(['tap', 'bath_mixer', 'dryer', 'washer', 'door_mat']);
+/** Decor the engine built (a WC's box, a bath's enclosure, the joinery): shown, never the check's to change. */
+const ENGINE_DECOR = (d: Pick<DecorPiece, 'family' | 'anchor'>) => d.family === 'cabinet' || d.family === 'box' || d.anchor === 'joinery' || d.anchor === 'bath' || d.anchor === 'wc';
 /** Kinds wider than deep by nature: one deeper than wide is a model turned sideways or a wrong product. */
 const WIDE_KINDS = new Set(['wardrobe', 'dresser', 'sofa_3seat', 'tv_unit', 'console_table', 'bookshelf', 'storage_shelf', 'shoe_cabinet', 'desk', 'bathtub', 'kitchen_run']);
 const ALTERNATIVES = 5;
@@ -250,7 +258,7 @@ export function buildReviewBrief(request: AiReviewRequest): { text: string; offe
       // trouble, the ones no bigger than it far likelier — the fix for a piece that does not fit.
       const fitting = candidatesFor(kind, catalog, styleId).filter((p) => p.id !== current && fitsRoom(p, room));
       // What the slot can hold as laid out (a standing basin, a flat bathroom mirror, a pendant that clears a head).
-      const held = slotPool(first, fitting, room, items);
+      const held = slotPool(first, fitting, room, items, styleId);
       const pool = held.length > 0 ? held : fitting;
       const smaller = (p: CatalogProduct) => !!p.widthCm && !!p.depthCm && p.widthCm / 100 <= first.size.width + 0.02 && p.depthCm / 100 <= first.size.depth + 0.02;
       const picks = weightedOrder(pool, (p) => generationWeight(p, styleId, 'balanced', first, false) * (troubled && smaller(p) ? 6 : 1), rng).slice(0, ALTERNATIVES);
@@ -262,6 +270,11 @@ export function buildReviewBrief(request: AiReviewRequest): { text: string; offe
     const decor = (request.decor ?? []).filter((d) => d.roomId === room.id);
     for (const d of decor) {
       const problems = findings.get(d.id) ?? [];
+      // The engine's own (a WC's box, a bath's enclosure, the joinery) is listed for the room's sake, fixed.
+      if (ENGINE_DECOR(d)) {
+        lines.push(`- ${d.id}: made-to-measure ${d.family === 'cabinet' ? 'joinery' : d.anchor === 'bath' ? "bath's tiled enclosure" : "WC's installation box"} on wall ${d.wallIndex ?? '-'} (fixed — not to be moved or removed)`);
+        continue;
+      }
       decorIds.set(d.id, room.id);
       lines.push(`- ${d.id}: built-in decor, ${d.family}${d.wallIndex == null ? ' — a lowered ceiling panel with a light cove' : ` on wall ${d.wallIndex}, ${r2(d.span.from)}–${r2(d.span.to)} m along, ${r2(d.height.from)}–${r2(d.height.to)} m high, ${Math.round(decorDepth(d) * 100)} cm deep`}${problems.length ? ` — PROBLEMS: ${problems.join('; ')}` : ''}`);
     }
@@ -371,6 +384,9 @@ export function validateReview(raw: RawReview, plan: FloorPlan, offer: ReviewOff
       }
       const item = offer.itemsById.get(fix.target);
       if (!item || item.roomId !== planRoom.id) continue;
+      // Fitted into the joinery or onto another piece: not moved or removed (a basin on its vanity neither).
+      const fitted = FITTED_KINDS.has(item.kind) || (item.slot === 'sink' && item.elevationM > 0.3);
+      if (fitted && fix.action !== 'replace') continue;
       if (fix.action === 'replace') {
         if (!fix.product || !offer.alternatives.get(item.id)?.has(fix.product)) continue;
         for (const piece of [...offer.itemsById.values()].filter((i) => i.roomId === item.roomId && i.kind === item.kind)) {

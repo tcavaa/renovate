@@ -21,6 +21,7 @@
  * Pure geometry over the plan and the furniture; no React, no store.
  */
 
+import { housedBoilerSpot } from './hall';
 import { pointInPolygon, pointOnEdge, wallEdges, type PlanEdge } from './planGeometry';
 import { openingWorldPoint } from './openings';
 import { HOOD_ROOM_TYPES, TECHNICAL_KINDS, technicalElevation } from './technical';
@@ -28,7 +29,7 @@ import { dividerSegments, partRoom, studioParts } from './studio';
 import { outsideEdges } from './radiators';
 import { freeSpans } from './decor/layout';
 import { BOILER_CUPBOARD_M, BOILER_HALL_MIN_WIDTH_M, BOILER_PIPES_BELOW_M, BOILER_ROOMS, BOILER_WET_CLEAR_M, DISHWASHER_WATER, footprintQuad, KITCHEN_SINK_WATER, WATER_NEEDS, WATER_HEIGHT_REACH_M, WATER_PAIR_SPACING_M, WATER_POINT_REACH_M, alongWall, kitchenRunZones, underCeiling, type WaterNeed } from './rules';
-import type { FloorPlan, PlacedItem, PlanRoom, TechnicalKind, TechnicalPoint, Vec2 } from './types';
+import type { FloorPlan, PlacedItem, PlanRoom, TechnicalKind, TechnicalPoint, Vec2, DecorPiece } from './types';
 
 /** The least stretch of wall, clear of openings, a point with no fixture to go by is put on: a boiler's width and some. */
 const CLEAR_WALL_M = 0.5;
@@ -75,7 +76,7 @@ export interface AutoTechnicalResult {
  * The technical points the plan implies, leaving out every kind a room already has. Rooms
  * keep whatever is already marked: this fills the gaps, it does not tidy up after anyone.
  */
-export function suggestTechnical(plan: FloorPlan, items: PlacedItem[], nextId: () => string): AutoTechnicalResult {
+export function suggestTechnical(plan: FloorPlan, items: PlacedItem[], nextId: () => string, decor: readonly DecorPiece[] = []): AutoTechnicalResult {
   const existing = plan.technical?.points ?? [];
   const points: TechnicalPoint[] = [];
   const counts: Partial<Record<TechnicalKind, number>> = {};
@@ -159,8 +160,14 @@ export function suggestTechnical(plan: FloorPlan, items: PlacedItem[], nextId: (
   }
 
   if (!has('boiler')) {
-    const spot = boilerSpot(plan, items, [...existing, ...points]);
-    if (spot) add(spot.room, 'boiler', spot.position, technicalElevation('boiler', underCeiling(spot.room, plan)));
+    // In the hall wardrobe's boiler section when the flat has one (the rulebook, E-4): the
+    // wardrobe is its cupboard, so it takes no cabinet of its own.
+    const housed = housedBoilerSpot(plan.rooms, decor);
+    const spot = housed ?? boilerSpot(plan, items, [...existing, ...points]);
+    if (spot) {
+      add(spot.room, 'boiler', spot.position, technicalElevation('boiler', underCeiling(spot.room, plan)));
+      if (housed) points[points.length - 1].cabinet = null;
+    }
   }
   // The boiler's cold in and hot out, under it.
   for (const boiler of [...existing, ...points].filter((p) => p.kind === 'boiler')) {

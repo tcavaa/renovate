@@ -116,7 +116,10 @@ The reference library's rules, as code:
   (`cabinetFacadeM2`). Drawn as carcasses with shadow gaps between doors (a door under 60 cm), a
   plinth, the boiler's louvres. **Not the AI's** (`AI_DECOR_FAMILIES`; its materials are not
   offered to it); every style takes it (`STYLE_DECOR_FAMILIES`). Not in `STANDS_OUT`: what it
-  houses — the basin on the vanity, the washer in its column — stays where it stands.
+  houses — the basin on the vanity, the washer in its column — stays where it stands. Built by the
+  bathroom pass (vanity, washer column), the hall pass (`lib/design/hall.ts`: the hall's wardrobe
+  with the boiler's section) and the bedroom pass (`lib/design/bedroom.ts`: a wall of wardrobe); the
+  AI room check sees them as fixed (`ENGINE_DECOR` in `aiReview.ts`).
 
 ## What it costs (`quantities.ts`)
 

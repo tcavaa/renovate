@@ -684,6 +684,8 @@ export const ROOM_PROGRAMS: Record<RoomType, ProgramEntry[]> = {
     { kind: 'curtain', count: 1 },
     { kind: 'plant', count: 1, minAreaM2: 12 },
     { kind: 'floor_lamp', count: 1, minAreaM2: 12 },
+    // A stool where there is free floor (the rulebook, B-8).
+    { kind: 'stool', count: 1, minAreaM2: 12 },
   ],
   living_room: [
     { kind: 'sofa_3seat', count: 1, preferAboveM2: 22 },

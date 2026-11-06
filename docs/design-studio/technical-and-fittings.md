@@ -302,6 +302,10 @@ to the table when its pendant is on that line), and the light under the wall cab
 their underside at their real height and length (the rulebook, K-13 and K-14). A kitchen's cooker
 hood is a round one first, then a thick one (`equipmentCandidates`).
 
+The boiler goes into the hall wardrobe's boiler section when the generation built one
+(`housedBoilerSpot`, `lib/design/hall.ts`; `suggestTechnical` takes the decor) and takes no cabinet of
+its own there (`cabinet: null`) — the wardrobe is its cupboard (the rulebook, E-4).
+
 ## Radiators are bought by the section (`lib/design/radiators.ts`)
 
 A bathroom's heated towel rail hangs over its WC when it has one — centred on it, its bottom 10 cm

@@ -22,7 +22,7 @@
 
 import { pointInPolygon, roomEdges, type PlanEdge } from './planGeometry';
 import { addWalls, rebuildRooms, splitAtJunctions } from './walls';
-import type { FloorPlan, Opening, PlanRoom, Vec2, Wall } from './types';
+import type { FloorPlan, Opening, PlanRoom, Vec2, Wall, StyleId } from './types';
 
 /** How far into the living room the entrance screen stands, and into the bedroom an en-suite's. */
 export const ENTRY_DEPTH_M = 1.3;
@@ -182,12 +182,18 @@ function ensuiteDoors(plan: FloorPlan): Array<{ room: PlanRoom; door: Opening }>
  * behind each kept free. A plan whose walls are not drawn (no `walls`), or with nothing to add,
  * comes back as it was. Run again on a plan that has them, it adds nothing more.
  */
-export function withGeneratedPartitions(plan: FloorPlan): PartitionResult {
+/** A studio smaller than this has no room for an entrance screen (L-13). */
+export const SMALL_STUDIO_M2 = 30;
+
+export function withGeneratedPartitions(plan: FloorPlan, styleId?: StyleId | null): PartitionResult {
   const none: PartitionResult = { plan, keepouts: {}, added: [] };
   if (!plan.walls?.length) return none;
   const wanted: Array<{ room: PlanRoom; door: Opening; depth: number; id: string }> = [];
   const entrance = frontDoorIntoLiving(plan);
-  if (entrance) wanted.push({ ...entrance, depth: ENTRY_DEPTH_M, id: `partition-entry-${entrance.room.id}` });
+  // No entrance screen in an Industrial flat (its open plan is the point), nor in a studio short of
+  // room (the rulebook, L-13).
+  const screenEntrance = entrance && styleId !== 'industrial' && !(entrance.room.type === 'studio' && entrance.room.areaM2 < SMALL_STUDIO_M2);
+  if (entrance && screenEntrance) wanted.push({ ...entrance, depth: ENTRY_DEPTH_M, id: `partition-entry-${entrance.room.id}` });
   for (const ensuite of ensuiteDoors(plan)) wanted.push({ ...ensuite, depth: ENSUITE_DEPTH_M, id: `partition-ensuite-${ensuite.room.id}-${ensuite.door.id}` });
   const added: Wall[] = [];
   const keepouts: Record<string, Box[]> = {};

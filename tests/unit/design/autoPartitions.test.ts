@@ -55,6 +55,12 @@ describe('the entrance out of the living room\'s sight', () => {
     expect(withGeneratedPartitions(next).added).toHaveLength(0);
   });
 
+  it('adds no entrance screen in an Industrial flat (the rulebook, L-13)', () => {
+    const plan = withDoor(living, roomId, edgeAtZ(0.15), 0.6, { exterior: true });
+    expect(withGeneratedPartitions(plan, 'industrial').added).toHaveLength(0);
+    expect(withGeneratedPartitions(plan, 'modern').added).toHaveLength(1);
+  });
+
   it('leaves a screen free at both ends when the door has a way past either side', () => {
     const plan = withDoor(living, roomId, edgeAtZ(0.15), 2.85, { exterior: true });
     const [screen] = withGeneratedPartitions(plan).added;

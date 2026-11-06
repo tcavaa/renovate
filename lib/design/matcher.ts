@@ -513,6 +513,11 @@ export function slotPool(item: PlacedItem, candidates: CatalogProduct[], room: P
     const drop = item.elevationM + item.size.height - lowestPendant(item, settled);
     return candidates.filter((p) => (p.heightCm ?? 0) > 0 && (p.heightCm ?? 0) / 100 <= drop);
   }
+  // A hall's mirror is full height, across from its wardrobe (the rulebook, E-8): a tall flat one when there is any.
+  if (item.slot === 'mirror' && room?.type === 'hallway') {
+    const tall = candidates.filter((p) => (p.heightCm ?? 0) >= 140 && (p.depthCm ?? 0) <= 12 && (p.widthCm ?? 0) <= 90);
+    if (tall.length > 0) return tall;
+  }
   if (item.slot === 'mirror' && (room?.type === 'bathroom' || room?.type === 'toilet')) {
     return candidates.filter((p) => (p.heightCm ?? 0) > 0 && (p.heightCm ?? 0) <= 120 && (p.depthCm ?? 0) <= 12);
   }

@@ -106,6 +106,13 @@
       "when": 1793270000000,
       "tag": "0014_rulebook_kinds",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1793280000000,
+      "tag": "0015_rulebook_rooms",
+      "breakpoints": true
     }
   ]
 }
