@@ -10,7 +10,9 @@
  *
  *   - the drawing's own ink (`planInk`): each box side is pinned onto the wall band the image
  *     shows next to it, doors and windows onto the gaps in the wall;
- *   - the printed dimensions (`planSolver`): wall lines solved so every label holds;
+ *   - the printed dimensions (`planSolver`): wall lines solved so every label holds — and the
+ *     areas printed in the rooms (`planAreas`): the scale of a drawing with no length on it, and
+ *     every room fitted to its own;
  *   - one grid (`planGrid`): overlapping boxes resolved, slivers filled, and the walls — and the
  *     room separators where rooms open onto each other — built straight from the cells.
  *
@@ -22,14 +24,15 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { RoomType } from '@/lib/calculator/types';
 import { DEFAULT_CEILING_M, ROOM_TYPES } from '@/lib/calculator/constants';
-import { detectUnitSystem, parseLength } from './measure';
-import { DEFAULT_WALL_M, solvePlan, type InkEdge, type NormBox, type PrintedDimension, type RoughRoom, type SolveResult } from './planSolver';
-import { assignCells, boundaryRuns, roomAnchor, wallsFromRuns, type BoundaryRun, type Grid } from './planGrid';
-import { bareRuns, gapsAlong, inkShare, wallBandNear, type InkImage, type LineStretch } from './planInk';
-import { alongEdge, deriveOpenings, pointInPolygon, pointOnEdge, roomEdges, wallEdges, type PlanEdge } from './planGeometry';
+import { detectUnitSystem, parseArea, parseLength } from './measure';
+import { DEFAULT_WALL_M, solvePlan, withLines, type InkEdge, type NormBox, type PrintedDimension, type RoughRoom, type SolveResult } from './planSolver';
+import { SOLID, assignCells, boundaryRuns, ownerAt, roomAnchor, wallsFromRuns, type BoundaryRun, type Grid } from './planGrid';
+import { MAX_AREA_DRIFT, areaStep, squeezedPairs } from './planAreas';
+import { bareRuns, blockBox, gapsAlong, inkShare, wallBandNear, withoutInk, type InkImage, type LineStretch } from './planInk';
+import { alongEdge, deriveOpenings, pointInPolygon, pointOnEdge, polygonAreaM2, polygonCentroid, roomEdges, wallEdges, type PlanEdge } from './planGeometry';
 import { OPENING_DEFAULTS, cornerMargin, holdsRailings, mirrorHinge, mirrorSwing, projectToEdge } from './openings';
 import { roomsFromWalls, splitAtJunctions, withBounds } from './walls';
-import { withRoomNames } from './roomNames';
+import { nextRoomName, withRoomNames } from './roomNames';
 import type { FloorPlan, Opening, OpeningKind, PlanRoom, Vec2, Wall } from './types';
 
 export const PLAN_MODEL = 'claude-opus-5-5';
@@ -58,10 +61,24 @@ export interface AiRoomPart {
 }
 
 export interface AiRoom {
+  /** What the reading calls the room — the openings name rooms by it. */
   name: string;
+  /**
+   * The room's label as the drawing prints it; null when the drawing prints none (the room is
+   * then called what it is, in Georgian like every room the app names). Absent in older
+   * readings, where `name` was both.
+   */
+  printedName?: string | null;
   type: RoomType;
   /** The rectangles that together are the room's floor: one for a rectangular room, two for an L. */
   parts: AiRoomPart[];
+  /** The floor area printed in the room ("10.8 m²"), exactly as printed. Absent in older readings. */
+  areaLabel?: string | null;
+}
+
+/** A solid block that is not floor — a column, a shaft, a duct, a chimney — as its own rectangle. */
+export interface AiVoid {
+  box: NormBox;
 }
 
 /** `open`: no wall at all between two rooms (a room separator); `railing`: a balcony's open side. */
@@ -106,6 +123,8 @@ export interface AiPlanReading {
   openings: AiOpening[];
   /** Absent in readings recorded before dimension lines were read on their own. */
   dimensions?: AiDimension[];
+  /** Absent in readings recorded before solid blocks were read. */
+  voids?: AiVoid[];
   /** The model's own note about anything ambiguous. Surfaced to the user, not acted on. */
   notes: string | null;
 }
@@ -121,10 +140,12 @@ const POINT_SCHEMA = {
  * The shape the model answers in (structured outputs), so the conversion below never has to
  * defend against a missing field — only against a *wrong* one, which is a different problem.
  */
+const BOX_PROPERTIES = { x0: { type: 'number' }, y0: { type: 'number' }, x1: { type: 'number' }, y1: { type: 'number' } } as const;
+
 const PLAN_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['unitSystem', 'rooms', 'openings', 'dimensions', 'notes'],
+  required: ['unitSystem', 'rooms', 'voids', 'openings', 'dimensions', 'notes'],
   properties: {
     unitSystem: { type: 'string', enum: ['imperial', 'metric'], description: 'Which units the drawing is annotated in.' },
     rooms: {
@@ -133,10 +154,12 @@ const PLAN_SCHEMA = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['name', 'type', 'parts'],
+        required: ['name', 'printedName', 'type', 'areaLabel', 'parts'],
         properties: {
-          name: { type: 'string', description: 'The label printed on the plan, verbatim; a short description of the space when it has none.' },
+          name: { type: 'string', description: 'A name for this room, unique in this reading — its printed label, or a short description ("Bedroom 2") when it has none. Openings refer to rooms by this name.' },
+          printedName: { type: ['string', 'null'], description: 'The room\'s name exactly as printed on the plan (not its area, not a number alone). Null when no name is printed in or for it.' },
           type: { type: 'string', enum: ROOM_TYPE_VALUES },
+          areaLabel: { type: ['string', 'null'], description: 'The floor area printed in this room or beside its name ("10.8 m²", "116 sq ft"), copied exactly. Null if none. Never the area of the whole flat.' },
           parts: {
             type: 'array',
             description: 'Rectangles that together are exactly the room floor: one for a rectangular room, two for an L shape.',
@@ -150,13 +173,25 @@ const PLAN_SCHEMA = {
                   additionalProperties: false,
                   required: ['x0', 'y0', 'x1', 'y1'],
                   description: 'The rectangle from the inner face of one wall to the inner face of the opposite wall, on the ruler.',
-                  properties: { x0: { type: 'number' }, y0: { type: 'number' }, x1: { type: 'number' }, y1: { type: 'number' } },
+                  properties: BOX_PROPERTIES,
                 },
                 widthLabel: { type: ['string', 'null'], description: 'A size written inside the room (or in a table of rooms) for this rectangle across (left to right), copied exactly. Null if none. Never a dimension line.' },
                 depthLabel: { type: ['string', 'null'], description: 'A size written inside the room (or in a table of rooms) for this rectangle down (top to bottom), copied exactly. Null if none. Never a dimension line.' },
               },
             },
           },
+        },
+      },
+    },
+    voids: {
+      type: 'array',
+      description: 'Every solid block that is not floor — a column, a shaft or duct, a chimney — standing in or against a room. Empty when there are none.',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['box'],
+        properties: {
+          box: { type: 'object', additionalProperties: false, required: ['x0', 'y0', 'x1', 'y1'], description: 'The block itself, edge to edge, on the ruler.', properties: BOX_PROPERTIES },
         },
       },
     },
@@ -206,26 +241,28 @@ const SYSTEM_PROMPT = `You read architectural floor plans for a home-design tool
 
 1. **Rooms.** Report every room and space of the flat: rooms, kitchens, bathrooms, toilets, hallways and corridors, closets, storage, balconies and terraces. A space with a label is a room; an unlabelled corridor or entrance hall the doors open off is a room too (a hallway). Do not merge two rooms because the wall between them is thin, do not split a room because furniture stands in it, and do not invent a room where there is only furniture. One space labelled as two things at once ("Living Room and Kitchen", "Kitchen-Dining-Living") is one room of type studio.
 
-2. **Room shape.** Give each room as rectangles ("parts") that together cover exactly its floor, from the inner face of one wall to the inner face of the opposite one. A rectangular room is one part. An L-shaped room is two parts — the main body, then the leg that sticks out — a T or U shape three. Parts must not overlap each other, within a room or between rooms. Where two rooms share a wall, their edges sit either side of that same wall; where a room opens onto another with no wall, their edges meet on the line where one ends and the other begins.
+2. **Room shape.** Give each room as rectangles ("parts") that together cover exactly its floor, from the inner face of one wall to the inner face of the opposite one. A rectangular room is one part. An L-shaped room is two parts — the main body, then the leg that sticks out — a T or U shape three. Parts must not overlap each other, within a room or between rooms. Where two rooms share a wall, their edges sit either side of that same wall; where a room opens onto another with no wall, their edges meet on the line where one ends and the other begins — a thin or dashed line across open floor, a change of floor pattern, or the line of a wall's end carried on. A staircase is floor: its footprint belongs to the room it starts in.
 
-3. **Dimensions.** These are the only exact numbers on the drawing. Copy each one exactly as printed — "18' 3\\"" not "18.25 ft", "3,50" not "3.5", "3.5 м", "350". There are two kinds, reported in different places:
+3. **Solid blocks.** A column, a shaft or duct (a small box, usually hatched, crossed or filled, in a corner or against a wall — or a corner of a bathroom or kitchen boxed off by its own thin walls), a chimney — anything solid standing in or against a room — is not floor. Report each in voids as its own rectangle, edge to edge, and do not count it as a room. Kitchen counters, cupboards, wardrobes, baths and other furniture and fixtures are not solid blocks.
+
+4. **Sizes.** These are the only exact numbers on the drawing. Copy each one exactly as printed — "18' 3\\"" not "18.25 ft", "3,50" not "3.5", "3.5 м", "350". There are two kinds, reported in different places:
    - A **dimension line**: a size between two arrows or tick marks, with extension lines running to the walls — usually chained along the outside of the plan, often with an overall size beyond the chain. Report every one in dimensions: each segment of a chain on its own, and the overall too. axis is across when it measures left to right, down when top to bottom; from and to are where its two ends are along that axis on the ruler (x for across, y for down) — where the arrows or ticks are, which is where the extension lines meet the walls; at is where the dimension line itself is drawn on the other axis (its y for across, its x for down). Do not attach these to rooms.
    - A **size written in a room** (or in a table of rooms by name) with no dimension line — "3.50 x 4.20", "Bed 01: 3.5 x 3.0m": that room's clear inside size. Put it on the room's part, widthLabel for across and depthLabel for down, matching the two numbers to the room's shape.
-   An area (m², sq ft) is not a dimension.
+   - An **area printed in a room** (or beside its name in a table) — "10.8 m²", "10,8 მ²", "116 sq ft": copy it into that room's areaLabel exactly as printed. It is the area of that room's floor, wall face to wall face, so the room's parts should cover about that much: when the rectangles you have drawn are far from the printed area, look again at where the room ends. An area of the whole flat — a total, a "living area", a line in a summary table — belongs to no room: leave it out.
 
-4. **Openings.** Every door, window, archway, open connection and balcony railing, each once:
-   - door: a leaf with its swing arc. hinge is the point the arc pivots on (the corner of the opening the leaf hangs from); swingsInto is the room the leaf swings into, null when it swings outside.
+5. **Openings.** Every door, window, archway, open connection and balcony railing, each once:
+   - door: a leaf with its swing arc. A door is in the wall its gap is in — find the gap in the wall at the pivot of the arc, not where the arc ends: side is the side of roomA that wall is on, from and to are the two ends of the gap. hinge is the point the arc pivots on (the corner of the opening the leaf hangs from); swingsInto is the room the leaf swings into, null when it swings outside.
    - window: thin parallel lines across an outer wall, or a wall onto a balcony.
    - archway: a gap in a wall between two rooms with no door in it. A gap in an outer wall that leads out of the flat is its entrance: report it as a door.
    - open: two rooms with no wall between them at all — an open-plan kitchen and living room, a hallway running straight into the living room. from and to are the ends of the stretch where nothing stands.
-   - railing: a balcony's open side, drawn as a thin line or railing instead of a wall.
+   - railing: a balcony's open side, drawn as a thin line or railing instead of a wall. A balcony or terrace outlined with a line much thinner than the building's walls is open on each of those sides: report a railing along each.
    For each: roomA is the room it belongs to (for one between two rooms, either), roomB the room on the other side or null for the outside, side which side of roomA's outline it is in as the image is drawn, from and to its two ends on the wall.
 
-5. **Ignore** furniture, fixtures, plants, hatching, text, the ruler and dimension arrows — they are drawn on the plan but they are not walls.
+6. **Ignore** furniture, fixtures, plants, floor patterns, text, the ruler and dimension arrows — they are drawn on the plan but they are not walls.
 
 Room type must be one of: ${ROOM_TYPE_VALUES.join(', ')}. Map an unusual label to the closest fit — a "study" is an office, a "WC" is a toilet, a "terrace" or "loggia" is a balcony, a "corridor" or "entry" is a hallway.
 
-If the drawing has no dimension labels at all, still report the rooms and say so in the notes.`;
+If the drawing has no sizes and no areas printed at all, still report the rooms and say so in the notes.`;
 
 // ---------------------------------------------------------------------------
 // The call
@@ -328,21 +365,24 @@ export function normaliseReading(reading: AiPlanReading): AiPlanReading {
   const clamp = (v: number) => (Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0);
   const label = (v: string | null | undefined) => (typeof v === 'string' && v.trim() ? v.trim() : null);
   const point = (p: AiPoint | null | undefined): AiPoint | null => (p && typeof p === 'object' ? { x: clamp(p.x), y: clamp(p.y) } : null);
+  const box = (b: NormBox): NormBox => ({
+    x0: clamp(Math.min(b.x0, b.x1)),
+    x1: clamp(Math.max(b.x0, b.x1)),
+    y0: clamp(Math.min(b.y0, b.y1)),
+    y1: clamp(Math.max(b.y0, b.y1)),
+  });
 
   const rooms = (reading.rooms ?? [])
     .filter((room) => room && typeof room.name === 'string')
     .map((room, index) => ({
       name: room.name.trim() || `Room ${index + 1}`,
       type: ROOM_TYPE_VALUES.includes(room.type) ? room.type : 'living_room',
+      ...(room.printedName !== undefined ? { printedName: label(room.printedName) } : {}),
+      areaLabel: label(room.areaLabel),
       parts: (room.parts ?? [])
         .filter((part) => part && part.box)
         .map((part) => ({
-          box: {
-            x0: clamp(Math.min(part.box.x0, part.box.x1)),
-            x1: clamp(Math.max(part.box.x0, part.box.x1)),
-            y0: clamp(Math.min(part.box.y0, part.box.y1)),
-            y1: clamp(Math.max(part.box.y0, part.box.y1)),
-          },
+          box: box(part.box),
           widthLabel: label(part.widthLabel),
           depthLabel: label(part.depthLabel),
         }))
@@ -379,7 +419,13 @@ export function normaliseReading(reading: AiPlanReading): AiPlanReading {
     }))
     .filter((d) => d.to - d.from > 0.005);
 
-  return { unitSystem: reading.unitSystem === 'imperial' ? 'imperial' : 'metric', rooms, openings, dimensions, notes: label(reading.notes) };
+  // A block with no size is nothing; one as big as a room is a room the model called a block.
+  const voids = (reading.voids ?? [])
+    .filter((v) => v && v.box)
+    .map((v) => ({ box: box(v.box) }))
+    .filter((v) => v.box.x1 - v.box.x0 > 0.004 && v.box.y1 - v.box.y0 > 0.004 && (v.box.x1 - v.box.x0) * (v.box.y1 - v.box.y0) < 0.03);
+
+  return { unitSystem: reading.unitSystem === 'imperial' ? 'imperial' : 'metric', rooms, voids, openings, dimensions, notes: label(reading.notes) };
 }
 
 // ---------------------------------------------------------------------------
@@ -391,6 +437,10 @@ export interface BuildOptions {
   ink?: InkImage | null;
   imageUrl?: string | null;
   ceilingHeightM?: number;
+  /** The image's width over its height when the ink is not at hand (a reading replayed alone); 1 when unknown. */
+  aspect?: number;
+  /** False leaves the rooms as the walls put them, not fitted to their printed areas — to see what the fit did (`plan:ai --no-fit`). */
+  fitAreas?: boolean;
 }
 
 export interface AiPlanResult {
@@ -402,6 +452,8 @@ export interface AiPlanResult {
   /** False when nothing printed gave the plan its size: the person is asked for one wall's length. */
   scaleKnown: boolean;
   notes: string | null;
+  /** Each area printed in a room against what the room measures, m² — for the `plan:ai` tool. `fitted` is false for one too far from the drawing to be held to. */
+  areas: Array<{ room: string; target: number; solved: number; fitted: boolean }>;
   /** The solve behind the plan — for the `plan:ai` tool's overlay, not for the client. */
   solve: SolveResult;
 }
@@ -419,6 +471,11 @@ export function labelMetres(label: string | null, unitSystem: AiPlanReading['uni
   return parsed.metres;
 }
 
+/** A printed floor area in m² (`parseArea`); a bare number is read in the drawing's units. */
+export function labelArea(label: string | null | undefined, unitSystem: AiPlanReading['unitSystem']): number | null {
+  return label ? parseArea(label, unitSystem === 'imperial' ? 'ft2' : 'm2') : null;
+}
+
 /**
  * Converts a model reading into an exact `FloorPlan`, walls and all.
  *
@@ -429,6 +486,11 @@ export function buildPlanFromReading(reading: AiPlanReading, options: BuildOptio
   const heightM = options.ceilingHeightM ?? DEFAULT_CEILING_M;
 
   // --- 1. every rectangle as a rough room, its sides pinned to the ink where it shows a wall ---
+  // The solid blocks first: each on its own edges, and wiped off the ink the rooms are pinned
+  // on — a hatched shaft is ink from edge to edge, and reads as a wall wherever a room meets it.
+  const context: { thinSides: ThinSide[] } = { thinSides: [] };
+  const blocks: RoughRoom[] = (reading.voids ?? []).map((v, k) => ({ id: `v${k + 1}`, box: ink ? blockBox(ink, v.box) : v.box, void: true }));
+  const pinInk = ink && blocks.length > 0 ? withoutInk(ink, blocks.map((b) => b.box)) : ink;
   const parts: Array<{ room: number; rough: RoughRoom }> = [];
   reading.rooms.forEach((room, r) => {
     room.parts.forEach((part, p) => {
@@ -440,79 +502,165 @@ export function buildPlanFromReading(reading: AiPlanReading, options: BuildOptio
           widthM: labelMetres(part.widthLabel, reading.unitSystem),
           depthM: labelMetres(part.depthLabel, reading.unitSystem),
           outdoor: room.type === 'balcony',
-          ...(ink ? { ink: sideBands(ink, part.box) } : {}),
+          ...(pinInk ? { ink: sideBands(pinInk, part.box) } : {}),
         },
       });
     });
   });
-  if (ink) dropHairlines(parts.map((p) => p.rough));
+  if (ink) {
+    const thinSides = thinBalconySides(reading, parts, ink);
+    context.thinSides.push(...thinSides);
+    dropHairlines(parts.map((p) => p.rough), ink);
+    pinBlocksToWalls(blocks, parts.map((p) => p.rough));
+    markOpenSides(parts);
+  }
 
   // --- 2. the wall lines every printed dimension agrees with ---
   const dimensions = (reading.dimensions ?? []).flatMap((d): PrintedDimension[] => {
     const metres = labelMetres(d.label, reading.unitSystem);
     return metres ? [{ axis: d.axis === 'across' ? 'x' : 'y', from: d.from, to: d.to, at: d.at, metres }] : [];
   });
-  const solve = solvePlan(parts.map((p) => p.rough), { dimensions });
+  const printedAreas = reading.rooms.map((room) => labelArea(room.areaLabel, reading.unitSystem));
+  const aspect = options.aspect ?? (ink ? ink.width / ink.height : undefined);
+  let solve = solvePlan([...parts.map((p) => p.rough), ...blocks], {
+    dimensions,
+    aspect,
+    areaScale: scaleFromAreas(reading, parts, blocks, printedAreas, aspect ?? 1),
+  });
   const doubtful = new Set(
     solve.residuals.filter((r) => Math.abs(r.solved - r.target) > 0.08).map((r) => parts.find((p) => p.rough.id === r.roomId)!.room)
   );
 
-  // --- 3. the rooms as cells of the grid ---
-  const solvedById = new Map(solve.rooms.map((s) => [s.id, s.lines]));
-  const grid = assignCells(
-    solve.xLines,
-    solve.yLines,
-    reading.rooms.map((_, r) => ({
-      parts: parts.filter((p) => p.room === r).map((p) => solvedById.get(p.rough.id)!),
-    }))
-  );
+  // --- 3–5. the rooms as cells of the grid, the walls along their boundaries, the faces they enclose ---
+  const layOut = (solved: SolveResult) => {
+    const solvedById = new Map(solved.rooms.map((s) => [s.id, s.lines]));
+    const grid = assignCells(
+      solved.xLines,
+      solved.yLines,
+      reading.rooms.map((_, r) => ({
+        parts: parts.filter((p) => p.room === r).map((p) => solvedById.get(p.rough.id)!),
+      })),
+      blocks.map((b) => solvedById.get(b.id)!)
+    );
 
-  // --- 4. the walls: every boundary, open where the rooms run into each other ---
-  const resolver = roomResolver(reading, grid);
-  const runs = boundaryRuns(grid);
-  const thicknessOf = (run: Pick<BoundaryRun, 'orientation' | 'line'>) =>
-    run.orientation === 'v' ? solve.xThickness[run.line] ?? DEFAULT_WALL_M : solve.yThickness[run.line] ?? DEFAULT_WALL_M;
-  const openPairs = new Set<string>();
-  const passagePairs = new Set<string>();
-  for (const opening of reading.openings) {
-    const at = solve.toPlan(midpoint(opening.from, opening.to));
-    const a = resolver(opening.roomA, at);
-    const b = opening.roomB ? resolver(opening.roomB, at) : -1;
-    if (a < 0 || b < 0 || a === b) continue;
-    if (opening.kind === 'open') openPairs.add(pairKey(a, b));
-    if (opening.kind === 'door' || opening.kind === 'archway') passagePairs.add(pairKey(a, b));
-  }
-  const walls = splitAtJunctions(
-    wallsFromRuns(runs, thicknessOf, (run) => openStretches(run, { ink, solve, thicknessOf, openPairs, passagePairs }))
-  );
+    // The walls: every boundary, open where the rooms run into each other.
+    const resolver = roomResolver(reading, grid);
+    const runs = boundaryRuns(grid);
+    const thicknessOf = (run: Pick<BoundaryRun, 'orientation' | 'line'>) =>
+      run.orientation === 'v' ? solved.xThickness[run.line] ?? DEFAULT_WALL_M : solved.yThickness[run.line] ?? DEFAULT_WALL_M;
+    const openPairs = new Set<string>();
+    const passagePairs = new Set<string>();
+    for (const opening of reading.openings) {
+      const at = solved.toPlan(midpoint(opening.from, opening.to));
+      const a = resolver(opening.roomA, at);
+      const b = opening.roomB ? resolver(opening.roomB, at) : -1;
+      if (a < 0 || b < 0 || a === b) continue;
+      if (opening.kind === 'open') openPairs.add(pairKey(a, b));
+      if (opening.kind === 'door' || opening.kind === 'archway') passagePairs.add(pairKey(a, b));
+    }
+    const walls = splitAtJunctions(
+      wallsFromRuns(runs, thicknessOf, (run) => openStretches(run, { ink, solve: solved, thicknessOf, openPairs, passagePairs }))
+    );
 
-  // --- 5. the rooms those walls enclose, each given back its reading ---
-  const faces = roomsFromWalls(walls, { defaultThicknessM: DEFAULT_WALL_M, defaultHeightM: heightM });
-  const byIndex = new Map<number, PlanRoom>();
-  const used = new Set<PlanRoom>();
-  reading.rooms.forEach((room, r) => {
-    const anchor = roomAnchor(grid, r);
-    const face = anchor ? faces.find((f) => !used.has(f) && pointInPolygon(anchor, f.polygon)) : undefined;
-    if (!face) return;
-    used.add(face);
-    face.id = `r${r + 1}`;
-    face.name = room.name;
-    face.type = room.type;
-    face.heightM = heightM;
-    if (doubtful.has(r)) face.lowConfidence = true;
-    byIndex.set(r, face);
+    // The rooms those walls enclose, each given back its reading. The inside of a solid block
+    // is a face of the wall graph too when the block is big, and is nobody's room.
+    const faces = roomsFromWalls(walls, { defaultThicknessM: DEFAULT_WALL_M, defaultHeightM: heightM }).filter(
+      (face) => ownerAt(grid, polygonCentroid(face.polygon)) !== SOLID
+    );
+    const byIndex = new Map<number, PlanRoom>();
+    const used = new Set<PlanRoom>();
+    reading.rooms.forEach((room, r) => {
+      const anchor = roomAnchor(grid, r);
+      const face = anchor ? faces.find((f) => !used.has(f) && pointInPolygon(anchor, f.polygon)) : undefined;
+      if (!face) return;
+      used.add(face);
+      face.id = `r${r + 1}`;
+      // The drawing's own label; a room it prints none for is called what it is.
+      face.name = room.printedName === undefined ? room.name : room.printedName ?? nextRoomName([], room.type);
+      face.type = room.type;
+      face.heightM = heightM;
+      byIndex.set(r, face);
+    });
+    // A face no reading room claims is a pocket the walls closed by themselves; it keeps the type
+    // its size suggests rather than vanishing, since the walls around it are real.
+    let extra = reading.rooms.length;
+    const rooms = faces.map((face) => {
+      if (!used.has(face)) face.id = `r${++extra}`;
+      return face;
+    });
+    return { grid, resolver, runs, walls, rooms, byIndex };
+  };
+  let laid = layOut(solve);
+
+  // --- 5b. every room the size printed in it ---
+  // The rooms are measured as the board will measure them (the faces above); the lines move a
+  // little, the plan is laid out again, and so on until each room is its printed area.
+  const measured = (from: ReturnType<typeof layOut>, r: number) => {
+    const room = from.byIndex.get(r);
+    return room ? polygonAreaM2(room.polygon) : null;
+  };
+  // Held to its label only when the drawing agrees it is about that size: a label far off is
+  // a misread, or the area of something else.
+  const fitted = new Set<number>();
+  printedAreas.forEach((target, r) => {
+    const now = measured(laid, r);
+    if (solve.scaleKnown && target != null && now != null && Math.abs(now - target) <= MAX_AREA_DRIFT * target) fitted.add(r);
+    else if (solve.scaleKnown && target != null && now != null) doubtful.add(r);
   });
-  // A face no reading room claims is a pocket the walls closed by themselves; it keeps the type
-  // its size suggests rather than vanishing, since the walls around it are real.
-  let extra = reading.rooms.length;
-  const rooms = faces.map((face) => {
-    if (!used.has(face)) face.id = `r${++extra}`;
-    return face;
+  const worstArea = (from: ReturnType<typeof layOut>) =>
+    [...fitted].reduce((max, r) => Math.max(max, Math.abs((measured(from, r) ?? printedAreas[r]!) - printedAreas[r]!)), 0);
+  if (fitted.size > 0 && options.fitAreas !== false) {
+    let best = { solve, laid, error: worstArea(laid) };
+    const base = { x: solve.xLines, y: solve.yLines };
+    // Neighbouring lines the fit has brought as close as they may come: held from then on.
+    const held: SolveResult['ties'] = [];
+    for (let pass = 0; pass < 16 && best.error > AREA_TOLERANCE_M2; pass++) {
+      const targets = [...fitted].flatMap((r) => {
+        const current = measured(laid, r);
+        return current == null ? [] : [{ room: r, target: printedAreas[r]!, current }];
+      });
+      const stiffness = lineStiffness(solve, laid.walls);
+      const stepWith = () => areaStep({ nx: solve.xLines.length, ny: solve.yLines.length, runs: laid.runs, targets, stiffness, ties: [...solve.ties, ...held] });
+      let step = stepWith();
+      for (let again = 0; step && again < 6; again++) {
+        const squeezed = [...squeezedPairs(solve.xLines, step.dx, base.x, 'x'), ...squeezedPairs(solve.yLines, step.dy, base.y, 'y')];
+        if (squeezed.length === 0) break;
+        held.push(...squeezed);
+        step = stepWith();
+      }
+      if (!step || squeezedPairs(solve.xLines, step.dx, base.x, 'x').length + squeezedPairs(solve.yLines, step.dy, base.y, 'y').length > 0) break;
+      const xs = solve.xLines.map((v, i) => v + step!.dx[i]);
+      const ys = solve.yLines.map((v, i) => v + step!.dy[i]);
+      // Areas that only walls moved far from where they are drawn could meet are not the
+      // drawing's: the fit stops there, and the rooms still off are flagged for a look.
+      if (farthestShift(xs, base.x) > MAX_FIT_SHIFT_M || farthestShift(ys, base.y) > MAX_FIT_SHIFT_M) break;
+      solve = withLines(solve, xs, ys);
+      laid = layOut(solve);
+      // A step that lost a room (two lines met) is not kept.
+      if ([...fitted].some((r) => measured(laid, r) == null)) break;
+      const error = worstArea(laid);
+      if (error < best.error) best = { solve, laid, error };
+    }
+    solve = best.solve;
+    laid = best.laid;
+  }
+  const { walls, rooms, byIndex, resolver } = laid;
+  for (const r of fitted) {
+    const now = measured(laid, r);
+    if (now == null || Math.abs(now - printedAreas[r]!) > 0.05) doubtful.add(r);
+  }
+  for (const r of doubtful) {
+    const room = byIndex.get(r);
+    if (room) room.lowConfidence = true;
+  }
+  const areas = printedAreas.flatMap((target, r) => {
+    const solved = measured(laid, r);
+    return target != null && solved != null ? [{ room: reading.rooms[r].name, target, solved: round2(solved), fitted: fitted.has(r) }] : [];
   });
 
   // --- 6. doors, windows and railings where the drawing has them; inference only for the rest ---
   const wallById = new Map(walls.map((w) => [w.id, w]));
-  placeReadOpenings(rooms, reading, { byIndex, resolver, solve, ink, wallById });
+  placeReadOpenings(rooms, reading, { byIndex, resolver, solve, ink, wallById, thinSides: context.thinSides });
   inferMissingOpenings(rooms, reading, walls);
 
   const worstResidualM = [...solve.residuals, ...solve.dimensionResiduals].reduce((max, r) => Math.max(max, Math.abs(r.solved - r.target)), 0);
@@ -528,7 +676,153 @@ export function buildPlanFromReading(reading: AiPlanReading, options: BuildOptio
     wallThicknessM: DEFAULT_WALL_M,
   });
 
-  return { plan, worstResidualM, lowConfidence: solve.lowConfidence, scaleKnown: solve.scaleKnown, notes: reading.notes, solve };
+  return { plan, worstResidualM, lowConfidence: solve.lowConfidence, scaleKnown: solve.scaleKnown, notes: reading.notes, areas, solve };
+}
+
+/** Rooms are fitted until each is within this of its printed area, m² — under what two decimals show. */
+const AREA_TOLERANCE_M2 = 0.002;
+
+/** The furthest the fit may move a line from where the walls put it, relative to the plan's first line, metres. */
+const MAX_FIT_SHIFT_M = 0.4;
+
+/** How far the line that moved most has gone from `base`, the first line taken as standing still. */
+function farthestShift(lines: number[], base: number[]): number {
+  return lines.reduce((max, v, i) => Math.max(max, Math.abs(v - lines[0] - (base[i] - base[0]))), 0);
+}
+
+/**
+ * Metres per normalised unit from the areas printed in the rooms — for a drawing with no length
+ * on it, where they are the only numbers there are. Each room's rectangles are measured face to
+ * face on the image (a pinned side at its wall band's inner face, the rest where the model put
+ * them, less the solid blocks standing in them); the printed area over that is metres² per unit²,
+ * the median over the rooms is the plan's, and the image's shape splits it between the axes.
+ * Null when no room has an area printed.
+ */
+function scaleFromAreas(
+  reading: AiPlanReading,
+  parts: Array<{ room: number; rough: RoughRoom }>,
+  blocks: RoughRoom[],
+  printedAreas: Array<number | null>,
+  aspect: number
+): { x: number; y: number } | null {
+  const face = (rough: RoughRoom, side: 'x0' | 'x1' | 'y0' | 'y1'): number => {
+    const band = rough.ink?.[side];
+    if (!band) return rough.box[side];
+    return side === 'x0' || side === 'y0' ? band.centre + band.thickness / 2 : band.centre - band.thickness / 2;
+  };
+  const overlap = (a: NormBox, b: NormBox) => Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0)) * Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0));
+  const ratios: number[] = [];
+  reading.rooms.forEach((_, r) => {
+    const target = printedAreas[r];
+    if (target == null) return;
+    let floor = 0;
+    for (const { room, rough } of parts) {
+      if (room !== r) continue;
+      const box = { x0: face(rough, 'x0'), x1: face(rough, 'x1'), y0: face(rough, 'y0'), y1: face(rough, 'y1') };
+      floor += Math.max(0, box.x1 - box.x0) * Math.max(0, box.y1 - box.y0) - blocks.reduce((sum, b) => sum + overlap(box, b.box), 0);
+    }
+    if (floor > 1e-5) ratios.push(target / floor);
+  });
+  if (ratios.length === 0) return null;
+  const perUnit2 = ratios.sort((a, b) => a - b)[Math.floor(ratios.length / 2)];
+  const y = Math.sqrt(perUnit2 / aspect);
+  return { x: y * aspect, y };
+}
+
+/**
+ * How hard each grid line holds its place when the rooms are fitted to their areas: a wall the
+ * image showed stays nearly where it is, a wall it did not show gives a little, and a line with
+ * only room separators on it — a boundary the drawing does not build — moves freely.
+ */
+function lineStiffness(solve: SolveResult, walls: Wall[]): { x: number[]; y: number[] } {
+  const tally = (lines: number[], vertical: boolean) => {
+    const wall = new Array<number>(lines.length).fill(0);
+    const open = new Array<number>(lines.length).fill(0);
+    for (const w of walls) {
+      const isVertical = Math.abs(w.a.x - w.b.x) < 1e-6;
+      if (isVertical !== vertical) continue;
+      const at = vertical ? w.a.x : w.a.z;
+      const index = lines.findIndex((v) => Math.abs(v - at) < 2e-3);
+      if (index < 0) continue;
+      const length = Math.hypot(w.b.x - w.a.x, w.b.z - w.a.z);
+      if (w.separator) open[index] += length;
+      else wall[index] += length;
+    }
+    return { wall, open };
+  };
+  const stiffness = (lines: number[], vertical: boolean, shown: boolean[]) => {
+    const { wall, open } = tally(lines, vertical);
+    return lines.map((_, i) => (open[i] > 0 && wall[i] < 0.3 ? 0.03 : shown[i] ? 1 : 0.3));
+  };
+  return { x: stiffness(solve.xLines, true, solve.xMeasured), y: stiffness(solve.yLines, false, solve.yMeasured) };
+}
+
+/** A band's thickness in pixels: it is normalised to the width on a vertical side, the height on a horizontal one. */
+function bandPixels(ink: InkImage): (side: 'x0' | 'x1' | 'y0' | 'y1', thickness: number) => number {
+  return (side, thickness) => thickness * (side === 'x0' || side === 'x1' ? ink.width : ink.height);
+}
+
+/**
+ * Where two rooms meet on one line and the image shows no wall on either's side of it, the
+ * rooms run into each other there — an open-plan kitchen and its hallway. Both sides are marked
+ * with the line they share (`RoughRoom.openSides`), so the solver keeps it a line of its own
+ * instead of drawing it onto the nearest wall: a kitchen that ends 20 cm short of the partition
+ * beside it is not a kitchen that reaches it.
+ */
+function markOpenSides(parts: Array<{ room: number; rough: RoughRoom }>): void {
+  const MEET = 0.008;
+  const mark = (rough: RoughRoom, side: 'x0' | 'x1' | 'y0' | 'y1', at: number) => {
+    rough.openSides = { ...rough.openSides, [side]: at };
+  };
+  for (const p of parts) {
+    for (const q of parts) {
+      if (p.room === q.room) continue;
+      const a = p.rough;
+      const b = q.rough;
+      // a's right side on b's left, along a shared stretch.
+      const overlapY = Math.min(a.box.y1, b.box.y1) - Math.max(a.box.y0, b.box.y0);
+      if (!a.ink?.x1 && !b.ink?.x0 && Math.abs(a.box.x1 - b.box.x0) <= MEET && overlapY >= 0.3 * Math.min(a.box.y1 - a.box.y0, b.box.y1 - b.box.y0)) {
+        const at = (a.box.x1 + b.box.x0) / 2;
+        mark(a, 'x1', at);
+        mark(b, 'x0', at);
+      }
+      // a's bottom side on b's top.
+      const overlapX = Math.min(a.box.x1, b.box.x1) - Math.max(a.box.x0, b.box.x0);
+      if (!a.ink?.y1 && !b.ink?.y0 && Math.abs(a.box.y1 - b.box.y0) <= MEET && overlapX >= 0.3 * Math.min(a.box.x1 - a.box.x0, b.box.x1 - b.box.x0)) {
+        const at = (a.box.y1 + b.box.y0) / 2;
+        mark(a, 'y1', at);
+        mark(b, 'y0', at);
+      }
+    }
+  }
+}
+
+/**
+ * A solid block standing against a wall is on that wall's line. A side of a block that lies in
+ * or just off a wall band one of the rooms was pinned on, along the same stretch, takes the
+ * band — or the block would get a line of its own a hand from the wall, and a sliver of floor
+ * between the two.
+ */
+function pinBlocksToWalls(blocks: RoughRoom[], rooms: RoughRoom[]): void {
+  const REACH = 0.015;
+  for (const block of blocks) {
+    for (const side of ['x0', 'x1', 'y0', 'y1'] as const) {
+      const vertical = side === 'x0' || side === 'x1';
+      const [lo, hi] = vertical ? [block.box.y0, block.box.y1] : [block.box.x0, block.box.x1];
+      let best: InkEdge | null = null;
+      for (const room of rooms) {
+        const [from, to] = vertical ? [room.box.y0, room.box.y1] : [room.box.x0, room.box.x1];
+        if (Math.min(hi, to) - Math.max(lo, from) < (hi - lo) * 0.5) continue;
+        for (const other of vertical ? (['x0', 'x1'] as const) : (['y0', 'y1'] as const)) {
+          const band = room.ink?.[other];
+          if (!band) continue;
+          const off = Math.abs(block.box[side] - band.centre);
+          if (off <= band.thickness / 2 + REACH && (!best || off < Math.abs(block.box[side] - best.centre))) best = band;
+        }
+      }
+      if (best) block.ink = { ...block.ink, [side]: best };
+    }
+  }
 }
 
 /** The wall bands the ink shows along a rectangle's four sides. */
@@ -537,7 +831,7 @@ function sideBands(ink: InkImage, box: NormBox): RoughRoom['ink'] {
   const reachY = (box.y1 - box.y0) * 0.4;
   const band = (orientation: 'h' | 'v', at: number, from: number, to: number, reach: number): InkEdge | null => {
     const found = wallBandNear(ink, { orientation, at, from, to, reach });
-    return found ? { centre: found.centre, thickness: found.thickness } : null;
+    return found ? { centre: found.centre, thickness: found.thickness, coverage: found.coverage } : null;
   };
   return {
     x0: band('v', box.x0, box.y0, box.y1, reachX),
@@ -553,23 +847,33 @@ function sideBands(ink: InkImage, box: NormBox): RoughRoom['ink'] {
  * typical wall is that, and is forgotten. The other way, a hatched counter or a filled cupboard
  * drawn against a wall merges with it into one band several walls thick (an exterior wall is
  * often twice a partition, never this): the wall is the band's outer part, so its outer face
- * stays and it takes the typical thickness.
+ * stays and it takes the typical thickness. A band that thick whose *inner* face is where the
+ * room was read to end is the other thing — a mass of masonry behind the room's wall, a pier or
+ * the solid corner another room steps round — and there the inner face stays.
  */
-function dropHairlines(rough: RoughRoom[]): void {
+function dropHairlines(rough: RoughRoom[], ink: InkImage): void {
   const sides = ['x0', 'x1', 'y0', 'y1'] as const;
-  const thicknesses = rough.flatMap((r) => sides.flatMap((side) => (r.ink?.[side] ? [r.ink[side]!.thickness] : [])));
+  // In pixels: a band's thickness is a share of the image's width on a vertical side and of its
+  // height on a horizontal one, and the two only compare on a square image.
+  const px = bandPixels(ink);
+  const thicknesses = rough.flatMap((r) => sides.flatMap((side) => (r.ink?.[side] ? [px(side, r.ink[side]!.thickness)] : [])));
   if (thicknesses.length < 3) return;
-  const typical = [...thicknesses].sort((a, b) => a - b)[Math.floor(thicknesses.length / 2)];
+  const typicalPx = [...thicknesses].sort((a, b) => a - b)[Math.floor(thicknesses.length / 2)];
   for (const r of rough) {
     for (const side of sides) {
       const band = r.ink?.[side];
       if (!band) continue;
+      // The typical wall as a share of this side's own axis.
+      const typical = typicalPx / px(side, 1);
       if (band.thickness < typical * 0.5) r.ink![side] = null;
       else if (band.thickness > typical * 2.6) {
         // The room lies on the + side of an x0/y0 band and the − side of an x1/y1 one.
         const outward = side === 'x0' || side === 'y0' ? -1 : 1;
         const outer = band.centre + (outward * band.thickness) / 2;
-        r.ink![side] = { centre: outer - (outward * typical) / 2, thickness: typical };
+        const inner = band.centre - (outward * band.thickness) / 2;
+        // Where the room was read to end says which: at the mass's near face, or a wall's thickness in from its far one.
+        const solidBehind = Math.abs(r.box[side] - inner) < Math.abs(r.box[side] - (outer - outward * typical));
+        r.ink![side] = solidBehind ? { centre: inner + (outward * typical) / 2, thickness: typical } : { centre: outer - (outward * typical) / 2, thickness: typical };
       }
     }
   }
@@ -666,6 +970,44 @@ interface PlacementContext {
   solve: SolveResult;
   ink: InkImage | null;
   wallById: Map<string, Wall>;
+  /** The balcony sides the drawing draws as a thin line (`thinBalconySides`). */
+  thinSides: ThinSide[];
+}
+
+/** One side of a balcony's rectangle drawn as a line too thin to be a wall. */
+interface ThinSide {
+  room: number;
+  side: PlanSide;
+  /** The middle of that side, on the image. */
+  mid: AiPoint;
+}
+
+/**
+ * The sides of the balconies' rectangles that the drawing draws as a thin line — under 70 % of
+ * its typical wall — rather than as a wall: a parapet rail, a glass screen. Read before the
+ * hairlines are dropped (`dropHairlines`), which forgets them.
+ */
+function thinBalconySides(reading: AiPlanReading, parts: Array<{ room: number; rough: RoughRoom }>, ink: InkImage): ThinSide[] {
+  const sides = ['x0', 'x1', 'y0', 'y1'] as const;
+  const px = bandPixels(ink);
+  const thicknesses = parts.flatMap((p) => sides.flatMap((side) => (p.rough.ink?.[side] ? [px(side, p.rough.ink[side]!.thickness)] : [])));
+  if (thicknesses.length < 3) return [];
+  // The typical wall among the bands that are walls at all: a drawing's hairlines are not.
+  const sorted = [...thicknesses].sort((a, b) => a - b);
+  const typical = sorted[Math.floor(sorted.length * 0.65)];
+  const name: Record<(typeof sides)[number], PlanSide> = { x0: 'left', x1: 'right', y0: 'top', y1: 'bottom' };
+  const out: ThinSide[] = [];
+  for (const { room, rough } of parts) {
+    if (reading.rooms[room].type !== 'balcony') continue;
+    for (const side of sides) {
+      const band = rough.ink?.[side];
+      if (!band || px(side, band.thickness) >= typical * 0.7 || (band.coverage ?? 0) < 0.8) continue;
+      const box = rough.box;
+      const mid = side === 'x0' || side === 'x1' ? { x: box[side], y: (box.y0 + box.y1) / 2 } : { x: (box.x0 + box.x1) / 2, y: box[side] };
+      out.push({ room, side: name[side], mid });
+    }
+  }
+  return out;
 }
 
 /**
@@ -680,7 +1022,7 @@ interface PlacementContext {
  * halves; the same opening read from both rooms is placed once.
  */
 function placeReadOpenings(rooms: PlanRoom[], reading: AiPlanReading, context: PlacementContext): void {
-  const { byIndex, resolver, solve, ink, wallById } = context;
+  const { byIndex, resolver, solve, ink, wallById, thinSides } = context;
   const thicknessBehind = (room: PlanRoom, edge: PlanEdge) => wallById.get(room.wallIds?.[edge.index] ?? '')?.thicknessM ?? DEFAULT_WALL_M;
   const usedGaps = new Set<string>();
   const placed: Array<{ kind: OpeningKind; a: string; b: string | null; centre: Vec2 }> = [];
@@ -729,7 +1071,7 @@ function placeReadOpenings(rooms: PlanRoom[], reading: AiPlanReading, context: P
 
     // Onto the gap the drawing leaves in a solid wall.
     if (ink && kind !== 'railing') {
-      const gap = nearestGap(ink, solve, room, edge, thicknessBehind(room, edge), kind, centre, usedGaps);
+      const gap = nearestGap(ink, solve, edge, thicknessBehind(room, edge), kind, centre, usedGaps);
       if (gap) {
         centre = (gap.from + gap.to) / 2;
         width = openingWidth(kind, gap.to - gap.from, labelMetres(read.widthLabel, reading.unitSystem), edge.length);
@@ -737,8 +1079,15 @@ function placeReadOpenings(rooms: PlanRoom[], reading: AiPlanReading, context: P
     }
 
     const margin = cornerMargin(kind);
-    const t = projectToEdge(edge, pointOnEdge(edge, clamp01(centre / edge.length)), width, margin);
-    if (overlapsOpening(room, edge.index, t, width, edge.length)) continue;
+    let t = projectToEdge(edge, pointOnEdge(edge, clamp01(centre / edge.length)), width, margin);
+    if (overlapsOpening(room, edge.index, t, width, edge.length)) {
+      // A window between a corner and a door, a door beside another: it takes the wall that is
+      // left there rather than going missing.
+      const squeezed = squeezeOnEdge(room, edge, centre, width, kind);
+      if (!squeezed) continue;
+      width = squeezed.width;
+      t = squeezed.centre / edge.length;
+    }
 
     const defaults = OPENING_DEFAULTS[kind];
     const hinge: Opening['hinge'] =
@@ -780,6 +1129,107 @@ function placeReadOpenings(rooms: PlanRoom[], reading: AiPlanReading, context: P
     room.openings.push(primary);
     placed.push({ kind, a: room.id, b: other?.id ?? null, centre: centreWorld });
   }
+
+  // --- the doorways the drawing shows and the reading left out ---
+  // A gap in a solid wall between two rooms is a way through whether or not it was reported:
+  // a door read onto the wrong wall leaves the right one a blank wall, and its room shut in.
+  if (ink) {
+    for (const room of rooms) {
+      for (const edge of wallEdges(room)) {
+        const thickness = thicknessBehind(room, edge);
+        const middle = pointOnEdge(edge, 0.5);
+        const other = rooms.find((r) => r !== room && r.id > room.id && facingEdge(r, edge, middle, thickness)) ?? null;
+        if (!other) continue;
+        for (const gap of edgeGaps(ink, solve, edge, thickness)) {
+          const width = gap.to - gap.from;
+          if (gap.kind !== 'empty' || width < 0.55 || width > 1.3 || usedGaps.has(gap.key)) continue;
+          const centre = pointOnEdge(edge, clamp01((gap.from + gap.to) / 2 / edge.length));
+          const twinEdge = facingEdge(other, edge, centre, thickness);
+          if (!twinEdge) continue;
+          const t = projectToEdge(edge, centre, width, cornerMargin('door'));
+          const twinT = projectToEdge(twinEdge, centre, width, cornerMargin('door'));
+          if (overlapsOpening(room, edge.index, t, width, edge.length) || overlapsOpening(other, twinEdge.index, twinT, width, twinEdge.length)) continue;
+          usedGaps.add(gap.key);
+          const primary: Opening = {
+            id: `${room.id}-o${++serial}`,
+            kind: 'door',
+            wallIndex: edge.index,
+            t,
+            widthM: round2(width),
+            heightM: OPENING_DEFAULTS.door.heightM,
+            sillM: 0,
+            roomId: room.id,
+            connectsToRoomId: other.id,
+            exterior: false,
+            hinge: 'left',
+            swing: 'in',
+            origin: 'existing',
+          };
+          room.openings.push(primary);
+          other.openings.push({ ...primary, id: `${other.id}-${room.id}-d-${primary.id}`, wallIndex: twinEdge.index, t: twinT, roomId: other.id, connectsToRoomId: room.id, hinge: mirrorHinge('left'), swing: mirrorSwing('in') });
+        }
+      }
+    }
+  }
+
+  // --- a balcony drawn with a thin line where a wall would be has a railing there ---
+  // On every such side nothing was put on: a reading that names one railing of three leaves the
+  // other two sides walls to the ceiling.
+  for (const [index, room] of byIndex) {
+    if (!holdsRailings(room)) continue;
+    for (const thin of thinSides) {
+      if (thin.room !== index) continue;
+      const choice = chooseEdge(room, null, thin.side, solve.toPlan(thin.mid), rooms, thicknessBehind);
+      if (!choice || choice.behind || INWARD[thin.side].x * choice.edge.inward.x + INWARD[thin.side].z * choice.edge.inward.z < 0.9) continue;
+      if (room.openings.some((o) => o.wallIndex === choice.edge.index)) continue;
+      room.openings.push({
+        id: `${room.id}-o${++serial}`,
+        kind: 'railing',
+        wallIndex: choice.edge.index,
+        t: 0.5,
+        widthM: round2(choice.edge.length),
+        heightM: OPENING_DEFAULTS.railing.heightM,
+        sillM: 0,
+        roomId: room.id,
+        connectsToRoomId: null,
+        exterior: true,
+        origin: 'existing',
+      });
+    }
+  }
+}
+
+/**
+ * The stretch of a wall an opening can still have, when where it was read is partly taken — by
+ * the corner's margin or by an opening already there: the free stretch nearest it, as much of
+ * the opening as fits. Null when what is left is too narrow to be one.
+ */
+function squeezeOnEdge(room: PlanRoom, edge: PlanEdge, centre: number, width: number, kind: OpeningKind): { centre: number; width: number } | null {
+  if (kind === 'railing') return null;
+  const margin = cornerMargin(kind);
+  const taken = room.openings
+    .filter((o) => o.wallIndex === edge.index)
+    .map((o): [number, number] => [o.t * edge.length - o.widthM / 2 - 0.02, o.t * edge.length + o.widthM / 2 + 0.02])
+    .sort((p, q) => p[0] - q[0]);
+  const free: Array<[number, number]> = [];
+  let cursor = margin;
+  for (const [from, to] of taken) {
+    if (from > cursor) free.push([cursor, from]);
+    cursor = Math.max(cursor, to);
+  }
+  if (edge.length - margin > cursor) free.push([cursor, edge.length - margin]);
+  const smallest = kind === 'window' ? 0.3 : 0.6;
+  let best: { centre: number; width: number; off: number } | null = null;
+  for (const [from, to] of free) {
+    const lo = Math.max(from, centre - width / 2);
+    const hi = Math.min(to, centre + width / 2);
+    // Where it was read, clipped — or, read wholly outside this stretch, as much of it as fits at the near end.
+    const span: [number, number] = hi - lo >= smallest ? [lo, hi] : centre < from ? [from, Math.min(to, from + width)] : [Math.max(from, to - width), to];
+    if (span[1] - span[0] < smallest) continue;
+    const off = Math.abs((span[0] + span[1]) / 2 - centre);
+    if (!best || off < best.off) best = { centre: (span[0] + span[1]) / 2, width: span[1] - span[0], off };
+  }
+  return best && best.off <= 1 ? { centre: best.centre, width: best.width } : null;
 }
 
 function indexOf(byIndex: Map<number, PlanRoom>, room: PlanRoom): number {
@@ -865,21 +1315,22 @@ function openingWidth(kind: OpeningKind, span: number, printed: number | null, e
   }
 }
 
+/** A gap in the wall behind an edge, metres along the edge. */
+interface EdgeGap {
+  from: number;
+  to: number;
+  kind: 'empty' | 'glazed';
+  /** Where it is in the plan, to the decimetre — one gap is one opening, whichever room asks. */
+  key: string;
+}
+
 /**
- * The gap in the wall behind `edge` nearest to where an opening was read, metres along the edge
- * — or null when the drawing does not draw this wall solid, or no free gap is near. A window
- * takes a glazed gap before an empty one, a door or archway the other way round.
+ * The gaps the drawing leaves in the wall behind `edge` — its doorways and windows — or none
+ * when the drawing does not draw this wall solid. Each gap is placed through the solve's
+ * mapping and is as wide as the image shows at the plan's own scale: the mapping stretches a
+ * little between lines the printed sizes and areas moved, and a door is not wider for that.
  */
-function nearestGap(
-  ink: InkImage,
-  solve: SolveResult,
-  room: PlanRoom,
-  edge: PlanEdge,
-  thickness: number,
-  kind: OpeningKind,
-  centre: number,
-  used: Set<string>
-): { from: number; to: number } | null {
+function edgeGaps(ink: InkImage, solve: SolveResult, edge: PlanEdge, thickness: number): EdgeGap[] {
   // The wall's centreline, half its thickness behind the room's face.
   const out = { x: -edge.inward.x * (thickness / 2), z: -edge.inward.z * (thickness / 2) };
   const a = solve.toImage({ x: edge.a.x + out.x, z: edge.a.z + out.z });
@@ -888,27 +1339,47 @@ function nearestGap(
   const stretch: LineStretch = horizontal
     ? { orientation: 'h', at: (a.y + b.y) / 2, from: Math.min(a.x, b.x), to: Math.max(a.x, b.x) }
     : { orientation: 'v', at: (a.x + b.x) / 2, from: Math.min(a.y, b.y), to: Math.max(a.y, b.y) };
-  const scale = horizontal ? solve.initialScale.y : solve.initialScale.x;
-  const gaps = gapsAlong(ink, stretch, thickness / scale, Math.min(1, 0.4 / Math.max(edge.length, 0.01)));
-  if (!gaps) return null;
+  const across = horizontal ? solve.initialScale.y : solve.initialScale.x;
+  const along = horizontal ? solve.initialScale.x : solve.initialScale.y;
+  const gaps = gapsAlong(ink, stretch, thickness / across, Math.min(1, 0.4 / Math.max(edge.length, 0.01)));
+  if (!gaps) return [];
 
-  let best: { from: number; to: number; cost: number; key: string } | null = null;
+  const found: EdgeGap[] = [];
   for (const gap of gaps) {
     // Back from the image onto the edge.
-    const p = (f: number) =>
-      solve.toPlan(horizontal ? { x: stretch.from + f * (stretch.to - stretch.from), y: stretch.at } : { x: stretch.at, y: stretch.from + f * (stretch.to - stretch.from) });
-    let from = alongEdge(edge, p(gap.from));
-    let to = alongEdge(edge, p(gap.to));
-    if (to < from) [from, to] = [to, from];
-    from = Math.max(0, from);
-    to = Math.min(edge.length, to);
+    const at = (f: number) => stretch.from + f * (stretch.to - stretch.from);
+    const p = (f: number) => solve.toPlan(horizontal ? { x: at(f), y: stretch.at } : { x: stretch.at, y: at(f) });
+    const centre = alongEdge(edge, p((gap.from + gap.to) / 2));
+    const width = (at(gap.to) - at(gap.from)) * along;
+    const from = Math.max(0, centre - width / 2);
+    const to = Math.min(edge.length, centre + width / 2);
     if (to - from < 0.3) continue;
     const world = pointOnEdge(edge, clamp01((from + to) / 2 / edge.length));
-    const key = `${Math.round(world.x * 10)}:${Math.round(world.z * 10)}`;
-    if (used.has(key)) continue;
+    found.push({ from, to, kind: gap.kind, key: `${Math.round(world.x * 10)}:${Math.round(world.z * 10)}` });
+  }
+  return found;
+}
+
+/**
+ * The gap in the wall behind `edge` nearest to where an opening was read, metres along the edge
+ * — or null when the drawing does not draw this wall solid, or no free gap is near. A window
+ * takes a glazed gap before an empty one, a door or archway the other way round.
+ */
+function nearestGap(
+  ink: InkImage,
+  solve: SolveResult,
+  edge: PlanEdge,
+  thickness: number,
+  kind: OpeningKind,
+  centre: number,
+  used: Set<string>
+): { from: number; to: number } | null {
+  let best: { from: number; to: number; cost: number; key: string } | null = null;
+  for (const gap of edgeGaps(ink, solve, edge, thickness)) {
+    if (used.has(gap.key)) continue;
     const mismatch = (kind === 'window') !== (gap.kind === 'glazed');
-    const cost = Math.abs((from + to) / 2 - centre) + (mismatch ? 0.8 : 0);
-    if (cost <= 1.8 && (!best || cost < best.cost)) best = { from, to, cost, key };
+    const cost = Math.abs((gap.from + gap.to) / 2 - centre) + (mismatch ? 0.8 : 0);
+    if (cost <= 1.8 && (!best || cost < best.cost)) best = { from: gap.from, to: gap.to, cost, key: gap.key };
   }
   if (!best) return null;
   used.add(best.key);

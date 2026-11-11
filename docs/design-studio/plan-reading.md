@@ -1,8 +1,9 @@
 # Reading an uploaded floor plan
 
 How an uploaded image or PDF becomes rooms: the browser-side CV parser, the optional Claude
-reader — its ruler, the drawing's ink, the least-squares solver and the grid the walls are built
-from — and how doors are placed when the reader cannot see them.
+reader — its ruler, the drawing's ink, the least-squares solver, the grid the walls are built
+from and the fit of every room to the area printed in it — and how doors are placed when the
+reader cannot see them.
 Read this before touching anything that turns a picture into a `FloorPlan`.
 
 Related: [overview.md](overview.md) · [plan-board.md](plan-board.md) (what happens to the rooms
@@ -26,11 +27,12 @@ same upload card).
 | `lib/design/planPdf.ts` | browser: page 1 of a PDF rasterised through pdf.js to a PNG `File` |
 | `lib/design/planImage.ts` | browser: `File` → RGBA at ≤ 1100 px — the only part of the CV path that touches the DOM |
 | `lib/design/planParser.ts` | the deterministic CV parser: raster in, room polygons out |
-| `lib/design/aiPlan.ts` | the prompt and schema, the call (structured output), `normaliseReading`, `labelMetres`, and `buildPlanFromReading`: reading + ink → walls, rooms, openings |
-| `lib/design/planInk.ts` | the drawing's ink: the wall band beside a box side (`wallBandNear`), bare stretches of a boundary (`bareRuns`, `inkShare`), the doorways and windows in a solid wall (`gapsAlong`) |
-| `lib/design/measure.ts` | reading printed dimension strings |
-| `lib/design/planSolver.ts` | box sides → wall centrelines with thicknesses, solved so every printed size holds — a room's face to face, a dimension line from outer face or wall middle to outer face or wall middle (least squares); the walls' thicknesses (measured and rounded, or 30 / 12 cm); the image ⇄ plan mapping |
-| `lib/design/planGrid.ts` | solved lines → cells per room (overlaps, holes, pieces) → boundary runs → walls and room separators |
+| `lib/design/aiPlan.ts` | the prompt and schema, the call (structured output), `normaliseReading`, `labelMetres`, `labelArea`, and `buildPlanFromReading`: reading + ink → walls, rooms fitted to their printed areas, openings |
+| `lib/design/planInk.ts` | the drawing's ink: the wall band beside a box side (`wallBandNear`), bare stretches of a boundary (`bareRuns`, `inkShare`), the doorways and windows in a solid wall (`gapsAlong`), a solid block's own edges and the ink without the blocks (`blockBox`, `withoutInk`) |
+| `lib/design/measure.ts` | reading printed dimension strings (`parseLength`) and printed areas (`parseArea`) |
+| `lib/design/planSolver.ts` | box sides → wall centrelines with thicknesses, solved so every printed size holds — a room's face to face, a dimension line from outer face or wall middle to outer face or wall middle (least squares); the walls' thicknesses (measured and rounded, or 30 / 12 cm); the image ⇄ plan mapping; the same solve with its lines moved (`withLines`) |
+| `lib/design/planGrid.ts` | solved lines → cells per room (overlaps, holes, pieces, solid blocks) → boundary runs → walls and room separators |
+| `lib/design/planAreas.ts` | one step of the area fit (`areaStep`): how far to move each line so the rooms measure what is printed in them, the lines nothing is built on first; `squeezedPairs` |
 | `lib/design/planGeometry.ts` | pixel regions → metric `FloorPlan`; edges, normals, `deriveOpenings` |
 | `lib/validations/plan.schema.ts` | the parse-plan payload |
 | `scripts/test-plan-parser.ts`, `scripts/test-plan-solver.ts`, `scripts/diagnose-plan.ts`, `scripts/read-plan-ai.ts` | `pnpm test:parser`, `test:solver`, `plan:diagnose`, `plan:ai` (with `--overlay`, the result drawn over the plan) |
@@ -42,9 +44,12 @@ file (image or PDF) ─ planPdf (PDF → PNG, page 1) ─ optimizePlanForUpload 
    ─▶ POST /api/uploads (a place) → PUT to storage → POST /api/design/upload-plan → stored URL
    ├─ POST /api/design/parse-plan  planVision: image + ruler for Claude, the same image as ink
    │     planCheck (Haiku, a glance): not a floor plan → 422 NOT_A_PLAN, the card asks again
-   │     Claude: rooms as boxes, dimension lines, sizes in rooms, doors/windows/open sides/railings
-   │     → planInk (box sides onto wall bands) → planSolver (centrelines, thicknesses)
-   │     → planGrid (cells, walls, separators) → roomsFromWalls → openings onto the gaps
+   │     Claude: rooms as boxes with the area printed in each, solid blocks (shafts, columns),
+   │       dimension lines, sizes in rooms, doors/windows/open sides/railings
+   │     → planInk (box sides onto wall bands) → planSolver (centrelines, thicknesses; the scale
+   │       from the areas when no length is printed)
+   │     → planGrid (cells, walls, separators) → roomsFromWalls → planAreas (every room its
+   │       printed area) → openings onto the gaps, the doorways the reading missed
    │     → FloorPlan with walls (lowConfidence flags, scaleKnown)
    └─ 503 fallback:'cv' → planImage (RGBA ≤1100 px) → planParser (rooms as pixel polygons)
          → planGeometry at an assumed 70 m² → ensureWalls → FloorPlan
@@ -110,7 +115,14 @@ dimensions, and one grid the walls are built from.
 - **Rooms as parts.** Each room is one or more rectangles covering its floor, inner face to inner
   face: a rectangle is one part, an L two, a T or U three. A size written *in* a room (or in a
   table of rooms by name — "Bed 01: 3.5 x 3.0m") goes on its part: the room's clear inside size.
-  A space labelled as two things at once ("Living Room and Kitchen") is one `studio`.
+  A space labelled as two things at once ("Living Room and Kitchen") is one `studio`. A
+  staircase is floor of the room it starts in.
+- **The area printed in a room** (`areaLabel`: "10.8 m²", "10,8 მ²", "116 sq ft"), exactly as
+  printed — never a total of the flat. A developer's plan often prints nothing else, and it is
+  the number the buyer holds the flat to (below).
+- **Solid blocks** (`voids`): a column, a shaft or duct — a small box, hatched, crossed or
+  filled, in a corner or against a wall — a chimney, each as its own rectangle. Not floor, not
+  a room, and not furniture (a counter or a wardrobe is not one).
 - **Dimension lines on their own** (`dimensions`). Every size between two arrows or ticks — each
   segment of a chain outside the plan, and the overall size beyond it — with its `axis`
   (across / down), its two ends along that axis (`from`, `to`, where the extension lines meet the
@@ -150,7 +162,10 @@ the drawing's typical wall are dropped (`dropHairlines`): next to an open bounda
 wall to find, and the heaviest ink there can be a sofa's outline. A band over 2.6 times the
 typical wall is a wall with something drawn against it — a hatched kitchen counter made one
 0.5 m band of a CAD plan's kitchen wall and put its printed 11'0" 43 cm out — so it keeps its
-outer face and takes the typical thickness (an exterior wall twice a partition is left alone). A side the ink pins becomes a
+outer face and takes the typical thickness (an exterior wall twice a partition is left alone);
+when the room was read to end at the band's *inner* face it is the other thing, a mass of
+masonry behind the room's wall (a pier, the solid corner a balcony steps round), and the inner
+face stays. A side the ink pins becomes a
 wall **centreline and thickness**; one it does not becomes the box face pushed out by half a
 default 12 cm wall. The raster is Otsu-thresholded (capped below mid-grey, so pale fills do not
 count) — on a pure black-and-white drawing Otsu's threshold is 0, hence `<=`. A drawing in light
@@ -200,6 +215,72 @@ balcony counts as outside, and a line that is a partition anywhere keeps a parti
 the hallway would push both rooms' faces 9 cm off their sizes). A wall the ink does not show is
 widened outwards, the room's face staying where its box put it.
 
+**Areas give the scale, and every room is fitted to its own** (`scaleFromAreas`, `planAreas`).
+A plan with an area in each room and no length anywhere used to count as "nothing printed": the
+prompt told the model an area is not a dimension, the plan was laid out at an assumed 12 m
+across *on each axis* — a tall drawing came out stretched sideways — and one wall's length was
+asked. Now:
+
+- **The scale.** Each room with a printed area is measured on the image, face to face — a
+  pinned side at its wall band's inner face, the rest where the model put them, less the solid
+  blocks standing in it; the printed area over that is m² per unit², and the median over the
+  rooms is the plan's (one misread area does not move it). The image's width over its height
+  (`SolveOptions.aspect`, from the ink) splits it between the axes: a pixel is as wide as it is
+  tall. Used only when no length is printed (`areaScale`); the same shape also gives an axis
+  with nothing printed on it the other's scale, and keeps a plan with nothing printed at all
+  the shape it is drawn.
+- **The fit.** The solve puts each wall where the drawing has it to a pixel or two, and a
+  couple of centimetres along four metres of wall is the difference between 10.8 and 10.7. So
+  once the walls stand the rooms are measured as the board will measure them (the faces
+  `roomsFromWalls` makes) and the grid lines are nudged until each room is its printed area
+  (`buildPlanFromReading`, step 5b, at most 16 rounds, to 0.002 m²). One round is a small
+  least-squares problem (`areaStep`): a room's area changes with a line by the length of its
+  boundary on that line (the grid's boundary runs); every line resists by its stiffness
+  (`lineStiffness` — 1 for a wall the image showed, 0.3 for one it did not, 0.03 for a line
+  with only room separators on it, so the boundary nothing is built on moves first); and every
+  pair of lines a printed size holds apart stays at its distance (`SolveResult.ties`). The plan
+  is laid out again after each round, because the wall thicknesses bend the areas a little.
+- **What holds it back.** A printed area more than 25 % from the room as drawn is a misread, or
+  the area of something else: it is not fitted, and the room is flagged (`MAX_AREA_DRIFT`,
+  `lowConfidence`). Two neighbouring lines may come no closer than 60 % of what they stood
+  apart (`squeezedPairs`: they are held from then on), and no line may travel more than 40 cm
+  from where the walls put it (`MAX_FIT_SHIFT_M`) — areas only a different flat could meet are
+  not the drawing's; the best fit within that is kept and the rooms still off are flagged.
+- **Openings keep their size.** A gap in a wall is as wide as the image shows at the plan's own
+  scale (`edgeGaps`); only its place goes through the solve's mapping, which the fit stretches a
+  little between lines.
+
+`AiPlanResult.areas` lists each printed area against the room; `plan:ai` prints them, and
+`--no-fit` shows the rooms as the walls alone put them.
+
+**Solid blocks** (`AiPlanReading.voids`). A shaft drawn hatched is ink from edge to edge: beside
+a room it read as a wall half a metre thick, and a row of it along a room's side as the wall
+that side is on. So each block is first moved onto its own edges (`blockBox`: each side onto
+the nearest place the ink starts), then wiped off the ink the rooms are pinned on
+(`withoutInk`). In the solver a block is a box like a room's (`RoughRoom.void`) whose lines sit
+half a wall *inside* its faces, so the rooms round it keep their faces on the block's; a side
+standing against a wall a room was pinned on takes that wall's line (`pinBlocksToWalls`), and
+otherwise joins another line only when the two walls would stand in each other (`Estimate.tight`
+— a shaft a hand from a partition keeps its own line; 26 cm apart was one wall before). On the
+grid its cells are `SOLID`: no room's, never filled, walled off from the rooms and from the
+outside alike — an outside wall runs on past a shaft standing against it — at a partition's
+thickness (a room facing a block is not facing the outside: `isExterior`). The face the walls
+close round a big block is dropped (it is nobody's room).
+
+**A line two rooms meet on with no wall** (`markOpenSides`). Where one room's side and the next
+room's lie on one line and the ink shows no wall on either, the rooms run into each other there.
+Both sides are marked (`RoughRoom.openSides`) and the line is `tight` like a block's: a kitchen
+whose open side is 20 cm short of the partition beside it used to be drawn onto that partition
+(every estimate within 2.2 % of the image is one line, and estimates chain), which made the
+kitchen 1.2 m² too big, the hallway 0.9 too small, and the area fit pull the whole flat out of
+shape to make up for it.
+
+**Thicknesses compare in pixels** (`bandPixels`). A band's thickness is a share of the image's
+width on a vertical side and of its height on a horizontal one. `dropHairlines` compared them
+as they were, which is only right on a square image: on a 490 × 768 plan an 8 px partition
+drawn across made the 14 px outside wall drawn down "2.6 times the typical wall", and it lost
+its outer face and two thirds of its thickness.
+
 **No size at all.** When nothing printed could be read (`scaleKnown: false` on the result and the
 route's answer) the plan is at an assumed scale; the upload card shows it with its longest outside
 wall picked and asks that wall's length, inside the room, as the board shows it — or another wall
@@ -240,12 +321,26 @@ wall onto the balcony opens onto the balcony. Where the drawing draws its walls 
 (`gapsAlong`: the band solid along at least a third of its length) the opening moves onto the
 gap in the band nearest where it was read, within 1.8 m — a doorway is an empty gap, a window a
 glazed one (thin lines across it), and a mismatch costs 0.8 m — and takes the gap's width. The
-same opening read from both rooms is placed once. A door hangs from the jamb its arc pivots on
+same opening read from both rooms is placed once. A short wall most of which is a doorway
+still counts as drawn solid when it is solid at both its ends (an outlined wall is thin lines
+there too). An opening that would overlap one already placed takes what is left of the wall
+there instead of going missing (`squeezeOnEdge`: a window between a shaft's corner and the
+balcony door, 30 cm at least; a door 60). A door hangs from the jamb its arc pivots on
 (`hinge: 'left'` is the jamb at the edge's start) and swings into the room the arc sweeps; a
 front door read with no arc swings in. An opening between two rooms is cut in both, as one
 opening's two halves (the twin's id is `<b>-<a>-d-<primary id>`, its hinge and swing mirrored).
 A gap from the flat to the outside is its entrance: an exterior archway becomes a door. A
 railing goes only on a balcony's outer walls.
+
+**What the drawing shows and the reading left out.** After the read openings, every wall between
+two rooms is looked over once more: an empty gap of a door's width (0.55–1.3 m) in a wall drawn
+solid, with nothing placed on it, is a door — hinge and swing by default. A model that reads a
+door onto the wrong wall (the arc ends near a corner) left the right wall blank and, with no
+other way in, the room got an inferred door somewhere else. And a balcony's side drawn with a
+line under 70 % of the typical wall (`thinBalconySides`, read before the hairlines are dropped)
+is a railing along that whole side wherever nothing was placed on it — a reading that names
+one railing of three leaves the other two sides walls to the ceiling, and a parapet rail is
+not one.
 
 **Inference only where the drawing is silent** (`inferMissingOpenings`, on `deriveOpenings`):
 a reading with no openings at all gets the whole inference; otherwise a flat with no way in gets
@@ -287,7 +382,9 @@ white floors, each room with its type's swatch (`ROOM_TINT_STRONG`).
 ## Room names
 
 The CV parser reads no text, so a room is named by the type it is guessed to be; Claude's
-labels are the drawing's own, verbatim. Both then go through `withRoomNames`
+labels are the drawing's own, verbatim (`AiRoom.printedName`), and a room the drawing prints no
+name for is called what it is, like any room the app names — the reading's own `name` for it
+("Living room", there so the openings can say which room they are in) is not shown. Both then go through `withRoomNames`
 ([plan-board.md](plan-board.md#room-names-libdesignroomnamests)): a lone room of its kind has
 the kind's name alone and a kind with several is numbered 1…n in the order the plan is read —
 "სამზარეულო", "საძინებელი 1", "საძინებელი 2" rather than every room numbered by its place in
@@ -324,10 +421,18 @@ neither counts as sealed in; windows go on walls only, never on a separator's op
   as it is (`ensureWalls`, `withPartialWallSeparators`).
 - `tests/unit/design/planGrid.test.ts` — cells (overlaps, holes, pieces), boundary runs and
   separators, and the ink helpers (`wallBandNear`, `gapsAlong`, `bareRuns`).
+- `tests/unit/design/planAreas.test.ts` — `parseArea`; `areaStep` (a room gaining what it is
+  short of, a separator's line before a wall's, a printed size held, squeezed neighbours); solid
+  blocks on the grid; and a 400 × 500 px drawing with nothing printed but each room's area —
+  the size taken from the areas, every room exactly its label, the shaft cut out of the living
+  room and no room made of it, the doorway the reading left out, a window squeezed beside a
+  door, a thin-lined balcony's three railings, the board taking it as it is — then the same
+  from a reading alone, a plan with nothing printed keeping the picture's shape, and an area
+  far from the drawing not held to.
 - `tests/unit/design/placementGame.test.ts` — the game's answers from the room programs, what is
   left out, a round's spread over the rooms, scoring, the hint.
 - `pnpm plan:diagnose <plan.png>` and `pnpm plan:ai <plan.png> [--save r.json] [--replay r.json]
-  [--overlay out.png] [--model <id>]` are the tools for one real plan. `plan:ai` needs a key unless replaying;
+  [--overlay out.png] [--model <id>] [--no-fit]` are the tools for one real plan. `plan:ai` needs a key unless replaying;
   replay with the image to use its ink. `--overlay` draws the walls, separators, doors,
   windows and railings back onto the drawing through the solve's mapping — the quickest way to
   see a wall off the drawing's wall.
@@ -346,6 +451,20 @@ neither counts as sealed in; windows go on walls only, never on a separator's op
   outside walls both get a window, so the flat has three interior doors, an archway and no
   entrance (the drawing has one, in the bottom-left room's outer wall, which the CV path cannot
   see).
+- **Areas.** The fit moves walls, a few centimetres each, to make a room its printed area;
+  where a drawing's own areas and lines disagree (a kitchen labelled 6.4 m² and drawn 6.9) the
+  walls give. A plan that prints both a length and an area for a room holds the length. The
+  flat's total printed in a table is not read or checked against the rooms.
+- **Solid blocks.** A block over 0.6 m² inside is walled off at the read, but the board's next
+  edit derives the rooms from the walls again and makes a room of it (`MIN_ROOM_AREA_M2`). A
+  boxed corner the model does not report (a duct in a bathroom drawn white with thin walls)
+  stays part of the room, and the room's printed area is then met by moving its other walls. A
+  block wider than about a sixth of the image is taken for a misread room and dropped
+  (`normaliseReading`).
+- A wall drawn in grey or hatched light (a party wall) is not ink (the threshold stays under
+  mid-grey): rooms against it are pinned by their neighbours' lines, a few centimetres out.
+- A staircase is floor of the room it starts in; the board has no stair element, and a closet
+  under it reads as a door from the next room into that floor.
 - A line of the grid carries one wall thickness. A drawing whose walls on one line differ —
   a thick plumbing wall behind a bathroom sharing its living-room face with a thin partition
   behind the bedroom — gets the line's median for both; widening one run moves the faces the

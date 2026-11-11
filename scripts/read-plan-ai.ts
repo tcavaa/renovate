@@ -8,6 +8,7 @@
  *   pnpm plan:ai --replay reading.json                       the same without the image (no ink)
  *   … --overlay out.png                                      draw the result over the plan
  *   … --model claude-sonnet-5-5                              read with another model, to compare
+ *   … --no-fit                                               leave the rooms as the walls put them, not fitted to their printed areas
  *
  * `pnpm test:solver` proves the geometry half without a key. This is the other half: what the
  * model actually says about a drawing, how the labels parse, and where the solved walls, the
@@ -74,6 +75,9 @@ async function main() {
 
   console.log(`\nreading  ${reading.rooms.length} rooms · ${reading.openings.length} openings · ${reading.unitSystem}`);
   if (reading.notes) console.log(`notes    ${reading.notes}`);
+  const printed = reading.rooms.filter((r) => r.areaLabel).map((r) => `${r.name} ${r.areaLabel}`);
+  if (printed.length > 0) console.log(`areas    ${printed.join(' · ')}`);
+  if (reading.voids?.length) console.log(`blocks   ${reading.voids.map((v) => `${v.box.x0.toFixed(2)},${v.box.y0.toFixed(2)} → ${v.box.x1.toFixed(2)},${v.box.y1.toFixed(2)}`).join(' · ')}`);
   console.log('\n  room                 type          part  box (x0,y0 → x1,y1)        width label → m      depth label → m');
   for (const room of reading.rooms) {
     room.parts.forEach((part, i) => {
@@ -90,18 +94,22 @@ async function main() {
     console.log(`  ${o.kind.padEnd(8)} ${o.roomA} ↔ ${o.roomB ?? 'outside'} (${o.side})  ${o.from.x.toFixed(2)},${o.from.y.toFixed(2)} → ${o.to.x.toFixed(2)},${o.to.y.toFixed(2)}${o.widthLabel ? `  ${o.widthLabel}` : ''}${hinge}`);
   }
 
-  const built = buildPlanFromReading(reading, { ink: vision?.ink ?? null });
+  const built = buildPlanFromReading(reading, { ink: vision?.ink ?? null, fitAreas: !args.includes('--no-fit') });
   const { plan } = built;
   const walls = plan.walls ?? [];
   console.log(`\nplan     ${plan.rooms.length} rooms · ${walls.filter((w) => !w.separator).length} walls · ${walls.filter((w) => w.separator).length} separators · ${plan.bounds.width.toFixed(2)} × ${plan.bounds.depth.toFixed(2)} m · worst residual ${(built.worstResidualM * 100).toFixed(1)} cm${built.lowConfidence ? '  ⚠︎ low confidence' : ''}`);
   console.log(`walls    x ${built.solve.xThickness.map((t) => t.toFixed(2)).join(' ')} · y ${built.solve.yThickness.map((t) => t.toFixed(2)).join(' ')} m thick`);
+  if (built.areas.length > 0) {
+    console.log(`areas    ${built.areas.map((a) => `${a.room} ${a.target.toFixed(2)} → ${a.solved.toFixed(2)} m²${a.fitted ? '' : ' (not held: too far from the drawing)'}`).join(' · ')}`);
+  }
+  if (!built.scaleKnown) console.log('scale    nothing printed gave the plan a size: assumed, and one wall\'s length is asked');
   for (const room of plan.rooms) {
     const xs = room.polygon.map((p) => p.x);
     const zs = room.polygon.map((p) => p.z);
     const w = Math.max(...xs) - Math.min(...xs);
     const d = Math.max(...zs) - Math.min(...zs);
     const corners = room.polygon.length === 4 ? '' : `  ${room.polygon.length} corners`;
-    console.log(`  ${room.name.padEnd(20).slice(0, 20)} ${room.type.padEnd(13)} ${w.toFixed(2)} × ${d.toFixed(2)} m  ${room.areaM2.toFixed(1).padStart(6)} m²${corners}${room.open?.length ? `  open ${room.open.length}` : ''}${room.lowConfidence ? '  ⚠︎' : ''}`);
+    console.log(`  ${room.name.padEnd(20).slice(0, 20)} ${room.type.padEnd(13)} ${w.toFixed(2)} × ${d.toFixed(2)} m  ${room.areaM2.toFixed(2).padStart(6)} m²${corners}${room.open?.length ? `  open ${room.open.length}` : ''}${room.lowConfidence ? '  ⚠︎' : ''}`);
     for (const o of room.openings) {
       const other = o.connectsToRoomId ? plan.rooms.find((r) => r.id === o.connectsToRoomId)?.name ?? o.connectsToRoomId : 'outside';
       const leaf = o.kind === 'door' ? `  hinge ${o.hinge} swing ${o.swing}` : '';

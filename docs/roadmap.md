@@ -96,7 +96,9 @@ at runtime yet; the last one was seen on the sample plan.
   re-optimizes stored files in bulk — re-upload them in the product form
   ([3d-assets.md](3d-assets.md#known-gaps)).
 - **The Claude plan reader**: one wall thickness per grid line, outlined (not solid) walls get
-  no gap snapping, the upload card does not show the reader's doubts or notes yet
+  no gap snapping, a solid block over 0.6 m² becomes a room on the board's first edit, a boxed
+  corner the model does not report stays in its room, the flat's printed total is not checked,
+  the upload card does not show the reader's doubts or notes yet
   ([design-studio/plan-reading.md](design-studio/plan-reading.md#known-gaps)).
 - **Partners manage more themselves**: reviews and portfolios are seeded, not partner-managed; a
   brigade's rating and completed jobs are not computed from orders; new products of an approved

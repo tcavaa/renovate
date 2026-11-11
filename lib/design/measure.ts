@@ -86,6 +86,32 @@ export function parseLength(input: string, fallbackUnit: LengthUnit = 'm'): Pars
   return null;
 }
 
+/** Square metres per unit of area. */
+const M2_PER_FT2 = 0.09290304;
+
+/**
+ * Parses a printed floor area into square metres: "10.8 m²", "10,8 მ2", "48.4 кв.м", "116 sq ft",
+ * "116 SF"; a bare number is read in `fallbackUnit`. Null when the string is not an area — a
+ * length ("3.5 m") is not one, so a size put in the wrong field is not taken for an area.
+ */
+export function parseArea(input: string, fallbackUnit: 'm2' | 'ft2' = 'm2'): number | null {
+  const text = input
+    .trim()
+    .replace(/\u00a0/g, ' ')
+    .replace(/(\d),(\d)/g, '$1.$2')
+    .toLowerCase();
+  if (!text) return null;
+  const match = text.match(/^(\d+(?:\.\d+)?)\s*(.*)$/);
+  if (!match) return null;
+  const value = Number(match[1]);
+  if (!Number.isFinite(value) || value <= 0) return null;
+  const unit = match[2].replace(/[\s.]/g, '');
+  if (unit === '') return value * (fallbackUnit === 'ft2' ? M2_PER_FT2 : 1);
+  if (/^(m2|m²|м2|м²|მ2|მ²|sqm|sqmeters?|sqmetres?|квм|кв\/м|კვმ|m\^2)$/.test(unit)) return value;
+  if (/^(sqft|sf|ft2|ft²|sqfeet|sqfoot|ft\^2)$/.test(unit)) return value * M2_PER_FT2;
+  return null;
+}
+
 function normaliseUnit(token: string): LengthUnit | null {
   switch (token) {
     case 'мм':

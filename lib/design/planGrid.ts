@@ -11,6 +11,9 @@
  *   - **Holes**: a cell nobody claims but that is shut in by rooms is not a room of its own — it
  *     is a sliver the boxes missed — and goes to the neighbour it shares most with. A sliver left
  *     as a face of the wall graph would become a room the drawing never had.
+ *   - **Solid blocks**: a cell a column, a shaft or a duct stands on is nobody's floor and is
+ *     never filled; it is walled off from the rooms round it and from the outside alike, so an
+ *     outside wall runs on past a shaft standing against it.
  *   - **Walls**: wherever two neighbouring cells belong to different rooms (or one to the
  *     outside) there is a boundary on the line between them, and every boundary is a wall of
  *     its line's thickness — or a room separator where the caller says the floor runs on.
@@ -33,13 +36,16 @@ export interface GridRoom {
 export interface Grid {
   xLines: number[];
   yLines: number[];
-  /** The room index owning each cell (`cell(i, j) = owner[j * nx + i]`), −1 for outside. */
+  /** The room index owning each cell (`cell(i, j) = owner[j * nx + i]`), −1 for outside, `SOLID` for a solid block. */
   owner: Int32Array;
   nx: number;
   ny: number;
 }
 
-/** A stretch of grid line with a different room (or the outside, −1) on each side. */
+/** The owner of a cell a solid block stands on — a column, a shaft, a duct (`AiPlanReading.voids`). */
+export const SOLID = -2;
+
+/** A stretch of grid line with a different room (or the outside, −1, or a solid block, `SOLID`) on each side. */
 export interface BoundaryRun {
   /** 'v': a line of constant x (rooms left and right); 'h': constant y (rooms above and below). */
   orientation: 'v' | 'h';
@@ -50,7 +56,7 @@ export interface BoundaryRun {
   /** Extent along the line, metres. */
   from: number;
   to: number;
-  /** Room on the low side (left / above) and on the high side (right / below); −1 is outside. */
+  /** Room on the low side (left / above) and on the high side (right / below); −1 is outside, `SOLID` a solid block. */
   a: number;
   b: number;
 }
@@ -61,9 +67,10 @@ const MIN_CELL_M = 1e-3;
 /**
  * Which room owns each cell. Claims are by part; where several rooms claim one cell the room
  * with the smaller total box area keeps it; unclaimed cells shut in by rooms are filled from
- * their neighbours; a room in several pieces keeps its largest and gives up the rest.
+ * their neighbours; a room in several pieces keeps its largest and gives up the rest. A cell a
+ * solid block covers (`solids`) is no room's, whatever claims it.
  */
-export function assignCells(xLines: number[], yLines: number[], rooms: GridRoom[]): Grid {
+export function assignCells(xLines: number[], yLines: number[], rooms: GridRoom[], solids: GridRoom['parts'] = []): Grid {
   const nx = Math.max(0, xLines.length - 1);
   const ny = Math.max(0, yLines.length - 1);
   const owner = new Int32Array(nx * ny).fill(-1);
@@ -79,6 +86,7 @@ export function assignCells(xLines: number[], yLines: number[], rooms: GridRoom[
         const covers = room.parts.some((p) => i >= p.x0 && i < p.x1 && j >= p.y0 && j < p.y1);
         if (covers && (best < 0 || size[r] < size[best])) best = r;
       });
+      if (solids.some((p) => i >= p.x0 && i < p.x1 && j >= p.y0 && j < p.y1)) best = SOLID;
       owner[j * nx + i] = best;
     }
   }
@@ -107,7 +115,7 @@ function fillHoles(grid: Grid, area: (i: number, j: number) => number): boolean 
   const queue: number[] = [];
   for (let j = 0; j < ny; j++) {
     for (let i = 0; i < nx; i++) {
-      if ((i === 0 || j === 0 || i === nx - 1 || j === ny - 1) && owner[j * nx + i] < 0) {
+      if ((i === 0 || j === 0 || i === nx - 1 || j === ny - 1) && owner[j * nx + i] === -1) {
         outside[j * nx + i] = 1;
         queue.push(j * nx + i);
       }
@@ -122,7 +130,7 @@ function fillHoles(grid: Grid, area: (i: number, j: number) => number): boolean 
       const nj = j + dj;
       if (ni < 0 || nj < 0 || ni >= nx || nj >= ny) continue;
       const n = nj * nx + ni;
-      if (owner[n] < 0 && !outside[n]) {
+      if (owner[n] === -1 && !outside[n]) {
         outside[n] = 1;
         queue.push(n);
       }
@@ -136,7 +144,7 @@ function fillHoles(grid: Grid, area: (i: number, j: number) => number): boolean 
     for (let j = 0; j < ny; j++) {
       for (let i = 0; i < nx; i++) {
         const c = j * nx + i;
-        if (owner[c] >= 0 || outside[c]) continue;
+        if (owner[c] !== -1 || outside[c]) continue;
         if (area(i, j) <= 0) continue;
         // The neighbour sharing the longest side with this cell.
         const shared = new Map<number, number>();
@@ -161,7 +169,7 @@ function fillHoles(grid: Grid, area: (i: number, j: number) => number): boolean 
   for (let j = 0; j < ny; j++) {
     for (let i = 0; i < nx; i++) {
       const c = j * nx + i;
-      if (owner[c] >= 0 || outside[c] || area(i, j) > 0) continue;
+      if (owner[c] !== -1 || outside[c] || area(i, j) > 0) continue;
       for (const [di, dj] of NEIGHBOURS) {
         const ni = i + di;
         const nj = j + dj;
@@ -239,7 +247,7 @@ export function roomAnchor(grid: Grid, room: number): Vec2 | null {
   };
 }
 
-/** The owner of the cell at a plan point, −1 outside the rooms or the grid. */
+/** The owner of the cell at a plan point: −1 outside the rooms or the grid, `SOLID` on a solid block. */
 export function ownerAt(grid: Grid, point: Vec2): number {
   const i = locate(grid.xLines, point.x);
   const j = locate(grid.yLines, point.z);

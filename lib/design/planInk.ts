@@ -225,7 +225,8 @@ export interface WallGap {
  *
  * Across the band, each pixel along the wall is scored by the share of the band's thickness in
  * ink: a solid wall is nearly all ink, a window's two or three thin lines a fraction, a doorway
- * none. A wall solid along less than a third of its length is not a solid wall.
+ * none. A wall solid along less than a third of its length is not a solid wall — unless it is
+ * solid at both its ends, which is a short wall with a wide doorway in it.
  */
 export function gapsAlong(ink: InkImage, stretch: LineStretch, thickness: number, minShare: number): WallGap[] | null {
   const vertical = stretch.orientation === 'v';
@@ -247,7 +248,12 @@ export function gapsAlong(ink: InkImage, stretch: LineStretch, thickness: number
     fill.push(count / (r1 - r0 + 1));
   }
   const solid = fill.map((f) => f >= 0.6);
-  if (solid.filter(Boolean).length < fill.length / 3) return null;
+  // A short wall most of which is a doorway is still a solid wall when it is solid at both
+  // jambs' ends: an outlined wall is thin lines there too.
+  const solidCount = solid.filter(Boolean).length;
+  const n = solid.length;
+  const solidEnds = solid[0] && solid[1] && solid[n - 1] && solid[n - 2] && solidCount >= n * 0.12;
+  if (solidCount < n / 3 && !solidEnds) return null;
 
   return runs(closeBreaks(solid, 1).map((s) => !s), minShare).map((run) => {
     const i0 = Math.round(run.from * (fill.length - 1));
@@ -291,4 +297,72 @@ function closeBreaks(flags: boolean[], size: number): boolean[] {
     i = j;
   }
   return out;
+}
+
+/** A box on the image, normalised — the same shape as the solver's `NormBox`. */
+export interface InkBox {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
+/**
+ * The ink with some boxes wiped clean (and a pixel or two round them). A shaft drawn hatched or
+ * filled is ink from edge to edge: beside a room it reads as a wall half a metre thick, and a
+ * row of it along a room's side as the wall the side is on. The rooms' sides are pinned on the
+ * drawing without its solid blocks.
+ */
+export function withoutInk(ink: InkImage, boxes: InkBox[], margin = 0.003): InkImage {
+  if (boxes.length === 0) return ink;
+  const dark = ink.dark.slice();
+  for (const box of boxes) {
+    const x0 = Math.max(0, Math.floor((box.x0 - margin) * ink.width));
+    const x1 = Math.min(ink.width - 1, Math.ceil((box.x1 + margin) * ink.width));
+    const y0 = Math.max(0, Math.floor((box.y0 - margin) * ink.height));
+    const y1 = Math.min(ink.height - 1, Math.ceil((box.y1 + margin) * ink.height));
+    for (let y = y0; y <= y1; y++) dark.fill(0, y * ink.width + x0, y * ink.width + x1 + 1);
+  }
+  return { ...ink, dark };
+}
+
+/**
+ * A solid block's own faces: each side of the box the model gave moved onto the nearest place
+ * where the ink starts along it — the edge of a filled or hatched block, or the outer line of
+ * one drawn hollow. A side with no such edge near it stays where it was read.
+ */
+export function blockBox(ink: InkImage, box: InkBox): InkBox {
+  const side = (orientation: 'h' | 'v', at: number, from: number, to: number, inward: 1 | -1, extent: number): number => {
+    const vertical = orientation === 'v';
+    const across = vertical ? ink.width : ink.height;
+    const along = vertical ? ink.height : ink.width;
+    const reach = Math.max(3, Math.round(Math.min(0.03, extent * 0.45) * across));
+    const centre = Math.round(at * across);
+    const trim = (to - from) * along * 0.15;
+    const a = Math.max(0, Math.round(from * along + trim));
+    const b = Math.min(along - 1, Math.round(to * along - trim));
+    if (b - a < 2) return at;
+    const covered = (r: number): boolean => {
+      if (r < 0 || r >= across) return false;
+      let count = 0;
+      for (let s = a; s <= b; s++) count += vertical ? ink.dark[s * ink.width + r] : ink.dark[r * ink.width + s];
+      return count / (b - a + 1) >= BAND_ROW_COVERAGE;
+    };
+    let best: number | null = null;
+    for (let r = Math.max(0, centre - reach); r <= Math.min(across - 1, centre + reach); r++) {
+      // The first row of ink coming from outside the block.
+      if (!covered(r) || covered(r - inward)) continue;
+      const face = inward > 0 ? r : r + 1;
+      if (best == null || Math.abs(face - centre) < Math.abs(best - centre)) best = face;
+    }
+    return best == null ? at : best / across;
+  };
+  const width = box.x1 - box.x0;
+  const height = box.y1 - box.y0;
+  return {
+    x0: side('v', box.x0, box.y0, box.y1, 1, width),
+    x1: side('v', box.x1, box.y0, box.y1, -1, width),
+    y0: side('h', box.y0, box.x0, box.x1, 1, height),
+    y1: side('h', box.y1, box.x0, box.x1, -1, height),
+  };
 }
