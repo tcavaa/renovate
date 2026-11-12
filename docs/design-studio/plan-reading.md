@@ -14,9 +14,9 @@ same upload card).
 
 | File | Responsibility |
 |---|---|
-| `components/design/PlanUploadCard.tsx` | the upload card used by both products' step 1: file → upload → read (Claude, else CV) → for a plan with no size of its own, one wall's length (`ScalePlanDrawing`); an upload that is not a plan refused; the game while it reads |
+| `components/design/PlanUploadCard.tsx` | the upload card used by both products' step 1: file → upload → read (Claude, else CV) → for a plan with no size of its own, one wall's length, one room's area or the whole flat's (`ScalePlanDrawing`); an upload that is not a plan refused; the game while it reads |
 | `lib/design/planCheck.ts` | the cheap look before the read — is it a floor plan at all? (`claude-haiku-5-5`, low effort, thinking off, on a 512 px copy: `checkIsPlan`); fails open |
-| `lib/design/planScale.ts` | a plan given its size from one wall: `defaultScaleEdge` (the longest inside edge on an outside wall), `scalePlanToEdge`, `scalePlan` |
+| `lib/design/planScale.ts` | a plan given its size from one wall (`defaultScaleEdge` — the longest inside edge on an outside wall — `scalePlanToEdge`), or from an area (`scalePlanToArea`: one room's, or all the rooms' together); `scalePlan` |
 | `components/design/PlacementGame.tsx`, `lib/design/placementGame.ts` | "Where does it go?" — real catalogue pieces on a 3D turntable to put in the rooms of a little flat while the plan is read (below) |
 | `app/api/design/upload-plan/route.ts` | claims a plan the browser sent straight to storage and publishes it under `plans/` (Premium's and Professional's — `PLAN_REQUIRED` otherwise, [subscriptions.md](../subscriptions.md), as is `parse-plan`; 20 MB, bytes sniffed, never the declared type, GIF refused; `RATE_RULES.uploadPlan` when the place is asked for — [uploads.md](../uploads.md)) |
 | `lib/uploads/browserImage.ts` (`optimizePlanForUpload`) | browser: a plan goes as it came unless its longest side is over 4096 px or it is over 20 MB — then scaled down, aspect kept, a PNG staying PNG |
@@ -281,12 +281,27 @@ as they were, which is only right on a square image: on a 490 × 768 plan an 8 p
 drawn across made the 14 px outside wall drawn down "2.6 times the typical wall", and it lost
 its outer face and two thirds of its thickness.
 
+**The flat's total.** The total printed on the drawing (`totalAreaLabel`: "საერთო ფართი 54.6 მ²",
+a sum under a table of rooms) is read too, and used only when no room carries an area and no
+length is printed: the total over all the rooms drawn, balconies included, is the scale. It is
+rougher than the rooms' own areas — a total may or may not count the balconies, and nothing is
+fitted to it — but the flat comes out its size and no question is asked.
+
 **No size at all.** When nothing printed could be read (`scaleKnown: false` on the result and the
-route's answer) the plan is at an assumed scale; the upload card shows it with its longest outside
-wall picked and asks that wall's length, inside the room, as the board shows it — or another wall
-the person clicks (`planScale.scalePlanToEdge`: the positions scale, the thicknesses do not, so the
-factor is taken on the centreline: the inside length plus the half thicknesses at its two ends).
-The CV path, which never knows a size, ends the same way.
+route's answer) the plan is at an assumed scale, and the upload card asks for one of three things
+(the pills over the drawing; the wall first):
+
+- **a wall's length** — the plan with its longest outside wall picked, the length inside the room
+  as the board shows it, or another wall the person clicks (`planScale.scalePlanToEdge`: the
+  positions scale, the thicknesses do not, so the factor is taken on the centreline: the inside
+  length plus the half thicknesses at its two ends);
+- **a room's area** — the largest room that is not a balcony picked, or another the person clicks;
+- **the flat's area** — all the rooms' floors together, balconies included, as the board adds
+  them up.
+
+The two areas go through `scalePlanToArea`: the square root of the ratio first, then corrected
+against the plan as scaled, because the walls keep their thickness and the floor does not grow
+with the square of the factor exactly. The CV path, which never knows a size, ends the same way.
 
 Two axes need **two scales** — boxes are normalised against image width for x and height for
 y, and drawings are rarely square. Sharing one scale stretches an axis by the aspect ratio and
@@ -444,7 +459,7 @@ neither counts as sealed in; windows go on walls only, never on a separator's op
   no selectable text, no furniture schedule, no second sheet.
 - Floor-plan parsing has two paths: Claude reads the drawing when `ANTHROPIC_API_KEY` is set,
   and the deterministic CV parser takes over when it is not. The CV path cannot read
-  dimensions, so it always asks one wall's length.
+  dimensions, so it always asks for a size (a wall's length, a room's area or the flat's).
 - A plan whose doors are inferred can come with no front door: `deriveOpenings` places the
   windows before the front door, and an entry room whose outside walls have all taken a window
   has no wall left for it. The sample plan read the CV way is one — its living room's two
@@ -454,7 +469,9 @@ neither counts as sealed in; windows go on walls only, never on a separator's op
 - **Areas.** The fit moves walls, a few centimetres each, to make a room its printed area;
   where a drawing's own areas and lines disagree (a kitchen labelled 6.4 m² and drawn 6.9) the
   walls give. A plan that prints both a length and an area for a room holds the length. The
-  flat's total printed in a table is not read or checked against the rooms.
+  flat's printed total is the scale only when no room has an area, and is never checked against the
+  rooms' own areas; whether it counts the balconies is not known, so a flat sized from it can be a
+  few per cent out.
 - **Solid blocks.** A block over 0.6 m² inside is walled off at the read, but the board's next
   edit derives the rooms from the walls again and makes a room of it (`MIN_ROOM_AREA_M2`). A
   boxed corner the model does not report (a duct in a bathroom drawn white with thin walls)
@@ -471,7 +488,7 @@ neither counts as sealed in; windows go on walls only, never on a separator's op
   printed dimensions are measured to, so it is not done.
 - A double door is read as one door of a single leaf's width (the CAD plan's front door).
 - Dimensions the model cannot parse (hand-lettered "55-14\"") count as nothing printed: the plan
-  is at the assumed scale of about 12 m across and the person is asked one wall's length.
+  is at the assumed scale of about 12 m across and the person is asked for a size.
 - The ink helpers find dark walls on a light ground (a dark ground is inverted first); walls drawn only as two thin
   outlines are found as thin bands, and their doorways are not snapped (`gapsAlong` needs a
   solid band). A photographed plan is read without deskewing on this path.

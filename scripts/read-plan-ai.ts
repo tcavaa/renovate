@@ -77,6 +77,7 @@ async function main() {
   if (reading.notes) console.log(`notes    ${reading.notes}`);
   const printed = reading.rooms.filter((r) => r.areaLabel).map((r) => `${r.name} ${r.areaLabel}`);
   if (printed.length > 0) console.log(`areas    ${printed.join(' · ')}`);
+  if (reading.totalAreaLabel) console.log(`total    ${reading.totalAreaLabel}`);
   if (reading.voids?.length) console.log(`blocks   ${reading.voids.map((v) => `${v.box.x0.toFixed(2)},${v.box.y0.toFixed(2)} → ${v.box.x1.toFixed(2)},${v.box.y1.toFixed(2)}`).join(' · ')}`);
   console.log('\n  room                 type          part  box (x0,y0 → x1,y1)        width label → m      depth label → m');
   for (const room of reading.rooms) {

@@ -125,6 +125,8 @@ export interface AiPlanReading {
   dimensions?: AiDimension[];
   /** Absent in readings recorded before solid blocks were read. */
   voids?: AiVoid[];
+  /** The area of the whole flat as the drawing prints it ("54.6 m²"). Absent in older readings. */
+  totalAreaLabel?: string | null;
   /** The model's own note about anything ambiguous. Surfaced to the user, not acted on. */
   notes: string | null;
 }
@@ -145,7 +147,7 @@ const BOX_PROPERTIES = { x0: { type: 'number' }, y0: { type: 'number' }, x1: { t
 const PLAN_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['unitSystem', 'rooms', 'voids', 'openings', 'dimensions', 'notes'],
+  required: ['unitSystem', 'rooms', 'voids', 'openings', 'dimensions', 'totalAreaLabel', 'notes'],
   properties: {
     unitSystem: { type: 'string', enum: ['imperial', 'metric'], description: 'Which units the drawing is annotated in.' },
     rooms: {
@@ -231,6 +233,7 @@ const PLAN_SCHEMA = {
         },
       },
     },
+    totalAreaLabel: { type: ['string', 'null'], description: 'The area of the whole flat as the drawing prints it — a total, "საერთო ფართი", a sum under a table of rooms — copied exactly ("54.6 m²"). When several totals are printed, the one that counts every room drawn, balconies included. Null if none.' },
     notes: { type: ['string', 'null'], description: 'Anything ambiguous or unreadable worth telling the user about.' },
   },
 } as const;
@@ -248,7 +251,7 @@ const SYSTEM_PROMPT = `You read architectural floor plans for a home-design tool
 4. **Sizes.** These are the only exact numbers on the drawing. Copy each one exactly as printed — "18' 3\\"" not "18.25 ft", "3,50" not "3.5", "3.5 м", "350". There are two kinds, reported in different places:
    - A **dimension line**: a size between two arrows or tick marks, with extension lines running to the walls — usually chained along the outside of the plan, often with an overall size beyond the chain. Report every one in dimensions: each segment of a chain on its own, and the overall too. axis is across when it measures left to right, down when top to bottom; from and to are where its two ends are along that axis on the ruler (x for across, y for down) — where the arrows or ticks are, which is where the extension lines meet the walls; at is where the dimension line itself is drawn on the other axis (its y for across, its x for down). Do not attach these to rooms.
    - A **size written in a room** (or in a table of rooms by name) with no dimension line — "3.50 x 4.20", "Bed 01: 3.5 x 3.0m": that room's clear inside size. Put it on the room's part, widthLabel for across and depthLabel for down, matching the two numbers to the room's shape.
-   - An **area printed in a room** (or beside its name in a table) — "10.8 m²", "10,8 მ²", "116 sq ft": copy it into that room's areaLabel exactly as printed. It is the area of that room's floor, wall face to wall face, so the room's parts should cover about that much: when the rectangles you have drawn are far from the printed area, look again at where the room ends. An area of the whole flat — a total, a "living area", a line in a summary table — belongs to no room: leave it out.
+   - An **area printed in a room** (or beside its name in a table) — "10.8 m²", "10,8 მ²", "116 sq ft": copy it into that room's areaLabel exactly as printed. It is the area of that room's floor, wall face to wall face, so the room's parts should cover about that much: when the rectangles you have drawn are far from the printed area, look again at where the room ends. An area of the whole flat — a total, a line in a summary table — belongs to no room: copy it into totalAreaLabel (the total that counts every room drawn, balconies included, when several are printed), and never into a room.
 
 5. **Openings.** Every door, window, archway, open connection and balcony railing, each once:
    - door: a leaf with its swing arc. A door is in the wall its gap is in — find the gap in the wall at the pivot of the arc, not where the arc ends: side is the side of roomA that wall is on, from and to are the two ends of the gap. hinge is the point the arc pivots on (the corner of the opening the leaf hangs from); swingsInto is the room the leaf swings into, null when it swings outside.
@@ -425,7 +428,7 @@ export function normaliseReading(reading: AiPlanReading): AiPlanReading {
     .map((v) => ({ box: box(v.box) }))
     .filter((v) => v.box.x1 - v.box.x0 > 0.004 && v.box.y1 - v.box.y0 > 0.004 && (v.box.x1 - v.box.x0) * (v.box.y1 - v.box.y0) < 0.03);
 
-  return { unitSystem: reading.unitSystem === 'imperial' ? 'imperial' : 'metric', rooms, voids, openings, dimensions, notes: label(reading.notes) };
+  return { unitSystem: reading.unitSystem === 'imperial' ? 'imperial' : 'metric', rooms, voids, openings, dimensions, ...(reading.totalAreaLabel !== undefined ? { totalAreaLabel: label(reading.totalAreaLabel) } : {}), notes: label(reading.notes) };
 }
 
 // ---------------------------------------------------------------------------
@@ -696,7 +699,8 @@ function farthestShift(lines: number[], base: number[]): number {
  * face on the image (a pinned side at its wall band's inner face, the rest where the model put
  * them, less the solid blocks standing in them); the printed area over that is metres² per unit²,
  * the median over the rooms is the plan's, and the image's shape splits it between the axes.
- * Null when no room has an area printed.
+ * With no area in any room, the flat's printed total over all the rooms drawn does the same,
+ * more roughly (it may or may not count the balconies). Null when no area is printed at all.
  */
 function scaleFromAreas(
   reading: AiPlanReading,
@@ -712,17 +716,21 @@ function scaleFromAreas(
   };
   const overlap = (a: NormBox, b: NormBox) => Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0)) * Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0));
   const ratios: number[] = [];
+  let drawn = 0;
   reading.rooms.forEach((_, r) => {
     const target = printedAreas[r];
-    if (target == null) return;
     let floor = 0;
     for (const { room, rough } of parts) {
       if (room !== r) continue;
       const box = { x0: face(rough, 'x0'), x1: face(rough, 'x1'), y0: face(rough, 'y0'), y1: face(rough, 'y1') };
       floor += Math.max(0, box.x1 - box.x0) * Math.max(0, box.y1 - box.y0) - blocks.reduce((sum, b) => sum + overlap(box, b.box), 0);
     }
-    if (floor > 1e-5) ratios.push(target / floor);
+    drawn += Math.max(0, floor);
+    if (target != null && floor > 1e-5) ratios.push(target / floor);
   });
+  // No room carries an area: the flat's printed total over every room drawn.
+  const total = labelArea(reading.totalAreaLabel, reading.unitSystem);
+  if (ratios.length === 0 && total != null && drawn > 1e-5) ratios.push(total / drawn);
   if (ratios.length === 0) return null;
   const perUnit2 = ratios.sort((a, b) => a - b)[Math.floor(ratios.length / 2)];
   const y = Math.sqrt(perUnit2 / aspect);

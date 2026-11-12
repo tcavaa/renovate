@@ -2330,7 +2330,16 @@ export const en: Dictionary = {
 
     scaleTitle: 'How long is this wall?',
     scaleDesc:
-      'The plan has no sizes printed on it. Measure the highlighted wall inside the room (or pick another wall) and type its length — the whole plan is sized from it.',
+      'We could not work out the plan\'s size. Give one of these — one wall\'s length, one room\'s area or the whole flat\'s area — and the whole plan is sized from it.',
+    scaleByWall: 'A wall\'s length',
+    scaleByRoom: 'A room\'s area',
+    scaleByFlat: 'The flat\'s area',
+    scaleTitleRoom: 'What is this room\'s area?',
+    scaleTitleFlat: 'What is the whole flat\'s area?',
+    scaleRoomAreaLabel: 'Area of the highlighted room (m²)',
+    flatAreaLabel: 'Total area of the flat (m²)',
+    pickRoomHint: 'Click a room to give that one\'s area instead',
+    flatAreaHint: 'The floors of all the rooms together, balconies included',
     wallLengthLabel: 'Length of the highlighted wall (m)',
     pickWallHint: 'Click a wall to measure that one instead',
     notAPlan:

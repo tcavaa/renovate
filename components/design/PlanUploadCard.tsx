@@ -11,7 +11,8 @@
  * it falls back to the local CV parser, which finds rooms geometrically but has no idea how
  * big they are. Either way, a plan with no size of its own — no sizes printed, or the CV
  * path's — is shown with its longest outside wall picked, and the person types that wall's
- * length (or picks another): the whole plan is scaled from it (`planScale`).
+ * length (or picks another), or instead one room's area or the whole flat's: the whole plan is
+ * scaled from it (`planScale`).
  *
  * A PDF is rasterised in the browser first (`lib/design/planPdf.ts`) and then treated like
  * any other image, so the rest of the pipeline never sees one.
@@ -45,7 +46,7 @@ import { loadPlanImage, uploadPlanImage } from '@/lib/design/planImage';
 import { isPdfFile, rasterizePdfPlan } from '@/lib/design/planPdf';
 import { parseFloorPlan } from '@/lib/design/planParser';
 import { buildPlanFromRegions, metresPerPixelFromArea, roomEdges, totalFloorAreaM2 } from '@/lib/design/planGeometry';
-import { MAX_WALL_LENGTH_M, MIN_WALL_LENGTH_M, defaultScaleEdge, scaleEdgeLength, scalePlanToEdge, type ScaleEdge } from '@/lib/design/planScale';
+import { MAX_PLAN_AREA_M2, MAX_WALL_LENGTH_M, MIN_PLAN_AREA_M2, MIN_WALL_LENGTH_M, defaultScaleEdge, scaleAreaNow, scaleEdgeLength, scalePlanToArea, scalePlanToEdge, type ScaleEdge } from '@/lib/design/planScale';
 import { ensureWalls } from '@/lib/design/walls';
 import { samplePlan } from '@/lib/design/samplePlan';
 import { formatM2 } from '@/lib/utils';
@@ -73,6 +74,9 @@ interface PlanUploadCardProps {
 /** The CV path's plan before the person gives a wall's length: sized as a flat of this many m². */
 const ASSUMED_AREA_M2 = 70;
 
+/** What the person gives a plan its size by: one wall's length, one room's area, the whole flat's area. */
+type ScaleBy = 'wall' | 'room' | 'flat';
+
 type DrawingRead = { plan: FloorPlan; scaleKnown: boolean } | { notPlan: true } | null;
 
 async function readPlanFromDrawing(imageUrl: string): Promise<DrawingRead> {
@@ -99,6 +103,8 @@ export function PlanUploadCard({ onPlan, onReset, showSample = false, showContin
   /** A plan read with no size of its own, waiting for one wall's length (phase `scale`). */
   const [unsized, setUnsized] = useState<FloorPlan | null>(null);
   const [scaleEdge, setScaleEdge] = useState<ScaleEdge | null>(null);
+  const [scaleBy, setScaleBy] = useState<ScaleBy>('wall');
+  const [scaleRoom, setScaleRoom] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
   const [wallLength, setWallLength] = useState('');
@@ -131,6 +137,9 @@ export function PlanUploadCard({ onPlan, onReset, showSample = false, showContin
   const askForLength = (plan: FloorPlan) => {
     setUnsized(plan);
     setScaleEdge(defaultScaleEdge(plan));
+    setScaleBy('wall');
+    // The room offered first: the largest that is not a balcony.
+    setScaleRoom([...plan.rooms].sort((a, b) => Number(a.type === 'balcony') - Number(b.type === 'balcony') || b.areaM2 - a.areaM2)[0]?.id ?? null);
     setWallLength('');
     setPhase('scale');
   };
@@ -218,27 +227,35 @@ export function PlanUploadCard({ onPlan, onReset, showSample = false, showContin
   }, [t.design.pdfFailed, t.design.notAPlan]);
 
   const lengthValue = Number(wallLength.replace(',', '.'));
-  const lengthValid = Number.isFinite(lengthValue) && lengthValue >= MIN_WALL_LENGTH_M && lengthValue <= MAX_WALL_LENGTH_M;
+  const [minValue, maxValue] = scaleBy === 'wall' ? [MIN_WALL_LENGTH_M, MAX_WALL_LENGTH_M] : [MIN_PLAN_AREA_M2, MAX_PLAN_AREA_M2];
+  const lengthValid = Number.isFinite(lengthValue) && lengthValue >= minValue && lengthValue <= maxValue;
+  /** The wall, the room or the flat the number is about is there to scale by. */
+  const scaleTarget = scaleBy === 'wall' ? scaleEdge != null : scaleBy === 'room' ? scaleRoom != null : true;
+  const scaleLabel = scaleBy === 'wall' ? t.design.wallLengthLabel : scaleBy === 'room' ? t.design.scaleRoomAreaLabel : t.design.flatAreaLabel;
+  const scaled = (plan: FloorPlan): FloorPlan =>
+    scaleBy === 'wall' ? (scaleEdge ? scalePlanToEdge(plan, scaleEdge, lengthValue) : plan) : scalePlanToArea(plan, scaleBy === 'room' ? scaleRoom : null, lengthValue);
 
   const confirmScale = () => {
-    if (!unsized || !scaleEdge) return;
+    if (!unsized || !scaleTarget) return;
     if (!lengthValid) {
-      setError(t.design.wallLengthLabel);
+      setError(scaleLabel);
       return;
     }
-    onPlanRef.current(scalePlanToEdge(unsized, scaleEdge, lengthValue), uploadedUrl);
+    onPlanRef.current(scaled(unsized), uploadedUrl);
   };
 
   // Without its own button, the card hands the plan over as soon as the length makes sense —
   // and takes it back when the field is cleared or goes out of range.
   useEffect(() => {
-    if (showContinue || phase !== 'scale' || !unsized || !scaleEdge) return;
-    if (!lengthValid) {
+    if (showContinue || phase !== 'scale' || !unsized) return;
+    if (!lengthValid || !scaleTarget) {
       onResetRef.current?.();
       return;
     }
-    onPlanRef.current(scalePlanToEdge(unsized, scaleEdge, lengthValue), uploadedUrl);
-  }, [showContinue, phase, unsized, scaleEdge, lengthValid, lengthValue, uploadedUrl]);
+    onPlanRef.current(scaled(unsized), uploadedUrl);
+    // `scaled` reads only what is listed here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showContinue, phase, unsized, scaleBy, scaleEdge, scaleRoom, scaleTarget, lengthValid, lengthValue, uploadedUrl]);
 
   /**
    * The sample flat: a plan with every kind of room, doors, windows and balconies already in it
@@ -385,29 +402,62 @@ export function PlanUploadCard({ onPlan, onReset, showSample = false, showContin
             <div>
               <h3 className="flex items-center gap-2 font-serif text-lg font-semibold">
                 <Ruler className="h-4 w-4 text-brand" />
-                {t.design.scaleTitle}
+                {scaleBy === 'wall' ? t.design.scaleTitle : scaleBy === 'room' ? t.design.scaleTitleRoom : t.design.scaleTitleFlat}
               </h3>
               <p className="mt-1 text-sm text-ink-muted">{t.design.scaleDesc}</p>
             </div>
-            <ScalePlanDrawing plan={unsized} picked={scaleEdge} onPick={(edge) => setScaleEdge(edge)} label={t.design.pickWallHint} />
+            <div role="radiogroup" className="flex flex-wrap gap-2">
+              {(['wall', 'room', 'flat'] as const).map((by) => (
+                <button
+                  key={by}
+                  type="button"
+                  role="radio"
+                  aria-checked={scaleBy === by}
+                  onClick={() => {
+                    setScaleBy(by);
+                    setWallLength('');
+                    setError(null);
+                  }}
+                  className={cn(
+                    'rounded-full border px-4 py-1.5 text-sm font-medium transition-colors',
+                    scaleBy === by ? 'border-ink bg-ink text-bg-surface' : 'border-line bg-bg-surface text-ink hover:border-ink/50'
+                  )}
+                >
+                  {by === 'wall' ? t.design.scaleByWall : by === 'room' ? t.design.scaleByRoom : t.design.scaleByFlat}
+                </button>
+              ))}
+            </div>
+            <ScalePlanDrawing
+              plan={unsized}
+              by={scaleBy}
+              picked={scaleEdge}
+              onPick={(edge) => setScaleEdge(edge)}
+              pickedRoom={scaleRoom}
+              onPickRoom={setScaleRoom}
+              label={scaleBy === 'wall' ? t.design.pickWallHint : scaleBy === 'room' ? t.design.pickRoomHint : t.design.flatAreaHint}
+            />
             <div className="flex flex-wrap items-end gap-3">
               <div className="w-56">
-                <Label htmlFor="plan-wall-length">{t.design.wallLengthLabel}</Label>
+                <Label htmlFor="plan-wall-length">{scaleLabel}</Label>
                 <Input
                   id="plan-wall-length"
                   type="number"
-                  min={MIN_WALL_LENGTH_M}
-                  max={MAX_WALL_LENGTH_M}
+                  min={minValue}
+                  max={maxValue}
                   step={0.01}
                   inputMode="decimal"
                   value={wallLength}
                   onChange={(e) => setWallLength(e.target.value)}
-                  placeholder={scaleEdge ? (scaleEdgeLength(unsized, scaleEdge) ?? 0).toFixed(2) : '4.50'}
+                  placeholder={
+                    scaleBy === 'wall'
+                      ? scaleEdge ? (scaleEdgeLength(unsized, scaleEdge) ?? 0).toFixed(2) : '4.50'
+                      : (scaleAreaNow(unsized, scaleBy === 'room' ? scaleRoom : null) ?? 0).toFixed(1)
+                  }
                   autoFocus
                 />
               </div>
               {showContinue && (
-                <Button type="button" variant="ink" onClick={confirmScale} disabled={!wallLength || !scaleEdge}>
+                <Button type="button" variant="ink" onClick={confirmScale} disabled={!wallLength || !scaleTarget}>
                   {t.design.applyScale}
                   <ArrowRight className="h-4 w-4" />
                 </Button>
@@ -422,10 +472,27 @@ export function PlanUploadCard({ onPlan, onReset, showSample = false, showContin
 }
 
 /**
- * The plan read without a size, its rooms and walls, every inside edge of a room clickable: the
- * edge picked is the wall the person measures, drawn in the brand colour.
+ * The plan read without a size, its rooms and walls. By a wall, every inside edge of a room is
+ * clickable and the edge picked — the wall the person measures — is drawn in the brand colour;
+ * by a room, the rooms are clickable and the one picked is outlined; by the flat, all of them are.
  */
-function ScalePlanDrawing({ plan, picked, onPick, label }: { plan: FloorPlan; picked: ScaleEdge | null; onPick: (edge: ScaleEdge) => void; label: string }) {
+function ScalePlanDrawing({
+  plan,
+  by,
+  picked,
+  onPick,
+  pickedRoom,
+  onPickRoom,
+  label,
+}: {
+  plan: FloorPlan;
+  by: ScaleBy;
+  picked: ScaleEdge | null;
+  onPick: (edge: ScaleEdge) => void;
+  pickedRoom: string | null;
+  onPickRoom: (roomId: string) => void;
+  label: string;
+}) {
   const points = [...plan.rooms.flatMap((r) => r.polygon), ...(plan.walls ?? []).flatMap((w) => [w.a, w.b])];
   if (points.length === 0) return null;
   const xs = points.map((p) => p.x);
@@ -440,14 +507,33 @@ function ScalePlanDrawing({ plan, picked, onPick, label }: { plan: FloorPlan; pi
     <div>
       <svg viewBox={`${minX} ${minZ} ${w} ${h}`} className="max-h-72 w-full rounded-xl border border-line bg-bg-surface" role="img" aria-label={label}>
         {plan.rooms.map((room) => (
-          <polygon key={room.id} points={room.polygon.map((p) => `${p.x},${p.z}`).join(' ')} fill={ROOM_FILL[room.type] ?? '#FBF8F3'} />
+          <polygon
+            key={room.id}
+            points={room.polygon.map((p) => `${p.x},${p.z}`).join(' ')}
+            fill={ROOM_FILL[room.type] ?? '#FBF8F3'}
+            className={by === 'room' ? 'cursor-pointer' : undefined}
+            onClick={by === 'room' ? () => onPickRoom(room.id) : undefined}
+          />
         ))}
         {(plan.walls ?? [])
           .filter((wall) => !wall.separator)
           .map((wall) => (
             <line key={wall.id} x1={wall.a.x} y1={wall.a.z} x2={wall.b.x} y2={wall.b.z} stroke="#2A2622" strokeWidth={Math.max(wall.thicknessM, stroke)} strokeLinecap="square" />
           ))}
-        {plan.rooms.flatMap((room) =>
+        {by !== 'wall' &&
+          plan.rooms
+            .filter((room) => by === 'flat' || room.id === pickedRoom)
+            .map((room) => (
+              <polygon
+                key={`${room.id}-picked`}
+                points={room.polygon.map((p) => `${p.x},${p.z}`).join(' ')}
+                strokeWidth={stroke * 2.5}
+                strokeLinejoin="round"
+                className="fill-brand/15 stroke-brand"
+                pointerEvents="none"
+              />
+            ))}
+        {by === 'wall' && plan.rooms.flatMap((room) =>
           roomEdges(room.polygon).map((edge) => {
             const on = picked?.roomId === room.id && picked.edgeIndex === edge.index;
             return (

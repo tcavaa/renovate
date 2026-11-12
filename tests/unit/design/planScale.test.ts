@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultScaleEdge, scaleEdgeLength, scalePlan, scalePlanToEdge } from '@/lib/design/planScale';
+import { defaultScaleEdge, scaleAreaNow, scaleEdgeLength, scalePlan, scalePlanToArea, scalePlanToEdge } from '@/lib/design/planScale';
 import { addWalls, rebuildRooms, wallsForRectangle } from '@/lib/design/walls';
 import { roomEdges } from '@/lib/design/planGeometry';
 import type { FloorPlan, Wall } from '@/lib/design/types';
@@ -72,5 +72,27 @@ describe('scalePlan', () => {
     const plan = rebuildRooms(blankPlan(), walls);
     const scaled = scalePlan(plan, 3);
     expect(scaled.rooms[0].areaM2).toBeGreaterThan(plan.rooms[0].areaM2 * 8);
+  });
+});
+
+describe('scalePlanToArea', () => {
+  it('scales the plan so one room measures the area typed, the walls as thick as before', () => {
+    const plan = smallPlan();
+    const room = plan.rooms[0];
+    const scaled = scalePlanToArea(plan, room.id, 18);
+    expect(scaleAreaNow(scaled, room.id)).toBeCloseTo(18, 1);
+    expect(scaled.walls!.find((w) => w.id === 'mid')!.thicknessM).toBe(0.12);
+    expect(scaled.rooms).toHaveLength(2);
+  });
+
+  it('scales the plan so all the rooms together measure the flat’s area', () => {
+    const scaled = scalePlanToArea(smallPlan(), null, 54);
+    expect(scaleAreaNow(scaled, null)).toBeCloseTo(54, 1);
+  });
+
+  it('leaves the plan alone for an area that is not one, or a room that is not there', () => {
+    const plan = smallPlan();
+    expect(scalePlanToArea(plan, null, 0)).toBe(plan);
+    expect(scalePlanToArea(plan, 'nowhere', 20)).toBe(plan);
   });
 });

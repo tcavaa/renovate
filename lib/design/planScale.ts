@@ -1,5 +1,5 @@
 /**
- * Giving a plan its size from one wall's length.
+ * Giving a plan its size from one wall's length — or from one room's area, or the whole flat's.
  *
  * A drawing with no sizes printed on it (and every plan the CV parser reads) arrives at an
  * assumed scale — project 376's bedrooms came out 3.4 m². The person is shown the plan with its
@@ -14,7 +14,7 @@
  * Pure: no React, no DOM.
  */
 
-import { roomEdges } from './planGeometry';
+import { roomEdges, totalFloorAreaM2 } from './planGeometry';
 import { rebuildRooms, withBounds } from './walls';
 import type { FloorPlan, Opening, PlanRoom, Vec2 } from './types';
 
@@ -96,6 +96,36 @@ export function scalePlanToEdge(plan: FloorPlan, edge: ScaleEdge, metres: number
   const ends = (thickness(prev.index) + thickness(next.index)) / 2;
   const k = (metres + ends) / (edges[i].length + ends);
   return scalePlan(plan, k);
+}
+
+/** Areas the person may type, m²: one room's, or the whole flat's. */
+export const MIN_PLAN_AREA_M2 = 1;
+export const MAX_PLAN_AREA_M2 = 1000;
+
+/** What the area typed is the area of: one room's floor, or every room's together (`roomId` null). */
+export function scaleAreaNow(plan: FloorPlan, roomId: string | null): number | null {
+  if (roomId == null) return plan.rooms.length > 0 ? totalFloorAreaM2(plan) : null;
+  return plan.rooms.find((r) => r.id === roomId)?.areaM2 ?? null;
+}
+
+/**
+ * The plan scaled so that one room's floor — or, with `roomId` null, all the floors together, as
+ * the board adds them up — measures `areaM2`. The walls keep their thickness, so the floor does
+ * not grow with the square of the factor exactly: the factor is corrected against the plan as
+ * scaled until the area is the one typed.
+ */
+export function scalePlanToArea(plan: FloorPlan, roomId: string | null, areaM2: number): FloorPlan {
+  const start = scaleAreaNow(plan, roomId);
+  if (!start || !(areaM2 > 0)) return plan;
+  let k = Math.sqrt(areaM2 / start);
+  let scaled = scalePlan(plan, k);
+  for (let i = 0; i < 8; i++) {
+    const now = scaleAreaNow(scaled, roomId);
+    if (!now || Math.abs(now - areaM2) < 0.005) break;
+    k *= Math.sqrt(areaM2 / now);
+    scaled = scalePlan(plan, k);
+  }
+  return scaled;
 }
 
 function round4(v: number): number {

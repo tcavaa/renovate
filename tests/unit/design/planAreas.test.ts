@@ -278,6 +278,15 @@ describe('buildPlanFromReading from areas alone, without the image', () => {
     expect(byName(result.plan, 'Bath').areaM2).toBe(7);
   });
 
+  it('with no area in any room, sizes the flat from its printed total', () => {
+    const total = { ...reading(false), totalAreaLabel: '39 m²' };
+    const result = buildPlanFromReading(normaliseReading(total), { aspect: 1.25 });
+    expect(result.scaleKnown).toBe(true);
+    const sum = result.plan.rooms.reduce((s, r) => s + r.areaM2, 0);
+    expect(sum).toBeGreaterThan(39 * 0.85);
+    expect(sum).toBeLessThan(39 * 1.05);
+  });
+
   it('with nothing printed, asks for a size — and keeps the picture’s shape meanwhile', () => {
     const square = buildPlanFromReading(normaliseReading(reading(false)));
     const wide = buildPlanFromReading(normaliseReading(reading(false)), { aspect: 2 });
