@@ -114,30 +114,30 @@ export function TutorialOverlay({ open, onClose, container, onStep }: { open: bo
           <Shade style={{ left: 0, top: hole.y + hole.height, width: '100%', height: Math.max(0, size.height - hole.y - hole.height) }} />
           <Shade style={{ left: 0, top: hole.y, width: Math.max(0, hole.x), height: hole.height }} />
           <Shade style={{ left: hole.x + hole.width, top: hole.y, width: Math.max(0, size.width - hole.x - hole.width), height: hole.height }} />
-          <div className="pointer-events-none absolute rounded-[16px] ring-4 ring-brand/90 shadow-[0_0_0_9999px_rgba(0,0,0,0)] transition-all duration-300" style={{ left: hole.x, top: hole.y, width: hole.width, height: hole.height }} />
+          <div className="pointer-events-none absolute rounded-2xl ring-4 ring-lime shadow-[0_0_0_9999px_rgba(0,0,0,0)] transition-all duration-300" style={{ left: hole.x, top: hole.y, width: hole.width, height: hole.height }} />
         </>
       ) : (
         <Shade style={{ inset: 0 }} soft />
       )}
 
-      <div className="absolute w-[min(92vw,400px)] rounded-[20px] border border-white/60 bg-bg-surface p-5 shadow-float transition-all duration-300" style={card}>
+      <div className="absolute w-[min(92vw,400px)] rounded-2xl bg-bg-surface p-5 shadow-float transition-all duration-300" style={card}>
         <div className="flex items-center justify-between">
           <div className="flex gap-1">
             {STEPS.map((_, i) => (
-              <span key={i} className={cn('h-1.5 w-5 rounded-full', i < index ? 'bg-ink' : i === index ? 'bg-brand' : 'bg-line')} />
+              <span key={i} className={cn('h-1.5 w-5 rounded-full', i < index ? 'bg-ink' : i === index ? 'bg-lime' : 'bg-mist')} />
             ))}
           </div>
-          <button type="button" onClick={finish} aria-label={t.build.tutorialSkip} className="grid h-8 w-8 place-items-center rounded-full text-ink-muted hover:bg-sand-light hover:text-ink">
+          <button type="button" onClick={finish} aria-label={t.build.tutorialSkip} className="grid h-8 w-8 place-items-center rounded-full text-ink-muted hover:bg-mist-light hover:text-ink">
             <X className="h-4 w-4" />
           </button>
         </div>
         <div className="mt-4 flex items-start gap-3">
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[12px] bg-brand/10 text-brand">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-lime text-ink">
             <Icon className="h-5 w-5" />
           </span>
           <div>
             <p className="eyebrow">{`${index + 1} / ${total}`}</p>
-            <h3 className="mt-1 font-serif text-lg font-semibold text-ink">{b[`tut${index + 1}Title`]}</h3>
+            <h3 className="mt-1 font-display text-xl text-ink">{b[`tut${index + 1}Title`]}</h3>
             <p className="mt-1.5 text-[13px] leading-relaxed text-ink-soft">{b[`tut${index + 1}Body`]}</p>
           </div>
         </div>
@@ -152,7 +152,7 @@ export function TutorialOverlay({ open, onClose, container, onStep }: { open: bo
               </button>
             )}
           </div>
-          <button type="button" onClick={() => (last ? finish() : setIndex(index + 1))} className="flex h-9 items-center gap-2 rounded-full bg-ink px-4 text-sm font-semibold text-white hover:bg-brand">
+          <button type="button" onClick={() => (last ? finish() : setIndex(index + 1))} className="flex h-10 items-center gap-2 rounded-full bg-ink px-5 text-sm font-bold text-white hover:bg-lime hover:text-ink">
             {last ? t.build.tutorialDone : index === 0 ? t.build.tutorialStart : t.build.tutorialNext}
             {last ? <Check className="h-4 w-4" /> : <ArrowRight className="h-4 w-4" />}
           </button>
@@ -163,7 +163,7 @@ export function TutorialOverlay({ open, onClose, container, onStep }: { open: bo
 }
 
 function Shade({ style, soft }: { style: React.CSSProperties; soft?: boolean }) {
-  return <div className={cn('absolute transition-all duration-300', soft ? 'bg-ink/35 backdrop-blur-[1.5px]' : 'bg-ink/55 backdrop-blur-[3px]')} style={style} />;
+  return <div className={cn('absolute transition-all duration-300', soft ? 'bg-ink/40 backdrop-blur-[1.5px]' : 'bg-ink/60 backdrop-blur-[3px]')} style={style} />;
 }
 
 /**

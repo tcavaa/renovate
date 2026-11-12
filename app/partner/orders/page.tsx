@@ -36,7 +36,7 @@ export default async function PartnerOrdersPage(props: { searchParams: Promise<{
     <div className="space-y-6">
       <div>
         <p className="eyebrow">{ctx.name}</p>
-        <h1 className="mt-2 font-serif text-3xl font-semibold">{t.partner.orders}</h1>
+        <h1 className="mt-2 font-display text-3xl md:text-4xl">{t.partner.orders}</h1>
         <p className="mt-1 text-sm text-ink-muted">{t.partner.ordersSubtitle}</p>
       </div>
 
@@ -49,12 +49,12 @@ export default async function PartnerOrdersPage(props: { searchParams: Promise<{
       />
 
       {rows.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-line p-12 text-center text-sm text-ink-muted">{status || q || search.unread ? t.partner.emptyFiltered : t.partner.noOrders}</p>
+        <p className="rounded-2xl bg-mist-light p-12 text-center text-sm text-ink-muted">{status || q || search.unread ? t.partner.emptyFiltered : t.partner.noOrders}</p>
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-line bg-bg-surface">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-line bg-sand/50 text-left text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-muted">
+              <tr className="border-b border-line bg-mist-light text-left text-[11px] font-bold uppercase tracking-[0.06em] text-ink-muted">
                 <th className="px-4 py-3">#</th>
                 <th className="px-4 py-3">{t.partner.customer}</th>
                 <th className="px-4 py-3">{t.partner.project}</th>
@@ -66,11 +66,11 @@ export default async function PartnerOrdersPage(props: { searchParams: Promise<{
             </thead>
             <tbody>
               {rows.map((o) => (
-                <tr key={o.id} className={cn('border-b border-line/70 transition-colors last:border-b-0 hover:bg-sand/25', !o.viewedAt && 'bg-brand/5')}>
+                <tr key={o.id} className={cn('border-b border-line/70 transition-colors last:border-b-0 hover:bg-mist-light', !o.viewedAt && 'bg-lime-soft')}>
                   <td className="px-4 py-3">
                     <Link href={partnerHref(`/partner/orders/${o.id}`, ctx)} className="inline-flex items-center gap-2 font-semibold text-ink hover:text-brand">
                       #{o.id}
-                      {!o.viewedAt && <span className="rounded-full bg-brand px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">{t.partner.unread}</span>}
+                      {!o.viewedAt && <span className="rounded-full bg-ink px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">{t.partner.unread}</span>}
                     </Link>
                   </td>
                   <td className="px-4 py-3">
@@ -83,7 +83,7 @@ export default async function PartnerOrdersPage(props: { searchParams: Promise<{
                   <td className="px-4 py-3 text-ink-muted">
                     {/* A brigade opens the project it is hired for; other partners see its name. */}
                     {ctx.type === 'team' && o.projectId && o.status !== 'cancelled' ? (
-                      <Link href={partnerHref(`/partner/projects/${o.projectId}`, ctx)} className="text-ink underline-offset-4 hover:text-brand hover:underline">
+                      <Link href={partnerHref(`/partner/projects/${o.projectId}`, ctx)} className="font-medium text-ink underline decoration-lime decoration-2 underline-offset-4 hover:decoration-ink">
                         {o.projectName ?? `#${o.projectId}`}
                       </Link>
                     ) : (

@@ -130,13 +130,13 @@ export default function DesignStartPage() {
                   role="tab"
                   aria-selected={active}
                   onClick={() => setPlanMode(o.id)}
-                  className={cn('group flex items-start gap-4 rounded-[16px] border p-5 text-left transition-colors', active ? 'border-ink bg-ink text-white' : 'border-line bg-bg-surface hover:border-ink/40')}
+                  className={cn('group flex items-start gap-4 rounded-2xl border p-5 text-left transition-colors', active ? 'border-brand bg-brand-50 ring-1 ring-brand' : 'border-line bg-bg-surface hover:border-ink')}
                 >
-                  <span className={cn('grid h-10 w-10 shrink-0 place-items-center rounded-[10px] border', active ? 'border-white/20' : 'border-line text-ink-muted')}>{o.icon}</span>
+                  <span className={cn('grid h-11 w-11 shrink-0 place-items-center rounded-xl', active ? 'bg-brand text-white' : 'bg-mist-light text-ink')}>{o.icon}</span>
                   <span className="min-w-0">
-                    <span className={cn('block font-serif text-sm font-semibold tabular-nums', active ? 'text-white/60' : 'text-wood')}>{String(i + 1).padStart(2, '0')}</span>
-                    <span className="mt-0.5 flex flex-wrap items-center gap-2 font-serif text-lg font-semibold leading-tight">{o.label}{o.id === 'upload' && uploadLocked && <PlanBadge plan={uploadLocked} tone={active ? 'dark' : 'light'} />}</span>
-                    <span className={cn('mt-1 block text-sm leading-relaxed', active ? 'text-white/70' : 'text-ink-muted')}>{o.desc}</span>
+                    <span className={cn('block font-display text-sm tabular-nums', active ? 'text-brand' : 'text-ink-faint')}>{String(i + 1).padStart(2, '0')}</span>
+                    <span className="mt-0.5 flex flex-wrap items-center gap-2 font-display text-lg leading-tight">{o.label}{o.id === 'upload' && uploadLocked && <PlanBadge plan={uploadLocked} tone="light" />}</span>
+                    <span className={cn('mt-1 block text-sm leading-relaxed', active ? 'text-ink-soft' : 'text-ink-muted')}>{o.desc}</span>
                   </span>
                 </button>
               );
@@ -144,11 +144,11 @@ export default function DesignStartPage() {
           </div>
 
           {planMode === 'upload' && (
-            <div className="rounded-[16px] border border-line bg-bg-surface p-5 md:p-6">
+            <div className="rounded-2xl border border-line bg-bg-surface p-5 md:p-6">
               <PlanUploadCard showSample showContinue={false} onPlan={(p, imageUrl) => setUploaded({ plan: p, imageUrl })} onReset={() => setUploaded(null)} />
               {uploaded && (
-                <p className="mt-4 flex items-center gap-2 text-sm font-medium text-olive">
-                  <Check className="h-4 w-4" />
+                <p className="mt-4 flex items-center gap-2 text-sm font-semibold text-ink">
+                  <span className="grid h-5 w-5 place-items-center rounded-full bg-lime"><Check className="h-3 w-3" strokeWidth={3} /></span>
                   {fill(t.design.planReady, { n: uploaded.plan.rooms.length })}
                 </p>
               )}
@@ -158,15 +158,15 @@ export default function DesignStartPage() {
           {planMode === 'scratch' &&
             ((plan?.rooms.length ?? 0) > 0 ? (
               // This project's own drawing, come back to: it is what the next step opens on.
-              <div className="rounded-[16px] border border-line bg-bg-surface p-6 text-sm">
-                <p className="flex items-center gap-2 font-medium text-olive">
-                  <Check className="h-4 w-4" />
+              <div className="rounded-2xl border border-line bg-bg-surface p-6 text-sm">
+                <p className="flex items-center gap-2 font-semibold text-ink">
+                  <span className="grid h-5 w-5 place-items-center rounded-full bg-lime"><Check className="h-3 w-3" strokeWidth={3} /></span>
                   {fill(t.calculator.planAlreadyUploaded, { n: plan?.rooms.length ?? 0 })}
                 </p>
               </div>
             ) : (
-              <div className="rounded-[16px] border border-dashed border-line bg-bg-surface p-6 text-sm text-ink-muted">
-                <p className="font-medium text-ink">{t.build.planEmptyTitle}</p>
+              <div className="dots rounded-2xl border border-dashed border-stone bg-bg-surface p-6 text-sm text-ink-muted">
+                <p className="font-bold tracking-tight text-ink">{t.build.planEmptyTitle}</p>
                 <p className="mt-1">{t.build.optionScratchDesc}</p>
               </div>
             ))}
@@ -247,25 +247,25 @@ function ModeCard({ active, onClick, icon, label, description, coversLabel, cove
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={cn('group flex items-start gap-4 rounded-[16px] border p-4 text-left transition-colors duration-300', active ? 'border-ink bg-ink text-white' : 'border-line bg-bg-surface hover:border-ink/40')}
+      className={cn('group flex items-start gap-4 rounded-2xl border p-4 text-left transition-colors duration-300', active ? 'border-brand bg-brand-50 ring-1 ring-brand' : 'border-line bg-bg-surface hover:border-ink')}
     >
-      <span className={cn('grid h-10 w-10 shrink-0 place-items-center rounded-[10px] border', active ? 'border-white/20 text-white' : 'border-line text-ink-muted')}>{icon}</span>
+      <span className={cn('grid h-11 w-11 shrink-0 place-items-center rounded-xl', active ? 'bg-brand text-white' : 'bg-mist-light text-ink')}>{icon}</span>
       <span className="min-w-0 flex-1">
-        <span className="block font-serif text-lg font-semibold leading-tight">{label}</span>
-        <span className={cn('mt-1 block text-sm leading-relaxed', active ? 'text-white/70' : 'text-ink-muted')}>{description}</span>
-        <span className={cn('mt-3 block border-t pt-3', active ? 'border-white/15' : 'border-line')}>
-          <span className={cn('block text-[11px] font-semibold uppercase tracking-wide', active ? 'text-white/50' : 'text-ink-faint')}>{coversLabel}</span>
+        <span className="block font-display text-lg leading-tight">{label}</span>
+        <span className={cn('mt-1 block text-sm leading-relaxed', active ? 'text-ink-soft' : 'text-ink-muted')}>{description}</span>
+        <span className={cn('mt-3 block border-t pt-3', active ? 'border-brand-200' : 'border-line')}>
+          <span className={cn('block text-[11px] font-bold uppercase tracking-wide', active ? 'text-ink-muted' : 'text-ink-faint')}>{coversLabel}</span>
           <span className="mt-1.5 block space-y-1">
             {covers.map((line) => (
               <span key={line} className="flex items-start gap-2">
-                <Check className={cn('mt-0.5 h-3.5 w-3.5 shrink-0', active ? 'text-white/60' : 'text-olive-light')} />
-                <span className={cn('text-[13px] leading-snug', active ? 'text-white/70' : 'text-ink-soft')}>{line}</span>
+                <Check className={cn('mt-0.5 h-3.5 w-3.5 shrink-0', active ? 'text-brand' : 'text-ink-muted')} />
+                <span className={cn('text-[13px] leading-snug', active ? 'text-ink' : 'text-ink-soft')}>{line}</span>
               </span>
             ))}
           </span>
         </span>
       </span>
-      <span className={cn('grid h-5 w-5 shrink-0 place-items-center rounded-full border', active ? 'border-white bg-bg-surface text-ink' : 'border-line text-transparent group-hover:border-ink/40')}>
+      <span className={cn('grid h-5 w-5 shrink-0 place-items-center rounded-full border', active ? 'border-brand bg-brand text-white' : 'border-stone text-transparent group-hover:border-ink')}>
         <Check className="h-3 w-3" />
       </span>
     </button>
@@ -275,7 +275,7 @@ function ModeCard({ active, onClick, icon, label, description, coversLabel, cove
 /** The qualification under the chosen mode: what it will *not* do, or what it still needs. */
 function ModeNote({ children }: { children: React.ReactNode }) {
   return (
-    <p className="flex gap-2.5 rounded-[12px] border border-line bg-sand-light p-4 text-sm leading-relaxed text-ink-soft">
+    <p className="flex gap-2.5 rounded-2xl bg-mist-light p-4 text-sm leading-relaxed text-ink-soft">
       <Info className="mt-0.5 h-4 w-4 shrink-0 text-ink-muted" />
       <span className="max-w-prose">{children}</span>
     </p>
@@ -292,17 +292,17 @@ function HomeStateCover({ state }: { state: HomeState }) {
   const t = useT();
   const copy = t.homeStateCover[state];
   const rows: Array<{ label: string; value: string; icon: React.ReactNode }> = [
-    { label: t.design.modeCoverDone, value: copy.done, icon: <Check className="h-3.5 w-3.5 text-olive-light" /> },
-    { label: t.design.modeCoverTodo, value: copy.todo, icon: <Receipt className="h-3.5 w-3.5 text-brand" /> },
+    { label: t.design.modeCoverDone, value: copy.done, icon: <Check className="h-3.5 w-3.5 text-ink-muted" /> },
+    { label: t.design.modeCoverTodo, value: copy.todo, icon: <Receipt className="h-3.5 w-3.5 text-ink-muted" /> },
     { label: t.design.modeCoverPoints, value: copy.points, icon: <Plug className="h-3.5 w-3.5 text-ink-muted" /> },
   ];
   return (
-    <div className="rounded-[16px] border border-line bg-bg-surface">
-      <p className="border-b border-line px-4 py-3 text-sm font-semibold text-ink">{t.design.modeCoverTitle}</p>
+    <div className="rounded-2xl border border-line bg-bg-surface">
+      <p className="border-b border-line px-4 py-3 font-display text-base text-ink">{t.design.modeCoverTitle}</p>
       <dl className="grid gap-4 px-4 py-4 text-sm sm:grid-cols-3">
         {rows.map((row) => (
           <div key={row.label}>
-            <dt className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+            <dt className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-muted">
               {row.icon}
               {row.label}
             </dt>

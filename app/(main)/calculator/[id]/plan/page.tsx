@@ -281,7 +281,7 @@ export default function CalculatorPlanPage() {
             <Button
               type="button"
               variant="outline"
-              className="h-auto min-h-10 whitespace-normal py-2 leading-snug"
+              className="h-auto min-h-10 whitespace-normal rounded-2xl py-2 leading-snug"
               onClick={() => {
                 setAskTechnical(false);
                 start();
@@ -292,7 +292,7 @@ export default function CalculatorPlanPage() {
             <Button
               type="button"
               variant="ink"
-              className="h-auto min-h-10 whitespace-normal py-2 leading-snug"
+              className="h-auto min-h-10 whitespace-normal rounded-2xl py-2 leading-snug"
               onClick={() => {
                 actions.placeByStandards(catalog);
                 setAskTechnical(false);

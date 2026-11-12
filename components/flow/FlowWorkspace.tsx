@@ -35,7 +35,7 @@ export const FLOW_BOARD_BLEED = { top: 88, right: 368 } as const;
 /** The step itself: the whole window under the header and the step strip from `lg` up. */
 export function FlowWorkspace({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div data-flow-workspace className={cn('relative lg:min-h-0 lg:flex-1 lg:overflow-hidden lg:bg-[#FBF8F2]', className)}>
+    <div data-flow-workspace className={cn('relative lg:min-h-0 lg:flex-1 lg:overflow-hidden lg:bg-[#F7F7F8]', className)}>
       {children}
     </div>
   );
@@ -83,7 +83,7 @@ export function FlowBar({ step, total, title, subtitle, brief, back, actions, ne
     <div data-board-edge="top" className="pointer-events-none absolute inset-x-4 top-4 z-30 hidden items-center justify-between gap-3 lg:flex">
       <div ref={anchor} className="pointer-events-auto relative flex min-w-0 items-center gap-2">
         {back && (
-          <Link href={back.href} title={back.label} aria-label={back.label} className="grid h-14 w-11 shrink-0 place-items-center rounded-[14px] bg-bg-surface/90 text-ink-soft shadow-glass backdrop-blur-xl transition-colors hover:bg-bg-surface hover:text-ink">
+          <Link href={back.href} title={back.label} aria-label={back.label} className="grid h-14 w-12 shrink-0 place-items-center rounded-2xl bg-bg-surface text-ink shadow-glass transition-colors hover:bg-ink hover:text-white">
             <ArrowLeft className="h-4 w-4" />
           </Link>
         )}
@@ -92,14 +92,15 @@ export function FlowBar({ step, total, title, subtitle, brief, back, actions, ne
           onClick={() => hasMore && setOpen((v) => !v)}
           aria-expanded={hasMore ? open : undefined}
           title={subtitle}
-          className={cn('flex h-14 min-w-0 items-center gap-3 rounded-[14px] bg-bg-surface/90 pl-4 text-left shadow-glass backdrop-blur-xl transition-colors', hasMore ? 'pr-3 hover:bg-bg-surface' : 'cursor-default pr-4')}
+          className={cn('flex h-14 min-w-0 items-center gap-3 rounded-2xl bg-bg-surface pl-2 text-left shadow-glass transition-colors', hasMore ? 'pr-3 hover:bg-mist-light' : 'cursor-default pr-4')}
         >
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-lime font-display text-base tabular-nums text-ink">{String(step).padStart(2, '0')}</span>
           <span className="min-w-0">
-            <span className="eyebrow block leading-none">
-              {t.common.step} <span className="font-serif text-[12px] font-semibold tabular-nums tracking-normal text-brand">{String(step).padStart(2, '0')}</span>
+            <span className="block text-[11px] font-semibold uppercase leading-none tracking-[0.08em] text-ink-muted">
+              {t.common.step} {String(step).padStart(2, '0')}
               <span className="text-ink-faint"> / {String(total).padStart(2, '0')}</span>
             </span>
-            <span className="mt-1.5 block truncate font-serif text-lg font-semibold leading-tight text-ink">{title}</span>
+            <span className="mt-1 block truncate font-display text-lg leading-tight text-ink">{title}</span>
           </span>
           {hasMore && <ChevronDown className={cn('h-4 w-4 shrink-0 text-ink-muted transition-transform', open && 'rotate-180')} />}
         </button>
@@ -108,11 +109,11 @@ export function FlowBar({ step, total, title, subtitle, brief, back, actions, ne
             {subtitle && <p className="text-sm leading-relaxed text-ink-soft">{subtitle}</p>}
             {brief != null && (
               <>
-                <p className={cn('font-serif text-base font-semibold text-ink', subtitle && 'mt-4 border-t border-line pt-3')}>{t.build.briefToggle}</p>
+                <p className={cn('font-display text-base text-ink', subtitle && 'mt-4 border-t border-line pt-3')}>{t.build.briefToggle}</p>
                 <dl className="mt-2 grid grid-cols-[8.5rem_minmax(0,1fr)] gap-x-4 gap-y-2.5 text-sm">
                   {stageBriefRows(t, brief).map(([label, value]) => (
                     <div key={label} className="contents">
-                      <dt className="pt-0.5 text-[11px] font-medium uppercase tracking-[0.16em] text-wood">{label}</dt>
+                      <dt className="pt-0.5 text-[11px] font-bold uppercase tracking-[0.06em] text-ink">{label}</dt>
                       <dd className="leading-relaxed text-ink-soft">{value}</dd>
                     </div>
                   ))}
@@ -138,7 +139,7 @@ export function FlowBar({ step, total, title, subtitle, brief, back, actions, ne
 }
 
 function FlowNextButton({ next }: { next: FlowNext }) {
-  const className = 'group inline-flex h-11 items-center gap-2 rounded-full bg-brand pl-4 pr-3 text-sm font-medium text-white shadow-float transition-colors hover:bg-brand-dark disabled:pointer-events-none disabled:opacity-50';
+  const className = 'group inline-flex h-12 items-center gap-2 rounded-full bg-lime pl-5 pr-4 text-sm font-bold text-ink shadow-float transition-colors hover:bg-ink hover:text-lime disabled:pointer-events-none disabled:opacity-50';
   const inner = (
     <>
       {next.label}
@@ -159,7 +160,7 @@ function FlowNextButton({ next }: { next: FlowNext }) {
 /** A plain action for the bar, beside the way on: an icon, and its words where there is room. */
 export function FlowBarButton({ icon, label, title, onClick }: { icon: React.ReactNode; label: string; title?: string; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} title={title ?? label} aria-label={label} className="flex h-11 items-center gap-2 rounded-full bg-bg-surface/90 px-3 text-sm font-medium text-ink-soft shadow-glass backdrop-blur-xl transition-colors hover:bg-bg-surface hover:text-ink">
+    <button type="button" onClick={onClick} title={title ?? label} aria-label={label} className="flex h-12 items-center gap-2 rounded-full bg-bg-surface px-4 text-sm font-semibold text-ink shadow-glass transition-colors hover:bg-ink hover:text-white">
       {icon}
       <span className="hidden xl:inline">{label}</span>
     </button>
@@ -176,7 +177,7 @@ export function FlowPanel({ children, className }: { children: React.ReactNode; 
     <aside
       data-board-edge="right"
       className={cn(
-        'space-y-4 lg:absolute lg:bottom-4 lg:right-4 lg:top-[5.5rem] lg:z-20 lg:w-[340px] lg:overflow-y-auto lg:overscroll-contain lg:rounded-[18px] lg:border lg:border-line/70 lg:bg-bg-base/95 lg:p-3 lg:shadow-float lg:backdrop-blur-xl',
+        'space-y-4 lg:absolute lg:bottom-4 lg:right-4 lg:top-[5.5rem] lg:z-20 lg:w-[340px] lg:overflow-y-auto lg:overscroll-contain lg:rounded-3xl lg:border lg:border-line lg:bg-bg-surface/95 lg:p-3 lg:shadow-float lg:backdrop-blur-xl',
         className
       )}
     >
@@ -193,7 +194,7 @@ export function FlowPanel({ children, className }: { children: React.ReactNode; 
  */
 export function FlowPanelOverlay({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={cn('mt-6 animate-fade-in lg:absolute lg:bottom-4 lg:right-4 lg:top-[5.5rem] lg:z-30 lg:mt-0 lg:w-[340px] lg:overflow-y-auto lg:overscroll-contain lg:rounded-[18px] lg:border lg:border-line/70 lg:bg-bg-base lg:p-3 lg:shadow-float', className)}>
+    <div className={cn('mt-6 animate-fade-in lg:absolute lg:bottom-4 lg:right-4 lg:top-[5.5rem] lg:z-30 lg:mt-0 lg:w-[340px] lg:overflow-y-auto lg:overscroll-contain lg:rounded-3xl lg:border lg:border-line lg:bg-bg-surface lg:p-3 lg:shadow-float', className)}>
       {children}
     </div>
   );

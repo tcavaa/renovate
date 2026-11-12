@@ -18,10 +18,10 @@ export function PlanBadge({ plan, className, tone = 'light', iconOnly = false }:
     <span
       title={fill(t.plans.lockedBadgeTitle, { plan: name })}
       className={cn(
-        'inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none',
-        plan === 'professional' ? 'bg-ink text-white' : 'bg-accent/15 text-accent-dark',
+        'inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none',
+        plan === 'professional' ? 'bg-ink text-white' : 'bg-lilac-soft text-brand-700',
         tone === 'dark' && plan === 'professional' && 'bg-white/20',
-        tone === 'dark' && plan === 'premium' && 'bg-accent text-ink',
+        tone === 'dark' && plan === 'premium' && 'bg-lilac text-ink',
         className
       )}
     >
@@ -36,7 +36,7 @@ export function PlanName({ plan, className }: { plan: 'free' | PaidPlanId; class
   const t = useT();
   return (
     <span className={cn('inline-flex items-center gap-1.5', className)}>
-      {plan === 'professional' && <Crown className="h-4 w-4 text-accent" aria-hidden />}
+      {plan === 'professional' && <Crown className="h-4 w-4 fill-sun text-sun" aria-hidden />}
       {plan === 'free' ? t.plans.free : plan === 'premium' ? t.plans.premium : t.plans.professional}
     </span>
   );

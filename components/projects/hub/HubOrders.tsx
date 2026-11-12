@@ -19,19 +19,19 @@ export async function HubOrders({ userId, t, locale }: { userId: number; t: Dict
     <section className="mt-8">
       <p className="max-w-2xl text-sm leading-relaxed text-ink-muted">{t.hub.ordersHint}</p>
       {groups.length === 0 ? (
-        <p className="mt-10 rounded-2xl border border-dashed border-stone bg-sand-light/60 p-12 text-center text-sm text-ink-muted">{t.hub.ordersEmpty}</p>
+        <p className="mt-10 dots rounded-2xl bg-mist-light p-12 text-center text-sm text-ink-muted">{t.hub.ordersEmpty}</p>
       ) : (
         <div className="mt-10 space-y-12">
           {groups.map((group) => (
             <section key={group.id} aria-labelledby={`hub-orders-${group.id}`}>
-              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-line pb-3">
-                <h2 id={`hub-orders-${group.id}`} className="min-w-0 font-serif text-2xl font-semibold text-ink">
-                  <Link href={`/profile/projects/${group.id}`} className="hover:text-brand">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b-2 border-ink pb-3">
+                <h2 id={`hub-orders-${group.id}`} className="min-w-0 font-display text-2xl text-ink">
+                  <Link href={`/profile/projects/${group.id}`} className="decoration-lime decoration-4 underline-offset-4 hover:underline">
                     {group.name || t.profile.fallbackName}
                   </Link>
-                  <span className="ml-3 text-sm font-normal tabular-nums text-ink-muted">{fill(t.hub.ordersCount, { n: group.orders.length })}</span>
+                  <span className="ml-3 text-sm font-medium tracking-normal tabular-nums text-ink-muted">{fill(t.hub.ordersCount, { n: group.orders.length })}</span>
                 </h2>
-                <Link href={`/profile/projects/${group.id}`} className="inline-flex items-center gap-1 text-sm font-medium text-ink-soft hover:text-brand">
+                <Link href={`/profile/projects/${group.id}`} className="inline-flex items-center gap-1 rounded-full bg-mist-light px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:bg-lime">
                   {t.hub.projectPage}
                   <ArrowUpRight className="h-4 w-4" aria-hidden />
                 </Link>

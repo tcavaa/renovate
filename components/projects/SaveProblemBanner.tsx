@@ -75,10 +75,10 @@ export function SaveProblemBanner({ projectId }: { projectId: number }) {
                 : t.hub.saveErrorText;
   const signInHref = `/login?callbackUrl=${encodeURIComponent(typeof window === 'undefined' ? '/' : window.location.pathname)}`;
   return (
-    <div role="alert" className="fixed inset-x-4 bottom-4 z-[60] mx-auto max-w-xl rounded-2xl border border-warning/60 bg-bg-surface p-4 shadow-float">
+    <div role="alert" className="fixed inset-x-4 bottom-4 z-[60] mx-auto max-w-xl rounded-2xl border-2 border-ink bg-sun-soft p-4 shadow-float">
       <div className="flex items-start gap-3">
         <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
-        <p className="text-sm text-ink">{text}</p>
+        <p className="text-sm font-medium text-ink">{text}</p>
       </div>
       <div className="mt-3 flex flex-wrap justify-end gap-2">
         {problem === 'gone' ? (

@@ -42,7 +42,7 @@ export default function ResetPasswordPage() {
     <AuthForm
       title={t.auth.resetTitle}
       footer={
-        <Link href="/login" className="bracket-link font-medium text-brand hover:text-brand-dark">
+        <Link href="/login" className="arrow-link text-ink">
           {state === 'done' ? t.auth.loginButton : t.auth.backToLogin}
         </Link>
       }

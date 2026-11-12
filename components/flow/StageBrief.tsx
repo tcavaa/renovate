@@ -34,15 +34,15 @@ export function StageBrief({ step, className, defaultOpen }: { step: StudioStep;
   const rows = stageBriefRows(t, step);
   return (
     <section className={cn('overflow-hidden rounded-2xl border border-line bg-bg-surface', className)}>
-      <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-sand/40">
-        <span className="font-serif text-base font-semibold text-ink">{t.build.briefToggle}</span>
+      <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-mist-light">
+        <span className="font-display text-base text-ink">{t.build.briefToggle}</span>
         <ChevronDown className={cn('h-4 w-4 text-ink-muted transition-transform', open && 'rotate-180')} />
       </button>
       {open && (
-        <dl className="grid gap-3 border-t border-line bg-sand-light/50 px-4 py-4 text-sm sm:grid-cols-5">
+        <dl className="grid gap-3 border-t border-line bg-mist-light px-4 py-4 text-sm sm:grid-cols-5">
           {rows.map(([label, value]) => (
             <div key={label}>
-              <dt className="text-[11px] font-medium uppercase tracking-[0.16em] text-wood">{label}</dt>
+              <dt className="text-[11px] font-bold uppercase tracking-[0.06em] text-ink">{label}</dt>
               <dd className="mt-1 leading-relaxed text-ink-soft">{value}</dd>
             </div>
           ))}

@@ -110,11 +110,11 @@ export function PlacementGame({ ready, onClose, onPlayed }: PlacementGameProps) 
   if (pool === 'none') return null;
 
   return (
-    <section className="mt-4 overflow-hidden rounded-[16px] border border-line bg-bg-surface" aria-live="polite">
+    <section className="mt-4 overflow-hidden rounded-2xl border border-line bg-bg-surface" aria-live="polite">
       {ready && (
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-olive-soft px-4 py-2.5">
-          <p className="flex items-center gap-2 text-sm font-medium text-olive">
-            <Check className="h-4 w-4" />
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-lime bg-lime px-4 py-2.5">
+          <p className="flex items-center gap-2 text-sm font-bold text-ink">
+            <Check className="h-4 w-4" strokeWidth={3} />
             {ready.rooms != null ? fill(g.planReady, { n: ready.rooms }) : g.planReadyFallback}
           </p>
           <Button type="button" variant="ink" size="sm" onClick={onClose}>
@@ -125,8 +125,8 @@ export function PlacementGame({ ready, onClose, onPlayed }: PlacementGameProps) 
 
       <div className="flex flex-wrap items-start justify-between gap-3 px-4 pt-4">
         <div>
-          <h3 className="flex items-center gap-2 font-serif text-lg font-semibold">
-            <Sparkles className="h-4 w-4 text-brand" />
+          <h3 className="flex items-center gap-2 font-display text-xl">
+            <Sparkles className="h-4 w-4 text-ink" />
             {g.title}
           </h3>
           <p className="mt-0.5 text-sm text-ink-muted">{g.subtitle}</p>
@@ -134,10 +134,10 @@ export function PlacementGame({ ready, onClose, onPlayed }: PlacementGameProps) 
         {state && (
           <div className="flex items-baseline gap-3 text-sm tabular-nums">
             <span key={state.score} className="animate-pop">
-              <span className="text-lg font-semibold text-ink">{state.score}</span> <span className="text-ink-muted">{g.points}</span>
+              <span className="font-display text-xl text-ink">{state.score}</span> <span className="text-ink-muted">{g.points}</span>
             </span>
             {state.streak > 1 && (
-              <span className="rounded-full bg-brand/10 px-2 py-0.5 font-medium text-brand">
+              <span className="rounded-full bg-lime px-2 py-0.5 font-bold text-ink">
                 ×{state.streak} {g.streak}
               </span>
             )}
@@ -155,8 +155,8 @@ export function PlacementGame({ ready, onClose, onPlayed }: PlacementGameProps) 
           {/* --- the piece --- */}
           <div className="flex min-w-0 flex-col gap-3">
             {over ? (
-              <div className="flex h-full min-h-[14rem] flex-col items-center justify-center gap-3 rounded-[12px] bg-bg-base p-4 text-center">
-                <p className="font-serif text-xl font-semibold">{g.roundOver}</p>
+              <div className="flex h-full min-h-[14rem] flex-col items-center justify-center gap-3 rounded-xl bg-mist-light p-4 text-center">
+                <p className="font-display text-2xl">{g.roundOver}</p>
                 <p className="text-sm text-ink-muted">
                   {fill(g.summary, { score: state.score, perfect: state.perfect, n: state.pieces.length, best: state.bestStreak })}
                 </p>
@@ -184,15 +184,15 @@ export function PlacementGame({ ready, onClose, onPlayed }: PlacementGameProps) 
                       e.dataTransfer.effectAllowed = 'move';
                     }}
                     aria-label={fill(g.dragPiece, { name: localizedName(locale, piece.product) })}
-                    className="flex cursor-grab items-center gap-3 rounded-[12px] border border-line bg-bg-surface p-2.5 active:cursor-grabbing"
+                    className="flex cursor-grab items-center gap-3 rounded-xl border border-line bg-bg-surface p-2.5 shadow-card active:cursor-grabbing"
                   >
-                    <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-[8px] bg-bg-surface">
+                    <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-bg-surface">
                       {piece.product.imageUrl && (
                         <Image src={piece.product.imageUrl} alt="" fill sizes="44px" className="object-contain" draggable={false} />
                       )}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">{localizedName(locale, piece.product)}</span>
+                      <span className="block truncate text-sm font-semibold">{localizedName(locale, piece.product)}</span>
                       <span className="block text-xs text-ink-muted">
                         {fill(g.pieceOf, { i: state.index + 1, n: state.pieces.length })} · {g.dragHint}
                       </span>
@@ -205,7 +205,7 @@ export function PlacementGame({ ready, onClose, onPlayed }: PlacementGameProps) 
           </div>
 
           {/* --- the flat --- */}
-          <div role="group" aria-label={g.roomsLabel} className="grid h-60 grid-cols-3 grid-rows-2 gap-[3px] rounded-[10px] bg-ink p-[3px] md:h-auto md:min-h-[17rem]">
+          <div role="group" aria-label={g.roomsLabel} className="grid h-60 grid-cols-3 grid-rows-2 gap-[3px] rounded-lg bg-ink p-[3px] md:h-auto md:min-h-[17rem]">
             {(Object.keys(ROOM_AREA) as RoomType[]).map((room) => {
               const placed = (state.placed[room] ?? []).map((id) => byId.get(id)).filter((p): p is CatalogProduct => !!p);
               const shaking = feedback && !feedback.right && feedback.room === room;
@@ -228,9 +228,9 @@ export function PlacementGame({ ready, onClose, onPlayed }: PlacementGameProps) 
                   }}
                   style={dragOver === room || landed ? { backgroundColor: ROOM_TINT_STRONG[room] } : undefined}
                   className={cn(
-                    'relative flex min-w-0 flex-col items-start justify-between overflow-hidden rounded-[6px] bg-bg-surface p-2 text-left transition-colors',
+                    'relative flex min-w-0 flex-col items-start justify-between overflow-hidden rounded-md bg-bg-surface p-2 text-left transition-colors',
                     ROOM_AREA[room],
-                    !over && 'hover:bg-sand-light',
+                    !over && 'hover:bg-mist-light',
                     // An outline, not a tint: the flat's walls are the black behind the rooms.
                     shaking && 'animate-shake ring-2 ring-inset ring-danger',
                     hint === room && 'ring-2 ring-inset ring-brand motion-safe:animate-pulse'
@@ -245,7 +245,7 @@ export function PlacementGame({ ready, onClose, onPlayed }: PlacementGameProps) 
                     {placed.map((p, i) => (
                       <span
                         key={p.id}
-                        className={cn('relative h-8 w-8 overflow-hidden rounded-[6px] border border-line bg-bg-surface', landed && i === placed.length - 1 && 'animate-pop')}
+                        className={cn('relative h-8 w-8 overflow-hidden rounded-md border border-line bg-bg-surface', landed && i === placed.length - 1 && 'animate-pop')}
                       >
                         {p.imageUrl && <Image src={p.imageUrl} alt={localizedName(locale, p)} fill sizes="32px" className="object-contain" />}
                       </span>
@@ -328,7 +328,7 @@ function PieceTurntable({ piece, preload }: { piece: GamePiece; preload: GamePie
   }, [preload]);
 
   return (
-    <div className="relative h-48 overflow-hidden rounded-[12px] bg-bg-base md:h-56">
+    <div className="relative h-48 overflow-hidden rounded-xl bg-mist-light md:h-56">
       <div ref={setHost} className="absolute inset-0" />
       {status !== 'ready' && piece.product.imageUrl && (
         <Image src={piece.product.imageUrl} alt="" fill sizes="320px" className={cn('object-contain p-6', status === 'loading' && 'motion-safe:animate-pulse')} />

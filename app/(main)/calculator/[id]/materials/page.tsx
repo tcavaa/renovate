@@ -73,7 +73,7 @@ export default function MaterialsPage() {
         )}
 
         {(phases.includes(FLOOR_PHASE) || phases.includes(CEILING_PHASE)) && (
-          <section className="mt-10 rounded-2xl border border-line bg-sand-light/60 p-5 md:p-6">
+          <section className="mt-10 rounded-2xl bg-mist-light p-5 md:p-6">
             <h2 className="eyebrow mb-4">{t.calculator.choicesTitle}</h2>
             <WorkChoicesPicker value={choices} onChange={setChoices} floor={phases.includes(FLOOR_PHASE)} ceiling={phases.includes(CEILING_PHASE)} />
           </section>

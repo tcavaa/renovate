@@ -76,8 +76,8 @@ export function ProfileForm({ initial }: { initial: AccountContact }) {
       <p className="text-sm leading-relaxed text-ink-muted">{p.accountLead}</p>
 
       <section className="space-y-4 rounded-2xl border border-line bg-bg-surface p-5 md:p-6">
-        <h2 className="flex items-center gap-2 font-serif text-lg font-semibold text-ink">
-          <UserRound className="h-5 w-5 text-wood" aria-hidden />
+        <h2 className="flex items-center gap-2 font-display text-lg text-ink">
+          <span className="grid h-9 w-9 place-items-center rounded-xl bg-lime text-ink" aria-hidden><UserRound className="h-4 w-4" /></span>
           {p.contactSection}
         </h2>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -99,8 +99,8 @@ export function ProfileForm({ initial }: { initial: AccountContact }) {
 
       <section className="space-y-4 rounded-2xl border border-line bg-bg-surface p-5 md:p-6">
         <div className="flex items-start justify-between gap-3">
-          <h2 className="flex items-center gap-2 font-serif text-lg font-semibold text-ink">
-            <MapPin className="h-5 w-5 text-wood" aria-hidden />
+          <h2 className="flex items-center gap-2 font-display text-lg text-ink">
+            <span className="grid h-9 w-9 place-items-center rounded-xl bg-mist-light text-ink" aria-hidden><MapPin className="h-4 w-4" /></span>
             {p.addressSection}
           </h2>
           {addressGiven && (
@@ -110,7 +110,7 @@ export function ProfileForm({ initial }: { initial: AccountContact }) {
                 setForm({ ...form, city: '', line: '', postalCode: '' });
                 setSaved(false);
               }}
-              className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium text-ink-muted transition-colors hover:bg-danger/5 hover:text-danger"
+              className="inline-flex items-center gap-1 rounded-full bg-mist-light px-2.5 py-1 text-xs font-semibold text-ink-muted transition-colors hover:bg-coral-soft hover:text-danger"
             >
               <Trash2 className="h-3.5 w-3.5" />
               {p.clearAddress}
@@ -134,14 +134,14 @@ export function ProfileForm({ initial }: { initial: AccountContact }) {
         </div>
       </section>
 
-      {error && <p className="rounded-xl border border-danger/40 bg-danger/5 px-4 py-2.5 text-sm text-danger">{error}</p>}
+      {error && <p className="rounded-xl bg-coral-soft px-4 py-2.5 text-sm font-medium text-danger">{error}</p>}
       <div className="flex items-center gap-4">
         <Button type="submit" size="lg" disabled={saving}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           {saving ? p.saving : t.common.save}
         </Button>
         {saved && (
-          <span className="inline-flex items-center gap-1.5 text-sm font-medium text-success" role="status">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-lime px-3 py-1 text-sm font-semibold text-ink" role="status">
             <Check className="h-4 w-4" />
             {p.saved}
           </span>

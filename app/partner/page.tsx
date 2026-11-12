@@ -44,7 +44,7 @@ export default async function PartnerDashboardPage(props: { searchParams: Promis
       <div className="space-y-8">
         <div>
           <p className="eyebrow">{t.partner.title}</p>
-          <h1 className="mt-2 font-serif text-3xl font-semibold">{t.partner.adminPreview}</h1>
+          <h1 className="mt-2 font-display text-3xl md:text-4xl">{t.partner.adminPreview}</h1>
         </div>
         <div className="grid gap-6 md:grid-cols-3">
           <PreviewList title={t.partner.storeAccount} items={storeRows.map((s) => ({ href: `/partner?store=${s.id}`, label: s.name }))} />
@@ -83,10 +83,10 @@ export default async function PartnerDashboardPage(props: { searchParams: Promis
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="eyebrow">{t.partner.title}</p>
-          <h1 className="mt-2 font-serif text-3xl font-semibold">{ctx.name}</h1>
+          <h1 className="mt-2 font-display text-3xl md:text-4xl">{ctx.name}</h1>
         </div>
-        <p className="text-sm text-ink-muted">
-          {t.partner.commissionRateLabel}: <span className="font-semibold text-ink">{formatNumber(pct)}%</span>
+        <p className="rounded-full bg-mist-light px-3.5 py-1.5 text-sm font-medium text-ink-muted">
+          {t.partner.commissionRateLabel}: <span className="font-bold text-ink">{formatNumber(pct)}%</span>
         </p>
       </div>
 
@@ -105,11 +105,11 @@ export default async function PartnerDashboardPage(props: { searchParams: Promis
           <p className="eyebrow">{s.salesByMonth}</p>
           <p className="mt-1 text-xs text-ink-muted">{s.salesByMonthHint}</p>
           <div className="mt-5 grid h-44 grid-cols-6 items-end gap-3">
-            {months.map((m) => (
+            {months.map((m, i) => (
               <div key={m.month} className="flex h-full flex-col justify-end text-center">
                 <span className="mb-1 text-[11px] tabular-nums text-ink-muted">{m.goods > 0 ? formatGEL(m.goods) : ''}</span>
-                <div className={cn('w-full rounded-t-md', m.goods > 0 ? 'bg-olive' : 'bg-line')} style={{ height: `${Math.max(2, Math.round((m.goods / maxMonth) * 100))}%` }} title={`${formatGEL(m.goods)} · ${fill(s.ordersCount, { n: m.orders })}`} />
-                <span className="mt-1.5 text-[11px] uppercase tracking-wide text-ink-muted">{monthLabel(m.month)}</span>
+                <div className={cn('w-full rounded-t-lg', m.goods > 0 ? (i === months.length - 1 ? 'bg-lime' : 'bg-ink') : 'bg-line')} style={{ height: `${Math.max(2, Math.round((m.goods / maxMonth) * 100))}%` }} title={`${formatGEL(m.goods)} · ${fill(s.ordersCount, { n: m.orders })}`} />
+                <span className="mt-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">{monthLabel(m.month)}</span>
               </div>
             ))}
           </div>
@@ -122,7 +122,7 @@ export default async function PartnerDashboardPage(props: { searchParams: Promis
               {ORDER_STAGES.filter((st) => st !== 'review').map((st) => (
                 <li key={st} className="flex items-center justify-between gap-2">
                   <OrderStageBadge stage={st} t={t} />
-                  <span className="tabular-nums text-ink">{stages[st]}</span>
+                  <span className="font-semibold tabular-nums text-ink">{stages[st]}</span>
                 </li>
               ))}
             </ul>
@@ -151,7 +151,7 @@ export default async function PartnerDashboardPage(props: { searchParams: Promis
       {isStore && health && (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
           <section className="overflow-hidden rounded-2xl border border-line bg-bg-surface">
-            <div className="flex items-center justify-between border-b border-line bg-sand/40 px-5 py-3">
+            <div className="flex items-center justify-between border-b border-line bg-mist-light px-5 py-3">
               <p className="eyebrow">{s.topProducts}</p>
               <Link href={productsHref('sort=revenue')} className="inline-flex items-center gap-1 text-sm text-ink-soft hover:text-ink">
                 {t.partner.viewAll}
@@ -164,17 +164,17 @@ export default async function PartnerDashboardPage(props: { searchParams: Promis
               <ol className="divide-y divide-line/70">
                 {top.map((p, i) => (
                   <li key={p.productId} className="flex items-center gap-3 px-5 py-2.5">
-                    <span className="w-5 text-right font-serif text-sm tabular-nums text-wood">{i + 1}</span>
-                    <span className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-line bg-bg-base">
+                    <span className="w-5 text-right text-sm font-bold tabular-nums text-ink-faint">{i + 1}</span>
+                    <span className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-mist-light">
                       {p.imageUrl ? <Image src={p.imageUrl} alt="" fill sizes="40px" className="object-cover" /> : <Box className="absolute inset-0 m-auto h-4 w-4 text-ink-muted" />}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium text-ink">{localizedName(locale, p)}</span>
+                      <span className="block truncate text-sm font-semibold text-ink">{localizedName(locale, p)}</span>
                       <span className="text-xs text-ink-muted">
                         {fill(t.partnerProducts.soldUnits, { n: formatNumber(p.units) })} · {fill(t.partnerProducts.soldOrders, { n: p.orders })}
                       </span>
                     </span>
-                    <span className="shrink-0 font-semibold tabular-nums text-ink">{formatGEL(p.revenue)}</span>
+                    <span className="shrink-0 font-bold tabular-nums text-ink">{formatGEL(p.revenue)}</span>
                   </li>
                 ))}
               </ol>
@@ -192,14 +192,14 @@ export default async function PartnerDashboardPage(props: { searchParams: Promis
                 { label: s.productsNo3d, n: health.no3d, query: 'model=none', warn: true },
               ].map((row) => (
                 <li key={row.query}>
-                  <Link href={productsHref(row.query)} className="-mx-1 flex items-center justify-between gap-2 rounded-lg px-2 py-1 transition-colors hover:bg-sand/40">
+                  <Link href={productsHref(row.query)} className="-mx-1 flex items-center justify-between gap-2 rounded-lg px-2 py-1 transition-colors hover:bg-mist-light">
                     <span className="text-ink-soft">{row.label}</span>
-                    <span className={cn('tabular-nums', row.warn && row.n > 0 ? 'font-semibold text-warning' : 'text-ink')}>{row.n}</span>
+                    <span className={cn('tabular-nums', row.warn && row.n > 0 ? 'rounded-full bg-sun-soft px-2 font-bold text-ink' : 'font-semibold text-ink')}>{row.n}</span>
                   </Link>
                 </li>
               ))}
             </ul>
-            <Link href={partnerHref('/partner/products', ctx)} className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-ink hover:text-brand">
+            <Link href={partnerHref('/partner/products', ctx)} className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-ink underline decoration-lime decoration-[3px] underline-offset-4 hover:decoration-ink">
               {s.manageProducts}
               <ArrowRight className="h-3.5 w-3.5" />
             </Link>
@@ -217,15 +217,15 @@ export default async function PartnerDashboardPage(props: { searchParams: Promis
             </Link>
           </div>
           {recent.length === 0 ? (
-            <p className="mt-3 rounded-2xl border border-dashed border-line p-10 text-center text-sm text-ink-muted">{t.partner.noOrders}</p>
+            <p className="mt-3 rounded-2xl bg-mist-light p-10 text-center text-sm text-ink-muted">{t.partner.noOrders}</p>
           ) : (
             <ul className="mt-3 overflow-hidden rounded-2xl border border-line bg-bg-surface">
               {recent.map((o) => (
-                <li key={o.id} className={cn('grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-line px-4 py-3 last:border-b-0', !o.viewedAt && 'bg-brand/5')}>
+                <li key={o.id} className={cn('grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-line px-4 py-3 last:border-b-0', !o.viewedAt && 'bg-lime-soft')}>
                   <div className="min-w-0">
-                    <Link href={partnerHref(`/partner/orders/${o.id}`, ctx)} className="flex flex-wrap items-center gap-2 font-serif text-base font-semibold text-ink hover:text-brand">
+                    <Link href={partnerHref(`/partner/orders/${o.id}`, ctx)} className="flex flex-wrap items-center gap-2 font-display text-base text-ink hover:text-brand">
                       {fill(t.partner.orderTitle, { id: o.id })}
-                      {!o.viewedAt && <span className="rounded-full bg-brand px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">{t.partner.unread}</span>}
+                      {!o.viewedAt && <span className="rounded-full bg-ink px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">{t.partner.unread}</span>}
                       <OrderStageBadge stage={orderStage(o)} t={t} />
                     </Link>
                     <p className="mt-0.5 flex flex-wrap items-center gap-x-3 text-xs text-ink-muted">
@@ -238,7 +238,7 @@ export default async function PartnerDashboardPage(props: { searchParams: Promis
                       <span>{fill(t.market.itemsCount, { n: o.itemCount })}</span>
                     </p>
                   </div>
-                  <span className="font-serif text-base font-semibold tabular-nums text-ink">{formatGEL(Number(o.subtotal))}</span>
+                  <span className="font-display text-base tabular-nums text-ink">{formatGEL(Number(o.subtotal))}</span>
                 </li>
               ))}
             </ul>
@@ -246,21 +246,21 @@ export default async function PartnerDashboardPage(props: { searchParams: Promis
         </section>
 
         <aside className="space-y-4">
-          <div className="rounded-2xl border border-line bg-bg-surface p-5">
-            <p className="eyebrow">{t.partner.allTimeSales}</p>
-            <p className="mt-2 font-serif text-2xl font-semibold tabular-nums text-ink">{formatGEL(stats.allTimeGoods)}</p>
-            <dl className="mt-3 space-y-1 text-sm text-ink-muted">
+          <div className="rounded-2xl bg-lime p-5">
+            <p className="eyebrow text-ink/70">{t.partner.allTimeSales}</p>
+            <p className="mt-2 font-display text-3xl tabular-nums text-ink">{formatGEL(stats.allTimeGoods)}</p>
+            <dl className="mt-3 space-y-1 text-sm text-ink/70">
               <div className="flex justify-between">
                 <dt>{t.partner.doneOrders}</dt>
-                <dd className="tabular-nums text-ink">{stats.done}</dd>
+                <dd className="font-semibold tabular-nums text-ink">{stats.done}</dd>
               </div>
               <div className="flex justify-between">
                 <dt>{t.partner.monthCommission}</dt>
-                <dd className="tabular-nums text-ink">{formatGEL(stats.monthCommission)}</dd>
+                <dd className="font-semibold tabular-nums text-ink">{formatGEL(stats.monthCommission)}</dd>
               </div>
             </dl>
           </div>
-          <div className="rounded-2xl border border-line bg-bg-surface p-5">
+          <div className="rounded-2xl bg-mist-light p-5">
             <p className="eyebrow">{t.partner.helpTitle}</p>
             <p className="mt-2 text-sm leading-relaxed text-ink-soft">{t.partner.helpText}</p>
           </div>
@@ -273,11 +273,11 @@ export default async function PartnerDashboardPage(props: { searchParams: Promis
 function PreviewList({ title, items }: { title: string; items: Array<{ href: string; label: string }> }) {
   return (
     <section className="overflow-hidden rounded-2xl border border-line bg-bg-surface">
-      <p className="eyebrow border-b border-line bg-sand/40 px-4 py-3">{title}</p>
+      <p className="eyebrow border-b border-line bg-mist-light px-4 py-3">{title}</p>
       <ul className="max-h-[60vh] overflow-y-auto">
         {items.map((i) => (
           <li key={i.href} className="border-b border-line/70 last:border-b-0">
-            <Link href={i.href} className="flex items-center justify-between px-4 py-2.5 text-sm text-ink transition-colors hover:bg-sand/40">
+            <Link href={i.href} className="flex items-center justify-between px-4 py-2.5 text-sm text-ink transition-colors hover:bg-mist-light">
               {i.label}
               <ArrowRight className="h-3.5 w-3.5 text-ink-faint" />
             </Link>

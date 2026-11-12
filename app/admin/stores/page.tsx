@@ -131,7 +131,7 @@ export default async function AdminStoresPage(props: { searchParams: Promise<Sea
             <Tr key={s.id}>
               <td className="px-4 py-2.5">
                 <Link href={`/admin/stores/${s.id}`} className="flex items-center gap-3">
-                  <span className="relative h-9 w-9 shrink-0 overflow-hidden rounded-lg border border-line bg-bg-base">
+                  <span className="relative h-9 w-9 shrink-0 overflow-hidden rounded-lg bg-mist-light">
                     {s.logoUrl && <Image src={s.logoUrl} alt="" fill sizes="36px" className="object-cover" />}
                   </span>
                   <span className="min-w-0">
@@ -145,14 +145,14 @@ export default async function AdminStoresPage(props: { searchParams: Promise<Sea
               </td>
               <td className="px-4 py-2.5 text-ink-muted">{s.city ?? '—'}</td>
               <td className="px-4 py-2.5 text-right tabular-nums">
-                <Link href={`/admin/products?store=${s.id}`} className="hover:text-brand hover:underline">
+                <Link href={`/admin/products?store=${s.id}`} className="underline-offset-4 hover:text-ink hover:underline">
                   {Number(s.productCount)}
                 </Link>
               </td>
               <td className="px-4 py-2.5">
                 {s.rating != null ? (
                   <span className="flex items-center gap-1">
-                    <Star className="h-3.5 w-3.5 fill-accent text-accent" />
+                    <Star className="h-3.5 w-3.5 fill-sun text-sun" />
                     {Number(s.rating).toFixed(1)}
                   </span>
                 ) : (

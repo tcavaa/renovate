@@ -95,12 +95,12 @@ export default async function AdminUserDetailPage(
 
       <Card>
         <CardContent className="flex flex-wrap items-center gap-5 p-5">
-          <div className="grid h-16 w-16 place-items-center rounded-full bg-olive font-serif text-xl font-semibold text-sand-light">
+          <div className="grid h-16 w-16 place-items-center rounded-full bg-lime font-display text-xl text-ink">
             {initials}
           </div>
           <div className="flex-1 space-y-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-serif text-xl font-semibold">{user.name}</span>
+              <span className="font-display text-2xl">{user.name}</span>
               <Badge variant={user.role === 'admin' ? 'success' : user.role === 'user' ? 'outline' : 'secondary'}>{roleLabel(ka, user.role)}</Badge>
               {isSelf && <Badge variant="outline">{ka.admin.youBadge}</Badge>}
               {!user.isActive && <Badge variant="danger">{ka.accounts.deactivated}</Badge>}
@@ -157,12 +157,12 @@ export default async function AdminUserDetailPage(
 
       <Card className="overflow-hidden">
         <CardHeader>
-          <CardTitle className="font-serif">{ka.admin.projects}</CardTitle>
+          <CardTitle className="font-display">{ka.admin.projects}</CardTitle>
         </CardHeader>
         <CardContent className="p-0 overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-line bg-sand/50 text-left text-[11px] uppercase tracking-[0.08em] text-ink-muted">
+              <tr className="border-b border-line bg-mist-light text-left text-[11px] font-bold uppercase tracking-[0.06em] text-ink-muted">
                 <th className="px-4 py-3">{ka.admin.table.id}</th>
                 <th className="px-4 py-3">{ka.admin.table.name}</th>
                 <th className="px-4 py-3">{ka.admin.table.state}</th>
@@ -177,12 +177,12 @@ export default async function AdminUserDetailPage(
               {userProjects.map((p) => (
                 <tr
                   key={p.id}
-                  className="group border-b border-line/40 transition-colors last:border-0 hover:bg-sand/25"
+                  className="group border-b border-line/70 transition-colors last:border-0 hover:bg-mist-light"
                 >
                   <td className="px-4 py-3">
                     <Link
                       href={`/admin/projects/${p.id}`}
-                      className="font-medium text-brand hover:underline"
+                      className="font-medium text-ink underline decoration-lime decoration-2 underline-offset-4 hover:decoration-ink"
                     >
                       #{p.id}
                     </Link>
@@ -217,7 +217,7 @@ export default async function AdminUserDetailPage(
                   <td className="px-4 py-3 text-right">
                     <Link
                       href={`/admin/projects/${p.id}`}
-                      className="inline-flex items-center gap-1 text-xs font-medium text-brand opacity-0 transition-opacity group-hover:opacity-100 hover:underline"
+                      className="inline-flex items-center gap-1 rounded-full bg-ink px-2.5 py-1 text-xs font-semibold text-white opacity-0 transition-[opacity,background-color,color] hover:bg-lime hover:text-ink group-hover:opacity-100"
                     >
                       {ka.admin.table.details}
                       <ChevronRight className="h-3 w-3" />

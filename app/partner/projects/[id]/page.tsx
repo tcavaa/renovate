@@ -84,7 +84,7 @@ export default async function PartnerProjectPage(props: { params: Promise<{ id: 
               <li key={b.orderId} className="rounded-2xl border border-line bg-bg-surface p-4">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="font-serif text-lg font-semibold text-ink">{b.customerName}</p>
+                    <p className="font-display text-lg text-ink">{b.customerName}</p>
                     <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-muted">
                       <a href={`tel:${b.customerPhone}`} className="inline-flex items-center gap-1.5 hover:text-ink">
                         <Phone className="h-3.5 w-3.5" />
@@ -101,14 +101,14 @@ export default async function PartnerProjectPage(props: { params: Promise<{ id: 
                   <OrderStageBadge stage={orderStage(b)} t={t} />
                 </div>
                 {b.customerNote && (
-                  <div className="mt-3 border-l-2 border-wood pl-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-muted">{t.partner.customerNote}</p>
+                  <div className="mt-3 border-l-4 border-lime pl-3">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.06em] text-ink-muted">{t.partner.customerNote}</p>
                     <p className="mt-1 text-sm text-ink">{b.customerNote}</p>
                   </div>
                 )}
                 <div className="mt-3 flex items-center justify-between gap-3 border-t border-line pt-3 text-sm">
-                  <span className="tabular-nums text-ink">{formatGEL(Number(b.subtotal))}</span>
-                  <Link href={partnerHref(`/partner/orders/${b.orderId}`, ctx)} className="inline-flex items-center gap-1 font-medium text-ink hover:text-brand">
+                  <span className="font-bold tabular-nums text-ink">{formatGEL(Number(b.subtotal))}</span>
+                  <Link href={partnerHref(`/partner/orders/${b.orderId}`, ctx)} className="inline-flex items-center gap-1 font-semibold text-ink underline decoration-lime decoration-[3px] underline-offset-4 hover:decoration-ink">
                     {fill(p.booking, { id: b.orderId })}
                     <ArrowUpRight className="h-3.5 w-3.5" />
                   </Link>

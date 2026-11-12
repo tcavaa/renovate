@@ -98,7 +98,7 @@ export default async function HomePage() {
   return (
     <>
       <Hero t={t} />
-      <div className="border-y border-line bg-bg-surface/60 py-4">
+      <div className="bg-ink py-4">
         <Marquee items={t.landing.marquee} />
       </div>
       <DesignerSection t={t} products={wall} estimate={estimate} />

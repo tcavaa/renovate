@@ -13,7 +13,7 @@ import type { PlacedItem } from '@/lib/design/types';
 export function makeOutline(): THREE.LineSegments {
   const geometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1));
   const material = new THREE.LineBasicMaterial({
-    color: 0xb5462b,
+    color: 0x6c47ff,
     transparent: true,
     opacity: 0.95,
     depthTest: false,

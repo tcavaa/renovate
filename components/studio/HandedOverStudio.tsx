@@ -26,15 +26,15 @@ export function HandedOverStudio({ plan, scene, finishes, electrical }: { plan: 
       <div className="container py-8 md:py-10">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-bg-surface px-4 py-3">
           <div className="flex min-w-0 items-start gap-3">
-            <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-olive-soft text-olive">
+            <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-lime text-ink">
               <Eye className="h-4 w-4" />
             </span>
             <div className="min-w-0">
-              <p className="font-semibold text-ink">{t.design.handedOverTitle}</p>
+              <p className="font-bold tracking-tight text-ink">{t.design.handedOverTitle}</p>
               <p className="mt-0.5 text-sm text-ink-muted">{t.design.handedOverText}</p>
             </div>
           </div>
-          <Link href={designStepHref(projectId, 7)} className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full border border-line px-4 text-sm font-medium text-ink hover:border-ink">
+          <Link href={designStepHref(projectId, 7)} className="inline-flex h-10 shrink-0 items-center gap-2 rounded-full bg-mist-light px-4 text-sm font-semibold text-ink hover:bg-mist">
             <ArrowLeft className="h-4 w-4" />
             {t.design.backToBudget}
           </Link>

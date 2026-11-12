@@ -9,7 +9,7 @@ import { ProfileForm } from '@/components/profile/ProfileForm';
 import { PlanDetails } from '@/components/plans/PlanDetails';
 import { loadAccountContact } from '@/lib/account/server';
 import { VerifyEmailBanner } from '@/components/profile/VerifyEmailBanner';
-import { CARD_FRAME, HubShell, ProjectThumbnail, RoundLink } from '@/components/projects/hub/HubShell';
+import { CARD, CARD_FRAME, CARD_TEXT, HubShell, ProjectThumbnail, RoundLink } from '@/components/projects/hub/HubShell';
 import { HubDate } from '@/components/projects/hub/HubDate';
 import { HubRenders } from '@/components/projects/hub/HubRenders';
 import { HubOrders } from '@/components/projects/hub/HubOrders';
@@ -107,34 +107,34 @@ async function ProfileProjects({ userId, t }: { userId: number; t: Dictionary })
   return (
     <>
       {/* Each product's hub: its projects, and the way to start a new one. */}
-      <div className="mt-8 flex flex-wrap items-start gap-x-8 gap-y-5">
-        <RoundLink href={CALCULATOR_HUB_HREF} icon={<Calculator className="h-6 w-6" />} label={t.nav.calculator} className="bg-wood group-hover:bg-wood-dark" />
-        <RoundLink href={DESIGN_HUB_HREF} icon={<Box className="h-6 w-6" />} label={t.design.title} className="bg-olive group-hover:bg-olive-dark" />
+      <div className="mt-8 flex flex-wrap items-start gap-3">
+        <RoundLink n={1} tone="lime" href={DESIGN_HUB_HREF} icon={<Box className="h-5 w-5" />} label={t.design.title} />
+        <RoundLink n={2} href={CALCULATOR_HUB_HREF} icon={<Calculator className="h-5 w-5" />} label={t.nav.calculator} />
       </div>
 
-      <dl className="mt-10 grid gap-4 sm:grid-cols-3">
+      <dl className="mt-10 grid gap-3 sm:grid-cols-3">
         {figures.map((f) => (
-          <div key={f.label} className="rounded-2xl border border-line bg-bg-surface px-5 py-4">
-            <dt className="eyebrow">{f.label}</dt>
-            <dd className={f.emphasis ? 'mt-1.5 font-serif text-2xl font-semibold tabular-nums text-brand' : 'mt-1.5 font-serif text-2xl font-semibold tabular-nums text-olive'}>{f.value}</dd>
+          <div key={f.label} className={f.emphasis ? 'rounded-2xl bg-lime px-5 py-4' : 'rounded-2xl bg-mist-light px-5 py-4'}>
+            <dt className={f.emphasis ? 'eyebrow text-ink/70' : 'eyebrow'}>{f.label}</dt>
+            <dd className="mt-1.5 font-display text-3xl tabular-nums text-ink">{f.value}</dd>
           </div>
         ))}
       </dl>
 
       <section className="mt-12" aria-labelledby="profile-projects">
-        <h2 id="profile-projects" className="text-sm font-medium text-ink-muted">
+        <h2 id="profile-projects" className="text-sm font-semibold tracking-normal text-ink-muted">
           {t.hub.byDate}
         </h2>
         {all.length === 0 ? (
-          <div className="mt-5 flex flex-col items-center rounded-2xl border border-dashed border-stone bg-sand-light/60 p-12 text-center">
-            <LogoMark tone="sand" className="mb-5 h-12 w-12" />
+          <div className="dots mt-5 flex flex-col items-center rounded-2xl bg-mist-light p-12 text-center">
+            <LogoMark tone="ink" className="mb-5 h-12 w-12" />
             <p className="text-sm text-ink-muted">{t.profile.emptyText}</p>
             <Button asChild className="mt-5">
               <Link href={CALCULATOR_HUB_HREF}>{t.profile.emptyCta}</Link>
             </Button>
           </div>
         ) : (
-          <ul className="mt-5 grid grid-cols-1 gap-x-8 gap-y-10 sm:grid-cols-2 xl:grid-cols-3">
+          <ul className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
             {all.map((p) => (
               <li key={p.id}>
                 <ProfileProjectCard project={p} t={t} />
@@ -164,17 +164,17 @@ function ProfileProjectCard({ project: p, t }: { project: HubProject; t: Diction
   const facts = [kinds, p.homeState ? homeStateLabel(t, p.homeState) : null, p.totalM2 > 0 ? formatM2L(t, p.totalM2) : null].filter(Boolean).join(' · ');
 
   return (
-    <article>
+    <article className={CARD}>
       <Link href={href} tabIndex={-1} aria-hidden className={CARD_FRAME}>
         <ProjectThumbnail project={p} prefer={p.hasDesign && !p.hasCalculator ? 'design' : 'calculator'} />
       </Link>
-      <div className="mt-3.5 flex items-start justify-between gap-3">
+      <div className={CARD_TEXT}>
         <div className="min-w-0">
-          <Link href={href} className="block truncate text-lg font-semibold leading-snug text-ink hover:text-brand">
+          <Link href={href} className="block truncate text-lg font-bold leading-snug tracking-tight text-ink decoration-lime decoration-[3px] underline-offset-4 hover:underline">
             {name}
           </Link>
           <HubDate at={p.updatedAt} className="mt-0.5 block text-sm text-ink-muted" />
-          <p className={p.totalCost != null ? 'mt-0.5 text-sm font-semibold tabular-nums text-ink' : 'mt-0.5 text-sm text-ink-faint'}>{figure}</p>
+          <p className={p.totalCost != null ? 'mt-1 font-display text-base tabular-nums text-ink' : 'mt-0.5 text-sm text-ink-faint'}>{figure}</p>
           {facts && (
             <p title={facts} className="mt-0.5 truncate text-xs text-ink-faint">
               {facts}

@@ -33,13 +33,13 @@ export async function TeamProfile({ teamId, t, locale, isAdmin }: { teamId: numb
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex items-center gap-4">
           {team.logoUrl && (
-            <span className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-line bg-bg-base">
+            <span className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-mist-light">
               <Image src={team.logoUrl} alt="" fill sizes="56px" className="object-cover" />
             </span>
           )}
           <div>
             <p className="eyebrow">{p.title}</p>
-            <h1 className="mt-2 font-serif text-3xl font-semibold">{localizedName(locale, team)}</h1>
+            <h1 className="mt-2 font-display text-3xl md:text-4xl">{localizedName(locale, team)}</h1>
             <p className="mt-1 max-w-2xl text-sm text-ink-muted">{p.subtitle}</p>
           </div>
         </div>
@@ -87,7 +87,7 @@ export async function TeamProfile({ teamId, t, locale, isAdmin }: { teamId: numb
       )}
 
       <section className="overflow-hidden rounded-2xl border border-line bg-bg-surface">
-        <header className="border-b border-line bg-sand/40 px-5 py-3">
+        <header className="border-b border-line bg-mist-light px-5 py-3">
           <p className="eyebrow">
             {p.crewTitle} · {members.length}
           </p>
@@ -108,14 +108,14 @@ export async function TeamProfile({ teamId, t, locale, isAdmin }: { teamId: numb
           <ul className="grid divide-y divide-line/70 sm:grid-cols-2 sm:divide-y-0">
             {members.map((m) => (
               <li key={m.workerId} className="flex items-center gap-3 border-line/70 px-5 py-3 sm:border-b">
-                <span className="relative grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full border border-line bg-bg-base">
+                <span className="relative grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-mist-light">
                   {m.avatarUrl ? <Image src={m.avatarUrl} alt="" fill sizes="40px" className="object-cover" /> : <UserRound className="h-4 w-4 text-ink-muted" />}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-2 font-medium text-ink">
+                  <span className="flex items-center gap-2 font-semibold text-ink">
                     {localizedName(locale, m)}
                     {m.isLead && (
-                      <span className={cn('inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-brand')}>
+                      <span className={cn('inline-flex items-center gap-1 rounded-full bg-lime px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em] text-ink')}>
                         <Crown className="h-3 w-3" />
                         {p.lead}
                       </span>
@@ -137,9 +137,9 @@ export async function TeamProfile({ teamId, t, locale, isAdmin }: { teamId: numb
 
 function Fact({ label, value, hint, warn }: { label: string; value: string; hint?: string; warn?: boolean }) {
   return (
-    <div className="rounded-2xl border border-line bg-bg-surface px-4 py-4">
+    <div className="rounded-2xl bg-mist-light px-5 py-4">
       <dt className="eyebrow">{label}</dt>
-      <dd className={cn('mt-1 font-serif text-xl font-semibold', warn ? 'text-warning' : 'text-ink')}>{value}</dd>
+      <dd className={cn('mt-1.5 font-display text-2xl', warn ? 'text-warning' : 'text-ink')}>{value}</dd>
       {hint && <dd className="mt-1 text-xs text-ink-muted">{hint}</dd>}
     </div>
   );

@@ -103,7 +103,7 @@ export default function FurnitureStepPage() {
             {catLoading ? (
               <div className="space-y-2">
                 {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="h-9 animate-pulse rounded-full bg-line/50" />
+                  <div key={i} className="h-9 animate-pulse rounded-full bg-mist" />
                 ))}
               </div>
             ) : (
@@ -118,20 +118,20 @@ export default function FurnitureStepPage() {
 
           <section className="space-y-10">
             <div>
-              <div className="mb-4 flex items-baseline justify-between border-b border-line/70 pb-3">
-                <h2 className="font-serif text-xl font-semibold text-ink">{current ? pickLocalizedName(locale, current.nameKa, current.nameEn, current.nameRu) : '…'}</h2>
+              <div className="mb-4 flex items-baseline justify-between border-b-2 border-ink pb-3">
+                <h2 className="font-display text-2xl text-ink">{current ? pickLocalizedName(locale, current.nameKa, current.nameEn, current.nameRu) : '…'}</h2>
                 {activeRoom && (
-                  <p className="text-sm text-ink-muted">
+                  <p className="rounded-full bg-lime px-3 py-1 text-sm font-semibold text-ink">
                     → <span className="text-ink">{activeRoom.nameKa}</span>
                   </p>
                 )}
               </div>
               {loading ? (
                 <div className="flex items-center justify-center py-24">
-                  <Loader2 className="h-6 w-6 animate-spin text-brand" />
+                  <Loader2 className="h-6 w-6 animate-spin text-ink" />
                 </div>
               ) : products.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-stone bg-sand-light/50 p-16 text-center text-sm text-ink-muted">{t.catalog.noProducts}</div>
+                <div className="dots rounded-2xl bg-mist-light p-16 text-center text-sm text-ink-muted">{t.catalog.noProducts}</div>
               ) : (
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                   {products.map((p) => {
@@ -144,22 +144,22 @@ export default function FurnitureStepPage() {
             </div>
 
             {activeRoomId && (
-              <div className="overflow-hidden rounded-2xl border border-line bg-bg-surface shadow-card">
-                <div className="flex items-baseline justify-between border-b border-line bg-sand-light/60 px-4 py-3">
+              <div className="overflow-hidden rounded-2xl border border-line bg-bg-surface">
+                <div className="flex items-baseline justify-between border-b border-line bg-mist-light px-4 py-3">
                   <p className="eyebrow">
                     {t.furniture.addedItems} · <span className="text-ink">{activeRoom?.nameKa}</span>
                   </p>
-                  <span className="grid min-w-5 place-items-center rounded-full bg-olive px-1.5 py-0.5 text-[10px] tabular-nums text-sand-light">{roomItems.length}</span>
+                  <span className="grid min-w-5 place-items-center rounded-full bg-ink px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-white">{roomItems.length}</span>
                 </div>
                 {roomItems.length === 0 ? (
                   <p className="px-4 py-8 text-center text-sm text-ink-muted">{t.furniture.noFurniture}</p>
                 ) : (
                   <ul>
                     {roomItems.map((item, idx) => (
-                      <li key={`${item.productId}-${idx}`} className="flex items-center justify-between gap-3 border-b border-line/70 px-4 py-3 transition-colors last:border-b-0 hover:bg-sand-light/50">
-                        <p className="line-clamp-1 text-sm font-medium text-ink">{localizedName(locale, item)}</p>
+                      <li key={`${item.productId}-${idx}`} className="flex items-center justify-between gap-3 border-b border-line px-4 py-3 transition-colors last:border-b-0 hover:bg-mist-light/60">
+                        <p className="line-clamp-1 text-sm font-semibold text-ink">{localizedName(locale, item)}</p>
                         <div className="flex items-center gap-3">
-                          <span className="font-semibold tabular-nums">{formatGEL(item.totalPrice)}</span>
+                          <span className="font-bold tabular-nums">{formatGEL(item.totalPrice)}</span>
                           <button
                             type="button"
                             onClick={() => removeFurniture(activeRoomId, item.productId)}
@@ -181,13 +181,13 @@ export default function FurnitureStepPage() {
 
       <StepNav back={{ href: calculatorStepHref(projectId, 4), label: t.calculator.backButton }} next={{ href: calculatorStepHref(projectId, 6), label: t.calculator.nextButton }}>
         <p className="text-sm text-ink-muted sm:text-right">
-          {t.calculator.totalFurniture} ({allItems.length}) · <span className="font-serif text-base font-semibold text-ink">{formatGEL(totalSelected)}</span>
+          {t.calculator.totalFurniture} ({allItems.length}) · <span className="font-display text-base text-ink">{formatGEL(totalSelected)}</span>
         </p>
       </StepNav>
 
       {added && (
-        <p role="status" className="fixed bottom-24 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-full bg-olive px-4 py-2 text-sm text-sand-light shadow-float">
-          <Check className="h-4 w-4 text-sand" />
+        <p role="status" className="fixed bottom-24 left-1/2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white shadow-float">
+          <Check className="h-4 w-4 text-lime" strokeWidth={3} />
           {fill(t.furniture.addedToRoom, { room: added.room })}
         </p>
       )}

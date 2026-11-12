@@ -20,7 +20,7 @@ export function NavHelp({ walking, onTour, open: controlledOpen, onOpenChange, c
   };
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} aria-label={t.build.navTitle} data-tour="navhelp" className={cn('flex h-10 items-center gap-2 rounded-full bg-bg-surface/85 px-3 text-xs font-semibold text-ink-soft shadow-glass backdrop-blur-xl hover:text-ink', className)}>
+      <button type="button" onClick={() => setOpen(true)} aria-label={t.build.navTitle} data-tour="navhelp" className={cn('flex h-10 items-center gap-2 rounded-full bg-bg-surface/95 px-3 text-xs font-semibold text-ink-soft shadow-glass backdrop-blur-xl hover:text-ink', className)}>
         <HelpCircle className="h-4 w-4" />
         {t.build.navTitle}
       </button>
@@ -38,13 +38,13 @@ export function NavHelp({ walking, onTour, open: controlledOpen, onOpenChange, c
         [t.build.navSelect, t.build.navSelectHow],
       ];
   return (
-    <div className={cn('w-[280px] rounded-[14px] bg-bg-surface/85 p-3 text-xs shadow-glass backdrop-blur-xl', className)} data-tour="navhelp">
+    <div className={cn('w-[280px] rounded-2xl bg-bg-surface/95 p-3.5 text-xs shadow-glass backdrop-blur-xl', className)} data-tour="navhelp">
       <div className="flex items-center justify-between">
-        <p className="flex items-center gap-1.5 font-semibold text-ink">
+        <p className="flex items-center gap-1.5 font-bold text-ink">
           <HelpCircle className="h-4 w-4" />
           {t.build.navTitle}
         </p>
-        <button type="button" onClick={() => setOpen(false)} aria-label={t.common.close} className="grid h-6 w-6 place-items-center rounded-full text-ink-muted hover:bg-sand-light hover:text-ink">
+        <button type="button" onClick={() => setOpen(false)} aria-label={t.common.close} className="grid h-6 w-6 place-items-center rounded-full text-ink-muted hover:bg-mist-light hover:text-ink">
           <X className="h-3.5 w-3.5" />
         </button>
       </div>
@@ -57,7 +57,7 @@ export function NavHelp({ walking, onTour, open: controlledOpen, onOpenChange, c
         ))}
       </dl>
       {!walking && <p className="mt-2 border-t border-line pt-2 text-[10px] leading-snug text-ink-muted">{t.build.shortcutList}</p>}
-      <button type="button" onClick={onTour} className="mt-2 text-[11px] font-medium text-brand hover:underline">
+      <button type="button" onClick={onTour} className="mt-2 text-[11px] font-bold text-ink underline decoration-lime decoration-2 underline-offset-2 hover:decoration-ink">
         {t.build.tutorialAgain}
       </button>
     </div>

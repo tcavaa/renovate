@@ -141,7 +141,7 @@ export function PhotoDialog({
           />
         )}
         {shot && !paying && (
-          <div className="relative aspect-[16/10] w-full overflow-hidden rounded-2xl border border-line bg-sand-light">
+          <div className="relative aspect-[16/10] w-full overflow-hidden rounded-2xl bg-mist-light">
             <Image src={shot.dataUrl} alt="" fill unoptimized className="object-cover" />
           </div>
         )}
@@ -156,7 +156,7 @@ export function PhotoDialog({
               <DialogDescription>{t.design.photoAskDesc}</DialogDescription>
             </DialogHeader>
             {state?.renders && (
-              <p className={cn('rounded-[10px] px-3 py-2 text-xs leading-relaxed', mustPay ? 'border border-line bg-bg-base text-ink' : 'bg-success/10 text-ink')}>
+              <p className={cn('rounded-xl px-3 py-2 text-xs leading-relaxed', mustPay ? 'bg-mist-light text-ink' : 'bg-lime-soft text-ink')}>
                 {mustPay ? fill(t.plans.renderWillCost, { price: formatGEL(state.renderPrice) }) : fill(t.plans.renderFreeLeft, { left: freeLeft })}
               </p>
             )}
@@ -175,7 +175,7 @@ export function PhotoDialog({
         {phase === 'login' && (
           <>
             <DialogHeader>
-              <div className="mb-1 grid h-10 w-10 place-items-center rounded-full bg-brand/10 text-brand">
+              <div className="mb-1 grid h-11 w-11 place-items-center rounded-xl bg-ink text-lime">
                 <Lock className="h-5 w-5" />
               </div>
               <DialogTitle>{t.design.photoLoginTitle}</DialogTitle>
@@ -200,7 +200,7 @@ export function PhotoDialog({
 
         {phase === 'saving' && (
           <div className="flex items-center justify-center gap-3 py-6 text-sm text-ink-muted">
-            <Loader2 className="h-5 w-5 animate-spin text-brand" />
+            <Loader2 className="h-5 w-5 animate-spin text-ink" />
             {t.design.saving}
           </div>
         )}
@@ -208,7 +208,7 @@ export function PhotoDialog({
         {phase === 'queued' && (
           <>
             <DialogHeader>
-              <div className="mb-1 grid h-10 w-10 place-items-center rounded-full bg-success/15 text-success">
+              <div className="mb-1 grid h-11 w-11 place-items-center rounded-xl bg-lime text-ink">
                 <CheckCircle2 className="h-5 w-5" />
               </div>
               <DialogTitle>{t.design.photoQueuedTitle}</DialogTitle>

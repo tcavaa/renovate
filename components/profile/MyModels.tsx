@@ -54,10 +54,10 @@ export function MyModels({ models, heading = true }: { models: OwnModelRow[]; he
 
   return (
     <section className={heading ? 'mt-12' : 'mt-8'}>
-      <div className={cn('flex flex-wrap items-center justify-between gap-3', heading && 'border-b border-line pb-3')}>
+      <div className={cn('flex flex-wrap items-center justify-between gap-3', heading && 'border-b-2 border-ink pb-3')}>
         {heading ? (
-          <h2 className="font-serif text-2xl font-semibold text-ink">
-            {t.profile.myModels} <span className="ml-2 text-base font-normal tabular-nums text-ink-muted">{models.length}</span>
+          <h2 className="font-display text-2xl text-ink">
+            {t.profile.myModels} <span className="ml-2 inline-grid h-6 min-w-6 place-items-center rounded-full bg-mist px-1.5 align-middle text-xs font-bold tracking-normal tabular-nums text-ink">{models.length}</span>
           </h2>
         ) : (
           <p className="max-w-2xl text-sm leading-relaxed text-ink-muted">{t.profile.myModelsHint}</p>
@@ -76,21 +76,21 @@ export function MyModels({ models, heading = true }: { models: OwnModelRow[]; he
         </p>
       )}
       {models.length === 0 ? (
-        <p className={cn('mt-6 rounded-2xl border border-dashed border-stone bg-sand-light/60 p-8 text-center text-sm text-ink-muted', !heading && 'p-12')}>{t.profile.noModels}</p>
+        <p className={cn('dots mt-6 rounded-2xl bg-mist-light p-8 text-center text-sm text-ink-muted', !heading && 'p-12')}>{t.profile.noModels}</p>
       ) : (
         <ul className={cn('mt-4 divide-y divide-line', heading ? 'border-y border-line' : 'rounded-2xl border border-line bg-bg-surface px-4')}>
           {models.map((m) => {
             const pending = m.status !== 'ready';
             return (
               <li key={m.id} className="flex items-center gap-4 py-3">
-                <span className="relative block h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-line bg-bg-base">
+                <span className="relative block h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-mist-light">
                   {m.imageUrl ? <Image src={m.imageUrl} alt="" fill sizes="56px" unoptimized className="object-cover" /> : <Box className="absolute inset-0 m-auto h-5 w-5 text-ink-faint" />}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-ink">{m.name}</p>
+                  <p className="truncate text-sm font-bold tracking-tight text-ink">{m.name}</p>
                   <p className="mt-0.5 text-xs text-ink-muted">
                     {m.kind ? archetypeLabel(m.kind, locale) : '—'}
-                    <span className={cn('ml-2 rounded-full px-2 py-0.5 text-[10px] font-semibold', pending ? 'bg-warning/15 text-warning' : 'bg-success/10 text-success')}>{pending ? t.profile.modelPending : t.profile.modelReady}</span>
+                    <span className={cn('ml-2 rounded-full px-2 py-0.5 text-[10px] font-bold', pending ? 'bg-sun-soft text-ink' : 'bg-lime text-ink')}>{pending ? t.profile.modelPending : t.profile.modelReady}</span>
                   </p>
                 </div>
                 {asking === m.id ? (
@@ -105,7 +105,7 @@ export function MyModels({ models, heading = true }: { models: OwnModelRow[]; he
                     </Button>
                   </div>
                 ) : (
-                  <button type="button" onClick={() => setAsking(m.id)} aria-label={t.profile.deleteModel} title={t.profile.deleteModel} className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-ink-faint transition-colors hover:bg-danger/10 hover:text-danger">
+                  <button type="button" onClick={() => setAsking(m.id)} aria-label={t.profile.deleteModel} title={t.profile.deleteModel} className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-mist-light text-ink-muted transition-colors hover:bg-coral-soft hover:text-danger">
                     <Trash2 className="h-4 w-4" />
                   </button>
                 )}

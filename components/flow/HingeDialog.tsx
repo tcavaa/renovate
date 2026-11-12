@@ -54,22 +54,22 @@ export function HingeDialog({
     <Dialog open={open} onOpenChange={(next) => !saving && onOpenChange(next)}>
       <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-md overflow-y-auto">
         <DialogHeader>
-          <div className="mb-2 grid h-11 w-11 place-items-center rounded-full bg-warning/15 text-warning">
+          <div className="mb-2 grid h-12 w-12 place-items-center rounded-xl bg-sun text-ink">
             <AlertTriangle className="h-5 w-5" />
           </div>
-          <DialogTitle className="font-serif text-xl">{kind === 'design' ? p.confirmTitleDesign : p.confirmTitleCalculator}</DialogTitle>
+          <DialogTitle className="font-display text-2xl">{kind === 'design' ? p.confirmTitleDesign : p.confirmTitleCalculator}</DialogTitle>
           <DialogDescription className="leading-relaxed">{kind === 'design' ? p.confirmBodyDesign : p.confirmBodyCalculator}</DialogDescription>
         </DialogHeader>
-        <ul className="space-y-2 rounded-2xl border border-line bg-sand-light p-4 text-sm text-ink">
+        <ul className="space-y-2 rounded-2xl bg-mist-light p-4 text-sm font-medium text-ink">
           {checks.map((line) => (
             <li key={line} className="flex items-start gap-2">
-              <Check className="mt-0.5 h-4 w-4 shrink-0 text-olive" aria-hidden />
+              <span className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full bg-lime"><Check className="h-3 w-3 text-ink" strokeWidth={3} aria-hidden /></span>
               {line}
             </li>
           ))}
         </ul>
         <p className="flex items-start gap-2 text-xs text-ink-muted">
-          <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-wood" aria-hidden />
+          <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink" aria-hidden />
           {p.lockNote}
         </p>
         {error && (

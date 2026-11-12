@@ -52,12 +52,12 @@ export function RoomRow({ title, rooms, board, activeRoomId, onSelect, status }:
               type="button"
               onClick={() => onSelect(r.id)}
               aria-pressed={on}
-              className={cn('flex shrink-0 items-center gap-3 rounded-2xl border py-2 pl-2 pr-4 text-left transition-colors', on ? 'border-ink/30 bg-sand shadow-card' : 'border-line bg-bg-surface/60 hover:border-ink/30 hover:bg-sand/50')}
+              className={cn('flex shrink-0 items-center gap-3 rounded-2xl py-2 pl-2 pr-4 text-left transition-colors', on ? 'bg-lime' : 'bg-mist-light hover:bg-mist')}
             >
               <RoomGlyph outlines={flat} roomId={r.id} active={on} />
               <span>
-                <span className={cn('block whitespace-nowrap text-sm', on ? 'font-medium text-ink' : 'text-ink-soft')}>{r.nameKa || roomTypeLabel(t, r.type)}</span>
-                <span className={cn('block whitespace-nowrap text-xs tabular-nums', line.done ? 'text-success' : 'text-ink-faint')}>{line.text}</span>
+                <span className={cn('block whitespace-nowrap text-sm text-ink', on ? 'font-bold' : 'font-medium')}>{r.nameKa || roomTypeLabel(t, r.type)}</span>
+                <span className={cn('block whitespace-nowrap text-xs tabular-nums', on ? 'text-ink/70' : line.done ? 'text-success' : 'text-ink-muted')}>{line.text}</span>
               </span>
             </button>
           );

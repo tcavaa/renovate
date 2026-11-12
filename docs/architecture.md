@@ -293,7 +293,7 @@ All shared route vocabulary is in `lib/api/route.ts`:
    ([data-model.md](data-model.md#changing-the-schema)); new payload → `lib/validations/`.
 4. Product ↔ material linkage is by **category slug** (`linkedCategorySlug`), not by id.
 5. Tailwind theme tokens only ([ui-design-system.md](ui-design-system.md)); headings use
-   `font-serif`.
+   `font-display`.
 6. Money is always rendered with `formatGEL()`; areas with `formatM2()`.
 7. Three.js code must be in `'use client'` components and dynamically imported with
    `ssr: false` — the geometry/layout libs under `lib/` stay isomorphic and testable.

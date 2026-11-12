@@ -25,14 +25,14 @@ export function RuleWarnings({ plan, items, electrical, roomId, onSelectItem }: 
   return (
     <div className="pointer-events-auto flex max-w-full flex-col items-center gap-1">
       {open && (
-        <ul className="max-h-56 w-[min(440px,90vw)] space-y-1 overflow-y-auto rounded-[12px] border border-line bg-bg-surface p-2 text-[11px] leading-snug text-ink-soft shadow-lg">
+        <ul className="max-h-56 w-[min(440px,90vw)] space-y-1 overflow-y-auto rounded-2xl bg-bg-surface p-2 text-[11px] leading-snug text-ink-soft shadow-float">
           {warnings.map((v, i) => (
             <li key={`${v.code}-${v.itemId ?? v.pointId ?? v.openingId ?? i}`}>
               <button
                 type="button"
                 disabled={!v.itemId}
                 onClick={() => v.itemId && onSelectItem(v.itemId)}
-                className="w-full rounded-[8px] bg-warning/10 px-2 py-1.5 text-left enabled:hover:bg-warning/20"
+                className="w-full rounded-lg bg-sun-soft px-2 py-1.5 text-left enabled:hover:bg-sun/40"
               >
                 {ruleText(t, locale, plan, items, v)}
               </button>
@@ -45,7 +45,7 @@ export function RuleWarnings({ plan, items, electrical, roomId, onSelectItem }: 
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         title={t.design.rulesTitle}
-        className="flex items-center gap-1.5 rounded-full bg-warning/90 px-2.5 py-0.5 text-[10px] font-medium text-ink"
+        className="flex items-center gap-1.5 rounded-full bg-sun px-2.5 py-0.5 text-[10px] font-bold text-ink"
       >
         <AlertTriangle className="h-3 w-3 shrink-0" />
         <span>

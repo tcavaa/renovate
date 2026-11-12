@@ -297,7 +297,7 @@ export function PlanUploadCard({ onPlan, onReset, showSample = false, showContin
         onClick={() => !busy && gate('planUpload') && inputRef.current?.click()}
         className={cn(
           'flex min-h-[220px] cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border border-dashed p-8 text-center transition-colors',
-          dragging ? 'border-brand bg-sand-light' : 'border-line bg-bg-surface hover:border-ink/50'
+          dragging ? 'border-ink bg-lime-soft' : 'border-stone-dark bg-mist-light hover:border-ink hover:bg-lime-soft'
         )}
       >
         <input
@@ -315,8 +315,8 @@ export function PlanUploadCard({ onPlan, onReset, showSample = false, showContin
 
         {busy ? (
           <>
-            <Loader2 className="h-8 w-8 animate-spin text-brand" />
-            <p className="text-sm font-medium">
+            <Loader2 className="h-8 w-8 animate-spin text-ink" />
+            <p className="text-sm font-bold tracking-tight">
               {phase === 'pdf' ? t.design.pdfRendering : phase === 'reading' ? t.design.readingPlan : t.design.parsing}
             </p>
             {phase === 'reading' && (
@@ -331,18 +331,18 @@ export function PlanUploadCard({ onPlan, onReset, showSample = false, showContin
           </>
         ) : previewUrl ? (
           <>
-            <div className="relative h-40 w-full max-w-sm overflow-hidden rounded-xl border border-line bg-bg-surface">
+            <div className="relative h-40 w-full max-w-sm overflow-hidden rounded-xl bg-bg-surface shadow-card">
               <Image src={previewUrl} alt={t.design.planPreview} fill unoptimized className="object-contain" />
             </div>
             <p className="text-xs text-ink-muted">{t.design.uploadReplace}</p>
           </>
         ) : (
           <>
-            <span className="grid h-12 w-12 place-items-center rounded-full border border-line bg-bg-surface text-wood">
+            <span className="grid h-14 w-14 place-items-center rounded-2xl bg-bg-surface text-ink shadow-card">
               <Upload className="h-6 w-6" />
             </span>
             {locked && <PlanBadge plan={locked} />}
-            <p className="text-sm font-medium">{t.design.uploadHint}</p>
+            <p className="font-display text-lg">{t.design.uploadHint}</p>
             <p className="text-xs text-ink-muted">{t.design.uploadFormats}</p>
             <Button type="button" variant="outline" size="sm">
               {t.design.uploadButton}
@@ -354,7 +354,7 @@ export function PlanUploadCard({ onPlan, onReset, showSample = false, showContin
                   e.stopPropagation();
                   void trySample();
                 }}
-                className="text-xs font-medium text-brand underline-offset-4 hover:underline"
+                className="text-xs font-bold text-ink underline decoration-lime decoration-[3px] underline-offset-4 hover:decoration-ink"
               >
                 {t.design.trySample}
               </button>
@@ -374,7 +374,7 @@ export function PlanUploadCard({ onPlan, onReset, showSample = false, showContin
       )}
 
       {phase === 'scale' && readNotice === 'fallback' && (
-        <p className="mt-4 rounded-xl border border-line bg-bg-base px-4 py-3 text-sm text-ink-muted">
+        <p className="mt-4 rounded-xl bg-mist-light px-4 py-3 text-sm text-ink-muted">
           {t.design.aiReadFallback}
         </p>
       )}
@@ -382,26 +382,26 @@ export function PlanUploadCard({ onPlan, onReset, showSample = false, showContin
       {phase === 'failed' && (
         <div
           role="alert"
-          className="mt-4 flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/5 px-4 py-3 text-sm"
+          className="mt-4 flex items-start gap-3 rounded-xl bg-sun-soft px-4 py-3 text-sm"
         >
           <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
           <div>
-            <p className="font-semibold text-ink">{t.design.parseFailedTitle}</p>
+            <p className="font-bold text-ink">{t.design.parseFailedTitle}</p>
             <p className="mt-1 text-ink-muted">{error ?? t.design.parseFailedDesc}</p>
           </div>
         </div>
       )}
 
       {phase === 'scale' && unsized && (
-        <Card className="mt-4 border-ink/30">
+        <Card className="mt-4 border-ink">
           <CardContent className="space-y-4 pt-6">
-            <div className="flex items-center gap-2 text-sm font-semibold text-olive">
+            <div className="flex items-center gap-2 text-sm font-semibold text-ink">
               <Sparkles className="h-4 w-4" />
               {unsized.rooms.length} {t.design.detectedRooms}
             </div>
             <div>
-              <h3 className="flex items-center gap-2 font-serif text-lg font-semibold">
-                <Ruler className="h-4 w-4 text-brand" />
+              <h3 className="flex items-center gap-2 font-display text-lg">
+                <Ruler className="h-4 w-4 text-ink" />
                 {scaleBy === 'wall' ? t.design.scaleTitle : scaleBy === 'room' ? t.design.scaleTitleRoom : t.design.scaleTitleFlat}
               </h3>
               <p className="mt-1 text-sm text-ink-muted">{t.design.scaleDesc}</p>
@@ -419,8 +419,8 @@ export function PlanUploadCard({ onPlan, onReset, showSample = false, showContin
                     setError(null);
                   }}
                   className={cn(
-                    'rounded-full border px-4 py-1.5 text-sm font-medium transition-colors',
-                    scaleBy === by ? 'border-ink bg-ink text-bg-surface' : 'border-line bg-bg-surface text-ink hover:border-ink/50'
+                    'rounded-full border px-4 py-1.5 text-sm font-semibold transition-colors',
+                    scaleBy === by ? 'border-ink bg-ink text-white' : 'border-line bg-bg-surface text-ink hover:border-ink'
                   )}
                 >
                   {by === 'wall' ? t.design.scaleByWall : by === 'room' ? t.design.scaleByRoom : t.design.scaleByFlat}
@@ -505,12 +505,12 @@ function ScalePlanDrawing({
   const stroke = Math.max(w, h) / 120;
   return (
     <div>
-      <svg viewBox={`${minX} ${minZ} ${w} ${h}`} className="max-h-72 w-full rounded-xl border border-line bg-bg-surface" role="img" aria-label={label}>
+      <svg viewBox={`${minX} ${minZ} ${w} ${h}`} className="dots max-h-72 w-full rounded-xl border border-line bg-bg-surface" role="img" aria-label={label}>
         {plan.rooms.map((room) => (
           <polygon
             key={room.id}
             points={room.polygon.map((p) => `${p.x},${p.z}`).join(' ')}
-            fill={ROOM_FILL[room.type] ?? '#FBF8F3'}
+            fill={ROOM_FILL[room.type] ?? '#FFFFFF'}
             className={by === 'room' ? 'cursor-pointer' : undefined}
             onClick={by === 'room' ? () => onPickRoom(room.id) : undefined}
           />
@@ -518,7 +518,7 @@ function ScalePlanDrawing({
         {(plan.walls ?? [])
           .filter((wall) => !wall.separator)
           .map((wall) => (
-            <line key={wall.id} x1={wall.a.x} y1={wall.a.z} x2={wall.b.x} y2={wall.b.z} stroke="#2A2622" strokeWidth={Math.max(wall.thicknessM, stroke)} strokeLinecap="square" />
+            <line key={wall.id} x1={wall.a.x} y1={wall.a.z} x2={wall.b.x} y2={wall.b.z} stroke="#0B0B0C" strokeWidth={Math.max(wall.thicknessM, stroke)} strokeLinecap="square" />
           ))}
         {by !== 'wall' &&
           plan.rooms
@@ -554,7 +554,7 @@ function ScalePlanDrawing({
           const cx = room.polygon.reduce((s, p) => s + p.x, 0) / room.polygon.length;
           const cz = room.polygon.reduce((s, p) => s + p.z, 0) / room.polygon.length;
           return (
-            <text key={`${room.id}-name`} x={cx} y={cz} fontSize={stroke * 3.2} textAnchor="middle" dominantBaseline="middle" fill="#2A2622" pointerEvents="none">
+            <text key={`${room.id}-name`} x={cx} y={cz} fontSize={stroke * 3.2} textAnchor="middle" dominantBaseline="middle" fill="#0B0B0C" pointerEvents="none">
               {room.name}
             </text>
           );
@@ -566,7 +566,7 @@ function ScalePlanDrawing({
 }
 
 /** Fills by kind of room, so the sample reads at a glance: wet rooms blue, outside green, the rest warm. */
-const ROOM_FILL: Record<string, string> = { bathroom: '#DCE9F2', toilet: '#DCE9F2', kitchen: '#F4E7D3', balcony: '#E3EEDB', hallway: '#EFECE6', closet: '#EDE7F0', office: '#EAE6F2' };
+const ROOM_FILL: Record<string, string> = { bathroom: '#E3EAFF', toilet: '#E3EAFF', kitchen: '#FFF3C9', balcony: '#F0FBCB', hallway: '#F4F4F6', closet: '#EFEAFF', office: '#EFEAFF' };
 
 /** The sample flat drawn as its rooms with their names — what the picture of an uploaded plan is for an upload. */
 function SamplePlanDrawing({ plan }: { plan: FloorPlan }) {
@@ -583,8 +583,8 @@ function SamplePlanDrawing({ plan }: { plan: FloorPlan }) {
         const cz = room.polygon.reduce((s, p) => s + p.z, 0) / room.polygon.length;
         return (
           <g key={room.id}>
-            <polygon points={room.polygon.map((p) => `${p.x},${p.z}`).join(' ')} fill={ROOM_FILL[room.type] ?? '#FBF8F3'} stroke="#2A2622" strokeWidth={0.08} strokeLinejoin="miter" />
-            <text x={cx} y={cz} fontSize={room.areaM2 < 6 ? 0.32 : 0.42} textAnchor="middle" dominantBaseline="middle" fill="#2A2622">
+            <polygon points={room.polygon.map((p) => `${p.x},${p.z}`).join(' ')} fill={ROOM_FILL[room.type] ?? '#FFFFFF'} stroke="#0B0B0C" strokeWidth={0.08} strokeLinejoin="miter" />
+            <text x={cx} y={cz} fontSize={room.areaM2 < 6 ? 0.32 : 0.42} textAnchor="middle" dominantBaseline="middle" fill="#0B0B0C">
               {room.name}
             </text>
           </g>

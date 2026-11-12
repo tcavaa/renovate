@@ -13,7 +13,7 @@ export function LanguageSwitcher({ variant = 'desktop', tone = 'light' }: { vari
   const dark = tone === 'dark';
 
   return (
-    <div className={cn('flex items-center', variant === 'mobile' ? 'gap-5' : 'gap-3')} role="group" aria-label="Language">
+    <div className={cn('flex items-center', variant === 'mobile' ? 'gap-2' : 'gap-0.5')} role="group" aria-label="Language">
       {OFFERED_LOCALES.map((l) => {
         const active = l === locale;
         return (
@@ -25,13 +25,12 @@ export function LanguageSwitcher({ variant = 'desktop', tone = 'light' }: { vari
             aria-label={LOCALE_LABELS[l].native}
             onClick={() => l !== locale && setLocale(l)}
             className={cn(
-              'relative py-1 text-[12px] font-semibold uppercase tracking-[0.08em] transition-colors',
-              variant === 'mobile' && 'text-sm',
-              active ? (dark ? 'text-white' : 'text-ink') : dark ? 'text-white/50 hover:text-white' : 'text-ink-faint hover:text-ink'
+              'rounded-full px-2 py-1 text-[12px] font-bold uppercase tracking-[0.04em] transition-colors',
+              variant === 'mobile' && 'px-3 py-1.5 text-sm',
+              active ? (dark ? 'bg-lime text-ink' : 'bg-ink text-white') : dark ? 'text-white/55 hover:text-white' : 'text-ink-muted hover:text-ink'
             )}
           >
             {MARKS[l]}
-            {active && <span className={cn('absolute inset-x-0 -bottom-px h-px', dark ? 'bg-white' : 'bg-brand')} />}
           </button>
         );
       })}

@@ -242,8 +242,8 @@ export function PlanWorkspace({ tools, tool: controlledTool, onTool, boardTool, 
   const hint = toolHint(t, shownTool, locked);
   const totals = (
     <>
-      <span className="text-[10px] font-semibold uppercase tracking-wide text-ink-muted">{t.build.totalArea}</span>
-      <span className="font-serif text-base font-semibold tabular-nums text-ink">{formatM2(totalM2)}</span>
+      <span className="text-[10px] font-bold uppercase tracking-wide text-ink-muted">{t.build.totalArea}</span>
+      <span className="rounded-md bg-lime px-1.5 font-display text-base tabular-nums text-ink">{formatM2(totalM2)}</span>
       <span className="text-ink-muted">· {fill(t.build.roomCount, { n: plan.rooms.length })}</span>
     </>
   );
@@ -294,14 +294,14 @@ export function PlanWorkspace({ tools, tool: controlledTool, onTool, boardTool, 
         <div className="contents lg:pointer-events-none lg:absolute lg:bottom-4 lg:left-4 lg:z-10 lg:flex lg:items-end lg:gap-3" style={{ right: bleed.right }}>
           {showTotals && (
             <div data-board-edge="bottom" className="hidden shrink-0 flex-col items-start gap-1.5 lg:flex">
-              {legend && <p className="flex items-center gap-3 rounded-full bg-bg-surface/85 px-3 py-1.5 text-[11px] text-ink-muted shadow-glass backdrop-blur">{legend}</p>}
-              <p className="flex items-baseline gap-2 rounded-full bg-bg-surface/85 px-3 py-1.5 text-xs shadow-glass backdrop-blur" aria-live="polite">
+              {legend && <p className="flex items-center gap-3 rounded-full bg-bg-surface/95 px-3 py-1.5 text-[11px] text-ink-muted shadow-glass backdrop-blur">{legend}</p>}
+              <p className="flex items-center gap-2 rounded-full bg-bg-surface/95 py-1 pl-3 pr-2.5 text-xs shadow-glass backdrop-blur" aria-live="polite">
                 {totals}
               </p>
             </div>
           )}
           <div data-board-edge="bottom" className={cn('min-w-0 flex-1 flex-col gap-2 lg:flex lg:items-center', dock ? 'flex' : 'hidden')}>
-            {showHint && <p className="hidden max-w-[40rem] rounded-[10px] bg-ink/80 px-3 py-1.5 text-center text-[11px] leading-snug text-white backdrop-blur lg:block">{hint}</p>}
+            {showHint && <p className="hidden max-w-[40rem] rounded-xl bg-ink px-3 py-1.5 text-center text-[11px] font-medium leading-snug text-white lg:block">{hint}</p>}
             {!hideToolbar && (
               <div className="hidden flex-wrap items-center justify-center gap-2 empty:hidden lg:pointer-events-auto lg:flex">
                 <PlanToolOptions {...optionProps} />
@@ -315,7 +315,7 @@ export function PlanWorkspace({ tools, tool: controlledTool, onTool, boardTool, 
         dock
       )}
       <div
-        className={cn('relative overflow-hidden rounded-[18px] border border-line bg-[#FBF8F2]', bleed && 'h-[62vh] min-h-[420px] lg:absolute lg:inset-0 lg:h-auto lg:min-h-0 lg:rounded-none lg:border-0', frameless && 'rounded-none border-0')}
+        className={cn('relative overflow-hidden rounded-2xl border border-line bg-[#F7F7F8]', bleed && 'h-[62vh] min-h-[420px] lg:absolute lg:inset-0 lg:h-auto lg:min-h-0 lg:rounded-none lg:border-0', frameless && 'rounded-none border-0')}
         style={bleed ? undefined : { height: height ?? 560 }}
       >
         <PlanEditor
@@ -383,13 +383,13 @@ export function PlanWorkspace({ tools, tool: controlledTool, onTool, boardTool, 
         />
         {showTotals && (
           <div className={cn('pointer-events-none absolute left-3 top-3 flex flex-col items-start gap-1.5', bleed && 'lg:hidden')}>
-            {legend && <p className="flex items-center gap-3 rounded-full bg-bg-surface/85 px-3 py-1.5 text-[11px] text-ink-muted shadow-glass backdrop-blur">{legend}</p>}
-            <p className="flex items-baseline gap-2 rounded-full bg-bg-surface/85 px-3 py-1.5 text-xs shadow-glass backdrop-blur" aria-live="polite">
+            {legend && <p className="flex items-center gap-3 rounded-full bg-bg-surface/95 px-3 py-1.5 text-[11px] text-ink-muted shadow-glass backdrop-blur">{legend}</p>}
+            <p className="flex items-center gap-2 rounded-full bg-bg-surface/95 py-1 pl-3 pr-2.5 text-xs shadow-glass backdrop-blur" aria-live="polite">
               {totals}
             </p>
           </div>
         )}
-        {showHint && <p className={cn('pointer-events-none absolute bottom-3 left-3 max-w-[70%] rounded-[10px] bg-ink/80 px-3 py-1.5 text-[11px] leading-snug text-white backdrop-blur', bleed && 'lg:hidden')}>{hint}</p>}
+        {showHint && <p className={cn('pointer-events-none absolute bottom-3 left-3 max-w-[70%] rounded-xl bg-ink px-3 py-1.5 text-[11px] font-medium leading-snug text-white', bleed && 'lg:hidden')}>{hint}</p>}
       </div>
     </div>
   );

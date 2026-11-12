@@ -20,7 +20,7 @@ export function AskFurnitureDialog({ open, onOpenChange }: { open: boolean; onOp
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <div className="mb-2 grid h-12 w-12 place-items-center rounded-2xl bg-sand text-wood-dark">
+          <div className="mb-2 grid h-12 w-12 place-items-center rounded-xl bg-lime text-ink">
             <Sofa className="h-6 w-6" />
           </div>
           <DialogTitle>{t.calculator.furnitureModalTitle}</DialogTitle>

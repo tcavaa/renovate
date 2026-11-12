@@ -70,24 +70,24 @@ export function StyleQuiz({ profile, styleId, onResult, onRetake, className }: {
     const style = STYLES[verdict.styleId];
     const confidence = Math.round(profileConfidence(verdict.profile, verdict.styleId) * 100);
     return (
-      <div className={cn('rounded-[20px] border border-line bg-bg-surface p-6', className)}>
+      <div className={cn('rounded-2xl border border-line bg-bg-surface p-6', className)}>
         <div className="flex flex-wrap items-center gap-6">
           <div className="flex gap-1">
             {style.swatches.map((hex) => (
-              <span key={hex} className="h-10 w-10 rounded-[10px] border border-white/60 shadow-card" style={{ backgroundColor: hex }} />
+              <span key={hex} className="h-11 w-11 rounded-xl" style={{ backgroundColor: hex }} />
             ))}
           </div>
           <div className="min-w-0 flex-1">
             <p className="eyebrow flex items-center gap-1.5">
-              <Sparkles className="h-3.5 w-3.5 text-brand" />
+              <Sparkles className="h-3.5 w-3.5 text-ink" />
               {t.build.quizResult}
             </p>
-            <p className="mt-1 font-serif text-3xl font-semibold text-ink">{styleLabel(t, verdict.styleId)}</p>
+            <p className="mt-1 font-display text-4xl text-ink"><span className="mark">{styleLabel(t, verdict.styleId)}</span></p>
             <p className="mt-1 text-sm text-ink-muted">
               {fill(t.build.quizConfidence, { n: confidence, style: styleLabel(t, verdict.styleId) })} · {t.styleBlurbs[verdict.styleId]}
             </p>
           </div>
-          <button type="button" onClick={retake} className="flex h-10 items-center gap-2 rounded-full border border-line px-4 text-sm font-medium text-ink-soft hover:border-ink hover:text-ink">
+          <button type="button" onClick={retake} className="flex h-10 items-center gap-2 rounded-full bg-mist-light px-4 text-sm font-semibold text-ink hover:bg-mist">
             <RotateCcw className="h-4 w-4" />
             {t.build.quizRetake}
           </button>
@@ -98,16 +98,16 @@ export function StyleQuiz({ profile, styleId, onResult, onRetake, className }: {
   }
 
   return (
-    <div className={cn('rounded-[20px] border border-line bg-bg-surface p-6', className)}>
+    <div className={cn('rounded-2xl border border-line bg-bg-surface p-6', className)}>
       <div className="flex items-center justify-between gap-4">
         <p className="eyebrow">{fill(t.build.quizQuestionN, { n: index + 1 })}</p>
         <div className="flex gap-1">
           {STYLE_QUIZ.map((q, i) => (
-            <span key={q.id} className={cn('h-1.5 w-8 rounded-full', i < index ? 'bg-ink' : i === index ? 'bg-brand' : 'bg-line')} />
+            <span key={q.id} className={cn('h-1.5 w-8 rounded-full', i < index ? 'bg-ink' : i === index ? 'bg-lime' : 'bg-mist')} />
           ))}
         </div>
       </div>
-      <h2 className="mt-3 font-serif text-2xl font-semibold text-ink">{t.build[QUESTION_KEY[question.id]]}</h2>
+      <h2 className="mt-3 font-display text-3xl text-ink">{t.build[QUESTION_KEY[question.id]]}</h2>
       <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4" role="radiogroup">
         {question.options.map((option) => {
           const active = answers[question.id] === option.id;
@@ -118,16 +118,16 @@ export function StyleQuiz({ profile, styleId, onResult, onRetake, className }: {
               role="radio"
               aria-checked={active}
               onClick={() => pick(option.id)}
-              className={cn('group flex flex-col gap-3 rounded-[16px] border p-4 text-left transition-colors', active ? 'border-ink bg-sand-light' : 'border-line hover:border-ink/50')}
+              className={cn('group flex flex-col gap-3 rounded-2xl border p-4 text-left transition-colors', active ? 'border-brand bg-brand-50 ring-1 ring-brand' : 'border-line hover:border-ink')}
             >
               <span className="flex gap-1">
                 {option.swatches.map((hex) => (
-                  <span key={hex} className="h-9 flex-1 rounded-[8px] border border-black/5" style={{ backgroundColor: hex }} />
+                  <span key={hex} className="h-9 flex-1 rounded-lg border border-black/5" style={{ backgroundColor: hex }} />
                 ))}
               </span>
               <span className="flex items-start justify-between gap-2">
-                <span className="text-sm font-medium leading-snug text-ink">{t.build[OPTION_KEY[option.id]]}</span>
-                <span className={cn('grid h-5 w-5 shrink-0 place-items-center rounded-full border', active ? 'border-ink bg-ink text-white' : 'border-line text-transparent group-hover:border-ink/40')}>
+                <span className="text-sm font-semibold leading-snug text-ink">{t.build[OPTION_KEY[option.id]]}</span>
+                <span className={cn('grid h-5 w-5 shrink-0 place-items-center rounded-full border', active ? 'border-brand bg-brand text-white' : 'border-stone text-transparent group-hover:border-ink')}>
                   <Check className="h-3 w-3" />
                 </span>
               </span>
@@ -141,7 +141,7 @@ export function StyleQuiz({ profile, styleId, onResult, onRetake, className }: {
           {t.build.quizBack}
         </button>
         {answers[question.id] && index < STYLE_QUIZ.length - 1 && (
-          <button type="button" onClick={() => setIndex(index + 1)} className="flex h-9 items-center gap-1.5 text-sm font-medium text-ink hover:text-brand">
+          <button type="button" onClick={() => setIndex(index + 1)} className="flex h-9 items-center gap-1.5 rounded-full bg-ink px-4 text-sm font-semibold text-white hover:bg-lime hover:text-ink">
             {t.build.quizNext}
             <ArrowRight className="h-4 w-4" />
           </button>

@@ -36,7 +36,7 @@ interface Props {
   teams: Array<{ id: number; name: string }>;
 }
 
-const SELECT = 'h-10 w-full rounded-xl border border-line bg-bg-surface px-3 text-sm text-ink focus:border-ink focus:outline-none disabled:bg-bg-base';
+const SELECT = 'h-11 w-full rounded-xl border border-line bg-bg-surface px-3 text-sm text-ink focus:border-ink focus:outline-none focus:ring-[3px] focus:ring-lime disabled:bg-mist-light';
 
 /**
  * Admin's account form, for a new account and an existing one. The role is chosen from cards
@@ -133,14 +133,14 @@ export function AccountForm({ account, isSelf = false, stores, workers, teams }:
   // The account is made: the one moment its password can be seen, so it is handed over here.
   if (created) {
     return (
-      <Card className="border-success/50">
+      <Card className="border-transparent bg-lime-soft">
         <CardContent className="space-y-4 p-6">
-          <p className="flex items-center gap-2 font-serif text-xl font-semibold text-ink">
+          <p className="flex items-center gap-2 font-display text-xl text-ink">
             <Check className="h-5 w-5 text-success" />
             {a.created}
           </p>
           <p className="text-sm text-ink-muted">{a.createdHint}</p>
-          <dl className="grid gap-2 rounded-xl border border-line bg-bg-base p-4 font-mono text-sm sm:grid-cols-[auto_1fr]">
+          <dl className="grid gap-2 rounded-xl bg-bg-surface p-4 font-mono text-sm sm:grid-cols-[auto_1fr]">
             <dt className="text-ink-muted">{a.email}</dt>
             <dd className="break-all text-ink">{created.email}</dd>
             <dt className="text-ink-muted">{a.password}</dt>
@@ -192,10 +192,10 @@ export function AccountForm({ account, isSelf = false, stores, workers, teams }:
                   aria-checked={selected}
                   disabled={isSelf}
                   onClick={() => update('role', role)}
-                  className={cn('rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60', selected ? 'border-olive bg-olive text-white' : 'border-line bg-bg-surface text-ink hover:border-ink/40 hover:bg-sand/40')}
+                  className={cn('rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60', selected ? 'border-brand bg-brand-50 text-ink ring-2 ring-brand/25' : 'border-line bg-bg-surface text-ink hover:border-ink')}
                 >
-                  <span className="block text-sm font-semibold">{roleLabel(t, role)}</span>
-                  <span className={cn('mt-1 block text-xs leading-snug', selected ? 'text-white/80' : 'text-ink-muted')}>{(a.roleHints as Record<string, string>)[role]}</span>
+                  <span className="block text-sm font-bold">{roleLabel(t, role)}</span>
+                  <span className={cn('mt-1 block text-xs leading-snug', selected ? 'text-ink-soft' : 'text-ink-muted')}>{(a.roleHints as Record<string, string>)[role]}</span>
                 </button>
               );
             })}
@@ -262,7 +262,7 @@ export function AccountForm({ account, isSelf = false, stores, workers, teams }:
       </Card>
 
       {!creating && !isSelf && (
-        <Card className={cn(!form.isActive && 'border-danger/40 bg-danger/5')}>
+        <Card className={cn(!form.isActive && 'border-transparent bg-coral-soft')}>
           <CardContent className="flex flex-wrap items-center justify-between gap-4 p-6">
             <div className="max-w-xl">
               <p className="eyebrow">{a.statusTitle}</p>
@@ -278,7 +278,7 @@ export function AccountForm({ account, isSelf = false, stores, workers, teams }:
       )}
 
       {notice && (
-        <p role="status" className={cn('text-sm', notice.ok ? 'text-success' : 'text-danger')}>
+        <p role="status" className={cn('text-sm font-medium', notice.ok ? 'text-success' : 'text-danger')}>
           {notice.text}
         </p>
       )}
@@ -289,7 +289,7 @@ export function AccountForm({ account, isSelf = false, stores, workers, teams }:
           {creating ? a.create : t.common.save}
         </Button>
         {!creating && !isSelf && (
-          <Button type="button" variant="ghost" className="text-danger hover:bg-danger/5" onClick={remove} disabled={saving}>
+          <Button type="button" variant="ghost" className="text-danger hover:bg-coral-soft" onClick={remove} disabled={saving}>
             <Trash2 className="h-4 w-4" />
             {a.delete}
           </Button>

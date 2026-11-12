@@ -49,8 +49,8 @@ export function PlanGrantCard({ userId, plan, paidUntil, staff }: { userId: numb
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 font-serif">
-          <Crown className="h-5 w-5 text-accent" />
+        <CardTitle className="flex items-center gap-2 font-display">
+          <Crown className="h-5 w-5 text-brand" />
           {p.adminTitle}
         </CardTitle>
         <p className="text-sm text-ink-muted">
@@ -60,7 +60,7 @@ export function PlanGrantCard({ userId, plan, paidUntil, staff }: { userId: numb
       <CardContent className="flex flex-wrap items-end gap-3">
         <div className="space-y-2">
           <Label htmlFor="grant-plan">{p.adminGrantPlan}</Label>
-          <select id="grant-plan" value={grant} onChange={(e) => setGrant(e.target.value as 'premium' | 'professional')} className="h-10 rounded-xl border border-line bg-bg-surface px-3 text-sm text-ink focus:border-ink focus:outline-none">
+          <select id="grant-plan" value={grant} onChange={(e) => setGrant(e.target.value as 'premium' | 'professional')} className="h-11 rounded-xl border border-line bg-bg-surface px-3 text-sm text-ink focus:border-ink focus:outline-none focus:ring-[3px] focus:ring-lime">
             <option value="premium">{p.premium}</option>
             <option value="professional">{p.professional}</option>
           </select>
@@ -78,7 +78,7 @@ export function PlanGrantCard({ userId, plan, paidUntil, staff }: { userId: numb
             {p.adminEnd}
           </Button>
         )}
-        {notice && <p role="status" className={cn('w-full text-sm', notice.ok ? 'text-success' : 'text-danger')}>{notice.text}</p>}
+        {notice && <p role="status" className={cn('w-full text-sm font-medium', notice.ok ? 'text-success' : 'text-danger')}>{notice.text}</p>}
       </CardContent>
     </Card>
   );

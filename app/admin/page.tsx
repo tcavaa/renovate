@@ -201,7 +201,7 @@ export default async function AdminDashboardPage() {
       <AdminCrumbs trail={[]} />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-serif text-3xl font-semibold">{ka.admin.dashboard}</h1>
+          <h1 className="font-display text-3xl md:text-4xl">{ka.admin.dashboard}</h1>
           <p className="mt-1 text-sm text-ink-muted">{subtitle}</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -262,8 +262,8 @@ export default async function AdminDashboardPage() {
           {may('orders') && (
             <Card className="overflow-hidden">
               <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="font-serif">{r.queueTitle}</CardTitle>
-                <Link href="/admin/orders?review=pending" className="inline-flex items-center gap-1 text-sm text-brand hover:underline">
+                <CardTitle className="font-display">{r.queueTitle}</CardTitle>
+                <Link href="/admin/orders?review=pending" className="inline-flex items-center gap-1 text-sm font-semibold text-ink underline decoration-lime decoration-[3px] underline-offset-4 hover:decoration-ink">
                   {s.queueViewAll} <ArrowRight className="h-3.5 w-3.5" />
                 </Link>
               </CardHeader>
@@ -271,9 +271,9 @@ export default async function AdminDashboardPage() {
                 <table className="w-full text-sm">
                   <tbody>
                     {queue.map((o) => (
-                      <tr key={o.id} className="border-t border-line/40 hover:bg-sand/25">
+                      <tr key={o.id} className="border-t border-line/70 hover:bg-mist-light">
                         <td className="px-4 py-2.5">
-                          <Link href={`/admin/orders/${o.id}`} className="font-medium hover:text-brand">
+                          <Link href={`/admin/orders/${o.id}`} className="font-semibold hover:text-brand">
                             #{o.id} · {o.storeName ?? '—'}
                           </Link>
                           <span className="block text-xs text-ink-muted">
@@ -305,8 +305,8 @@ export default async function AdminDashboardPage() {
           {may('projects') && (
             <Card className="overflow-hidden">
               <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="font-serif">{d.recentProjects}</CardTitle>
-                <Link href="/admin/projects" className="inline-flex items-center gap-1 text-sm text-brand hover:underline">
+                <CardTitle className="font-display">{d.recentProjects}</CardTitle>
+                <Link href="/admin/projects" className="inline-flex items-center gap-1 text-sm font-semibold text-ink underline decoration-lime decoration-[3px] underline-offset-4 hover:decoration-ink">
                   {d.viewAll} <ArrowRight className="h-3.5 w-3.5" />
                 </Link>
               </CardHeader>
@@ -314,9 +314,9 @@ export default async function AdminDashboardPage() {
                 <table className="w-full text-sm">
                   <tbody>
                     {recent.map((p) => (
-                      <tr key={p.id} className="border-t border-line/40 hover:bg-sand/25">
+                      <tr key={p.id} className="border-t border-line/70 hover:bg-mist-light">
                         <td className="px-4 py-2.5">
-                          <Link href={`/admin/projects/${p.id}`} className="font-medium hover:text-brand">
+                          <Link href={`/admin/projects/${p.id}`} className="font-semibold hover:text-brand">
                             {p.nameKa ?? `#${p.id}`}
                           </Link>
                           <span className="block text-xs text-ink-muted">
@@ -328,7 +328,7 @@ export default async function AdminDashboardPage() {
                         </td>
                         <td className="px-4 py-2.5 text-ink-muted">{p.homeState ? homeStateShortLabel(ka, p.homeState) : '—'}</td>
                         <td className="px-4 py-2.5 text-right tabular-nums text-ink-muted">{formatM2L(ka, Number(p.totalM2))}</td>
-                        <td className="px-4 py-2.5 text-right font-medium tabular-nums">{p.totalCost ? formatGEL(Number(p.totalCost)) : '—'}</td>
+                        <td className="px-4 py-2.5 text-right font-bold tabular-nums">{p.totalCost ? formatGEL(Number(p.totalCost)) : '—'}</td>
                         <td className="px-4 py-2.5">
                           <Badge variant={p.status === 'saved' ? 'success' : 'outline'}>{statusLabel(ka, p.status ?? 'draft')}</Badge>
                         </td>
@@ -348,16 +348,16 @@ export default async function AdminDashboardPage() {
 
         <Card className="self-start">
           <CardHeader>
-            <CardTitle className="font-serif">{d.attention}</CardTitle>
+            <CardTitle className="font-display">{d.attention}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {attention.length === 0 ? (
-              <p className="flex items-center gap-2 text-sm text-success">
+              <p className="flex items-center gap-2 rounded-xl bg-lime-soft px-3 py-2 text-sm font-semibold text-ink">
                 <CheckCircle2 className="h-4 w-4" /> {d.allGood}
               </p>
             ) : (
               attention.map((a) => (
-                <Link key={a.href + a.text} href={a.href} className="flex items-start gap-2 rounded-xl border border-warning/30 bg-warning/5 px-3 py-2 text-sm transition-colors hover:border-warning/60">
+                <Link key={a.href + a.text} href={a.href} className="flex items-start gap-2 rounded-xl bg-sun-soft px-3 py-2.5 text-sm font-medium text-ink transition-colors hover:bg-sun/40">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
                   <span>{a.text}</span>
                 </Link>
@@ -392,15 +392,15 @@ function LinkedStat({
   highlight?: boolean;
 }) {
   return (
-    <Link href={href} className="block rounded-2xl transition-shadow hover:shadow-cardHover">
-      <Card className={highlight ? 'h-full border-warning/60 bg-warning/5' : 'h-full'}>
+    <Link href={href} className="group block rounded-2xl transition-shadow hover:shadow-cardHover">
+      <Card className={highlight ? 'h-full border-transparent bg-lime' : 'h-full'}>
         <CardContent className="flex items-start justify-between p-5">
           <div>
-            <p className="text-xs uppercase tracking-wide text-ink-muted">{label}</p>
-            <p className="mt-2 font-serif text-2xl font-semibold tabular-nums">{value}</p>
-            <p className="mt-1 text-xs text-ink-muted">{hint}</p>
+            <p className={highlight ? 'text-xs font-semibold uppercase tracking-wide text-ink/70' : 'text-xs font-semibold uppercase tracking-wide text-ink-muted'}>{label}</p>
+            <p className="mt-2 font-display text-3xl tabular-nums">{value}</p>
+            <p className={highlight ? 'mt-1 text-xs text-ink/70' : 'mt-1 text-xs text-ink-muted'}>{hint}</p>
           </div>
-          <span className={highlight ? 'grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-warning/15 text-warning' : 'grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-olive-soft text-olive'}>
+          <span className={highlight ? 'grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-ink text-lime' : 'grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-mist-light text-ink transition-colors group-hover:bg-ink group-hover:text-lime'}>
             <Icon className="h-5 w-5" />
           </span>
         </CardContent>

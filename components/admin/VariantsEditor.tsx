@@ -114,7 +114,7 @@ export function VariantsEditor({
     <div className="space-y-3 rounded-2xl border border-line bg-bg-surface p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="space-y-1">
-          <p className="text-sm font-semibold text-ink">{f.variantsTitle}</p>
+          <p className="text-base font-bold tracking-tight text-ink">{f.variantsTitle}</p>
           <p className="max-w-xl text-xs text-ink-muted">{f.variantsHint}</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -153,7 +153,7 @@ export function VariantsEditor({
         // Materials a variant names that the loaded model does not have (another file uploaded since).
         const stray = materials.length > 0 ? variant.slots.filter((s) => !materials.some((m) => m.name === s.material)) : [];
         return (
-          <div key={variant.id} className={cn("space-y-3 rounded-xl border bg-bg-surface p-3", previewing ? "border-olive ring-1 ring-olive/30" : "border-line")}>
+          <div key={variant.id} className={cn("space-y-3 rounded-xl border bg-bg-surface p-3", previewing ? "border-brand ring-2 ring-brand/25" : "border-line")}>
             <div className="flex flex-wrap items-center gap-2">
               <input
                 type="color"
@@ -206,7 +206,7 @@ export function VariantsEditor({
                     // eslint-disable-next-line @next/next/no-img-element -- an uploaded photo, shown as it is
                     <img src={variant.imageUrl} alt="" className="h-10 w-10 rounded-lg border border-line object-cover" />
                   ) : (
-                    <span className="h-10 w-10 rounded-lg border border-dashed border-line" />
+                    <span className="h-10 w-10 rounded-lg bg-mist-light" />
                   )}
                   <Button type="button" variant="outline" size="sm" onClick={() => photo(variant.id)} disabled={materials.length === 0 || photoFor != null}>
                     {photoFor === variant.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
@@ -222,7 +222,7 @@ export function VariantsEditor({
             </div>
 
             <div className="space-y-1.5">
-              <p className="text-xs font-medium text-ink">{f.variantParts}</p>
+              <p className="text-xs font-bold text-ink">{f.variantParts}</p>
               {materials.length === 0 ? (
                 <p className="text-[11px] text-ink-muted">{f.variantsNoModel}</p>
               ) : (
@@ -267,7 +267,7 @@ function SlotRow({ material, slot, onChange }: { material: ModelMaterial; slot: 
   const [textureOpen, setTextureOpen] = useState(!!(slot?.colorUrl || slot?.normalUrl || slot?.roughnessUrl));
   const set = (change: Partial<VariantSlot>) => onChange({ ...(slot ?? { material: material.name }), ...change });
   return (
-    <li className={cn("rounded-xl border p-2", slot ? "border-olive/40 bg-olive-soft/40" : "border-line")}>
+    <li className={cn("rounded-xl border p-2", slot ? "border-brand/40 bg-brand-50" : "border-line")}>
       <label className="flex cursor-pointer items-center gap-2 text-xs">
         <input type="checkbox" checked={!!slot} onChange={(e) => onChange(e.target.checked ? { material: material.name, colorHex: material.colorHex, keepTexture: material.textured } : null)} />
         <span aria-hidden className="h-4 w-4 shrink-0 rounded-full border border-line" style={{ backgroundColor: material.colorHex }} />

@@ -129,14 +129,14 @@ export function FinishCatalog({
     { id: 'priceDesc', label: t.design.catalogSortPriceDesc },
     { id: 'name', label: t.design.catalogSortName },
   ];
-  const sectionTitle = 'mb-1.5 mt-4 px-1 text-[10px] font-semibold uppercase tracking-wide text-ink-muted first:mt-0';
-  const filterRow = (active: boolean) => cn('flex h-8 w-full items-center gap-2 rounded-[8px] px-2 text-left text-xs transition-colors', active ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light hover:text-ink');
+  const sectionTitle = 'mb-1.5 mt-4 px-1 text-[10px] font-bold uppercase tracking-wide text-ink-muted first:mt-0';
+  const filterRow = (active: boolean) => cn('flex h-8 w-full items-center gap-2 rounded-lg px-2 text-left text-xs font-medium transition-colors', active ? 'bg-lime font-bold text-ink' : 'text-ink-soft hover:bg-mist hover:text-ink');
   const clearFilters = () => onState({ ...initialFinishBrowserState(), sort: state.sort, selectedId: state.selectedId });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="flex h-[min(800px,calc(100vh-2rem))] w-[calc(100vw-2rem)] max-w-[1200px] flex-col gap-0 overflow-hidden rounded-[18px] p-0"
+        className="flex h-[min(800px,calc(100vh-2rem))] w-[calc(100vw-2rem)] max-w-[1200px] flex-col gap-0 overflow-hidden rounded-3xl p-0 sm:p-0"
         // Escape closes the modal and nothing else: the studio's own Escape — put the brush
         // down — listens further up and must not hear it (see `CatalogBrowser`).
         onEscapeKeyDown={(event) => {
@@ -153,7 +153,7 @@ export function FinishCatalog({
         {/* ---- header: the title, the count, the search, the sort ---- */}
         <div className="flex shrink-0 items-center gap-3 border-b border-line px-5 py-3 pr-14">
           <PaintBucket className="h-5 w-5 shrink-0 text-ink" aria-hidden />
-          <h2 className="shrink-0 font-serif text-lg font-semibold text-ink">{t.design.finishCatalogTitle}</h2>
+          <h2 className="shrink-0 font-display text-xl text-ink">{t.design.finishCatalogTitle}</h2>
           <span className="shrink-0 text-xs tabular-nums text-ink-muted">{fill(t.design.finishCatalogResults, { n: browse.results.length })}</span>
           <div className="relative min-w-0 flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
@@ -164,12 +164,12 @@ export function FinishCatalog({
               onChange={(e) => patch({ query: e.target.value })}
               placeholder={t.design.finishSearch}
               aria-label={t.design.finishSearch}
-              className="h-9 w-full rounded-[10px] border border-line bg-bg-surface pl-9 pr-3 text-sm text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none"
+              className="h-10 w-full rounded-full border border-transparent bg-mist-light pl-9 pr-3 text-sm text-ink placeholder:text-ink-faint focus:border-ink focus:bg-bg-surface focus:outline-none"
             />
           </div>
           <label className="flex shrink-0 items-center gap-1.5 text-xs text-ink-muted">
             <span className="hidden sm:inline">{t.design.catalogSort}</span>
-            <select value={state.sort} onChange={(e) => patch({ sort: e.target.value as FinishSort })} className="h-9 rounded-[10px] border border-line bg-bg-surface px-2 text-xs text-ink focus:border-ink focus:outline-none">
+            <select value={state.sort} onChange={(e) => patch({ sort: e.target.value as FinishSort })} className="h-10 rounded-full border border-line bg-bg-surface px-3 text-xs font-medium text-ink focus:border-ink focus:outline-none">
               {sortOptions.map((o) => (
                 <option key={o.id} value={o.id}>
                   {o.label}
@@ -181,7 +181,7 @@ export function FinishCatalog({
 
         <div className="flex min-h-0 flex-1">
           {/* ---- left: the filters ---- */}
-          <aside className="w-[236px] shrink-0 overflow-y-auto border-r border-line bg-sand-light/40 p-3">
+          <aside className="w-[236px] shrink-0 overflow-y-auto border-r border-line bg-bg-base p-3">
             <p className={sectionTitle}>{t.design.finishSurfaceTitle}</p>
             <div role="tablist" aria-label={t.design.finishSurfaceTitle}>
               {SURFACE_TABS.map(({ id, icon: Icon }) => {
@@ -236,7 +236,7 @@ export function FinishCatalog({
                     aria-pressed={active}
                     title={own ? `${styleLabel(t, id)} · ${t.design.yourStyle}` : styleLabel(t, id)}
                     onClick={() => patch({ styles: toggle(state.styles, id) })}
-                    className={cn('flex h-7 items-center gap-1 rounded-full px-2 text-[11px] font-semibold transition-colors', active && own ? 'bg-brand text-white' : active ? 'bg-ink text-white' : own ? 'text-ink ring-1 ring-inset ring-brand/40 hover:bg-sand-light' : 'text-ink-soft ring-1 ring-inset ring-line hover:bg-sand-light hover:text-ink')}
+                    className={cn('flex h-7 items-center gap-1 rounded-full px-2 text-[11px] font-semibold transition-colors', active && own ? 'bg-brand text-white' : active ? 'bg-ink text-white' : own ? 'text-ink ring-1 ring-inset ring-brand/40 hover:bg-mist-light' : 'text-ink-soft ring-1 ring-inset ring-line hover:bg-mist-light hover:text-ink')}
                   >
                     {own && <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', active ? 'bg-bg-surface' : 'bg-brand')} aria-hidden />}
                     {styleLabel(t, id)}
@@ -284,7 +284,7 @@ export function FinishCatalog({
                 onChange={(e) => patch({ priceMin: e.target.value === '' ? null : Math.max(0, Number(e.target.value)) })}
                 placeholder={browse.price ? String(Math.floor(browse.price.min)) : t.design.catalogPriceFrom}
                 aria-label={t.design.catalogPriceFrom}
-                className="h-8 w-full min-w-0 rounded-[8px] border border-line bg-bg-surface px-2 text-xs tabular-nums text-ink focus:border-ink focus:outline-none"
+                className="h-8 w-full min-w-0 rounded-lg border border-line bg-bg-surface px-2 text-xs tabular-nums text-ink focus:border-ink focus:outline-none"
               />
               <span className="text-ink-faint">–</span>
               <input
@@ -295,14 +295,14 @@ export function FinishCatalog({
                 onChange={(e) => patch({ priceMax: e.target.value === '' ? null : Math.max(0, Number(e.target.value)) })}
                 placeholder={browse.price ? String(Math.ceil(browse.price.max)) : t.design.catalogPriceTo}
                 aria-label={t.design.catalogPriceTo}
-                className="h-8 w-full min-w-0 rounded-[8px] border border-line bg-bg-surface px-2 text-xs tabular-nums text-ink focus:border-ink focus:outline-none"
+                className="h-8 w-full min-w-0 rounded-lg border border-line bg-bg-surface px-2 text-xs tabular-nums text-ink focus:border-ink focus:outline-none"
               />
             </div>
 
             {browse.stores.length > 0 && (
               <>
                 <p className={sectionTitle}>{t.design.catalogStore}</p>
-                <select value={browse.storeId ?? ''} onChange={(e) => patch({ storeId: e.target.value === '' ? null : Number(e.target.value) })} aria-label={t.design.catalogStore} className="mx-1 h-8 w-[calc(100%-0.5rem)] rounded-[8px] border border-line bg-bg-surface px-2 text-xs text-ink focus:border-ink focus:outline-none">
+                <select value={browse.storeId ?? ''} onChange={(e) => patch({ storeId: e.target.value === '' ? null : Number(e.target.value) })} aria-label={t.design.catalogStore} className="mx-1 h-8 w-[calc(100%-0.5rem)] rounded-lg border border-line bg-bg-surface px-2 text-xs text-ink focus:border-ink focus:outline-none">
                   <option value="">{t.design.catalogAllStores}</option>
                   {browse.stores.map(({ store, count }) => (
                     <option key={store.id} value={store.id}>
@@ -327,7 +327,7 @@ export function FinishCatalog({
               <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
                 <p className="max-w-sm text-sm text-ink-muted">{browse.total === 0 ? t.design.noAlternatives : t.design.catalogNoResults}</p>
                 {hasFinishFilters(state) && (
-                  <button type="button" onClick={clearFilters} className="h-8 rounded-full bg-ink px-3 text-xs font-semibold text-white hover:bg-brand">
+                  <button type="button" onClick={clearFilters} className="h-8 rounded-full bg-ink px-3 text-xs font-semibold text-white hover:bg-lime hover:text-ink">
                     {t.design.catalogClear}
                   </button>
                 )}
@@ -355,10 +355,10 @@ export function FinishCatalog({
                           patch({ selectedId: p.id });
                         }
                       }}
-                      className={cn('group flex cursor-pointer flex-col overflow-hidden rounded-[12px] border bg-bg-surface text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ink', active ? 'border-brand ring-1 ring-brand' : onIt ? 'border-brand' : 'border-line hover:border-ink/60')}
+                      className={cn('group flex cursor-pointer flex-col overflow-hidden rounded-2xl border bg-bg-surface text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ink', active ? 'border-brand ring-2 ring-brand' : onIt ? 'border-brand' : 'border-line hover:border-ink/60')}
                     >
-                      <span className="relative block aspect-square w-full bg-bg-base">
-                        {picture ? <Image src={picture} alt={name} fill sizes="180px" className="pointer-events-none object-cover transition-transform group-hover:scale-105" /> : <span className="block h-full w-full" style={{ backgroundColor: p.colorHex ?? '#DDD8CF' }} />}
+                      <span className="relative block aspect-square w-full bg-mist-light">
+                        {picture ? <Image src={picture} alt={name} fill sizes="180px" className="pointer-events-none object-cover transition-transform group-hover:scale-105" /> : <span className="block h-full w-full" style={{ backgroundColor: p.colorHex ?? '#E7E7EA' }} />}
                         {onIt && (
                           <span className="absolute left-1.5 top-1.5 flex items-center gap-0.5 rounded-full bg-brand px-1.5 py-0.5 text-[10px] font-semibold text-white">
                             <Check className="h-3 w-3" />
@@ -372,10 +372,10 @@ export function FinishCatalog({
                         )}
                       </span>
                       <span className="flex flex-1 flex-col gap-0.5 px-2.5 py-2">
-                        <span className="line-clamp-2 text-xs font-medium leading-snug text-ink">{name}</span>
+                        <span className="line-clamp-2 text-xs font-semibold leading-snug text-ink">{name}</span>
                         <span className="truncate text-[10px] text-ink-muted">{seller ?? ' '}</span>
                         <span className="mt-auto flex items-center justify-between gap-2 pt-1">
-                          <span className="text-sm font-semibold tabular-nums text-ink">{finishPriceLabel(t, p, surface)}</span>
+                          <span className="text-sm font-bold tabular-nums text-ink">{finishPriceLabel(t, p, surface)}</span>
                           <button
                             type="button"
                             title={pickLabel}
@@ -384,7 +384,7 @@ export function FinishCatalog({
                               e.stopPropagation();
                               onPick(p);
                             }}
-                            className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-ink text-white transition-colors hover:bg-brand"
+                            className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-ink text-white transition-colors hover:bg-lime hover:text-ink"
                           >
                             <PickIcon className="h-3.5 w-3.5" />
                           </button>
@@ -409,7 +409,7 @@ export function FinishCatalog({
 
             {/* Where it goes — the tray's brush sizes — and the button. */}
             <div className="sticky bottom-0 mt-auto border-t border-line/60 bg-bg-surface p-4 pt-3">
-              <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-ink-muted">{t.build.applyTo}</p>
+              <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-ink-muted">{t.build.applyTo}</p>
               <div className="flex flex-wrap gap-1" role="radiogroup" aria-label={t.build.applyTo}>
                 {chips.map((c) => {
                   const Icon = c.icon;
@@ -425,7 +425,7 @@ export function FinishCatalog({
                 {room?.name ?? t.design.finishForAllRooms}
                 {areaLabel && !painting ? ` · ${areaLabel}` : ''}
               </p>
-              <button type="button" disabled={!selected} onClick={() => selected && onPick(selected)} className="mt-1.5 flex h-11 w-full items-center justify-center gap-2 rounded-full bg-ink text-sm font-semibold text-white transition-colors hover:bg-brand disabled:cursor-not-allowed disabled:opacity-40">
+              <button type="button" disabled={!selected} onClick={() => selected && onPick(selected)} className="mt-1.5 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-ink text-sm font-bold text-white transition-colors hover:bg-lime hover:text-ink disabled:cursor-not-allowed disabled:opacity-40">
                 <PickIcon className="h-4 w-4" />
                 {pickLabel}
               </button>
@@ -458,24 +458,24 @@ function FinishDetails({ product: p, surface, styleId }: { product: CatalogProdu
   const depthCm = moulding.depthCm ?? p.depthCm;
   const row = (label: string, value: React.ReactNode) => (
     <div className="flex justify-between gap-3">
-      <dt className="shrink-0 text-ink-muted">{label}</dt>
+      <dt className="shrink-0 font-medium text-ink-muted">{label}</dt>
       <dd className="text-right text-ink">{value}</dd>
     </div>
   );
   return (
     <>
       {trim || !p.textureUrl ? (
-        <div className="relative aspect-square w-full overflow-hidden rounded-[12px] border border-line bg-bg-base">
-          {p.imageUrl ? <Image src={p.imageUrl} alt={name} fill sizes="300px" className="object-contain" /> : <span className="block h-full w-full" style={{ backgroundColor: p.colorHex ?? '#DDD8CF' }} />}
+        <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-mist-light">
+          {p.imageUrl ? <Image src={p.imageUrl} alt={name} fill sizes="300px" className="object-contain" /> : <span className="block h-full w-full" style={{ backgroundColor: p.colorHex ?? '#E7E7EA' }} />}
         </div>
       ) : (
         // The texture repeated at its real size: a mosaic reads as a mosaic, a slab as a slab.
-        <div className="relative aspect-square w-full overflow-hidden rounded-[12px] border border-line bg-bg-base" style={{ backgroundImage: `url("${p.textureUrl}")`, backgroundSize: `${tilePx}px ${tilePx}px`, backgroundRepeat: 'repeat' }} role="img" aria-label={name}>
+        <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-mist-light" style={{ backgroundImage: `url("${p.textureUrl}")`, backgroundSize: `${tilePx}px ${tilePx}px`, backgroundRepeat: 'repeat' }} role="img" aria-label={name}>
           <span className="absolute bottom-1.5 left-1.5 rounded-full bg-bg-surface/90 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-ink">{t.design.finishPreviewSize}</span>
         </div>
       )}
-      <h3 className="mt-3 font-serif text-base font-semibold leading-snug text-ink">{name}</h3>
-      <p className="mt-1 text-xl font-semibold tabular-nums text-ink">{finishPriceLabel(t, p, surface)}</p>
+      <h3 className="mt-3 font-display text-lg leading-snug text-ink">{name}</h3>
+      <p className="mt-1 font-display text-2xl tabular-nums text-ink">{finishPriceLabel(t, p, surface)}</p>
       {perUnit && <p className="text-[11px] tabular-nums text-ink-muted">{p.coveragePerUnit ? fill(t.design.finishPerUnitCoverage, { price: perUnit, m2: String(p.coveragePerUnit) }) : perUnit}</p>}
 
       <dl className="mt-3 space-y-1.5 text-xs">
@@ -498,7 +498,7 @@ function FinishDetails({ product: p, surface, styleId }: { product: CatalogProdu
             t.design.styleTitle,
             <span className="flex flex-wrap justify-end gap-1">
               {styles.map((id) => (
-                <span key={id} className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold', id === styleId ? 'bg-brand/10 text-brand' : 'bg-sand-light text-ink-soft')}>
+                <span key={id} className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold', id === styleId ? 'bg-lime text-ink' : 'bg-mist-light text-ink-soft')}>
                   {styleLabel(t, id)}
                 </span>
               ))}

@@ -234,10 +234,10 @@ export default function BudgetPage() {
           {excludedLines === 0 && changedLines === 0 ? t.build.editsNone : fill(t.build.editsCount, { out: excludedLines, changed: changedLines })}
         </p>
 
-        {error && <p className="mt-6 rounded-[12px] border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">{error}</p>}
+        {error && <p className="mt-6 rounded-xl bg-coral-soft px-4 py-3 text-sm font-medium text-danger">{error}</p>}
 
         {/* Materials + products + labour = the estimate; a renovation's contingency on top of its works. */}
-        <div className={cn('mt-8 grid overflow-hidden rounded-[16px] border border-line', cost.contingencyTotal > 0 ? 'sm:grid-cols-5' : 'sm:grid-cols-4')}>
+        <div className={cn('mt-8 grid overflow-hidden rounded-2xl border border-line', cost.contingencyTotal > 0 ? 'sm:grid-cols-5' : 'sm:grid-cols-4')}>
           <Figure label={t.build.budgetMaterials} value={formatGEL(summary.materials)} />
           <Figure label={t.build.budgetProducts} value={formatGEL(summary.products)} />
           <Figure label={t.build.budgetLabour} value={formatGEL(summary.labour)} />
@@ -253,7 +253,7 @@ export default function BudgetPage() {
 
           {/* ---- totals ---- */}
           <div className="space-y-4 lg:sticky lg:top-24 lg:self-start">
-            <div className="rounded-[16px] border border-line bg-bg-surface">
+            <div className="rounded-2xl border border-line bg-bg-surface">
               <div className="border-b border-line px-4 py-3">
                 <p className="eyebrow">{t.design.grandTotal}</p>
               </div>
@@ -285,8 +285,8 @@ export default function BudgetPage() {
                   </div>
                 )}
                 <div className="mt-3 flex items-baseline justify-between border-t-2 border-ink pt-3">
-                  <span className="font-serif font-semibold">{fullCost ? t.build.orderTotal : t.design.grandTotal}</span>
-                  <span className="font-serif text-2xl font-semibold tabular-nums text-ink">{formatGEL(cost.grandTotal)}</span>
+                  <span className="font-display">{fullCost ? t.build.orderTotal : t.design.grandTotal}</span>
+                  <span className="mark font-display text-2xl tabular-nums text-ink">{formatGEL(cost.grandTotal)}</span>
                 </div>
                 {/* A renovation's unforeseen costs: a share of its works, not of what is bought — the calculator's rule. */}
                 {cost.contingencyTotal > 0 && (
@@ -294,7 +294,7 @@ export default function BudgetPage() {
                     <MoneyRow label={t.summary.contingency} value={cost.contingencyTotal} muted />
                     <div className="flex items-baseline justify-between gap-3">
                       <span className="font-semibold text-ink">{t.summary.grandTotalWithMargin}</span>
-                      <span className="font-serif text-xl font-semibold tabular-nums text-ink">{formatGEL(cost.grandTotal + cost.contingencyTotal)}</span>
+                      <span className="font-display text-xl tabular-nums text-ink">{formatGEL(cost.grandTotal + cost.contingencyTotal)}</span>
                     </div>
                   </div>
                 )}
@@ -307,7 +307,7 @@ export default function BudgetPage() {
             </div>
 
             {cost.coverage.length > 0 && (
-              <div className="rounded-[16px] border border-line bg-bg-surface">
+              <div className="rounded-2xl border border-line bg-bg-surface">
                 <div className="border-b border-line px-4 py-3">
                   <p className="eyebrow">{t.build.m2ByMaterial}</p>
                 </div>
@@ -323,7 +323,7 @@ export default function BudgetPage() {
               </div>
             )}
 
-            <div className="rounded-[16px] border border-line bg-bg-surface">
+            <div className="rounded-2xl border border-line bg-bg-surface">
               <div className="border-b border-line px-4 py-3">
                 <p className="eyebrow">{t.design.perRoomTitle}</p>
               </div>
@@ -334,7 +334,7 @@ export default function BudgetPage() {
               </div>
             </div>
 
-            <Link href={designStepHref(projectId, 8)} className="flex h-12 items-center justify-center gap-2 rounded-full border border-line bg-bg-surface text-sm font-medium text-ink hover:border-ink">
+            <Link href={designStepHref(projectId, 8)} className="flex h-12 items-center justify-center gap-2 rounded-full bg-mist-light text-sm font-semibold text-ink hover:bg-mist">
               <HardHat className="h-4 w-4" />
               {t.build.findWorkers}
             </Link>
@@ -347,7 +347,7 @@ export default function BudgetPage() {
         next={{ label: t.market.checkout, onClick: () => setCheckoutOpen(true), disabled: saving, icon: <ShoppingBag className="h-4 w-4" /> }}
       >
         <p className="text-sm text-ink-muted sm:text-right">
-          {cost.contingencyTotal > 0 ? t.summary.grandTotalWithMargin : t.design.grandTotal} · <span className="font-serif text-base font-semibold text-ink">{formatGEL(cost.grandTotal + cost.contingencyTotal)}</span>
+          {cost.contingencyTotal > 0 ? t.summary.grandTotalWithMargin : t.design.grandTotal} · <span className="font-display text-base text-ink">{formatGEL(cost.grandTotal + cost.contingencyTotal)}</span>
         </p>
       </StepNav>
 

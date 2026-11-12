@@ -30,7 +30,7 @@ export function WallGlyph({ outline, index, active }: { outline: Vec2[]; index: 
   const [bx, bz] = at(outline[(index + 1) % outline.length] ?? outline[0]);
   return (
     <svg viewBox="0 0 24 24" className="h-6 w-6 shrink-0" aria-hidden>
-      <path d={pathOf(outline, at)} className="fill-bg-base stroke-ink-faint" strokeWidth={1} strokeLinejoin="round" />
+      <path d={pathOf(outline, at)} className="fill-bg-surface stroke-ink-faint" strokeWidth={1} strokeLinejoin="round" />
       <line x1={ax} y1={az} x2={bx} y2={bz} className={active ? 'stroke-ink' : 'stroke-ink-soft'} strokeWidth={3} strokeLinecap="round" />
     </svg>
   );
@@ -48,7 +48,7 @@ export function RoomGlyph({ outlines, roomId, active }: { outlines: Array<{ id: 
   const own = outlines.find((o) => o.id === roomId);
   return (
     <svg viewBox="0 0 48 40" className="h-10 w-12 shrink-0" aria-hidden>
-      {outlines.map((o) => (o.id === roomId ? null : <path key={o.id} d={pathOf(o.polygon, at)} className="fill-bg-base stroke-ink-faint" strokeWidth={1} strokeLinejoin="round" />))}
+      {outlines.map((o) => (o.id === roomId ? null : <path key={o.id} d={pathOf(o.polygon, at)} className="fill-bg-surface stroke-ink-faint" strokeWidth={1} strokeLinejoin="round" />))}
       {own && <path d={pathOf(own.polygon, at)} className={cn(active ? 'fill-ink stroke-ink' : 'fill-ink-soft stroke-ink-soft')} strokeWidth={1} strokeLinejoin="round" />}
     </svg>
   );

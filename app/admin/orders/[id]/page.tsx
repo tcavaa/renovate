@@ -38,13 +38,13 @@ export default async function AdminOrderPage(props: { params: Promise<{ id: stri
       <div className="space-y-4">
         <AdminCrumbs trail={[sectionCrumb(ka, 'orders'), { label: `#${data.id}` }]} />
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <h1 className="font-serif text-3xl font-semibold">
+          <h1 className="font-display text-3xl md:text-4xl">
             {fill(o.title, {})} <span className="text-ink-muted">#{data.id}</span>
           </h1>
           <div className="flex flex-wrap items-center gap-4 text-sm text-ink-muted">
             {data.partner &&
               (partnerHref ? (
-                <Link href={partnerHref} className="text-brand hover:underline">
+                <Link href={partnerHref} className="text-ink underline decoration-lime decoration-2 underline-offset-4 hover:decoration-ink">
                   {kind}: {data.partner.nameKa}
                 </Link>
               ) : (

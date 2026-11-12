@@ -116,7 +116,7 @@ export function TeamSelfForm({ team }: { team: TeamSelfValue }) {
         <ImageUploader value={form.logoUrl ?? ''} onChange={(url) => update('logoUrl', url || null)} folder="misc" />
       </div>
       <div className="flex flex-wrap items-center justify-end gap-3 border-t border-line pt-4">
-        {notice && <p className={cn('mr-auto text-sm', notice.ok ? 'text-success' : 'text-danger')}>{notice.text}</p>}
+        {notice && <p className={cn('mr-auto text-sm font-medium', notice.ok ? 'text-success' : 'text-danger')}>{notice.text}</p>}
         <Button type="submit" variant="ink" disabled={saving}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           {p.save}

@@ -66,7 +66,7 @@ export default async function WorkerProfilePage(props: { params: Promise<{ id: s
 
   return (
     <div className="container py-8 md:py-12">
-      <nav aria-label="breadcrumb" className="flex flex-wrap items-center gap-1.5 text-xs text-ink-muted">
+      <nav aria-label="breadcrumb" className="flex flex-wrap items-center gap-1.5 text-xs font-medium text-ink-muted">
         <Link href="/workers" className="hover:text-ink">
           {t.nav.workers}
         </Link>
@@ -75,20 +75,20 @@ export default async function WorkerProfilePage(props: { params: Promise<{ id: s
           {workerSpecialtyLabel(t, worker.specialtySlug)}
         </Link>
         <ChevronRight className="h-3 w-3 text-ink-faint" />
-        <span className="text-ink">{name}</span>
+        <span className="font-semibold text-ink">{name}</span>
       </nav>
 
-      <header className="mt-6 flex flex-col gap-6 rounded-3xl bg-sand-light p-6 md:flex-row md:items-end md:justify-between md:p-8">
+      <header className="mt-6 flex flex-col gap-6 rounded-3xl bg-mist-light p-6 md:flex-row md:items-end md:justify-between md:p-8">
         <div className="flex items-start gap-5">
           <WorkerMark worker={worker} size="lg" />
           <div>
             <p className="eyebrow">{t.workers.profileEyebrow}</p>
-            <h1 className="mt-2 flex items-center gap-2 font-serif text-3xl font-semibold leading-[1.05] tracking-tight text-ink md:text-4xl">
+            <h1 className="mt-2 flex items-center gap-2 font-display text-4xl leading-[1] text-ink md:text-5xl">
               {name}
               {worker.isVerified && <BadgeCheck className="h-6 w-6 shrink-0 text-success" aria-label={t.workers.verified} />}
             </h1>
-            <p className="mt-3 inline-flex rounded-full bg-bg-surface px-3 py-1 text-sm text-ink-soft">{specialty}</p>
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-ink-muted">
+            <p className="mt-3 inline-flex rounded-full bg-lime px-3 py-1 text-sm font-semibold text-ink">{specialty}</p>
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-sm font-medium text-ink-muted">
               <span className="inline-flex items-center gap-2 rounded-full bg-bg-surface px-3 py-1">
                 <Stars rating={rating} className="h-4 w-4" />
                 <span className="font-semibold tabular-nums text-ink">{rating.toFixed(1)}</span>
@@ -98,7 +98,7 @@ export default async function WorkerProfilePage(props: { params: Promise<{ id: s
               </span>
               {worker.city && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-bg-surface px-3 py-1">
-                  <MapPin className="h-3.5 w-3.5 text-wood" />
+                  <MapPin className="h-3.5 w-3.5 text-ink-muted" />
                   {worker.city}
                 </span>
               )}
@@ -129,8 +129,8 @@ export default async function WorkerProfilePage(props: { params: Promise<{ id: s
 
           <section>
             <div className="flex items-baseline justify-between border-b border-line pb-3">
-              <h2 className="font-serif text-2xl font-semibold text-ink">{t.workers.portfolio}</h2>
-              <span className="rounded-full bg-sand px-2.5 py-0.5 text-xs tabular-nums text-ink-soft">{works.length}</span>
+              <h2 className="font-display text-2xl text-ink">{t.workers.portfolio}</h2>
+              <span className="rounded-full bg-ink px-2.5 py-0.5 text-xs font-bold tabular-nums text-white">{works.length}</span>
             </div>
             {works.length === 0 ? (
               <p className="mt-6 text-sm text-ink-muted">{t.workers.noWorks}</p>
@@ -140,19 +140,19 @@ export default async function WorkerProfilePage(props: { params: Promise<{ id: s
                   const title = localizedText(locale, w.titleKa, w.titleEn, w.titleRu) ?? w.titleKa;
                   const description = localizedText(locale, w.descriptionKa, w.descriptionEn, w.descriptionRu);
                   return (
-                    <li key={w.id} className="flex flex-col overflow-hidden rounded-2xl border border-line bg-bg-surface shadow-card">
-                      <div className="relative m-2 mb-0 aspect-[4/3] overflow-hidden rounded-xl bg-sand-light">
+                    <li key={w.id} className="flex flex-col overflow-hidden rounded-2xl border border-line bg-bg-surface">
+                      <div className="relative m-2 mb-0 aspect-[4/3] overflow-hidden rounded-2xl bg-mist-light">
                         {w.imageUrl && <Image src={w.imageUrl} alt={title} fill sizes="(min-width: 1024px) 33vw, 50vw" className="object-cover" />}
-                        {w.year && <span className="absolute left-3 top-3 rounded-full bg-sand/90 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-ink backdrop-blur">{w.year}</span>}
+                        {w.year && <span className="absolute left-3 top-3 rounded-full bg-ink px-2.5 py-1 text-[10px] font-bold tabular-nums tracking-[0.06em] text-white">{w.year}</span>}
                       </div>
                       <div className="flex flex-1 flex-col gap-1 px-4 pb-4 pt-3.5">
-                        <h3 className="font-serif text-lg font-semibold leading-snug text-ink">{title}</h3>
+                        <h3 className="font-display text-lg leading-snug text-ink">{title}</h3>
                         {description && <p className="text-sm leading-relaxed text-ink-muted">{description}</p>}
                         <p className="mt-auto flex flex-wrap gap-x-3 pt-3 text-xs text-ink-muted">
                           {w.areaM2 && <span className="tabular-nums">{formatM2(Number(w.areaM2))}</span>}
                           {w.city && (
                             <span className="inline-flex items-center gap-1">
-                              <MapPin className="h-3 w-3 text-wood" />
+                              <MapPin className="h-3 w-3 text-ink-muted" />
                               {w.city}
                             </span>
                           )}
@@ -167,23 +167,22 @@ export default async function WorkerProfilePage(props: { params: Promise<{ id: s
 
           <section>
             <div className="flex items-baseline justify-between border-b border-line pb-3">
-              <h2 className="font-serif text-2xl font-semibold text-ink">{t.workers.reviewsTitle}</h2>
-              <span className="rounded-full bg-sand px-2.5 py-0.5 text-xs tabular-nums text-ink-soft">{reviews.length}</span>
+              <h2 className="font-display text-2xl text-ink">{t.workers.reviewsTitle}</h2>
+              <span className="rounded-full bg-ink px-2.5 py-0.5 text-xs font-bold tabular-nums text-white">{reviews.length}</span>
             </div>
             {reviews.length === 0 ? (
               <p className="mt-6 text-sm text-ink-muted">{t.workers.noReviews}</p>
             ) : (
               <div className="mt-6 grid gap-8 md:grid-cols-[220px_minmax(0,1fr)]">
-                <div className="self-start rounded-2xl bg-sand-light p-5">
-                  <p className="font-serif text-5xl font-semibold leading-none tabular-nums text-ink">{rating.toFixed(1)}</p>
-                  <p className="mt-2 text-xs text-ink-muted">{t.workers.ratingOutOf}</p>
-                  <Stars rating={rating} className="mt-2 h-4 w-4" />
+                <div className="self-start rounded-2xl bg-lime p-5">
+                  <p className="font-display text-6xl leading-none tabular-nums text-ink">{rating.toFixed(1)}</p>
+                  <p className="mt-2 text-xs font-medium text-ink/70">{t.workers.ratingOutOf}</p>
                   <ul className="mt-5 space-y-1.5">
                     {breakdown.map((b) => (
-                      <li key={b.n} className="flex items-center gap-2 text-xs text-ink-muted">
+                      <li key={b.n} className="flex items-center gap-2 text-xs font-medium text-ink/70">
                         <span className="w-3 tabular-nums">{b.n}</span>
-                        <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-line">
-                          <span className="block h-full rounded-full bg-accent" style={{ width: `${reviews.length ? (b.count / reviews.length) * 100 : 0}%` }} />
+                        <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-ink/10">
+                          <span className="block h-full rounded-full bg-ink" style={{ width: `${reviews.length ? (b.count / reviews.length) * 100 : 0}%` }} />
                         </span>
                         <span className="w-5 text-right tabular-nums">{b.count}</span>
                       </li>
@@ -198,7 +197,7 @@ export default async function WorkerProfilePage(props: { params: Promise<{ id: s
                       <li key={r.id} className="border-b border-line py-5">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div className="flex items-center gap-3">
-                            <span className="grid h-8 w-8 place-items-center rounded-full bg-sand text-xs font-semibold text-ink">{r.authorName.charAt(0)}</span>
+                            <span className="grid h-8 w-8 place-items-center rounded-full bg-lilac text-xs font-extrabold text-ink">{r.authorName.charAt(0)}</span>
                             <div>
                               <p className="text-sm font-semibold text-ink">{r.authorName}</p>
                               {job && <p className="text-xs text-ink-muted">{job}</p>}
@@ -220,14 +219,14 @@ export default async function WorkerProfilePage(props: { params: Promise<{ id: s
         </div>
 
         <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
-          <div className="overflow-hidden rounded-2xl border border-line bg-bg-surface shadow-card">
-            <div className="bg-sand-light px-4 py-3">
-              <p className="eyebrow">{t.workers.priceLabel}</p>
+          <div className="overflow-hidden rounded-2xl bg-ink text-white">
+            <div className="px-5 pt-4">
+              <p className="eyebrow text-white/55">{t.workers.priceLabel}</p>
             </div>
-            <p className="px-4 py-4 font-serif text-3xl font-semibold tabular-nums text-ink">{price}</p>
+            <p className="px-5 pb-5 pt-2 font-display text-3xl tabular-nums text-lime">{price}</p>
           </div>
-          <div className="overflow-hidden rounded-2xl border border-line bg-bg-surface shadow-card">
-            <div className="bg-sand-light px-4 py-3">
+          <div className="overflow-hidden rounded-2xl border border-line bg-bg-surface">
+            <div className="bg-mist-light px-4 py-3">
               <p className="eyebrow">{t.workers.facts}</p>
             </div>
             <dl className="divide-y divide-line text-sm">
@@ -238,7 +237,7 @@ export default async function WorkerProfilePage(props: { params: Promise<{ id: s
               <Fact label={t.workers.verified} value={worker.isVerified ? '✓' : '—'} />
             </dl>
           </div>
-          <Link href="/workers" className="inline-flex h-9 items-center rounded-full border border-ink/15 px-4 text-sm font-medium text-ink-soft transition-colors hover:border-ink/40 hover:bg-bg-surface hover:text-ink">
+          <Link href="/workers" className="inline-flex h-9 items-center rounded-full bg-mist-light px-4 text-sm font-semibold text-ink transition-colors hover:bg-ink hover:text-white">
             {t.workers.backToWorkers}
           </Link>
         </aside>
@@ -251,7 +250,7 @@ function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between gap-4 px-4 py-2.5">
       <dt className="text-ink-muted">{label}</dt>
-      <dd className="text-right font-medium text-ink">{value}</dd>
+      <dd className="text-right font-semibold text-ink">{value}</dd>
     </div>
   );
 }

@@ -28,31 +28,31 @@ export async function ProjectRenders({ projectId, t, locale }: { projectId: numb
     <FoldSection title={t.profile.renders} count={rows.length} defaultOpen={rows.length > 0}>
       <p className="text-sm text-ink-muted">{t.profile.rendersHint}</p>
       {rows.length === 0 ? (
-        <p className="mt-4 rounded-2xl border border-dashed border-stone bg-sand-light/60 p-10 text-center text-sm text-ink-muted">{t.profile.noRenders}</p>
+        <p className="dots mt-4 rounded-2xl bg-mist-light p-10 text-center text-sm text-ink-muted">{t.profile.noRenders}</p>
       ) : (
         <ul className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {rows.map((r) => {
             const shown = r.status === 'ready' && r.renderUrl ? r.renderUrl : r.sourceUrl;
             return (
-              <li key={r.id} className="overflow-hidden rounded-2xl border border-line bg-bg-surface">
-                <div className="relative aspect-[4/3] w-full overflow-hidden bg-sand-light">
+              <li key={r.id} className="rounded-2xl border border-line bg-bg-surface p-2.5">
+                <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-mist-light">
                   <Image src={shown} alt="" fill unoptimized sizes="(min-width: 1024px) 33vw, 100vw" className="object-cover" />
-                  <span className={cn('absolute left-3 top-3 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em]', r.status === 'ready' ? 'bg-success text-white' : r.status === 'failed' ? 'bg-danger text-white' : 'bg-olive/85 text-sand-light')}>
+                  <span className={cn('absolute left-3 top-3 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.06em]', r.status === 'ready' ? 'bg-lime text-ink' : r.status === 'failed' ? 'bg-danger text-white' : 'bg-ink text-white')}>
                     {r.status === 'queued' || r.status === 'processing' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Camera className="h-3 w-3" />}
                     {statusLabel[r.status] ?? r.status}
                   </span>
                 </div>
-                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line px-4 py-2.5 text-xs text-ink-muted">
+                <div className="flex flex-wrap items-center justify-between gap-2 px-2 pb-1 pt-3 text-xs text-ink-muted">
                   <span className="truncate">
                     {r.roomName ?? t.design.wholeFlat} · {new Date(r.createdAt).toLocaleString(dateLocale, { timeZone: TIME_ZONE })}
                   </span>
                   <span className="flex items-center gap-3">
-                    <a href={r.sourceUrl} download className="inline-flex items-center gap-1 font-medium text-ink hover:text-brand">
+                    <a href={r.sourceUrl} download className="inline-flex items-center gap-1 rounded-full bg-mist-light px-2.5 py-1 font-semibold text-ink transition-colors hover:bg-mist">
                       <Download className="h-3.5 w-3.5" />
                       {t.profile.downloadPhoto}
                     </a>
                     {r.status === 'ready' && r.renderUrl && (
-                      <a href={r.renderUrl} download className="inline-flex items-center gap-1 font-medium text-ink hover:text-brand">
+                      <a href={r.renderUrl} download className="inline-flex items-center gap-1 rounded-full bg-lime px-2.5 py-1 font-semibold text-ink transition-colors hover:bg-ink hover:text-lime">
                         <Download className="h-3.5 w-3.5" />
                         {t.profile.downloadRender}
                       </a>

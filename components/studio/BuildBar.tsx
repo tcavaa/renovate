@@ -31,7 +31,7 @@ export function CategoryRail({ category, trayOpen, onCategory, badge, className 
     // `bg-bg-surface/[0.92]`, not `bg-bg-surface/92`: 92 is off Tailwind's opacity scale, so that class was
     // never generated and the rail had no background at all — by day the light scene showed
     // through its blur, at night the dark one did, and its grey labels vanished into it.
-    <nav className={cn('flex w-[84px] shrink-0 flex-col gap-1 rounded-[16px] border border-white/70 bg-bg-surface/[0.92] p-1.5 shadow-float backdrop-blur-xl', className)} aria-label={t.design.studioTitle} data-tour="rail">
+    <nav className={cn('flex w-[84px] shrink-0 flex-col gap-1 rounded-2xl bg-bg-surface/[0.96] p-1.5 shadow-glass backdrop-blur-xl', className)} aria-label={t.design.studioTitle} data-tour="rail">
       {CATEGORIES.map(({ id, icon: Icon, key }) => {
         const active = category === id && trayOpen;
         return (
@@ -42,13 +42,13 @@ export function CategoryRail({ category, trayOpen, onCategory, badge, className 
             aria-pressed={active}
             data-tour={`rail-${id}`}
             className={cn(
-              'flex min-h-[54px] w-full flex-col items-center justify-center gap-1 rounded-[12px] px-1 py-1.5 text-center text-[10px] font-semibold leading-[1.15] transition-all',
-              active ? 'bg-ink text-white shadow-card' : category === id ? 'bg-sand-light text-ink' : 'text-ink-soft hover:bg-sand-light hover:text-ink'
+              'flex min-h-[54px] w-full flex-col items-center justify-center gap-1 rounded-xl px-1 py-1.5 text-center text-[10px] font-semibold leading-[1.15] transition-all',
+              active ? 'bg-lime font-bold text-ink' : category === id ? 'bg-mist text-ink' : 'text-ink-soft hover:bg-mist-light hover:text-ink'
             )}
           >
             <Icon className="h-4 w-4 shrink-0" />
             <span className="line-clamp-2 max-w-full break-words">{t.build[key]}</span>
-            {badge?.[id] && <span className={cn('max-w-full truncate text-[9px] font-medium tabular-nums', active ? 'text-white/70' : 'text-ink-muted')}>{badge[id]}</span>}
+            {badge?.[id] && <span className={cn('max-w-full truncate text-[9px] font-medium tabular-nums', active ? 'text-ink/70' : 'text-ink-muted')}>{badge[id]}</span>}
           </button>
         );
       })}
@@ -62,5 +62,5 @@ export function CategoryRail({ category, trayOpen, onCategory, badge, className 
  * on whatever happened to be behind it, and it could not be read.
  */
 export function Tray({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cn('w-full max-w-[880px] rounded-[14px] border border-line/70 bg-bg-surface/[0.97] px-2.5 py-2 shadow-float backdrop-blur-xl animate-fade-in', className)} data-tour="tray">{children}</div>;
+  return <div className={cn('w-full max-w-[880px] rounded-2xl bg-bg-surface/[0.98] px-3 py-2.5 shadow-glass backdrop-blur-xl animate-fade-in', className)} data-tour="tray">{children}</div>;
 }

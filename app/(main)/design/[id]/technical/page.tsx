@@ -175,16 +175,16 @@ export default function TechnicalPage() {
   // `lg` and `xl` the band along the bottom is narrow: the chips are their icons (the name on
   // hover) and the buttons go under the title rather than squeezing it.
   const kindsTray = (
-    <section className="rounded-[16px] border border-line bg-bg-surface p-2.5 lg:w-[min(46rem,100%)] lg:border-line/70 lg:bg-bg-surface/[0.97] lg:shadow-float lg:backdrop-blur-xl" aria-label={t.build.technicalPointsTitle}>
+    <section className="rounded-2xl border border-line bg-bg-surface p-2.5 lg:w-[min(46rem,100%)] lg:border-transparent lg:bg-bg-surface/[0.98] lg:shadow-glass lg:backdrop-blur-xl" aria-label={t.build.technicalPointsTitle}>
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
         <div className="min-w-[9rem] flex-1">
-          <p className="text-sm font-semibold text-ink">{t.build.technicalPointsTitle}</p>
+          <p className="text-sm font-bold tracking-tight text-ink">{t.build.technicalPointsTitle}</p>
           <p className="truncate text-[11px] text-ink-muted" role="status">
             {placed ?? (tool === 'technical' ? fill(t.build.kindArmedHint, { kind: technicalLabel(t, kind) }) : t.build.technicalPointsHint)}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
-          <button type="button" onClick={generate} title={t.build.autoTechnicalHint} className="flex h-8 items-center gap-1.5 rounded-full bg-ink px-2.5 text-[11px] font-semibold text-white transition-colors hover:bg-brand">
+          <button type="button" onClick={generate} title={t.build.autoTechnicalHint} className="flex h-8 items-center gap-1.5 rounded-full bg-ink px-2.5 text-[11px] font-semibold text-white transition-colors hover:bg-lime hover:text-ink">
             <Sparkles className="h-3.5 w-3.5" />
             {t.build.autoTechnical}
           </button>
@@ -203,13 +203,13 @@ export default function TechnicalPage() {
               aria-checked={active}
               onClick={() => pickKind(k)}
               title={technicalLabel(t, k)}
-              className={cn('relative flex h-9 items-center gap-1.5 rounded-[10px] border pl-1.5 pr-2 text-[11px] font-semibold leading-tight transition-all lg:max-xl:justify-center lg:max-xl:px-0', active ? 'border-ink bg-ink text-white shadow-card' : 'border-line bg-bg-surface text-ink-soft hover:border-ink hover:text-ink')}
+              className={cn('relative flex h-9 items-center gap-1.5 rounded-lg border pl-1.5 pr-2 text-[11px] font-semibold leading-tight transition-all lg:max-xl:justify-center lg:max-xl:px-0', active ? 'border-brand-300 bg-brand-100 font-bold text-ink' : 'border-line bg-bg-surface text-ink-soft hover:border-ink hover:text-ink')}
             >
               <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-white" style={{ backgroundColor: TECHNICAL_COLOR[k] }}>
                 <Icon className="h-3.5 w-3.5" />
               </span>
               <span className="min-w-0 flex-1 truncate text-left lg:max-xl:hidden">{technicalLabel(t, k)}</span>
-              {n > 0 && <span className={cn('shrink-0 rounded-full px-1.5 text-center text-[10px] leading-4 tabular-nums lg:max-xl:absolute lg:max-xl:-right-1 lg:max-xl:-top-1', active ? 'bg-white/20 text-white' : 'bg-sand text-ink')}>{n}</span>}
+              {n > 0 && <span className={cn('shrink-0 rounded-full px-1.5 text-center text-[10px] leading-4 tabular-nums lg:max-xl:absolute lg:max-xl:-right-1 lg:max-xl:-top-1', active ? 'bg-ink text-white' : 'bg-mist text-ink')}>{n}</span>}
             </button>
           );
         })}
@@ -310,20 +310,20 @@ export default function TechnicalPage() {
             */}
             <TechnicalChecksCard onOpen={(check) => setChecksOpen({ at: check, goingOn: false })} />
 
-            <section className="rounded-[14px] border border-line bg-bg-surface p-3">
-              <p className="flex items-center gap-2 text-sm font-semibold text-ink">
-                <Lightbulb className="h-4 w-4 text-warning" />
+            <section className="rounded-xl border border-line bg-bg-surface p-3">
+              <p className="flex items-center gap-2 text-sm font-bold tracking-tight text-ink">
+                <Lightbulb className="h-4 w-4" />
                 {t.build.suggestionsTitle}
               </p>
               {suggestions.length === 0 ? (
-                <p className="mt-2 flex items-center gap-2 text-xs text-olive">
+                <p className="mt-2 flex items-center gap-2 text-xs text-ink">
                   <CheckCircle2 className="h-4 w-4" />
                   {t.build.noSuggestions}
                 </p>
               ) : (
                 <ul className="mt-2 space-y-1.5 text-xs text-ink-soft">
                   {suggestions.map((s) => (
-                    <li key={s.key} className="rounded-[8px] bg-warning/10 px-2 py-1.5">
+                    <li key={s.key} className="rounded-lg bg-sun-soft px-2 py-1.5">
                       {suggestionText(s)}
                     </li>
                   ))}

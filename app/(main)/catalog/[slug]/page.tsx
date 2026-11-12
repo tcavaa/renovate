@@ -99,7 +99,7 @@ export default async function ProductDetailPage(props: { params: Promise<{ slug:
 
   return (
     <div className="container py-8 md:py-12">
-      <nav aria-label="breadcrumb" className="flex flex-wrap items-center gap-1.5 text-xs text-ink-muted">
+      <nav aria-label="breadcrumb" className="flex flex-wrap items-center gap-1.5 text-xs font-medium text-ink-muted">
         <Link href="/catalog" className="rounded-full transition-colors hover:text-ink">
           {t.nav.catalog}
         </Link>
@@ -112,19 +112,19 @@ export default async function ProductDetailPage(props: { params: Promise<{ slug:
           </Fragment>
         ))}
         <ChevronRight className="h-3 w-3 text-ink-faint" />
-        <span className="truncate text-ink">{name}</span>
+        <span className="truncate font-semibold text-ink">{name}</span>
       </nav>
 
       <div className="mt-6 grid gap-8 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:gap-12">
         <div className="space-y-3">
-          <div className="relative aspect-[4/3] w-full overflow-hidden rounded-3xl bg-sand-light shadow-card">
+          <div className="relative aspect-[4/3] w-full overflow-hidden rounded-3xl bg-mist-light">
             <Image src={imageUrl} alt={name} fill priority sizes="(min-width: 1024px) 58vw, 100vw" className="object-cover" />
-            {product.isFeatured && <span className="absolute left-5 top-5 rounded-full bg-brand px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-white shadow-card">{t.calculator.bestSeller}</span>}
+            {product.isFeatured && <span className="absolute left-5 top-5 rounded-full bg-lime px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.06em] text-ink">{t.calculator.bestSeller}</span>}
           </div>
           {gallery.length > 0 && (
             <div className="grid grid-cols-4 gap-3">
               {gallery.slice(0, 4).map((src) => (
-                <div key={src} className="relative aspect-square overflow-hidden rounded-xl bg-sand-light">
+                <div key={src} className="relative aspect-square overflow-hidden rounded-2xl bg-mist-light">
                   <Image src={src} alt="" fill sizes="20vw" className="object-cover" />
                 </div>
               ))}
@@ -140,19 +140,19 @@ export default async function ProductDetailPage(props: { params: Promise<{ slug:
 
         <aside className="lg:sticky lg:top-24 lg:self-start">
           <div className="flex flex-wrap items-center gap-2">
-            {categoryName && <span className="paper-label">{categoryName}</span>}
+            {categoryName && <span className="inline-flex items-center gap-2 rounded-full bg-mist-light px-3 py-1.5 text-xs font-semibold text-ink"><span className="h-2 w-2 bg-lime" aria-hidden />{categoryName}</span>}
             {product.model3dUrl && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-sand px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-ink">
+              <span className="inline-flex items-center gap-1 rounded-full bg-ink px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-[0.06em] text-white">
                 <Box className="h-3 w-3" /> {t.catalog.in3d}
               </span>
             )}
           </div>
-          <h1 className="mt-4 font-serif text-3xl font-semibold leading-[1.05] tracking-tight text-ink md:text-4xl">{name}</h1>
-          {product.brand && <p className="mt-2 text-sm text-wood-dark">{product.brand}</p>}
+          <h1 className="mt-4 font-display text-4xl leading-[1] text-ink md:text-5xl">{name}</h1>
+          {product.brand && <p className="mt-3 text-sm font-semibold uppercase tracking-[0.06em] text-ink-muted">{product.brand}</p>}
 
-          <div className="mt-6 flex items-baseline gap-2 rounded-2xl bg-sand-light px-5 py-5">
-            <span className="font-serif text-4xl font-semibold tabular-nums text-ink">{formatGEL(Number(product.pricePerUnit))}</span>
-            <span className="text-sm text-ink-muted">/ {unitLabel(t, product.unit)}</span>
+          <div className="mt-6 flex items-baseline gap-2 rounded-2xl bg-lime px-5 py-5">
+            <span className="font-display text-4xl tabular-nums text-ink">{formatGEL(Number(product.pricePerUnit))}</span>
+            <span className="text-sm font-medium text-ink/70">/ {unitLabel(t, product.unit)}</span>
           </div>
 
           {/* The model opens in a drawer on this page; the studio is where it goes into a room. */}
@@ -163,16 +163,16 @@ export default async function ProductDetailPage(props: { params: Promise<{ slug:
           )}
 
           {store && (
-            <div className="mt-8 overflow-hidden rounded-2xl border border-line bg-bg-surface shadow-card">
+            <div className="mt-8 overflow-hidden rounded-2xl border border-line bg-bg-surface">
               <div className="flex items-center gap-3 border-b border-line p-4">
                 {store.logoUrl ? (
                   <Image src={store.logoUrl} alt={localizedName(locale, store)} width={40} height={40} className="rounded-xl border border-line" />
                 ) : (
-                  <span className="grid h-10 w-10 place-items-center rounded-xl bg-sand font-serif text-base font-semibold text-ink">{localizedName(locale, store).slice(0, 1)}</span>
+                  <span className="grid h-10 w-10 place-items-center rounded-xl bg-ink font-display text-base text-lime">{localizedName(locale, store).slice(0, 1)}</span>
                 )}
                 <div className="min-w-0">
                   <p className="eyebrow">{t.catalog.soldBy}</p>
-                  <p className="truncate font-serif text-lg font-semibold text-ink">{localizedName(locale, store)}</p>
+                  <p className="truncate font-display text-lg leading-tight text-ink">{localizedName(locale, store)}</p>
                 </div>
               </div>
               <dl className="divide-y divide-line text-sm">
@@ -206,11 +206,11 @@ export default async function ProductDetailPage(props: { params: Promise<{ slug:
       </div>
 
       {related.length > 0 && (
-        <section className="mt-16 rounded-3xl bg-sand-light px-5 py-8 md:px-8 md:py-10">
+        <section className="mt-16 rounded-3xl bg-mist-light px-5 py-8 md:px-8 md:py-10">
           <div className="mb-6 flex items-end justify-between gap-4">
-            <h2 className="font-serif text-2xl font-semibold text-ink">{t.catalog.moreFrom}</h2>
+            <h2 className="font-display text-3xl text-ink">{t.catalog.moreFrom}</h2>
             {category && (
-              <Link href={`/catalog?category=${encodeURIComponent(category.slug)}`} className="inline-flex h-9 items-center rounded-full border border-ink/15 px-4 text-sm font-medium text-ink-soft transition-colors hover:border-ink/40 hover:bg-bg-surface hover:text-ink">
+              <Link href={`/catalog?category=${encodeURIComponent(category.slug)}`} className="inline-flex h-9 items-center rounded-full bg-ink px-4 text-sm font-semibold text-white transition-colors hover:bg-lime hover:text-ink">
                 {categoryName}
               </Link>
             )}
@@ -225,18 +225,18 @@ export default async function ProductDetailPage(props: { params: Promise<{ slug:
 function Row({ icon, label, href, external }: { icon: React.ReactNode; label: string; href?: string; external?: boolean }) {
   const inner = (
     <>
-      <span className="text-wood">{icon}</span>
+      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-mist-light text-ink">{icon}</span>
       <span className="min-w-0 truncate">{label}</span>
     </>
   );
   return (
     <div className="px-4 py-2.5">
       {href ? (
-        <a href={href} target={external ? '_blank' : undefined} rel={external ? 'noreferrer' : undefined} className="flex items-center gap-2 text-ink-soft hover:text-ink">
+        <a href={href} target={external ? '_blank' : undefined} rel={external ? 'noreferrer' : undefined} className="flex items-center gap-3 font-medium text-ink underline-offset-4 hover:underline">
           {inner}
         </a>
       ) : (
-        <span className="flex items-center gap-2 text-ink-soft">{inner}</span>
+        <span className="flex items-center gap-3 text-ink-soft">{inner}</span>
       )}
     </div>
   );
@@ -246,7 +246,7 @@ function Spec({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] gap-4 border-b border-line py-2.5 last:border-b-0">
       <dt className="text-ink-muted">{label}</dt>
-      <dd className="text-right font-medium text-ink">{value}</dd>
+      <dd className="text-right font-semibold text-ink">{value}</dd>
     </div>
   );
 }

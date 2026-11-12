@@ -55,7 +55,7 @@ export function AdminSidebar({ badges = {} }: { badges?: Partial<Record<AdminSec
         </div>
         <Link
           href="/"
-          className="mb-5 inline-flex items-center gap-2 rounded-full border border-line px-3 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:border-ink/40 hover:text-ink"
+          className="mb-5 inline-flex items-center gap-2 rounded-full bg-mist-light px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:bg-mist"
         >
           <Home className="h-3.5 w-3.5" />
           {ka.admin.sidebarBack}
@@ -72,14 +72,13 @@ export function AdminSidebar({ badges = {} }: { badges?: Partial<Record<AdminSec
                 key={item.href}
                 href={listHref(memory, item.href)}
                 className={cn(
-                  'flex items-center gap-3 rounded-full px-3 py-2 text-sm font-medium transition-colors',
-                  active ? 'bg-sand text-ink' : 'text-ink-soft hover:bg-sand/50 hover:text-ink'
+                  'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors',
+                  active ? 'bg-lime font-semibold text-ink' : 'font-medium text-ink-soft hover:bg-mist-light hover:text-ink'
                 )}
               >
-                <Icon className={cn('h-4 w-4', active ? 'text-brand' : 'text-wood')} />
+                <Icon className={cn('h-[18px] w-[18px]', active ? 'text-ink' : 'text-ink-muted')} />
                 <span className="flex-1">{item.label}</span>
-                {active && badge === 0 && <span className="h-1.5 w-1.5 rounded-full bg-brand" aria-hidden />}
-                {badge > 0 && <span className="min-w-5 rounded-full bg-warning px-1.5 py-0.5 text-center text-[10px] font-semibold tabular-nums text-white">{badge}</span>}
+                {badge > 0 && <span className={cn('min-w-5 rounded-full px-1.5 py-0.5 text-center text-[10px] font-bold tabular-nums', active ? 'bg-ink text-lime' : 'bg-ink text-white')}>{badge}</span>}
               </Link>
             );
           })}
@@ -89,12 +88,12 @@ export function AdminSidebar({ badges = {} }: { badges?: Partial<Record<AdminSec
       <div className="space-y-3 border-t border-line p-4">
         <LanguageSwitcher variant="mobile" />
         {user && (
-          <div className="flex items-center gap-2.5 rounded-2xl bg-sand-light px-2.5 py-2">
-            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-olive text-xs font-semibold text-sand-light">
+          <div className="flex items-center gap-2.5 rounded-2xl bg-mist-light px-2.5 py-2">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-lime text-xs font-extrabold text-ink">
               {initials}
             </span>
             <div className="min-w-0">
-              <p className="truncate text-xs font-medium">
+              <p className="truncate text-xs font-semibold">
                 {user.name ?? ka.admin.defaultName}
               </p>
               <p className="truncate text-[11px] text-ink-muted">{user.email}</p>
@@ -104,7 +103,7 @@ export function AdminSidebar({ badges = {} }: { badges?: Partial<Record<AdminSec
         <button
           type="button"
           onClick={() => signOut({ callbackUrl: '/' })}
-          className="flex w-full items-center gap-2 rounded-full px-3 py-2 text-sm font-medium text-danger transition-colors hover:bg-danger/5"
+          className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-ink-soft transition-colors hover:bg-coral-soft hover:text-danger"
         >
           <LogOut className="h-4 w-4" />
           {ka.nav.logout}

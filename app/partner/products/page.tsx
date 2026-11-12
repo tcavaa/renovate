@@ -136,7 +136,7 @@ export default async function PartnerProductsPage(props: { searchParams: Promise
   const chip = (key: string, value: string | undefined, label: string, n: number) => {
     const active = activeChip === `${key}:${value ?? 'all'}`;
     return (
-      <Link key={`${key}-${value ?? 'all'}`} href={hrefWith(PATH, { ...p.raw }, { status: undefined, photo: undefined, model: undefined, page: undefined, [key]: value })} className={cn('rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors', active ? 'border-olive bg-olive text-white' : 'border-line bg-bg-surface text-ink-soft hover:border-ink/40 hover:bg-sand/40')}>
+      <Link key={`${key}-${value ?? 'all'}`} href={hrefWith(PATH, { ...p.raw }, { status: undefined, photo: undefined, model: undefined, page: undefined, [key]: value })} className={cn('rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors', active ? 'bg-lime text-ink' : 'bg-mist-light text-ink-muted hover:bg-mist hover:text-ink')}>
         {label} · {n}
       </Link>
     );
@@ -147,7 +147,7 @@ export default async function PartnerProductsPage(props: { searchParams: Promise
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="eyebrow">{ctx.name}</p>
-          <h1 className="mt-2 font-serif text-3xl font-semibold">{t.partner.myProducts}</h1>
+          <h1 className="mt-2 font-display text-3xl md:text-4xl">{t.partner.myProducts}</h1>
           <p className="mt-1 max-w-2xl text-sm text-ink-muted">{t.partner.productsHintOwn}</p>
         </div>
         <Button asChild variant="ink">
@@ -188,14 +188,14 @@ export default async function PartnerProductsPage(props: { searchParams: Promise
       {health.hidden > 0 && <p className="text-xs text-ink-muted">{pp.hiddenHint}</p>}
 
       {rows.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-line p-12 text-center text-sm text-ink-muted">{p.hasFilters ? pp.emptyFiltered : t.partner.noProducts}</p>
+        <p className="rounded-2xl bg-mist-light p-12 text-center text-sm text-ink-muted">{p.hasFilters ? pp.emptyFiltered : t.partner.noProducts}</p>
       ) : (
         <BulkProvider>
           <BulkBar endpoint="/api/products/bulk" />
           <div className="overflow-x-auto rounded-2xl border border-line bg-bg-surface">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-line bg-sand/50 text-left text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-muted">
+                <tr className="border-b border-line bg-mist-light text-left text-[11px] font-bold uppercase tracking-[0.06em] text-ink-muted">
                   <th className="w-10 px-4 py-3">
                     <BulkAllCheckbox ids={rows.map((r) => r.id)} />
                   </th>
@@ -209,20 +209,20 @@ export default async function PartnerProductsPage(props: { searchParams: Promise
               </thead>
               <tbody>
                 {rows.map((row) => (
-                  <tr key={row.id} className={cn('border-b border-line/70 last:border-b-0 hover:bg-sand/25', !row.isActive && 'opacity-70')}>
+                  <tr key={row.id} className={cn('border-b border-line/70 last:border-b-0 hover:bg-mist-light', !row.isActive && 'opacity-70')}>
                     <td className="px-4 py-2.5">
                       <BulkCheckbox id={row.id} label={row.nameKa} />
                     </td>
                     <td className="px-4 py-2.5">
                       <Link href={editHref(row.id)} className="flex items-center gap-3 hover:text-brand">
-                        <span className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-line bg-bg-base">
+                        <span className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-mist-light">
                           {row.imageUrl ? <Image src={row.imageUrl} alt="" fill sizes="40px" className="object-cover" /> : <Box className="absolute inset-0 m-auto h-4 w-4 text-ink-muted" />}
                         </span>
                         <span className="min-w-0">
                           <span className="block font-medium">{localizedName(locale, row)}</span>
                           <span className="flex flex-wrap items-center gap-2 text-[11px] text-ink-muted">
                             {[row.brand, row.sku].filter(Boolean).join(' · ')}
-                            {row.model3dUrl && <span className="font-semibold uppercase tracking-[0.12em]">3D</span>}
+                            {row.model3dUrl && <span className="font-bold uppercase tracking-[0.06em]">3D</span>}
                           </span>
                         </span>
                       </Link>

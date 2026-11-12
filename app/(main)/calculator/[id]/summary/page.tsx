@@ -273,7 +273,7 @@ export default function SummaryPage() {
           </SummaryCard>
         </div>
 
-        {error && <p className="mt-6 rounded-xl border border-danger/40 bg-danger/5 px-4 py-3 text-sm text-danger">{error}</p>}
+        {error && <p className="mt-6 rounded-2xl bg-coral-soft px-4 py-3 text-sm font-medium text-danger">{error}</p>}
       </div>
 
       <StepNav
@@ -282,7 +282,7 @@ export default function SummaryPage() {
       >
         <div className="flex flex-wrap items-center justify-end gap-4">
           <p className="text-sm text-ink-muted">
-            {ka.summary.grandTotalWithMargin} · <span className="font-serif text-lg font-semibold text-brand">{formatGEL(sheet.grandTotalWithMargin)}</span>
+            {ka.summary.grandTotalWithMargin} · <span className="mark font-display text-lg">{formatGEL(sheet.grandTotalWithMargin)}</span>
           </p>
           <Button3d onClick={viewIn3d} disabled={!ready}>
             {designExists ? ka.profile.openIn3d : ka.calculator.view3dButton}
@@ -300,7 +300,7 @@ export default function SummaryPage() {
       >
         <DialogContent>
           <DialogHeader>
-            <div className="mx-auto mb-2 grid h-14 w-14 place-items-center rounded-full bg-success/15 text-success">
+            <div className="mx-auto mb-2 grid h-14 w-14 place-items-center rounded-2xl bg-lime text-ink">
               <CheckCircle2 className="h-7 w-7" />
             </div>
             <DialogTitle className="text-center">

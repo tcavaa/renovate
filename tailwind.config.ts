@@ -1,14 +1,15 @@
 import type { Config } from 'tailwindcss';
 
 /**
- * Design tokens — the PLAYCE palette ("Play with your place").
+ * Design tokens — the ROOMIT palette ("Play. Before we ROOMIT.").
  *
- * Sand paper, stone, wood, terracotta, olive and charcoal, taken from the brand board: a warm
- * sand page, charcoal ink, terracotta (`brand`) as the one loud colour, olive for the dark
- * bands and the quiet second action, wood (`accent`) for warmth. Corners are soft — cards,
- * panels and pictures are gently rounded and buttons are pills, like the brand's app icons and
- * arches. Shadows are low and warm. Headings use the serif; display type is the airy,
- * wide-tracked sans of the wordmark.
+ * A near-white page, white cards, black ink, and three voices on top of it: lime (`lime`) is the
+ * highlighter — what is open, what is on, the mark behind a word; black (`ink`) is the main
+ * action, a pill; violet (`brand`) is what is picked, a link, a focus ring. Four pops —
+ * tangerine, coral, sun and cobalt — are for pictures, numbers and colour blocks, never for
+ * controls. Corners are generous (cards 24 px, tiles 16 px) and buttons are pills. Shadows are
+ * soft and neutral. All type is one heavy grotesk: the display face is the same family at 800
+ * with tight tracking.
  */
 const config: Config = {
   darkMode: ['class'],
@@ -25,64 +26,71 @@ const config: Config = {
     },
     extend: {
       colors: {
-        /** Terracotta — the brand's one loud colour: primary actions, links, what is picked. */
+        /** Violet — what is picked, a link, a focus ring. Reads on white and under white text. */
         brand: {
-          DEFAULT: '#B5462B',
-          dark: '#963820',
-          50: '#FAF0EB',
-          100: '#F4DED4',
-          200: '#E9BBA9',
-          300: '#DA937B',
-          400: '#C76B51',
-          500: '#B5462B',
-          600: '#963820',
-          700: '#762C19',
-          800: '#552013',
-          900: '#35140C',
+          DEFAULT: '#6C47FF',
+          dark: '#5632E0',
+          50: '#F4F1FF',
+          100: '#E9E3FF',
+          200: '#D3C7FF',
+          300: '#B9A6FF',
+          400: '#9478FF',
+          500: '#6C47FF',
+          600: '#5632E0',
+          700: '#4324B3',
+          800: '#2F1982',
+          900: '#1D0F52',
         },
-        /** Wood — warmth beside the terracotta. */
-        accent: { DEFAULT: '#A8784E', dark: '#8A6039' },
-        olive: { DEFAULT: '#34402F', dark: '#252E21', light: '#5D6B52', soft: '#E7E9E1' },
-        stone: { DEFAULT: '#CDC5B9', dark: '#A99F92', light: '#E3DDD3' },
-        wood: { DEFAULT: '#A8784E', dark: '#7E5734', light: '#CBA680' },
-        charcoal: '#1E1F23',
-        /** The second solid colour of the buttons (`variant="secondary"`) — olive now. */
-        slate: { deep: '#34402F' },
-        bg: { base: '#F3EEE6', surface: '#FFFDF9', deep: '#2C3627' },
-        sand: { DEFAULT: '#E9E1D5', dark: '#D7CCBC', light: '#F1EBE2' },
-        ink: { DEFAULT: '#1E1F23', muted: '#6E675E', soft: '#3B3833', faint: '#A69E93' },
-        line: '#E2D9CC',
-        success: '#3F7D4E',
-        warning: '#C98A2B',
-        danger: '#B42318',
+        /** Lime — the highlighter: what is open or on, the mark behind a word. Black text on it. */
+        lime: { DEFAULT: '#C8F135', dark: '#B0DB17', soft: '#F0FBCB', deep: '#3F5200' },
+        /** The pops: pictures, numbers and colour blocks — never a control. */
+        lilac: { DEFAULT: '#B9A6FF', soft: '#EFEAFF' },
+        tangerine: { DEFAULT: '#FF6B1A', dark: '#D94F06', light: '#FFB27D' },
+        coral: { DEFAULT: '#FF6B6B', soft: '#FFE6E3' },
+        sun: { DEFAULT: '#FFC61A', soft: '#FFF3C9' },
+        cobalt: { DEFAULT: '#2457FF', soft: '#E3EAFF' },
+        /** Neutral greys for hairlines and quiet blocks. */
+        stone: { DEFAULT: '#D4D4D8', dark: '#A1A1AA', light: '#E7E7EA' },
+        mist: { DEFAULT: '#ECECEF', dark: '#DDDDE2', light: '#F4F4F6' },
+        bg: { base: '#FAFAFA', surface: '#FFFFFF', deep: '#0B0B0C' },
+        ink: { DEFAULT: '#0B0B0C', muted: '#6B6B73', soft: '#2B2B30', faint: '#A4A4AC' },
+        line: '#E8E8EC',
+        success: '#17914A',
+        warning: '#C77700',
+        danger: '#E0352B',
       },
       fontFamily: {
-        /** Latin and Cyrillic from the brand faces; Georgian falls through to Noto. */
+        /** Latin and Cyrillic from Inter Tight; Georgian falls through to Noto Sans Georgian. */
         sans: ['var(--font-latin-sans)', 'var(--font-sans)', 'system-ui', 'sans-serif'],
-        serif: ['var(--font-latin-serif)', 'var(--font-serif)', 'Georgia', 'serif'],
+        /** The same family; `.font-display` (globals.css) makes it heavy and tight. */
+        display: ['var(--font-latin-sans)', 'var(--font-sans)', 'system-ui', 'sans-serif'],
       },
       fontSize: {
-        'display-xl': ['clamp(3.25rem, 9.5vw, 10rem)', { lineHeight: '0.92', letterSpacing: '-0.035em' }],
-        'display-lg': ['clamp(2.5rem, 6vw, 5.5rem)', { lineHeight: '0.98', letterSpacing: '-0.03em' }],
-        'display-md': ['clamp(2rem, 4vw, 3.5rem)', { lineHeight: '1.05', letterSpacing: '-0.02em' }],
+        'display-xl': ['clamp(3.25rem, 8.6vw, 9rem)', { lineHeight: '0.9', letterSpacing: '-0.055em' }],
+        'display-lg': ['clamp(2.5rem, 6vw, 5.5rem)', { lineHeight: '0.94', letterSpacing: '-0.05em' }],
+        'display-md': ['clamp(2rem, 4vw, 3.5rem)', { lineHeight: '1', letterSpacing: '-0.04em' }],
       },
       borderRadius: {
-        DEFAULT: '6px',
-        sm: '4px',
-        md: '8px',
-        lg: '12px',
+        DEFAULT: '8px',
+        sm: '6px',
+        md: '10px',
+        lg: '14px',
         xl: '16px',
-        '2xl': '20px',
-        '3xl': '28px',
+        '2xl': '24px',
+        '3xl': '32px',
       },
       boxShadow: {
-        card: '0 1px 2px rgba(30, 31, 35, 0.04), 0 8px 24px -8px rgba(60, 45, 30, 0.10)',
-        cardHover: '0 2px 6px rgba(30, 31, 35, 0.05), 0 22px 44px -14px rgba(60, 45, 30, 0.22)',
-        glass: '0 1px 0 rgba(255,255,255,0.6) inset, 0 12px 40px rgba(60, 45, 30, 0.12)',
-        float: '0 28px 60px -22px rgba(40, 30, 20, 0.38)',
+        card: '0 1px 2px rgba(11, 11, 12, 0.04), 0 10px 28px -12px rgba(11, 11, 12, 0.10)',
+        cardHover: '0 2px 6px rgba(11, 11, 12, 0.05), 0 24px 48px -16px rgba(11, 11, 12, 0.20)',
+        glass: '0 1px 0 rgba(255,255,255,0.7) inset, 0 12px 36px -8px rgba(11, 11, 12, 0.14)',
+        float: '0 28px 64px -24px rgba(11, 11, 12, 0.34)',
+        /** The hard offset of a sticker: a lime or black block that sits on the page. */
+        pop: '4px 4px 0 0 #0B0B0C',
       },
       backgroundImage: {
-        'radial-warm': 'radial-gradient(1100px 600px at 12% 0%, rgba(181,70,43,0.09), transparent 60%), radial-gradient(900px 520px at 92% 18%, rgba(168,120,78,0.12), transparent 62%)',
+        'radial-warm': 'radial-gradient(900px 520px at 10% 0%, rgba(200,241,53,0.22), transparent 60%), radial-gradient(820px 520px at 94% 12%, rgba(185,166,255,0.24), transparent 62%)',
+        /** The drawing sheet's dots, for empty stages and quiet bands. */
+        dots: 'radial-gradient(rgba(11,11,12,0.10) 1px, transparent 1px)',
       },
       transitionTimingFunction: {
         out: 'cubic-bezier(0.22, 1, 0.36, 1)',

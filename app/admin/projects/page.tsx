@@ -129,7 +129,7 @@ export default async function AdminProjectsPage(props: { searchParams: Promise<S
           {rows.map((r) => (
             <Tr key={r.id}>
               <td className="px-4 py-2.5 text-ink-muted">
-                <Link href={`/admin/projects/${r.id}`} className="font-medium text-brand hover:underline">
+                <Link href={`/admin/projects/${r.id}`} className="font-medium text-ink underline decoration-lime decoration-2 underline-offset-4 hover:decoration-ink">
                   #{r.id}
                 </Link>
               </td>

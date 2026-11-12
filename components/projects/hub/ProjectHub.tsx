@@ -9,7 +9,7 @@ import { HubDate } from '@/components/projects/hub/HubDate';
 import { HubRenders } from '@/components/projects/hub/HubRenders';
 import { HubOrders } from '@/components/projects/hub/HubOrders';
 import { HubModels } from '@/components/projects/hub/HubModels';
-import { CARD_FRAME, HubShell, ProjectThumbnail } from '@/components/projects/hub/HubShell';
+import { CARD, CARD_FRAME, CARD_TEXT, HubShell, ProjectThumbnail } from '@/components/projects/hub/HubShell';
 import { ProjectCardMenu, type OtherJourney } from '@/components/projects/hub/ProjectCardMenu';
 import { HubCachePrune } from '@/components/projects/hub/HubCachePrune';
 import { loadHubProjects, type HubProject } from '@/lib/projects/hub';
@@ -33,10 +33,10 @@ export function hubView(value: string | undefined): HubView {
 
 /**
  * A product's front page — `/calculator` and `/design` — and the only way into its steps: every
- * step opens inside a named project (`/<journey>/<id>/…`). Laid out the way a file manager's
- * "my files" is: a sidebar down the left — the projects, the renders, the orders, the person's
+ * step opens inside a named project (`/<journey>/<id>/…`). Laid out the way an app's shell is:
+ * a rail of lists down the left — the projects, the renders, the orders, the person's
  * own 3D pieces (the furniture they uploaded, `HubModels`) — and, beside it, the
- * product and the list as a breadcrumb, the ways to start as round buttons (a new project —
+ * product and the list as a breadcrumb, the ways to start as numbered tiles (a new project —
  * whose first step asks for the plan, uploaded or drawn — and this product's half of a project
  * the other product has), and the projects as cards, most recently changed first: the drawing,
  * the name, when it changed, where it stands, its "…" menu. The renders are every photo and
@@ -54,14 +54,17 @@ export async function ProjectHub({ journey, view = 'projects' }: { journey: HubJ
 
   const intro = (
     <header className="max-w-3xl">
-      <p className="eyebrow">{calculator ? t.hub.calculatorEyebrow : t.hub.designEyebrow}</p>
-      <p className="mt-3 flex items-center gap-1.5 text-sm text-ink-muted">
+      <p className="inline-flex items-center gap-2 rounded-full bg-mist-light py-1.5 pl-2.5 pr-3.5 text-xs font-semibold text-ink">
+        <span className="h-2 w-2 bg-lime ring-1 ring-ink/10" aria-hidden />
+        {calculator ? t.hub.calculatorEyebrow : t.hub.designEyebrow}
+      </p>
+      <p className="mt-5 flex items-center gap-1.5 text-sm font-medium text-ink-muted">
         <span>{calculator ? t.nav.calculator : t.design.title}</span>
         <ChevronRight className="h-3.5 w-3.5 text-ink-faint" aria-hidden />
         <span className="text-ink">{t.hub.breadcrumb}</span>
       </p>
-      <h1 className="mt-4 font-serif text-3xl font-semibold leading-[1.05] tracking-tight text-ink md:text-[2.75rem]">{calculator ? t.hub.calculatorTitle : t.hub.designTitle}</h1>
-      <p className="mt-4 text-base leading-relaxed text-ink-muted">{calculator ? t.hub.calculatorLead : t.hub.designLead}</p>
+      <h1 className="display mt-4 text-4xl text-ink md:text-6xl">{calculator ? t.hub.calculatorTitle : t.hub.designTitle}</h1>
+      <p className="mt-5 text-lg leading-relaxed text-ink-muted">{calculator ? t.hub.calculatorLead : t.hub.designLead}</p>
     </header>
   );
 
@@ -70,12 +73,12 @@ export async function ProjectHub({ journey, view = 'projects' }: { journey: HubJ
     return (
       <div className="container max-w-6xl py-10 md:py-14">
         {intro}
-        <section className="mt-10 flex flex-col gap-6 rounded-2xl border border-line bg-bg-surface p-6 shadow-card md:flex-row md:items-center md:justify-between md:p-8">
+        <section className="mt-10 flex flex-col gap-6 rounded-3xl bg-lime-soft p-6 ring-1 ring-inset ring-lime md:flex-row md:items-center md:justify-between md:p-8">
           <div className="flex max-w-xl items-start gap-5">
-            <LogoMark tone="olive" className="hidden h-12 w-12 sm:grid" />
+            <LogoMark tone="ink" className="hidden h-12 w-12 sm:grid" />
             <div>
-            <h2 className="font-serif text-2xl font-semibold text-ink">{t.hub.guestTitle}</h2>
-            <p className="mt-2 text-sm leading-relaxed text-ink-muted">{t.hub.guestText}</p>
+            <h2 className="font-display text-2xl text-ink">{t.hub.guestTitle}</h2>
+            <p className="mt-2 text-sm leading-relaxed text-ink-soft">{t.hub.guestText}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -134,16 +137,16 @@ export async function ProjectHub({ journey, view = 'projects' }: { journey: HubJ
           <HubTiles journey={journey} defaultName={fill(t.hub.defaultName, { n: listed.length + 1 })} picks={picks} />
 
           <section className="mt-12" aria-labelledby="hub-projects">
-            <h2 id="hub-projects" className="text-sm font-medium text-ink-muted">
+            <h2 id="hub-projects" className="text-sm font-semibold tracking-normal text-ink-muted">
               {t.hub.byDate}
             </h2>
             {listed.length === 0 ? (
-              <div className="mt-5 flex flex-col items-center rounded-2xl border border-dashed border-stone bg-sand-light/60 p-12 text-center">
-                <LogoMark tone="sand" className="mb-4 h-12 w-12" />
+              <div className="dots mt-5 flex flex-col items-center rounded-2xl bg-mist-light p-12 text-center">
+                <LogoMark tone="ink" className="mb-4 h-12 w-12" />
                 <p className="text-sm text-ink-muted">{calculator ? t.hub.emptyCalculator : t.hub.emptyDesign}</p>
               </div>
             ) : (
-              <ul className="mt-5 grid grid-cols-1 gap-x-8 gap-y-10 sm:grid-cols-2 xl:grid-cols-3">
+              <ul className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
                 {listed.map((p) => (
                   <li key={p.id}>
                     <ProjectCard project={p} journey={journey} t={t} />
@@ -174,19 +177,19 @@ function ProjectCard({ project: p, journey, t }: { project: HubProject; journey:
   const whereText = where ? [where.main, where.detail].filter(Boolean).join(' · ') : null;
 
   return (
-    <article>
+    <article className={CARD}>
       {/* The drawing opens the project too, but the name is the link a keyboard reaches. */}
       <Link href={href} tabIndex={-1} aria-hidden className={CARD_FRAME}>
         <ProjectThumbnail project={p} prefer={journey} />
       </Link>
-      <div className="mt-3.5 flex items-start justify-between gap-3">
+      <div className={CARD_TEXT}>
         <div className="min-w-0">
-          <Link href={href} className="block truncate text-lg font-semibold leading-snug text-ink hover:text-brand">
+          <Link href={href} className="block truncate text-lg font-bold leading-snug tracking-tight text-ink decoration-lime decoration-[3px] underline-offset-4 hover:underline">
             {name}
           </Link>
           <HubDate at={p.updatedAt} className="mt-0.5 block text-sm text-ink-muted" />
           {whereText && (
-            <p title={whereText} className={cn('mt-0.5 truncate text-xs', where?.pending ? 'text-ink-faint' : 'font-medium tabular-nums text-ink-soft')}>
+            <p title={whereText} className={cn('mt-0.5 truncate text-xs', where?.pending ? 'text-ink-faint' : 'font-bold tabular-nums text-ink')}>
               {whereText}
             </p>
           )}
@@ -230,26 +233,24 @@ function HubGuide({ t, journey }: { t: Dictionary; journey: HubJourney }) {
   const steps = calculator ? t.hub.calculatorSteps : t.hub.designSteps;
   const tips = calculator ? t.hub.tipsCalculator : t.hub.tipsDesign;
   return (
-    <section className="mt-16 grid gap-10 border-t border-line pt-10 lg:grid-cols-2 lg:gap-14">
-      <div>
-        <h2 className="font-serif text-2xl font-semibold text-ink">{t.hub.howTitle}</h2>
-        <ol className="mt-5 border-t border-line">
+    <section className="mt-12 grid gap-4 lg:grid-cols-2">
+      <div className="rounded-3xl bg-mist-light p-6 md:p-8">
+        <h2 className="font-display text-2xl text-ink">{t.hub.howTitle}</h2>
+        <ol className="mt-5 border-t border-mist-dark">
           {steps.map((text, i) => (
-            <li key={i} className="grid grid-cols-[2.25rem_minmax(0,1fr)] gap-3 border-b border-line py-3 text-sm leading-relaxed">
-              <span className="font-serif text-base font-semibold tabular-nums text-wood">{String(i + 1).padStart(2, '0')}</span>
+            <li key={i} className="grid grid-cols-[2.25rem_minmax(0,1fr)] gap-3 border-b border-mist-dark py-3 text-sm leading-relaxed last:border-b-0">
+              <span className="font-display text-base tabular-nums text-ink-faint">{String(i + 1).padStart(2, '0')}</span>
               <GuideLine text={text} />
             </li>
           ))}
         </ol>
       </div>
-      <div>
-        <h2 className="font-serif text-2xl font-semibold text-ink">{calculator ? t.hub.tipsCalculatorTitle : t.hub.tipsDesignTitle}</h2>
-        <ul className="mt-5 border-t border-line">
+      <div className="rounded-3xl bg-mist-light p-6 md:p-8">
+        <h2 className="font-display text-2xl text-ink">{calculator ? t.hub.tipsCalculatorTitle : t.hub.tipsDesignTitle}</h2>
+        <ul className="mt-5 border-t border-mist-dark">
           {tips.map((text, i) => (
-            <li key={i} className="grid grid-cols-[2.25rem_minmax(0,1fr)] gap-3 border-b border-line py-3 text-sm leading-relaxed text-ink-soft">
-              <span className="text-wood" aria-hidden>
-                —
-              </span>
+            <li key={i} className="grid grid-cols-[2.25rem_minmax(0,1fr)] gap-3 border-b border-mist-dark py-3 text-sm leading-relaxed last:border-b-0 text-ink-soft">
+              <span className="mt-[0.55em] h-2 w-2 bg-lime ring-1 ring-ink/10" aria-hidden />
               <span>{text}</span>
             </li>
           ))}

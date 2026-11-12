@@ -20,7 +20,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     return (
       <div className="flex min-h-screen items-center justify-center px-4">
         <div className="rounded-2xl border border-line bg-bg-surface p-8 text-center shadow-card">
-          <h1 className="font-serif text-xl font-semibold">{ka.admin.accessTitle}</h1>
+          <h1 className="font-display text-2xl">{ka.admin.accessTitle}</h1>
           <p className="mt-2 text-sm text-ink-muted">
             {ka.admin.accessDesc}
           </p>

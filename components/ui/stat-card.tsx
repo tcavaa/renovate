@@ -14,13 +14,13 @@ export function StatCard({
   className?: string;
 }) {
   return (
-    <Card className={cn(highlight && 'border-brand bg-brand/5', className)}>
+    <Card className={cn(highlight && 'border-transparent bg-lime', className)}>
       <CardContent className="p-5">
-        <p className="text-xs uppercase tracking-wide text-ink-muted">{label}</p>
+        <p className={cn('text-xs font-semibold uppercase tracking-wide', highlight ? 'text-ink/70' : 'text-ink-muted')}>{label}</p>
         <p
           className={cn(
-            'mt-2 font-serif text-2xl font-bold tabular-nums',
-            highlight ? 'text-brand-dark' : 'text-ink'
+            'mt-2 font-display text-2xl tabular-nums',
+            'text-ink'
           )}
         >
           {value}

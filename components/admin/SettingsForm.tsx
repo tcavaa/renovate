@@ -99,7 +99,7 @@ export function SettingsForm({ initial, stores }: { initial: PlatformSettings & 
       {/* The plans: what each includes and costs (docs/subscriptions.md). */}
       <Card>
         <CardHeader>
-          <CardTitle className="font-serif">{s.plansTitle}</CardTitle>
+          <CardTitle className="font-display">{s.plansTitle}</CardTitle>
           <p className="text-sm text-ink-muted">{s.plansHint}</p>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -113,7 +113,7 @@ export function SettingsForm({ initial, stores }: { initial: PlatformSettings & 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="font-serif">{s.commissions}</CardTitle>
+            <CardTitle className="font-display">{s.commissions}</CardTitle>
             <p className="text-sm text-ink-muted">{s.commissionsHint}</p>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
@@ -129,12 +129,12 @@ export function SettingsForm({ initial, stores }: { initial: PlatformSettings & 
         </Card>
       </div>
 
-      <p className="rounded-r-xl border-l-2 border-wood bg-sand-light/60 py-2 pl-4 pr-3 text-sm text-ink-soft">{example}</p>
+      <p className="rounded-r-xl border-l-4 border-lime bg-mist-light py-2 pl-4 pr-3 text-sm text-ink-soft">{example}</p>
 
       {/* Card payments: what an own item and a render cost, and the bank's cut every payment shows. */}
       <Card>
         <CardHeader>
-          <CardTitle className="font-serif">{s.payments}</CardTitle>
+          <CardTitle className="font-display">{s.payments}</CardTitle>
           <p className="text-sm text-ink-muted">{s.paymentsHint}</p>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -152,7 +152,7 @@ export function SettingsForm({ initial, stores }: { initial: PlatformSettings & 
               <Input id="bank-fee-pct" type="number" step="0.1" min={0} max={20} value={form.bankFeePct} onChange={(e) => update('bankFeePct', e.target.value)} />
             </div>
           </div>
-          <p className="rounded-r-xl border-l-2 border-wood bg-sand-light/60 py-2 pl-4 pr-3 text-sm text-ink-soft">
+          <p className="rounded-r-xl border-l-4 border-lime bg-mist-light py-2 pl-4 pr-3 text-sm text-ink-soft">
             {paymentsExample} <span className="text-ink-muted">({fill(s.bankFeeShown, { pct: `${formatNumber(num(form.bankFeePct))}%` })})</span>
           </p>
         </CardContent>
@@ -161,11 +161,11 @@ export function SettingsForm({ initial, stores }: { initial: PlatformSettings & 
       {/* Who is sent the rate book's construction materials with every order. */}
       <Card>
         <CardHeader>
-          <CardTitle className="font-serif">{t.orderReview.supplierTitle}</CardTitle>
+          <CardTitle className="font-display">{t.orderReview.supplierTitle}</CardTitle>
           <p className="text-sm text-ink-muted">{t.orderReview.supplierHint}</p>
         </CardHeader>
         <CardContent>
-          <select value={form.materialsStoreId} onChange={(e) => update('materialsStoreId', e.target.value)} aria-label={t.orderReview.supplierTitle} className="h-10 w-full max-w-md rounded-xl border border-line bg-bg-surface px-3 text-sm text-ink focus:border-ink focus:outline-none">
+          <select value={form.materialsStoreId} onChange={(e) => update('materialsStoreId', e.target.value)} aria-label={t.orderReview.supplierTitle} className="h-11 w-full max-w-md rounded-xl border border-line bg-bg-surface px-3 text-sm text-ink focus:border-ink focus:outline-none focus:ring-[3px] focus:ring-lime">
             <option value="">{t.orderReview.supplierNone}</option>
             {stores.map((store) => (
               <option key={store.id} value={store.id}>
@@ -182,7 +182,7 @@ export function SettingsForm({ initial, stores }: { initial: PlatformSettings & 
         </p>
         <div className="flex items-center gap-3">
           {notice && (
-            <p role="status" className={cn('text-sm', notice.ok ? 'text-success' : 'text-danger')}>
+            <p role="status" className={cn('text-sm font-medium', notice.ok ? 'text-success' : 'text-danger')}>
               {notice.text}
             </p>
           )}

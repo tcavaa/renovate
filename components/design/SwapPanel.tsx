@@ -87,7 +87,7 @@ function AngleRow({ degrees, onChange, label }: { degrees: number; onChange: (de
             if (e.key === 'Enter') commit((e.target as HTMLInputElement).value);
           }}
           aria-label={label}
-          className="h-7 w-14 rounded-[6px] border border-line bg-bg-surface px-1.5 text-right text-xs tabular-nums text-ink focus:border-ink focus:outline-none"
+          className="h-7 w-14 rounded-md border border-line bg-bg-surface px-1.5 text-right text-xs tabular-nums text-ink focus:border-ink focus:outline-none"
         />
         °
       </span>
@@ -243,14 +243,14 @@ export function SwapPanel({
                     onClick={() => onSwap(product)}
                     className={cn(
                       'flex w-full items-center gap-3 rounded-xl border p-2 text-left transition-colors',
-                      active ? 'border-brand bg-sand-light' : 'border-line bg-bg-surface hover:border-ink/40'
+                      active ? 'border-brand bg-brand-50 ring-1 ring-brand' : 'border-line bg-bg-surface hover:border-ink/40'
                     )}
                   >
-                    <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-bg-base">
+                    <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-mist-light">
                       {product.imageUrl ? (
                         <Image src={product.imageUrl} alt={localizedName(locale, product)} fill sizes="44px" className="object-cover" />
                       ) : (
-                        <span className="block h-full w-full" style={{ backgroundColor: product.colorHex ?? '#DDD8CF' }} />
+                        <span className="block h-full w-full" style={{ backgroundColor: product.colorHex ?? '#E7E7EA' }} />
                       )}
                     </span>
 
@@ -286,14 +286,14 @@ function VariantSwatches({ item, product, variants, locked, onPick }: { item: Pl
   const locale = useLocale();
   const activeId = item.product?.variant?.id ?? null;
   const options: Array<{ id: string | null; name: string; colorHex: string; price: number }> = [
-    { id: null, name: t.design.variantOriginal, colorHex: product.colorHex ?? '#DDD8CF', price: product.pricePerUnit },
+    { id: null, name: t.design.variantOriginal, colorHex: product.colorHex ?? '#E7E7EA', price: product.pricePerUnit },
     ...variants.map((v) => ({ id: v.id, name: localizedName(locale, v), colorHex: v.colorHex, price: variantUnitPrice(product.pricePerUnit, v) })),
   ];
   const active = options.find((o) => o.id === activeId) ?? options[0];
   const pricesDiffer = options.some((o) => o.price !== product.pricePerUnit);
   return (
-    <section className="space-y-1.5 rounded-[10px] border border-line bg-bg-base/60 p-2.5">
-      <p className="flex items-center justify-between gap-2 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+    <section className="space-y-1.5 rounded-lg bg-mist-light p-2.5">
+      <p className="flex items-center justify-between gap-2 text-[11px] font-bold uppercase tracking-wide text-ink-muted">
         {t.design.variantTitle}
         <span className="truncate normal-case tracking-normal text-ink">{active.name}</span>
       </p>
@@ -347,14 +347,14 @@ function ShowerSize({ item, onChange }: { item: PlacedItem; onChange: NonNullabl
         onKeyDown={(e) => {
           if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
         }}
-        className="h-8 w-20 rounded-[6px] border border-line bg-bg-surface px-1.5 text-right text-xs tabular-nums"
+        className="h-8 w-20 rounded-md border border-line bg-bg-surface px-1.5 text-right text-xs tabular-nums"
       />
       <span className="text-[11px] text-ink-muted">{t.units.cm}</span>
     </label>
   );
   return (
-    <section className="space-y-1.5 rounded-[10px] border border-line bg-bg-base/60 p-2.5">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">{t.build.showerGlass}</p>
+    <section className="space-y-1.5 rounded-lg bg-mist-light p-2.5">
+      <p className="text-[11px] font-bold uppercase tracking-wide text-ink-muted">{t.build.showerGlass}</p>
       {field(t.build.showerWidth, Math.round(item.areaM!.width * 100), SHOWER_AREA_MIN_M * 100, SHOWER_AREA_MAX_M * 100, 5, (cm) => onChange({ widthM: cm / 100 }))}
       {field(t.build.showerDepth, Math.round(item.areaM!.depth * 100), SHOWER_AREA_MIN_M * 100, SHOWER_AREA_MAX_M * 100, 5, (cm) => onChange({ depthM: cm / 100 }))}
       {field(t.build.glassThickness, Math.round(glass.thicknessM * 100), SHOWER_GLASS_MIN_THICKNESS_M * 100, SHOWER_GLASS_MAX_THICKNESS_M * 100, 1, (cm) => onChange({ glassThicknessM: cm / 100 }))}
@@ -372,8 +372,8 @@ function KitchenLength({ item, onLength, onToWall }: { item: PlacedItem; onLengt
     setBlocked(!onLength(nextCm / 100));
   };
   return (
-    <section className="space-y-1.5 rounded-[10px] border border-line bg-bg-base/60 p-2.5">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">{t.build.kitchenMadeToMeasure}</p>
+    <section className="space-y-1.5 rounded-lg bg-mist-light p-2.5">
+      <p className="text-[11px] font-bold uppercase tracking-wide text-ink-muted">{t.build.kitchenMadeToMeasure}</p>
       <div className="flex items-center gap-2">
         <span className="w-14 shrink-0 text-xs text-ink-soft">{t.build.kitchenLength}</span>
         <input
@@ -394,7 +394,7 @@ function KitchenLength({ item, onLength, onToWall }: { item: PlacedItem; onLengt
           value={cm}
           onChange={(e) => apply(Number(e.target.value))}
           aria-label={`${t.build.kitchenLength} (${t.units.cm})`}
-          className="h-8 w-16 rounded-[6px] border border-line bg-bg-surface px-1.5 text-right text-xs tabular-nums"
+          className="h-8 w-16 rounded-md border border-line bg-bg-surface px-1.5 text-right text-xs tabular-nums"
         />
         <span className="text-[11px] text-ink-muted">{t.units.cm}</span>
       </div>
@@ -424,8 +424,8 @@ function KitchenMaterials({ item, catalog, styleId, onPick }: { item: PlacedItem
   const materials = kitchenMaterialCandidates(catalog, styleId, item.slot);
   const facadeM2 = kitchenFacadeM2(item);
   return (
-    <section className="space-y-1.5 rounded-[10px] border border-line bg-bg-base/60 p-2.5">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">{t.build.kitchenMaterial}</p>
+    <section className="space-y-1.5 rounded-lg bg-mist-light p-2.5">
+      <p className="text-[11px] font-bold uppercase tracking-wide text-ink-muted">{t.build.kitchenMaterial}</p>
       <p className="text-[11px] leading-snug text-ink-muted">{materials.length > 0 ? fill(t.build.kitchenMaterialHint, { m2: formatM2(facadeM2) }) : t.build.kitchenMaterialNone}</p>
       {materials.length > 0 && (
         <div className="flex flex-col gap-1">
@@ -433,12 +433,12 @@ function KitchenMaterials({ item, catalog, styleId, onPick }: { item: PlacedItem
             const active = item.kitchenMaterial?.productId === product.id;
             const drawn = !!product.model3dUrl && (!product.model3dKind || product.model3dKind === item.slot);
             return (
-              <button key={product.id} type="button" onClick={() => !active && onPick(product)} aria-pressed={active} className={cn('flex items-center gap-2 rounded-[8px] border bg-bg-surface p-1.5 text-left text-[11px] transition-colors', active ? 'border-brand ring-1 ring-brand/30' : 'border-line hover:border-ink')}>
-                <span className="relative h-9 w-9 shrink-0 overflow-hidden rounded-[6px] bg-bg-base">
+              <button key={product.id} type="button" onClick={() => !active && onPick(product)} aria-pressed={active} className={cn('flex items-center gap-2 rounded-lg border bg-bg-surface p-1.5 text-left text-[11px] transition-colors', active ? 'border-brand bg-brand-50 ring-1 ring-brand' : 'border-line hover:border-ink')}>
+                <span className="relative h-9 w-9 shrink-0 overflow-hidden rounded-md bg-mist-light">
                   {product.imageUrl ? (
                     <Image src={product.imageUrl} alt="" fill sizes="36px" className="object-cover" />
                   ) : (
-                    <span className="block h-full w-full" style={{ backgroundColor: product.colorHex ?? '#DDD8CF' }} />
+                    <span className="block h-full w-full" style={{ backgroundColor: product.colorHex ?? '#E7E7EA' }} />
                   )}
                 </span>
                 <span className="min-w-0 flex-1">

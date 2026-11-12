@@ -76,10 +76,10 @@ export function GenerationOverlay({ open, onDone, ai = false, stage = 'done' }: 
 
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-[60] grid place-items-center bg-bg-base/90 backdrop-blur-md" role="status" aria-live="polite">
-      <div className="w-[min(92vw,440px)] rounded-[20px] border border-line bg-bg-surface p-6 shadow-cardHover">
+    <div className="fixed inset-0 z-[60] grid place-items-center bg-bg-surface/90 backdrop-blur-md" role="status" aria-live="polite">
+      <div className="w-[min(92vw,440px)] rounded-3xl bg-bg-surface p-7 shadow-float ring-1 ring-line">
         <p className="eyebrow flex items-center gap-1.5">
-          {ai && <Sparkles className="h-3.5 w-3.5 text-brand" />}
+          {ai && <Sparkles className="h-3.5 w-3.5 text-ink" />}
           {ai ? t.decor.genAi : t.build.genTitle}
         </p>
         <ul className="mt-4 space-y-2">
@@ -87,8 +87,8 @@ export function GenerationOverlay({ open, onDone, ai = false, stage = 'done' }: 
             const finished = i < done;
             const active = i === done;
             return (
-              <li key={label} className={cn('flex items-center gap-3 text-sm', finished ? 'text-ink' : active ? 'text-ink' : 'text-ink-faint')}>
-                <span className={cn('grid h-6 w-6 place-items-center rounded-full', finished ? 'bg-olive text-sand-light' : active ? 'bg-brand/10 text-brand' : 'bg-sand text-ink-faint')}>
+              <li key={label} className={cn('flex items-center gap-3 text-sm', finished ? 'text-ink' : active ? 'font-bold text-ink' : 'text-ink-faint')}>
+                <span className={cn('grid h-6 w-6 place-items-center rounded-full', finished ? 'bg-ink text-white' : active ? 'bg-lime text-ink' : 'bg-mist text-ink-faint')}>
                   {finished ? <Check className="h-3.5 w-3.5" /> : active ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <span className="text-[10px]">{i + 1}</span>}
                 </span>
                 {label}

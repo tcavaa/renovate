@@ -150,9 +150,9 @@ export default async function AdminOrdersPage(props: { searchParams: Promise<Sea
         </THead>
         <tbody>
           {rows.map((r) => (
-            <Tr key={r.id} className={!r.sentAt && r.partnerType === 'store' && r.status === 'new' ? 'bg-warning/5' : undefined}>
+            <Tr key={r.id} className={!r.sentAt && r.partnerType === 'store' && r.status === 'new' ? 'bg-lime-soft hover:bg-lime-soft' : undefined}>
               <td className="px-4 py-2.5">
-                <Link href={`/admin/orders/${r.id}`} className="font-medium text-brand hover:underline">
+                <Link href={`/admin/orders/${r.id}`} className="font-medium text-ink underline decoration-lime decoration-2 underline-offset-4 hover:decoration-ink">
                   #{r.id}
                 </Link>
               </td>
@@ -179,7 +179,7 @@ export default async function AdminOrdersPage(props: { searchParams: Promise<Sea
               </td>
               <td className="px-4 py-2.5">
                 <OrderStageBadge stage={orderStage(r)} t={ka} />
-                {r.sentAt && !r.viewedAt && r.status !== 'cancelled' && <span className="ml-1.5 text-[10px] uppercase tracking-wide text-brand">{o.unread}</span>}
+                {r.sentAt && !r.viewedAt && r.status !== 'cancelled' && <span className="ml-1.5 rounded-full bg-ink px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">{o.unread}</span>}
               </td>
               <td className="px-4 py-2.5 text-ink-muted">{new Date(r.createdAt).toLocaleDateString(dateLocale, { timeZone: TIME_ZONE })}</td>
             </Tr>

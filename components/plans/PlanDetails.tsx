@@ -22,11 +22,11 @@ export async function PlanDetails({ userId, role, t }: { userId: number; role: U
 
   return (
     <div className="mt-8 space-y-6">
-      <section className="rounded-3xl border border-line bg-bg-surface p-6 shadow-card md:p-8">
+      <section className="rounded-3xl border border-line bg-bg-surface p-6 md:p-8">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="eyebrow">{p.planCurrent}</p>
-            <h2 className="mt-1 font-serif text-3xl font-semibold">{planName(state.plan)}</h2>
+            <h2 className="mt-1 font-display text-4xl leading-[1]">{planName(state.plan)}</h2>
             <p className="mt-2 text-sm text-ink-muted">
               {state.staff ? p.staffNote : sub ? fill(p.activeUntil, { date: formatDateTime(sub.paidUntil, false) }) : p.planFreeDesc}
             </p>
@@ -39,8 +39,8 @@ export async function PlanDetails({ userId, role, t }: { userId: number; role: U
         </div>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
-          <div className="flex items-start gap-3 rounded-2xl border border-line bg-bg-base p-4">
-            <FolderOpen className="mt-0.5 h-5 w-5 shrink-0 text-wood" />
+          <div className="flex items-start gap-3 rounded-2xl bg-mist-light p-4">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-bg-surface text-ink shadow-card"><FolderOpen className="h-5 w-5" /></span>
             <div className="text-sm">
               <p className="font-semibold text-ink">{p.usageProjects}</p>
               <p className="mt-0.5 text-ink-muted">
@@ -52,8 +52,8 @@ export async function PlanDetails({ userId, role, t }: { userId: number; role: U
               </p>
             </div>
           </div>
-          <div className="flex items-start gap-3 rounded-2xl border border-line bg-bg-base p-4">
-            <Camera className="mt-0.5 h-5 w-5 shrink-0 text-wood" />
+          <div className="flex items-start gap-3 rounded-2xl bg-mist-light p-4">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-bg-surface text-ink shadow-card"><Camera className="h-5 w-5" /></span>
             <div className="text-sm">
               <p className="font-semibold text-ink">{p.usageRenders}</p>
               <p className="mt-0.5 text-ink-muted">
@@ -79,18 +79,18 @@ export async function PlanDetails({ userId, role, t }: { userId: number; role: U
       </section>
 
       {history.length > 0 && (
-        <section className="rounded-3xl border border-line bg-bg-surface p-6 shadow-card">
-          <h3 className="font-serif text-lg font-semibold">{p.historyTitle}</h3>
+        <section className="rounded-3xl border border-line bg-bg-surface p-6">
+          <h3 className="font-display text-xl">{p.historyTitle}</h3>
           <ul className="mt-3 divide-y divide-line text-sm">
             {history.map((row) => (
               <li key={row.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
-                <span className="font-medium text-ink">
+                <span className="font-semibold text-ink">
                   {planName(row.plan)} · {row.period === 'year' ? p.periodYear : p.periodMonth}
                 </span>
                 <span className="text-ink-muted">
                   {formatDateTime(row.startsAt, false)} — {formatDateTime(row.endsAt, false)}
                 </span>
-                <span className={cn('tabular-nums', row.granted ? 'text-ink-muted' : 'text-ink')}>{row.granted ? p.granted : formatGEL(row.amount, true)}</span>
+                <span className={cn('tabular-nums', row.granted ? 'text-ink-muted' : 'font-semibold text-ink')}>{row.granted ? p.granted : formatGEL(row.amount, true)}</span>
               </li>
             ))}
           </ul>

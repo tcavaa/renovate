@@ -512,14 +512,14 @@ export function ProductForm({
                 )
               }
               className={
-                "flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors " +
+                "flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm transition-colors " +
                 (active
-                  ? "border-olive/60 bg-olive-soft text-olive"
-                  : "border-line bg-bg-surface text-ink-muted hover:border-ink/40 hover:bg-sand/40")
+                  ? "border-ink bg-ink font-semibold text-white"
+                  : "border-line bg-bg-surface text-ink-soft hover:border-ink hover:text-ink")
               }
             >
               <span
-                className="h-3 w-3 rounded-full border border-line"
+                className="h-3 w-3 rounded-full ring-1 ring-white/60"
                 style={{ backgroundColor: STYLES[id].swatches[0] }}
               />
               {id}
@@ -564,7 +564,7 @@ export function ProductForm({
               />
             </div>
             <fieldset className="space-y-3 rounded-2xl border border-line p-4 md:col-span-2">
-              <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">
+              <legend className="px-1.5 text-[11px] font-bold uppercase tracking-[0.06em] text-ink-muted">
                 {ka.admin.forms.translations}
               </legend>
               <p className="text-xs text-ink-muted">
@@ -601,7 +601,7 @@ export function ProductForm({
                       setSlugTyped(false);
                       if (!product) setSlugFollows(true);
                     }}
-                    className="bracket-link text-xs text-ink-soft hover:text-brand"
+                    className="arrow-link text-xs text-ink-soft"
                   >
                     {ka.admin.forms.slugFromName}
                   </button>
@@ -731,9 +731,9 @@ export function ProductForm({
             </div>
           </div>
 
-          <section className="space-y-4 rounded-2xl border border-line bg-sand-light/50 p-4">
+          <section className="space-y-4 rounded-2xl bg-mist-light p-5">
             <div>
-              <h2 className="font-serif text-lg font-semibold">
+              <h2 className="font-display text-xl">
                 {kind === "finish"
                   ? ka.admin.forms.finishSection
                   : kind === "trim"
@@ -787,7 +787,7 @@ export function ProductForm({
                 <div className="grid gap-4 md:grid-cols-[auto_1fr]">
                   {/* The texture as the studio lays it: two metres by two, at the repeat size given. */}
                   <div
-                    className="relative shrink-0 overflow-hidden rounded-xl border border-line bg-bg-base"
+                    className="relative shrink-0 overflow-hidden rounded-xl border border-line bg-bg-surface"
                     style={{
                       width: PREVIEW_PX,
                       height: PREVIEW_PX,
@@ -826,8 +826,8 @@ export function ProductForm({
                               className={
                                 "rounded-full border px-3 py-1.5 text-sm transition-colors " +
                                 (active
-                                  ? "border-olive/60 bg-olive-soft text-olive"
-                                  : "border-line bg-bg-surface text-ink-muted hover:border-ink/40 hover:bg-sand/40")
+                                  ? "border-ink bg-ink font-semibold text-white"
+                                  : "border-line bg-bg-surface text-ink-soft hover:border-ink hover:text-ink")
                               }
                             >
                               {surface === "floor"
@@ -1082,7 +1082,7 @@ export function ProductForm({
           </div>
 
           {error && (
-            <p className="rounded-xl border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
+            <p className="rounded-xl border border-danger/30 bg-coral-soft px-3 py-2 text-sm text-danger">
               {error}
             </p>
           )}

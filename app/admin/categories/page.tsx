@@ -108,8 +108,8 @@ export default async function AdminCategoriesPage(props: { searchParams: Promise
       <CategoryTabs active="tree" />
 
       <details className="overflow-hidden rounded-2xl border border-line bg-bg-surface">
-        <summary className="flex cursor-pointer items-center gap-2 px-4 py-3 text-sm font-medium text-ink transition-colors hover:bg-sand/30">
-          <Info className="h-4 w-4 text-wood" aria-hidden />
+        <summary className="flex cursor-pointer items-center gap-2 px-4 py-3 text-sm font-medium text-ink transition-colors hover:bg-mist-light">
+          <Info className="h-4 w-4 text-ink" aria-hidden />
           {c.howTitle}
         </summary>
         <ul className="list-disc space-y-1.5 border-t border-line py-4 pl-9 pr-4 text-sm text-ink-muted">

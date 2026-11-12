@@ -17,17 +17,17 @@ export function SceneLoading({ done, total, leaving = false }: { /** Files in so
   const share = counted ? Math.min(1, done / total) : 0;
   return (
     <div
-      className={cn('absolute inset-0 z-10 grid place-items-center bg-sand-light transition-opacity duration-300', leaving && 'pointer-events-none opacity-0')}
+      className={cn('absolute inset-0 z-10 grid place-items-center bg-mist-light transition-opacity duration-300', leaving && 'pointer-events-none opacity-0')}
       role="status"
       aria-live="polite"
     >
-      <div className="w-[min(88vw,340px)] rounded-[20px] border border-line bg-bg-surface p-5 shadow-cardHover">
+      <div className="w-[min(88vw,340px)] rounded-2xl bg-bg-surface p-5 shadow-float">
         <div className="flex items-center gap-3">
-          <Loader2 className="h-5 w-5 shrink-0 animate-spin text-brand" />
-          <p className="text-sm font-medium text-ink">{t.build.sceneLoading}</p>
+          <Loader2 className="h-5 w-5 shrink-0 animate-spin text-ink" />
+          <p className="text-sm font-bold tracking-tight text-ink">{t.build.sceneLoading}</p>
         </div>
-        <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-sand">
-          <div className={cn('h-full rounded-full bg-brand transition-[width] duration-300', !counted && 'w-1/4 animate-pulse')} style={counted ? { width: `${Math.max(4, Math.round(share * 100))}%` } : undefined} />
+        <div className="mt-4 h-2 overflow-hidden rounded-full bg-mist">
+          <div className={cn('h-full rounded-full bg-lime transition-[width] duration-300', !counted && 'w-1/4 animate-pulse')} style={counted ? { width: `${Math.max(4, Math.round(share * 100))}%` } : undefined} />
         </div>
         <p className="mt-3 text-xs tabular-nums text-ink-muted">{counted ? t.build.sceneLoadingCount.replace('{done}', String(done)).replace('{total}', String(total)) : t.build.sceneLoadingHint}</p>
       </div>

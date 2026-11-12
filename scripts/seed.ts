@@ -189,7 +189,7 @@ async function seed() {
     console.error(refusal);
     process.exit(1);
   }
-  console.log('🌱 Seeding PLAYCE database...');
+  console.log('🌱 Seeding ROOMIT database...');
 
   console.log('— inserting categories');
   for (const c of seedCategories) {
@@ -204,10 +204,10 @@ async function seed() {
   await db
     .insert(stores)
     .values({
-      nameKa: 'PLAYCE ოფიციალური მაღაზია',
-      nameEn: STORE_I18N['PLAYCE ოფიციალური მაღაზია'].en,
-      nameRu: STORE_I18N['PLAYCE ოფიციალური მაღაზია'].ru,
-      websiteUrl: 'https://playce.ge',
+      nameKa: 'ROOMIT ოფიციალური მაღაზია',
+      nameEn: STORE_I18N['ROOMIT ოფიციალური მაღაზია'].en,
+      nameRu: STORE_I18N['ROOMIT ოფიციალური მაღაზია'].ru,
+      websiteUrl: 'https://roomit.ge',
       phone: '+995322000000',
       address: 'თბილისი, ქართველი ხელოსნების 1',
       commissionRate: '5.00',

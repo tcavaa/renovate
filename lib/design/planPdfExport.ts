@@ -185,7 +185,7 @@ function drawTable(ctx: CanvasRenderingContext2D, sheet: LightingSheet, pageW: n
     ctx.fillStyle = color;
     cells.forEach((cell, i) => ctx.fillText(fit(cell, shares[i] * width - 6 * SCALE), columns[i], y));
   };
-  row(sheet.header, 600, '#1E1F23');
+  row(sheet.header, 600, '#0B0B0C');
   const room = sheet.rows.length;
   let shown = 0;
   for (const cells of sheet.rows) {
@@ -215,7 +215,7 @@ function drawNotes(ctx: CanvasRenderingContext2D, notes: string[], title: string
   ctx.moveTo(x, y - 12 * SCALE);
   ctx.lineTo(x + width, y - 12 * SCALE);
   ctx.stroke();
-  ctx.fillStyle = '#1E1F23';
+  ctx.fillStyle = '#0B0B0C';
   ctx.font = `600 ${Math.round(9.5 * SCALE)}px system-ui, sans-serif`;
   ctx.fillText(title, x, y);
   ctx.font = `400 ${Math.round(8.5 * SCALE)}px system-ui, sans-serif`;
@@ -260,7 +260,7 @@ function drawTitleBlock(ctx: CanvasRenderingContext2D, options: PlanPdfOptions, 
   const x = MARGIN_PT * SCALE;
   const right = (pageW - MARGIN_PT) * SCALE;
   ctx.save();
-  ctx.fillStyle = '#1E1F23';
+  ctx.fillStyle = '#0B0B0C';
   ctx.textBaseline = 'alphabetic';
   ctx.textAlign = 'left';
   ctx.font = `700 ${Math.round(24 * SCALE)}px system-ui, sans-serif`;
@@ -270,9 +270,9 @@ function drawTitleBlock(ctx: CanvasRenderingContext2D, options: PlanPdfOptions, 
   if (options.subtitle) ctx.fillText(options.subtitle, x, Math.round(76 * SCALE));
   ctx.textAlign = 'right';
   ctx.font = `600 ${Math.round(11 * SCALE)}px system-ui, sans-serif`;
-  ctx.fillStyle = '#1E1F23';
+  ctx.fillStyle = '#0B0B0C';
   ctx.fillText(`${options.areaLabel} · ${options.roomsLabel}`, right, Math.round(76 * SCALE));
-  ctx.strokeStyle = '#1E1F23';
+  ctx.strokeStyle = '#0B0B0C';
   ctx.lineWidth = Math.max(1, 1.5 * SCALE);
   ctx.beginPath();
   ctx.moveTo(x, Math.round(88 * SCALE));

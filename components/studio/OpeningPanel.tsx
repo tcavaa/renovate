@@ -46,7 +46,7 @@ export function OpeningPanel({ opening, room, catalog, styleId, locked, onUpdate
   const estimate = openingEstimate(opening);
   const kindLabel = opening.kind === 'window' ? t.design.window : opening.kind === 'archway' ? t.build.archway : opening.exterior ? t.build.lineEntranceDoor : t.design.door;
   const Icon = opening.kind === 'window' ? AppWindow : DoorOpen;
-  const select = 'h-8 w-full rounded-[8px] border border-line bg-bg-surface px-2 text-[13px] text-ink focus:border-ink focus:outline-none disabled:opacity-50';
+  const select = 'h-8 w-full rounded-lg border border-line bg-bg-surface px-2 text-[13px] text-ink focus:border-ink focus:outline-none disabled:opacity-50';
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -64,17 +64,17 @@ export function OpeningPanel({ opening, room, catalog, styleId, locked, onUpdate
         )}
       >
         {/* What it is: the photo, the name, the price, and the shop on one line under them. */}
-        <div className="overflow-hidden rounded-[10px] border border-line bg-bg-surface">
+        <div className="overflow-hidden rounded-xl bg-mist-light">
           <div className="flex items-center gap-2 p-2">
-            <div className="relative grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-[8px] bg-bg-base text-ink-soft">
+            <div className="relative grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-lg bg-bg-surface text-ink-soft">
               {product?.imageUrl ? <Image src={product.imageUrl} alt={localizedName(locale, product)} fill sizes="44px" className="object-cover" /> : <Icon className="h-5 w-5" />}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[13px] font-semibold leading-tight text-ink">{product ? localizedName(locale, product) : opening.kind === 'archway' ? t.build.archway : t.build.fixtureEstimateTitle}</p>
+              <p className="truncate text-[13px] font-bold leading-tight tracking-tight text-ink">{product ? localizedName(locale, product) : opening.kind === 'archway' ? t.build.archway : t.build.fixtureEstimateTitle}</p>
               <p className="truncate text-[10px] text-ink-muted">{kindLabel}{product?.store ? ` · ${localizedName(locale, product.store)}` : ''}</p>
             </div>
             {product ? (
-              <p className="shrink-0 font-serif text-sm font-semibold tabular-nums text-brand-dark">{formatGEL(product.pricePerUnit)}</p>
+              <p className="shrink-0 font-display text-sm tabular-nums text-ink">{formatGEL(product.pricePerUnit)}</p>
             ) : estimate ? (
               <p className="flex shrink-0 items-center gap-1 text-[11px] tabular-nums text-ink-muted">
                 <Sparkles className="h-3 w-3" />
@@ -87,7 +87,7 @@ export function OpeningPanel({ opening, room, catalog, styleId, locked, onUpdate
 
         {/* The kind, as a dropdown. */}
         <label className="block">
-          <span className="mb-0.5 block text-[10px] font-semibold uppercase tracking-wide text-ink-muted">{t.build.kind}</span>
+          <span className="mb-0.5 block text-[10px] font-bold uppercase tracking-wide text-ink-muted">{t.build.kind}</span>
           <select value={opening.kind} disabled={locked} onChange={(e) => e.target.value !== opening.kind && onUpdate({ kind: e.target.value as OpeningKind })} className={select} aria-label={t.build.kind}>
             <option value="door">{t.design.door}</option>
             <option value="window">{t.design.window}</option>
@@ -155,7 +155,7 @@ export function OpeningPanel({ opening, room, catalog, styleId, locked, onUpdate
       {opening.kind !== 'archway' && (
         <section data-open={open} className={cn('-mx-1 flex min-h-[5.5rem] flex-1 flex-col border-line', open ? 'border-t-0' : 'border-t')}>
           <button type="button" aria-expanded={open} onClick={() => setOpen((v) => !v)} className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left">
-            <span className="text-[13px] font-semibold text-ink">{t.design.swapTitle}</span>
+            <span className="text-[13px] font-bold tracking-tight text-ink">{t.design.swapTitle}</span>
             <span className="flex items-center gap-1 text-[10px] text-ink-muted">
               {alternatives.length > 0 && <span className="tabular-nums">{alternatives.length}</span>}
               {open ? t.design.swapClose : t.design.swapOpen}
@@ -170,9 +170,9 @@ export function OpeningPanel({ opening, room, catalog, styleId, locked, onUpdate
                 const active = candidate.id === product?.productId;
                 return (
                   <li key={candidate.id}>
-                    <button type="button" onClick={() => onSwap(candidate)} className={cn('flex w-full items-center gap-3 rounded-[10px] border p-2 text-left transition-colors', active ? 'border-brand bg-sand-light' : 'border-line bg-bg-surface hover:border-ink/40')}>
-                      <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-[8px] bg-bg-base">
-                        {candidate.imageUrl ? <Image src={candidate.imageUrl} alt={localizedName(locale, candidate)} fill sizes="44px" className="object-cover" /> : <span className="block h-full w-full" style={{ backgroundColor: candidate.colorHex ?? '#DDD8CF' }} />}
+                    <button type="button" onClick={() => onSwap(candidate)} className={cn('flex w-full items-center gap-3 rounded-lg border p-2 text-left transition-colors', active ? 'border-brand bg-brand-50 ring-1 ring-brand' : 'border-line bg-bg-surface hover:border-ink/40')}>
+                      <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-mist-light">
+                        {candidate.imageUrl ? <Image src={candidate.imageUrl} alt={localizedName(locale, candidate)} fill sizes="44px" className="object-cover" /> : <span className="block h-full w-full" style={{ backgroundColor: candidate.colorHex ?? '#E7E7EA' }} />}
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-xs font-medium text-ink">{localizedName(locale, candidate)}</span>
@@ -199,12 +199,12 @@ function RailingCard({ opening, room, maxLength, locked, onUpdate, onRemove }: {
   const t = useT();
   return (
     <div className="space-y-2 overflow-y-auto pb-2 pr-1">
-      <div className="flex items-center gap-2 rounded-[10px] border border-line bg-bg-surface p-2">
-        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-[8px] bg-bg-base text-ink-soft">
+      <div className="flex items-center gap-2 rounded-xl bg-mist-light p-2">
+        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-bg-surface text-ink-soft">
           <Fence className="h-5 w-5" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[13px] font-semibold leading-tight text-ink">{t.build.toolRailing}</p>
+          <p className="truncate text-[13px] font-bold leading-tight tracking-tight text-ink">{t.build.toolRailing}</p>
           <p className="truncate text-[10px] text-ink-muted">{room.name}</p>
         </div>
       </div>

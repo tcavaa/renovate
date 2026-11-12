@@ -221,7 +221,7 @@ export default function StylePage() {
 
         <section className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           <SectionHead title={t.design.budgetTitle} subtitle={t.design.budgetSubtitle} />
-          <div className="flex flex-wrap items-end gap-3 rounded-[16px] border border-line bg-bg-surface p-5">
+          <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-line bg-bg-surface p-5">
             <div className="w-56">
               <Label htmlFor="budget" className="eyebrow">
                 {t.design.budgetTitle} · ₾
@@ -229,7 +229,7 @@ export default function StylePage() {
               <Input id="budget" type="number" min={0} step={500} inputMode="numeric" value={budgetInput} onChange={(e) => setBudgetInput(e.target.value)} placeholder={t.design.budgetPlaceholder} className="mt-1.5 tabular-nums" />
             </div>
             {budgetInput && (
-              <button type="button" onClick={() => setBudgetInput('')} className="bracket-link h-10 text-sm font-medium text-ink-soft hover:text-ink">
+              <button type="button" onClick={() => setBudgetInput('')} className="arrow-link h-10 text-sm font-medium text-ink-soft hover:text-ink">
                 {t.design.budgetAny}
               </button>
             )}
@@ -261,7 +261,7 @@ export default function StylePage() {
           />
         </section>
 
-        {error && <p className="mt-6 rounded-[12px] border border-danger/30 bg-danger/5 px-4 py-3 text-sm text-danger">{t.design.catalogError}</p>}
+        {error && <p className="mt-6 rounded-xl bg-coral-soft px-4 py-3 text-sm font-medium text-danger">{t.design.catalogError}</p>}
       </div>
 
       <StepNav

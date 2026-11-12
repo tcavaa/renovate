@@ -221,7 +221,7 @@ export function CardPayment({
         {header}
 
         {/* The bill: the price, the bank's commission on top, what the card is charged. */}
-        <div className="rounded-2xl border border-line bg-sand-light/70 p-4 text-sm">
+        <div className="rounded-2xl bg-mist-light p-4 text-sm">
           <div className="flex items-baseline justify-between gap-3">
             <span className="min-w-0 text-ink-soft">{itemLabel}</span>
             <span className="shrink-0 tabular-nums text-ink">{offer ? formatGEL(offer.price, true) : charge ? formatGEL(charge.amount, true) : '—'}</span>
@@ -229,31 +229,31 @@ export function CardPayment({
           {offer && offer.credit > 0 && (
             <div className="mt-1.5 flex items-baseline justify-between gap-3">
               <span className="text-ink-soft">{t.plans.upgradeCredit}</span>
-              <span className="shrink-0 tabular-nums text-success">−{formatGEL(offer.credit, true)}</span>
+              <span className="shrink-0 font-semibold tabular-nums text-success">−{formatGEL(offer.credit, true)}</span>
             </div>
           )}
           <div className="mt-1.5 flex items-baseline justify-between gap-3">
             <span className="text-ink-soft">{fill(p.bankFee, { pct: `${formatNumber(charge?.bankFeePct ?? 0)}%` })}</span>
             <span className="shrink-0 tabular-nums text-ink">{charge ? formatGEL(charge.bankFee, true) : '—'}</span>
           </div>
-          <div className="mt-2 flex items-baseline justify-between gap-3 border-t border-line pt-2">
-            <span className="font-semibold text-ink">{p.total}</span>
-            <span className="font-serif text-2xl font-semibold tabular-nums text-ink">{charge ? formatGEL(charge.total, true) : <Loader2 className="h-5 w-5 animate-spin text-ink-faint" />}</span>
+          <div className="-mx-1 mt-3 flex items-baseline justify-between gap-3 rounded-xl bg-lime px-3 py-2.5">
+            <span className="font-bold text-ink">{p.total}</span>
+            <span className="font-display text-2xl tabular-nums text-ink">{charge ? formatGEL(charge.total, true) : <Loader2 className="h-5 w-5 animate-spin text-ink" />}</span>
           </div>
           <p className="mt-2 text-xs leading-relaxed text-ink-muted">{p.bankFeeNote}</p>
         </div>
 
         {testMode && stage === 'form' && (
-          <p className="rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-xs leading-relaxed text-ink">
-            <span className="mr-1.5 rounded-full bg-warning/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-warning">{p.testBadge}</span>
+          <p className="rounded-xl bg-sun-soft px-3 py-2 text-xs leading-relaxed text-ink">
+            <span className="mr-1.5 rounded-full bg-sun px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em] text-ink">{p.testBadge}</span>
             {p.testNote}
           </p>
         )}
 
-        {blockedHost() && stage !== 'approved' && <p className="rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-xs leading-relaxed text-ink">{p.localhostNote}</p>}
+        {blockedHost() && stage !== 'approved' && <p className="rounded-xl bg-sun-soft px-3 py-2 text-xs leading-relaxed text-ink">{p.localhostNote}</p>}
 
         <p className="flex items-start gap-2 text-xs text-ink-muted">
-          <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-olive" aria-hidden />
+          <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink" aria-hidden />
           {p.secureNote}
         </p>
 
@@ -295,7 +295,7 @@ export function CardPayment({
             )}
             {stage === 'verifying' && (
               <div className="absolute inset-0 grid place-items-center">
-                <p className="flex items-center gap-2 rounded-full bg-bg-surface px-4 py-2 text-sm font-medium text-ink shadow-card">
+                <p className="flex items-center gap-2 rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white shadow-float">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   {p.verifying}
                 </p>
@@ -305,15 +305,15 @@ export function CardPayment({
         )}
 
         {stage === 'approved' && (
-          <p className="flex items-center gap-2 rounded-xl border border-success/30 bg-success/10 px-3 py-2.5 text-sm text-ink">
-            <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />
+          <p className="flex items-center gap-2 rounded-xl bg-lime px-3 py-2.5 text-sm font-semibold text-ink">
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
             {p.paidTitle}
           </p>
         )}
 
         {(stage === 'declined' || stage === 'error' || stage === 'pending') && (
           <div className="space-y-3">
-            <p role="alert" className="rounded-xl border border-danger/40 bg-danger/5 px-3 py-2 text-sm text-danger">
+            <p role="alert" className="rounded-xl bg-coral-soft px-3 py-2 text-sm font-medium text-danger">
               {stage === 'declined' ? fill(p.declined, { reason: error ? ` — ${error}` : '' }) : stage === 'pending' ? p.stillProcessing : error}
             </p>
             <Button type="button" variant="outline" className="w-full" onClick={stage === 'pending' ? verify : retry}>

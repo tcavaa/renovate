@@ -75,11 +75,11 @@ export function FinishPanel({ roomId, surface, rooms, catalog, styleId, finishes
           const current = currentFor(s);
           const clicked = surface === s;
           return (
-            <section key={s} className={cn(clicked && '-mx-1 rounded-md px-1 ring-1 ring-brand/30')}>
-              <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold">
+            <section key={s} className={cn(clicked && '-mx-1 rounded-lg px-1 ring-2 ring-brand')}>
+              <h4 className="mb-2 flex items-center gap-2 text-sm font-bold tracking-tight">
                 <span className={cn(clicked && 'text-brand')}>{surfaceLabel(s)}</span>
                 {originOf(s) === 'calculator' && (
-                  <span className="rounded-full bg-olive-soft px-2 py-0.5 text-[10px] font-medium text-olive">
+                  <span className="rounded-full bg-lime px-2 py-0.5 text-[10px] font-bold text-ink">
                     {t.design.finishOriginCalculator}
                   </span>
                 )}
@@ -114,13 +114,13 @@ export function FinishPanel({ roomId, surface, rooms, catalog, styleId, finishes
         {/* The whole flat: every room by name with what it has now, one click to edit it alone. */}
         {!room && (
           <section>
-            <h4 className="mb-2 text-sm font-semibold">{t.design.step2}</h4>
+            <h4 className="mb-2 text-sm font-bold tracking-tight">{t.design.step2}</h4>
             <ul className="divide-y divide-line/70 overflow-hidden rounded-xl border border-line bg-bg-surface">
               {rooms.map((r) => (
                 <li key={r.id}>
-                  <button type="button" onClick={() => onRoom(r.id)} className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-sand/50">
+                  <button type="button" onClick={() => onRoom(r.id)} className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-mist-light">
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium text-ink">{r.name}</span>
+                      <span className="block truncate text-sm font-semibold text-ink">{r.name}</span>
                       <span className="block truncate text-[11px] text-ink-muted">
                         {SURFACES.map((s) => {
                           const finish = finishes.find((f) => f.roomId === r.id && f.surface === s);
@@ -133,7 +133,7 @@ export function FinishPanel({ roomId, surface, rooms, catalog, styleId, finishes
                       {SURFACES.map((s) => {
                         const finish = finishes.find((f) => f.roomId === r.id && f.surface === s);
                         return (
-                          <span key={s} className="relative block h-7 w-7 overflow-hidden rounded-md border border-line bg-bg-base" style={{ backgroundColor: finish?.colorHex }}>
+                          <span key={s} className="relative block h-7 w-7 overflow-hidden rounded-md border border-line bg-mist-light" style={{ backgroundColor: finish?.colorHex }}>
                             {finish?.textureUrl && <Image src={finish.textureUrl} alt="" fill sizes="28px" className="object-cover" />}
                           </span>
                         );
@@ -172,10 +172,10 @@ function Swatch({
       aria-pressed={active}
       className={cn(
         'flex w-full flex-col items-stretch overflow-hidden rounded-xl border text-left transition-colors',
-        active ? 'border-brand ring-1 ring-brand/30' : 'border-line hover:border-brand/40'
+        active ? 'border-brand bg-brand-50 ring-1 ring-brand' : 'border-line hover:border-ink'
       )}
     >
-      <span className="relative block aspect-square w-full bg-bg-base">
+      <span className="relative block aspect-square w-full bg-mist-light">
         {textureUrl ? (
           <Image src={textureUrl} alt={label} fill sizes="96px" className="object-cover" />
         ) : (

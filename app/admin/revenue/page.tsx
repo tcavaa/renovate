@@ -64,14 +64,14 @@ export default async function AdminRevenuePage(props: { searchParams: Promise<{ 
           <input type="hidden" name="period" value="custom" />
           <label className="flex items-center gap-1.5 text-ink-muted">
             {r.from}
-            <input type="date" name="from" defaultValue={period === 'custom' ? search.from : undefined} className="h-8 rounded-full border border-line bg-bg-base px-3 text-xs text-ink focus:border-ink focus:bg-bg-surface focus:outline-none" />
+            <input type="date" name="from" defaultValue={period === 'custom' ? search.from : undefined} className="h-8 rounded-full border border-transparent bg-mist-light px-3 text-xs font-medium text-ink focus:border-ink focus:bg-bg-surface focus:outline-none focus:ring-[3px] focus:ring-lime" />
           </label>
           <span className="text-ink-faint">–</span>
           <label className="flex items-center gap-1.5 text-ink-muted">
             {r.to}
-            <input type="date" name="to" defaultValue={period === 'custom' ? search.to : undefined} className="h-8 rounded-full border border-line bg-bg-base px-3 text-xs text-ink focus:border-ink focus:bg-bg-surface focus:outline-none" />
+            <input type="date" name="to" defaultValue={period === 'custom' ? search.to : undefined} className="h-8 rounded-full border border-transparent bg-mist-light px-3 text-xs font-medium text-ink focus:border-ink focus:bg-bg-surface focus:outline-none focus:ring-[3px] focus:ring-lime" />
           </label>
-          <button type="submit" className={cn('h-8 rounded-full px-4 text-xs font-semibold transition-colors', period === 'custom' ? 'bg-ink text-white hover:bg-brand' : 'border border-line bg-bg-surface text-ink-soft hover:border-ink/40 hover:bg-sand/40 hover:text-ink')}>
+          <button type="submit" className={cn('h-8 rounded-full px-4 text-xs font-semibold transition-colors', period === 'custom' ? 'bg-ink text-white hover:bg-lime hover:text-ink' : 'bg-mist-light text-ink hover:bg-mist')}>
             {r.apply}
           </button>
         </form>
@@ -124,12 +124,12 @@ export default async function AdminRevenuePage(props: { searchParams: Promise<{ 
       <section className="rounded-2xl border border-line bg-bg-surface p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="eyebrow">{r.daily}</p>
-          <p className="flex items-center gap-4 text-xs text-ink-muted">
+          <p className="flex items-center gap-4 text-xs font-medium text-ink-muted">
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-olive" /> {r.legendFees}
+              <span className="h-2.5 w-2.5 rounded-full bg-ink" /> {r.legendFees}
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-brand" /> {r.legendCommissions}
+              <span className="h-2.5 w-2.5 rounded-full bg-lime ring-1 ring-ink/20" /> {r.legendCommissions}
             </span>
           </p>
         </div>
@@ -171,7 +171,7 @@ export default async function AdminRevenuePage(props: { searchParams: Promise<{ 
           }))}
         />
         <section className="overflow-hidden rounded-2xl border border-line bg-bg-surface">
-          <p className="eyebrow border-b border-line bg-sand/40 px-4 py-3">{r.statuses}</p>
+          <p className="eyebrow border-b border-line bg-mist-light px-4 py-3">{r.statuses}</p>
           <ul>
             {ORDER_STATUSES.map((s) => (
               <li key={s} className="flex items-center justify-between border-b border-line/70 px-4 py-2.5 text-sm last:border-b-0">
@@ -193,7 +193,7 @@ function Breakdown({ title, total, rows, foot, share }: { title: string; total: 
     <section className="rounded-2xl border border-line bg-bg-surface p-5">
       <div className="flex items-baseline justify-between">
         <p className="eyebrow">{title}</p>
-        <p className="font-serif text-lg font-semibold tabular-nums text-ink">{formatGEL(total)}</p>
+        <p className="font-display text-xl tabular-nums text-ink">{formatGEL(total)}</p>
       </div>
       <ul className="mt-3 space-y-2">
         {rows.map((row) => (
@@ -203,12 +203,12 @@ function Breakdown({ title, total, rows, foot, share }: { title: string; total: 
                 {row.label}
                 {row.hint && <span className="ml-2 text-xs text-ink-muted">{row.hint}</span>}
               </span>
-              <span className="tabular-nums">
-                {formatGEL(row.value)} <span className="text-xs text-ink-muted">{share(row.value, total)}</span>
+              <span className="font-semibold tabular-nums">
+                {formatGEL(row.value)} <span className="text-xs font-normal text-ink-muted">{share(row.value, total)}</span>
               </span>
             </div>
-            <div className="mt-1 h-1 overflow-hidden rounded-full bg-line/60">
-              <div className="h-1 rounded-full bg-olive" style={{ width: total > 0 ? `${Math.min(100, (row.value / total) * 100)}%` : 0 }} />
+            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-mist">
+              <div className="h-1.5 rounded-full bg-ink" style={{ width: total > 0 ? `${Math.min(100, (row.value / total) * 100)}%` : 0 }} />
             </div>
           </li>
         ))}
@@ -221,14 +221,14 @@ function Breakdown({ title, total, rows, foot, share }: { title: string; total: 
 function RankTable({ title, head, rows, empty }: { title: string; head: string[]; rows: Array<{ key: string; href?: string; cells: string[] }>; empty: string }) {
   return (
     <section className="overflow-hidden rounded-2xl border border-line bg-bg-surface">
-      <p className="eyebrow border-b border-line px-4 py-3">{title}</p>
+      <p className="border-b border-line px-4 py-3 text-sm font-bold text-ink">{title}</p>
       {rows.length === 0 ? (
         <p className="px-4 py-10 text-center text-sm text-ink-muted">{empty}</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-line bg-sand/50 text-left text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-muted">
+              <tr className="border-b border-line bg-mist-light text-left text-[11px] font-bold uppercase tracking-[0.06em] text-ink-muted">
                 {head.map((h, i) => (
                   <th key={h} className={cn('px-4 py-2', i > 0 && 'text-right')}>
                     {h}
@@ -238,9 +238,9 @@ function RankTable({ title, head, rows, empty }: { title: string; head: string[]
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={row.key} className="border-b border-line/70 last:border-b-0 hover:bg-sand/25">
+                <tr key={row.key} className="border-b border-line/70 last:border-b-0 hover:bg-mist-light">
                   {row.cells.map((c, i) => (
-                    <td key={i} className={cn('px-4 py-2.5', i === 0 ? 'font-medium text-ink' : 'text-right tabular-nums', i === row.cells.length - 1 && 'font-semibold')}>
+                    <td key={i} className={cn('px-4 py-2.5', i === 0 ? 'font-semibold text-ink' : 'text-right tabular-nums', i === row.cells.length - 1 && 'font-bold')}>
                       {i === 0 && row.href ? (
                         <Link href={row.href} className="hover:text-brand">
                           {c}

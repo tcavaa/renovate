@@ -20,7 +20,7 @@ import { rememberedListHref } from '@/lib/admin/listMemory';
 /** lucide's whole set is large: it loads with this form's icon field, not with the admin. */
 const IconPicker = dynamic(() => import('@/components/admin/IconPicker').then((m) => m.IconPicker), {
   ssr: false,
-  loading: () => <div className="h-10 rounded-xl border border-line bg-bg-surface" />,
+  loading: () => <div className="h-11 rounded-xl border border-line bg-bg-surface" />,
 });
 
 /** A category as the room's picker lists it. */
@@ -163,7 +163,7 @@ export function ShelfRoomForm({ room, categories, roomTypes, canDelete = false }
               <Label>{t.admin.forms.icon}</Label>
               <IconPicker value={form.icon ?? ''} onChange={(icon) => update('icon', icon)} />
             </div>
-            <label className={cn('flex cursor-pointer gap-3 self-end rounded-xl border p-3 transition-colors', form.isVisible ? 'border-olive/60 bg-olive-soft' : 'border-line bg-bg-surface')}>
+            <label className={cn('flex cursor-pointer gap-3 self-end rounded-xl border p-3 transition-colors', form.isVisible ? 'border-brand bg-brand-50' : 'border-line bg-bg-surface')}>
               <input type="checkbox" checked={form.isVisible} onChange={(e) => update('isVisible', e.target.checked)} className="mt-0.5 h-4 w-4 accent-ink" />
               <span>
                 <span className="block text-sm font-medium text-ink">{s.visibleLabel}</span>
@@ -183,7 +183,7 @@ export function ShelfRoomForm({ room, categories, roomTypes, canDelete = false }
                     type="button"
                     aria-pressed={on}
                     onClick={() => update('roomTypes', on ? form.roomTypes.filter((x) => x !== type) : [...form.roomTypes, type])}
-                    className={cn('inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors', on ? 'border-olive bg-olive text-white' : 'border-line bg-bg-surface text-ink-soft hover:border-ink/40 hover:bg-sand/40 hover:text-ink')}
+                    className={cn('inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors', on ? 'border-ink bg-ink text-white' : 'border-line bg-bg-surface text-ink-soft hover:border-ink hover:bg-mist-light hover:text-ink')}
                   >
                     {on && <Check className="h-3.5 w-3.5" />}
                     {roomTypeLabel(t, type)}
@@ -232,7 +232,7 @@ export function ShelfRoomForm({ room, categories, roomTypes, canDelete = false }
                   if (id) update('categoryIds', [...form.categoryIds, id]);
                 }}
                 aria-label={s.addCategory}
-                className="h-10 w-full max-w-md rounded-xl border border-line bg-bg-surface px-3 text-sm text-ink focus:border-ink focus:outline-none"
+                className="h-11 w-full max-w-md rounded-xl border border-line bg-bg-surface px-3 text-sm text-ink focus:border-ink focus:outline-none focus:ring-[3px] focus:ring-lime"
               >
                 <option value="">{s.addCategory}</option>
                 {addable.map(({ row, depth }) => (
@@ -246,7 +246,7 @@ export function ShelfRoomForm({ room, categories, roomTypes, canDelete = false }
             </div>
           </section>
 
-          {error && <p className="rounded-xl border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">{error}</p>}
+          {error && <p className="rounded-xl border border-danger/30 bg-coral-soft px-3 py-2 text-sm text-danger">{error}</p>}
 
           <div className="flex justify-between">
             <div>

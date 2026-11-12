@@ -32,20 +32,20 @@ export function AdminCrumbs({ trail, className }: { trail: Crumb[]; className?: 
           href={hrefOf(parent)!}
           title={fill(t.admin.backTo, { label: parent.label })}
           aria-label={fill(t.admin.backTo, { label: parent.label })}
-          className="group inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-line bg-bg-surface pl-2.5 pr-3.5 text-xs font-medium text-ink-soft transition-colors hover:border-ink/40 hover:bg-sand/40 hover:text-ink"
+          className="group inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-mist-light pl-2.5 pr-3.5 text-xs font-semibold text-ink transition-colors hover:bg-ink hover:text-white"
         >
           <ArrowLeft className="h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5" />
           {t.admin.actions.back}
         </Link>
       )}
-      <ol className="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5 rounded-full bg-sand/50 px-3 py-1.5 text-xs text-ink-muted">
+      <ol className="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5 text-xs text-ink-muted">
         {crumbs.map((crumb, i) => {
           const last = i === crumbs.length - 1;
           const href = hrefOf(crumb);
           return (
             <li key={`${i}-${crumb.label}`} className="flex min-w-0 items-center gap-1">
               {last || !href ? (
-                <span aria-current={last ? 'page' : undefined} className={cn('truncate', last ? 'max-w-[28rem] font-medium text-ink' : '')}>
+                <span aria-current={last ? 'page' : undefined} className={cn('truncate', last ? 'max-w-[28rem] font-bold text-ink' : '')}>
                   {crumb.label}
                 </span>
               ) : (

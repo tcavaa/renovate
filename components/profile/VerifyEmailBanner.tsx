@@ -21,15 +21,15 @@ export function VerifyEmailBanner({
 
   if (verifiedFlag === '1') {
     return (
-      <div className="flex items-center gap-3 rounded-2xl border border-success/40 bg-success/5 px-4 py-3 text-sm">
-        <CheckCircle2 className="h-5 w-5 shrink-0 text-success" />
+      <div className="flex items-center gap-3 rounded-2xl bg-lime px-4 py-3 text-sm font-semibold text-ink">
+        <CheckCircle2 className="h-5 w-5 shrink-0" />
         {t.auth.verifiedOk}
       </div>
     );
   }
   if (verifiedFlag === '0' && !needsVerification) {
     return (
-      <div className="flex items-center gap-3 rounded-2xl border border-danger/40 bg-danger/5 px-4 py-3 text-sm">
+      <div className="flex items-center gap-3 rounded-2xl bg-coral-soft px-4 py-3 text-sm font-medium">
         <XCircle className="h-5 w-5 shrink-0 text-danger" />
         {t.auth.verifiedFail}
       </div>
@@ -48,11 +48,11 @@ export function VerifyEmailBanner({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-warning/40 bg-warning/5 px-4 py-3 text-sm">
-      <MailWarning className="h-5 w-5 shrink-0 text-warning" />
+    <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-sun-soft px-4 py-3 text-sm font-medium text-ink">
+      <MailWarning className="h-5 w-5 shrink-0" />
       <span className="flex-1">{verifiedFlag === '0' ? t.auth.verifiedFail : t.auth.verifyBanner}</span>
       {state === 'sent' ? (
-        <span className="font-medium text-success">{t.auth.verifySent}</span>
+        <span className="font-semibold text-success">{t.auth.verifySent}</span>
       ) : (
         <Button type="button" size="sm" variant="outline" onClick={resend} disabled={state === 'sending'}>
           {t.auth.verifySend}

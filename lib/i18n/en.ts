@@ -2,9 +2,11 @@ import type { Dictionary } from './ka';
 
 export const en: Dictionary = {
   app: {
-    name: 'PLAYCE',
+    name: 'ROOMIT',
     /** The brand line under the wordmark — English in every language, like the name. */
-    tagline: 'Play with your place',
+    tagline: 'Play. Before we ROOMIT.',
+    /** The name as a verb — putting a piece into a room. English in every language, like the name. */
+    verb: 'Roomit',
     /** The motto: what the platform does, in three verbs. */
     motto: 'Plan. Calculate. Build.',
     description:
@@ -437,9 +439,9 @@ export const en: Dictionary = {
     verifySent: 'Verification link sent.',
     verifiedOk: 'Email verified. Thank you!',
     verifiedFail: 'The verification link is invalid or has expired.',
-    mailResetSubject: 'Reset your password — PLAYCE',
+    mailResetSubject: 'Reset your password — ROOMIT',
     mailResetBody: 'Open this link to choose a new password (valid for 1 hour):',
-    mailVerifySubject: 'Verify your email — PLAYCE',
+    mailVerifySubject: 'Verify your email — ROOMIT',
     mailVerifyBody: 'Open this link to verify your email (valid for 24 hours):',
     mailIgnore: 'If you did not request this, you can ignore this message.',
   },
@@ -1225,7 +1227,7 @@ export const en: Dictionary = {
   pages: {
     about: {
       title: 'About us',
-      subtitle: "PLAYCE — Georgia's first complete renovation platform",
+      subtitle: "ROOMIT — Georgia's first complete renovation platform",
       missionTitle: 'Our mission',
       missionBody:
         "Renovation is often complex, expensive and confusing. We build tools that help every household plan a realistic budget, pick trusted materials and workers — without any guesswork.",
@@ -1296,7 +1298,7 @@ export const en: Dictionary = {
         'You can ask at any time to see, correct or delete your data and account — projects and personal information are deleted; payment records are kept for the period the law requires.',
       s7Title: '7. Contact',
       s7Body:
-        'For any privacy question, write to privacy@playce.ge.',
+        'For any privacy question, write to privacy@roomit.ge.',
     },
     terms: {
       title: 'Terms of service',
@@ -1305,7 +1307,7 @@ export const en: Dictionary = {
       lastUpdatedValue: '20 October 2026',
       s1Title: '1. What the platform is',
       s1Body:
-        'PLAYCE is a platform for planning a renovation, working out its cost and designing it in 3D. Our estimates are approximate — real prices may change with the market and a store\'s stock. The platform connects customers with partner stores and brigades, who sell the goods and do the work.',
+        'ROOMIT is a platform for planning a renovation, working out its cost and designing it in 3D. Our estimates are approximate — real prices may change with the market and a store\'s stock. The platform connects customers with partner stores and brigades, who sell the goods and do the work.',
       s2Title: '2. Your account',
       s2Body:
         'By registering you confirm that the information you give is true. You are responsible for keeping your account and password safe.',
@@ -1323,16 +1325,16 @@ export const en: Dictionary = {
         'A fee for a digital service already delivered is not refunded, except for a technical failure or a double or mistaken charge. The rules, time limits and how to ask are in the Refund policy (/refund).',
       s7Title: '7. Liability',
       s7Body:
-        'PLAYCE aims to give accurate information but is not responsible for the quality or real prices of goods and services supplied by third parties (stores, brigades).',
+        'ROOMIT aims to give accurate information but is not responsible for the quality or real prices of goods and services supplied by third parties (stores, brigades).',
       s8Title: '8. Intellectual property',
       s8Body:
-        'All the platform\'s visuals, logos and code belong to PLAYCE. Product photos and 3D models belong to their stores; models you upload belong to you.',
+        'All the platform\'s visuals, logos and code belong to ROOMIT. Product photos and 3D models belong to their stores; models you upload belong to you.',
       s9Title: '9. Changes',
       s9Body:
         'We may change these terms. We will tell you about important changes by e-mail; a service already paid for is governed by the terms of the day it was paid.',
       s10Title: '10. Contact and company details',
       s10Body:
-        'For legal questions write to legal@playce.ge or info@playce.ge, phone +995 555 12 34 56. The service is provided by {company}, identification code {companyId}, legal address: {legalAddress}.',
+        'For legal questions write to legal@roomit.ge or info@roomit.ge, phone +995 555 12 34 56. The service is provided by {company}, identification code {companyId}, legal address: {legalAddress}.',
     },
     refund: {
       title: 'Refund policy',
@@ -1341,7 +1343,7 @@ export const en: Dictionary = {
       lastUpdatedValue: '20 October 2026',
       s1Title: '1. What it covers',
       s1Body:
-        'This policy covers the platform\'s services paid by card on playce.ge: the Premium and Professional plans, adding a piece of one\'s own and realistic renders. A partner store\'s goods are returned on the store\'s terms and under Georgia\'s consumer protection law.',
+        'This policy covers the platform\'s services paid by card on roomit.ge: the Premium and Professional plans, adding a piece of one\'s own and realistic renders. A partner store\'s goods are returned on the store\'s terms and under Georgia\'s consumer protection law.',
       s2Title: '2. Full refunds',
       s2Body:
         'The full amount (including the bank commission) is returned if: you were charged twice or by mistake; the service was not delivered after payment because of a technical failure we could not fix; or you paid for the same service twice.',
@@ -1350,13 +1352,13 @@ export const en: Dictionary = {
         'A digital service starts as soon as it is paid for (the plan activated, the piece added, the render requested), so a service delivered successfully is not refunded — for example if you changed your mind, did not use the whole period of a plan, or did not like the result. Moving up to a higher plan takes the unused part of the current one off the new plan\'s price. You agree to this when you start the payment.',
       s4Title: '4. How to ask',
       s4Body:
-        'Write to info@playce.ge within 14 days of the payment, giving your account e-mail, the project and the payment receipt number (shown when the payment is confirmed). We review requests within 5 working days and answer by e-mail.',
+        'Write to info@roomit.ge within 14 days of the payment, giving your account e-mail, the project and the payment receipt number (shown when the payment is confirmed). We review requests within 5 working days and answer by e-mail.',
       s5Title: '5. How the money is returned',
       s5Body:
         'An approved refund goes back to the card you paid with, through the Flitt payment system. Banks usually show it within 5–10 working days. For a card in another currency the refund uses the exchange rate of the payment day.',
       s6Title: '6. Contact',
       s6Body:
-        'Questions about refunds: info@playce.ge, +995 555 12 34 56 (Mon — Fri, 10:00 — 19:00). {company}, ID {companyId}, {legalAddress}.',
+        'Questions about refunds: info@roomit.ge, +995 555 12 34 56 (Mon — Fri, 10:00 — 19:00). {company}, ID {companyId}, {legalAddress}.',
     },
   },
   status: {
@@ -1484,7 +1486,7 @@ export const en: Dictionary = {
     localhostNote: 'Flitt does not open its payment form on localhost. Locally, open http://renovate.localhost:3000 (any *.localhost address) — the live site is not affected.',
     secureNote: 'Your card details are processed securely by the Flitt payment system — we never store them.',
     ownItemLine: 'Adding a piece of my own',
-    flittDescOwnItem: 'PLAYCE — adding my own 3D model',
+    flittDescOwnItem: 'ROOMIT — adding my own 3D model',
   },
   plans: {
     free: 'Free',
@@ -1548,9 +1550,9 @@ export const en: Dictionary = {
     paidPlanTitle: 'Your plan is active',
     paidPlanDesc: '{plan} is active until {date}.',
     continueAfterPlan: 'Continue',
-    flittDescMonth: 'PLAYCE — {plan} plan · 1 month',
-    flittDescYear: 'PLAYCE — {plan} plan · 1 year',
-    flittDescRender: 'PLAYCE — a realistic render',
+    flittDescMonth: 'ROOMIT — {plan} plan · 1 month',
+    flittDescYear: 'ROOMIT — {plan} plan · 1 year',
+    flittDescRender: 'ROOMIT — a realistic render',
     choosePlanTitle: 'The {plan} plan',
     lockedTitle: '{feature} is in {plan}',
     lockedBadgeTitle: 'In {plan} — click to see the plans',
@@ -1761,7 +1763,8 @@ export const en: Dictionary = {
     uploadDone: 'rooms detected',
     invoiceRooms: 'rooms',
     eyebrow: 'Interior design you can actually buy',
-    heroWords: ['Plan.', 'Price.', 'Build.'],
+    /** The headline — the brand line on three lines, English in every language; the last is set on lime. */
+    heroLines: ['Play.', 'Before we', 'ROOMIT.'],
     slogan: 'Interior design you can buy on the spot.',
     sloganSecond: 'You no longer need a designer.',
     heroPoints: [
@@ -2004,7 +2007,7 @@ export const en: Dictionary = {
     product: 'Product',
     company: 'Company',
     address: 'Tbilisi, Georgia',
-    email: 'info@playce.ge',
+    email: 'info@roomit.ge',
     phone: '+995 555 12 34 56',
   },
   currency: {
@@ -2098,7 +2101,7 @@ export const en: Dictionary = {
     photoLoginDesc: 'Renders are kept with your project — sign in or register and the design is saved automatically.',
     photoError: 'Could not save the photo',
     dropHereHint: 'Drag an item from the list into the flat',
-    dragToPlace: 'Drag into the flat',
+    dragToPlace: 'Roomit — drag it into the flat',
     autosaved: 'Saved',
     finishChange: 'Change',
     finishCurrent: 'Now',
@@ -2142,8 +2145,8 @@ export const en: Dictionary = {
     catalogStore: 'Store',
     catalogAllStores: 'All stores',
     catalogClear: 'Clear filters',
-    catalogPlace3d: 'Place in 3D',
-    catalogPlace2d: 'Place on the plan',
+    catalogPlace3d: 'Roomit · in 3D',
+    catalogPlace2d: 'Roomit · on the plan',
     catalogPlaceWalk: 'Nothing can be placed in the walk-through — switch to the 2D or 3D view',
     catalogPlaceNote: 'The catalogue folds away and the piece follows the pointer: click in a room to set it down, R turns it, Esc gives it up.',
     catalogPlaceInto: 'Where: {room}',

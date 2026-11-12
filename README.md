@@ -1,8 +1,8 @@
-# PLAYCE — Play with your place
+# ROOMIT — Play. Before we ROOMIT.
 
 Georgian-language home renovation planner & cost estimator. Plan your renovation, calculate materials, browse partner catalog, choose furniture and book workers — all in Georgian.
 
-> **Tagline**: Play with your place · **Motto**: გეგმე. გამოთვალე. გააკეთე. (Plan. Calculate. Build.)
+> **Tagline**: Play. Before we ROOMIT. · **Motto**: გეგმე. გამოთვალე. გააკეთე. (Plan. Calculate. Build.)
 
 ---
 
@@ -21,7 +21,7 @@ Georgian-language home renovation planner & cost estimator. Plan your renovation
 | State        | Zustand (with `persist` middleware)             |
 | Validation   | Zod                                             |
 | Auth         | NextAuth.js v5 (Credentials + optional Google/Facebook) |
-| Fonts        | Noto Sans / Noto Serif Georgian                 |
+| Fonts        | Inter Tight (Latin, Cyrillic) / Noto Sans Georgian |
 | Package mgr  | pnpm                                            |
 | Deployment   | Vercel (functions in Frankfurt) + Supabase ([docs/operations.md](docs/operations.md)) |
 
@@ -273,4 +273,4 @@ Everything — the pieces, the limits, what is left before real customers — is
 
 ## License
 
-Private / proprietary. © PLAYCE.
+Private / proprietary. © ROOMIT.

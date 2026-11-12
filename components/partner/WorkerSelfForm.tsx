@@ -99,7 +99,7 @@ export function WorkerSelfForm({ worker }: { worker: Worker }) {
         </div>
       </div>
 
-      {error && <p className="rounded-xl border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">{error}</p>}
+      {error && <p className="rounded-xl border border-danger/30 bg-coral-soft px-3 py-2 text-sm text-danger">{error}</p>}
 
       <div className="flex items-center justify-end gap-3">
         {state === 'saved' && (

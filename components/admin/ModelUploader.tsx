@@ -281,8 +281,8 @@ export function ModelUploader({ value, onChange, onMaterials, look = null, contr
             )}
           </div>
           {uploading && (
-            <div className="h-1 w-full overflow-hidden rounded-full bg-line/60">
-              <div className="h-1 rounded-full bg-brand transition-[width]" style={{ width: `${progress}%` }} />
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-mist">
+              <div className="h-1.5 rounded-full bg-ink transition-[width]" style={{ width: `${progress}%` }} />
             </div>
           )}
           <Input placeholder={t.modelUploader.urlPlaceholder} value={value} onChange={(e) => onChange(e.target.value)} disabled={busy} />
@@ -299,7 +299,7 @@ export function ModelUploader({ value, onChange, onMaterials, look = null, contr
                   </span>
                 </span>
                 {onMeasured && (
-                  <button type="button" onClick={() => onMeasured(measured, { auto: false })} className="rounded-full border border-line px-3 py-1 font-medium text-ink transition-colors hover:border-ink/40 hover:bg-sand/40">
+                  <button type="button" onClick={() => onMeasured(measured, { auto: false })} className="rounded-full bg-ink px-3 py-1 font-semibold text-white transition-colors hover:bg-lime hover:text-ink">
                     {t.modelUploader.applyDims}
                   </button>
                 )}
@@ -320,7 +320,7 @@ export function ModelUploader({ value, onChange, onMaterials, look = null, contr
           )}
         </div>
 
-        <div className="relative aspect-[4/3] max-h-[560px] w-full overflow-hidden rounded-2xl border border-line bg-sand-light sm:aspect-[16/10]">
+        <div className="relative aspect-[4/3] max-h-[560px] w-full overflow-hidden rounded-2xl bg-mist-light sm:aspect-[16/10]">
           <div ref={hostRef} className="absolute inset-0" />
           {!value && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-ink-muted">
@@ -329,13 +329,13 @@ export function ModelUploader({ value, onChange, onMaterials, look = null, contr
             </div>
           )}
           {value && loading && (
-            <div className="absolute inset-0 flex items-center justify-center gap-2 bg-sand-light/70 text-xs text-ink-muted">
+            <div className="absolute inset-0 flex items-center justify-center gap-2 bg-mist-light text-xs text-ink-muted">
               <Loader2 className="h-4 w-4 animate-spin" />
               {t.modelUploader.loading}
             </div>
           )}
           {value && loadError && <div className="absolute inset-0 flex items-center justify-center p-4 text-center text-xs text-danger">{t.modelUploader.loadError}</div>}
-          {value && !loading && !loadError && <p className="pointer-events-none absolute inset-x-0 bottom-0 bg-bg-surface/70 px-3 py-1.5 text-xs text-ink-muted">{t.modelUploader.previewHint}</p>}
+          {value && !loading && !loadError && <p className="pointer-events-none absolute inset-x-0 bottom-0 bg-bg-surface/80 px-3 py-1.5 text-xs font-medium text-ink-muted">{t.modelUploader.previewHint}</p>}
         </div>
       </div>
 
@@ -350,8 +350,8 @@ export function ModelUploader({ value, onChange, onMaterials, look = null, contr
         }}
       />
 
-      {notice && <p className={cn('text-sm text-success')}>{notice}</p>}
-      {error && <p className="rounded-xl border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">{error}</p>}
+      {notice && <p className={cn('text-sm font-medium text-success')}>{notice}</p>}
+      {error && <p className="rounded-xl border border-danger/30 bg-coral-soft px-3 py-2 text-sm text-danger">{error}</p>}
     </div>
   );
 }

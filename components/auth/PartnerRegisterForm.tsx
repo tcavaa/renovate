@@ -68,12 +68,12 @@ export function PartnerRegisterForm({ kind }: { kind: 'store' | 'worker' }) {
       className="max-w-xl"
       footer={
         <>
-          <Link href="/register" className="bracket-link font-medium text-brand hover:text-brand-dark">
+          <Link href="/register" className="arrow-link text-ink">
             {t.auth.registerAsUser}
           </Link>
           <span>
             {t.auth.haveAccount}{' '}
-            <Link href="/login" className="bracket-link font-medium text-brand hover:text-brand-dark">
+            <Link href="/login" className="arrow-link text-ink">
               {t.auth.loginButton}
             </Link>
           </span>

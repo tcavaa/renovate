@@ -63,10 +63,10 @@ export function PlanMatrix({
     <div className="overflow-x-auto rounded-2xl border border-line">
       <table className="w-full min-w-[640px] border-collapse text-sm">
         <thead>
-          <tr className="bg-sand/50 text-left">
+          <tr className="bg-mist-light text-left">
             <th className={cn(cell, 'w-[32%] font-medium text-ink-muted')} />
             {PLAN_IDS.map((plan) => (
-              <th key={plan} className={cn(cell, 'font-semibold text-ink')}>
+              <th key={plan} className={cn(cell, 'font-display text-base text-ink')}>
                 <span className="block">{name(plan)}</span>
                 {plan === 'free' ? (
                   <span className="mt-1 block text-[11px] font-normal text-ink-muted">0 ₾</span>

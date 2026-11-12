@@ -91,14 +91,14 @@ export function DecorPanel({
 
   return (
     <div className="space-y-3 pb-2">
-      <div className="rounded-[10px] border border-line bg-bg-surface p-3">
-        <p className="text-[13px] font-semibold leading-tight text-ink">{piece.reference?.concept || familyLabel(t, piece.family)}</p>
+      <div className="rounded-xl bg-mist-light p-3">
+        <p className="text-[13px] font-bold leading-tight tracking-tight text-ink">{piece.reference?.concept || familyLabel(t, piece.family)}</p>
         <p className="mt-0.5 text-[11px] text-ink-muted">
           {familyLabel(t, piece.family)} · {piece.wallIndex == null ? t.decor.aroundRoom : t.decor.wall.replace('{n}', String(piece.wallIndex + 1))}
           {wall ? ` · ${wall.width.toFixed(2)} × ${wall.height.toFixed(2)} ${t.units.m}` : ''}
         </p>
         {piece.note && (
-          <p className="mt-2 border-l-2 border-brand/40 pl-2 text-[12px] italic leading-snug text-ink-soft">
+          <p className="mt-2 border-l-2 border-lime pl-2 text-[12px] italic leading-snug text-ink-soft">
             <span className="not-italic font-semibold text-ink-muted">{t.decor.note}: </span>
             {piece.note}
           </p>
@@ -107,7 +107,7 @@ export function DecorPanel({
 
       {extent && (
         <div>
-          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">{t.decor.size}</p>
+          <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-ink-muted">{t.decor.size}</p>
           <div className="grid grid-cols-3 gap-1.5">
             <NumberField label={t.decor.width} value={extent.span.to - extent.span.from} min={0.2} max={30} step={0.05} onCommit={(widthM) => onSize({ widthM })} />
             <NumberField label={t.decor.height} value={extent.height.to - extent.height.from} min={0.1} max={room.heightM} step={0.05} onCommit={(heightM) => onSize({ heightM })} />
@@ -119,7 +119,7 @@ export function DecorPanel({
 
       {ledOptions && (
         <div>
-          <p className="mb-1 flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+          <p className="mb-1 flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-ink-muted">
             <Lightbulb className="h-3 w-3" />
             {t.decor.light}
           </p>
@@ -135,7 +135,7 @@ export function DecorPanel({
 
       {piece.family === 'box' && (
         <div>
-          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">{t.decor.boxHeight}</p>
+          <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-ink-muted">{t.decor.boxHeight}</p>
           <div className="flex flex-wrap gap-1">
             <Chip small active={!params.full} onClick={() => onParams({ full: false })}>
               {t.decor.boxHalf}
@@ -155,14 +155,14 @@ export function DecorPanel({
         const tintable = !!current?.specs?.tintable;
         return (
           <div key={slot}>
-            <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">{slotLabel(t, slot)}</p>
+            <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-ink-muted">{slotLabel(t, slot)}</p>
             <div className="grid grid-cols-5 gap-1.5">
               {spec.optional && slot !== 'led' && (
                 <button
                   type="button"
                   onClick={() => onMaterial(slot, null)}
                   aria-pressed={!current?.product}
-                  className={cn('grid aspect-square place-items-center rounded-[8px] border text-[10px] text-ink-muted', !current?.product ? 'border-brand ring-1 ring-brand' : 'border-line hover:border-ink')}
+                  className={cn('grid aspect-square place-items-center rounded-lg border text-[10px] text-ink-muted', !current?.product ? 'border-brand bg-brand-50 ring-1 ring-brand' : 'border-line hover:border-ink')}
                 >
                   {t.decor.none}
                 </button>
@@ -176,7 +176,7 @@ export function DecorPanel({
                     title={`${localizedName(locale, product)} · ${formatGEL(product.pricePerUnit)} / ${unitLabel(t, product.unit)}`}
                     onClick={() => onMaterial(slot, product)}
                     aria-pressed={chosen}
-                    className={cn('relative aspect-square overflow-hidden rounded-[8px] border bg-bg-base', chosen ? 'border-brand ring-1 ring-brand' : 'border-line hover:border-ink')}
+                    className={cn('relative aspect-square overflow-hidden rounded-lg border bg-mist-light', chosen ? 'border-brand ring-1 ring-brand' : 'border-line hover:border-ink')}
                   >
                     {product.imageUrl ? (
                       <Image src={product.imageUrl} alt={localizedName(locale, product)} fill sizes="56px" className="object-cover" />
@@ -184,7 +184,7 @@ export function DecorPanel({
                       <span className="absolute inset-0" style={{ background: product.colorHex ?? '#ddd' }} />
                     )}
                     {chosen && (
-                      <span className="absolute right-0.5 top-0.5 grid h-4 w-4 place-items-center rounded-full bg-ink text-white">
+                      <span className="absolute right-0.5 top-0.5 grid h-4 w-4 place-items-center rounded-full bg-brand text-white">
                         <Check className="h-2.5 w-2.5" />
                       </span>
                     )}
@@ -222,8 +222,8 @@ export function DecorPanel({
         );
       })}
 
-      <div className="rounded-[10px] border border-line bg-bg-surface p-3">
-        <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">{t.decor.materials}</p>
+      <div className="rounded-xl bg-mist-light p-3">
+        <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-ink-muted">{t.decor.materials}</p>
         <ul className="space-y-0.5">
           {purchases.map((line) => (
             <li key={line.slot} className="flex justify-between gap-2 text-[12px]">
@@ -234,13 +234,13 @@ export function DecorPanel({
             </li>
           ))}
         </ul>
-        <p className="mt-2 flex justify-between border-t border-line pt-2 text-[13px] font-semibold">
+        <p className="mt-2 flex items-baseline justify-between border-t border-stone-light pt-2 text-[13px] font-bold">
           <span>{t.decor.total}</span>
-          <span className="font-serif tabular-nums text-brand-dark">{formatGEL(total)}</span>
+          <span className="font-display text-base tabular-nums text-ink">{formatGEL(total)}</span>
         </p>
       </div>
 
-      <button type="button" onClick={onRemove} className="flex h-9 w-full items-center justify-center gap-1.5 rounded-full border border-danger/30 text-[13px] font-medium text-danger hover:bg-danger/5">
+      <button type="button" onClick={onRemove} className="flex h-9 w-full items-center justify-center gap-1.5 rounded-full bg-coral-soft text-[13px] font-semibold text-danger hover:bg-danger hover:text-white">
         <Trash2 className="h-4 w-4" />
         {t.decor.remove}
       </button>

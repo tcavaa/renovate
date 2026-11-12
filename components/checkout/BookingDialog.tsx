@@ -122,7 +122,7 @@ export function BookingDialog({ workerId, teamId, workerName, label, project, on
           {doneId != null ? (
             <>
               <DialogHeader>
-                <div className="mx-auto mb-2 grid h-14 w-14 place-items-center rounded-full bg-success/15 text-success">
+                <div className="mx-auto mb-2 grid h-14 w-14 place-items-center rounded-2xl bg-lime text-ink">
                   <CheckCircle2 className="h-7 w-7" />
                 </div>
                 <DialogTitle className="text-center">{t.market.bookSuccessTitle}</DialogTitle>
@@ -147,15 +147,15 @@ export function BookingDialog({ workerId, teamId, workerName, label, project, on
                 <DialogDescription>{project ? t.teams.chooseHint : t.market.bookDesc}</DialogDescription>
               </DialogHeader>
               {project ? (
-                <div className="rounded-xl border border-line bg-sand-light px-4 py-3">
-                  <p className="text-sm font-medium text-ink">{t.teams.thisProject}</p>
-                  <p className="mt-0.5 text-xs text-ink-muted">{fill(t.teams.thisProjectLines, { n: project.lines, total: formatGEL(project.total) })}</p>
+                <div className="rounded-xl bg-lime-soft px-4 py-3 ring-1 ring-inset ring-lime">
+                  <p className="text-sm font-bold text-ink">{t.teams.thisProject}</p>
+                  <p className="mt-0.5 text-xs text-ink-soft">{fill(t.teams.thisProjectLines, { n: project.lines, total: formatGEL(project.total) })}</p>
                 </div>
               ) : (
               <label className="block space-y-1.5">
-                <span className="text-sm font-medium text-ink">{t.market.attachProject}</span>
+                <span className="text-sm font-semibold text-ink">{t.market.attachProject}</span>
                 {status === 'authenticated' ? (
-                  <select value={projectId ?? ''} onChange={(e) => setProjectId(e.target.value ? Number(e.target.value) : null)} className="h-10 w-full rounded-xl border border-line bg-bg-surface px-3.5 text-sm text-ink focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/40">
+                  <select value={projectId ?? ''} onChange={(e) => setProjectId(e.target.value ? Number(e.target.value) : null)} className="h-11 w-full rounded-xl border border-line bg-bg-surface px-4 text-sm text-ink transition-colors hover:border-stone focus:border-ink focus:outline-none focus:ring-[3px] focus:ring-lime">
                     <option value="">{t.market.noProject}</option>
                     {projects.map((p) => (
                       <option key={p.id} value={p.id}>
@@ -165,17 +165,17 @@ export function BookingDialog({ workerId, teamId, workerName, label, project, on
                     ))}
                   </select>
                 ) : (
-                  <p className="rounded-xl border border-dashed border-stone px-4 py-2.5 text-xs text-ink-muted">{t.market.loginToAttach}</p>
+                  <p className="rounded-xl bg-mist-light px-4 py-2.5 text-xs text-ink-muted">{t.market.loginToAttach}</p>
                 )}
                 {selected && selected.totalWorkersCost && <span className="block text-xs text-ink-muted">{t.summary.workers}: {formatGEL(Number(selected.totalWorkersCost))}</span>}
               </label>
               )}
               {signedIn && !ready ? (
-                <div className="h-24 animate-pulse rounded-xl border border-line bg-sand-light" aria-busy />
+                <div className="h-24 animate-pulse rounded-xl bg-mist-light" aria-busy />
               ) : (
                 <ContactFields account={contact} value={value} onChange={setForm} noteLabel={t.market.bookNote} notePlaceholder={t.market.bookNotePlaceholder} />
               )}
-              {error && <p className="rounded-xl border border-danger/40 bg-danger/5 px-4 py-2.5 text-sm text-danger">{error}</p>}
+              {error && <p className="rounded-xl bg-coral-soft px-4 py-2.5 text-sm font-medium text-danger">{error}</p>}
               <Button type="submit" size="lg" className="w-full" disabled={submitting || (signedIn && !ready)}>
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 {submitting ? t.market.submitting : t.market.bookSubmit}

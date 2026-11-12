@@ -128,27 +128,32 @@ export default async function PublicCatalogPage(props: { searchParams: Promise<S
 
   return (
     <div className="container py-10 md:py-14">
-      <header className="relative overflow-hidden rounded-3xl bg-sand-light px-6 py-8 md:px-10 md:py-10">
+      <header className="relative overflow-hidden rounded-3xl bg-mist-light px-6 py-8 md:px-10 md:py-10">
         <div className="relative z-10 max-w-2xl">
-          <p className="paper-label">{t.nav.catalog}</p>
-          <h1 className="mt-4 font-serif text-3xl font-semibold leading-[1.05] tracking-tight text-ink md:text-[2.75rem]">
+          <p className="inline-flex items-center gap-2 rounded-full bg-bg-surface px-3 py-1.5 text-xs font-semibold text-ink">
+            <span className="h-2 w-2 bg-lime" aria-hidden />
+            {t.nav.catalog}
+          </p>
+          <h1 className="mt-4 font-display text-4xl leading-[1] text-ink md:text-[3.25rem]">
             {activeCategory ? pickLocalizedName(locale, activeCategory.nameKa, activeCategory.nameEn, activeCategory.nameRu) : t.catalog.title}
           </h1>
           <p className="mt-3 max-w-xl text-base text-ink-muted">{t.catalog.subtitle}</p>
         </div>
-        {/* A quiet brand corner: an arch of stone with a terracotta sun and a wood plinth. */}
-        <span className="pointer-events-none absolute bottom-0 right-12 hidden h-[78%] w-28 lg:block" aria-hidden>
-          <span className="arch absolute inset-x-0 bottom-0 top-0 bg-stone" />
-          <span className="absolute left-1/2 top-[22%] h-9 w-9 -translate-x-1/2 rounded-full bg-brand" />
-          <span className="absolute -left-10 bottom-0 h-[34%] w-14 rounded-t-xl bg-wood" />
-          <span className="absolute -right-6 bottom-0 h-[22%] w-10 rounded-t-xl bg-olive" />
+        {/* The brand corner: a lilac slab, a tangerine half circle, a coral square with a sun square in it. */}
+        <span className="pointer-events-none absolute inset-y-0 right-0 hidden w-72 lg:block" aria-hidden>
+          <span className="absolute bottom-0 left-0 h-[78%] w-20 bg-lilac" />
+          <span className="absolute bottom-0 right-10 h-[62%] w-32 rounded-t-full bg-tangerine" />
+          <span className="absolute bottom-0 left-12 grid h-20 w-20 place-items-center bg-coral">
+            <span className="h-8 w-8 bg-sun" />
+          </span>
+          <span className="absolute right-4 top-6 h-10 w-10 rounded-full bg-cobalt" />
         </span>
       </header>
 
       <div className="mt-8 grid grid-cols-[minmax(0,1fr)] gap-10 lg:grid-cols-[240px_minmax(0,1fr)]">
         {/* The sidebar renders once; on small screens a checkbox toggles it (no JS). */}
         <input type="checkbox" id="catalog-filters" className="peer sr-only" />
-        <label htmlFor="catalog-filters" className="inline-flex h-10 cursor-pointer items-center gap-2 self-start rounded-full border border-ink/15 bg-bg-surface px-4 text-sm font-medium transition-colors hover:border-ink/40 lg:hidden">
+        <label htmlFor="catalog-filters" className="inline-flex h-10 cursor-pointer items-center gap-2 self-start rounded-full bg-ink px-4 text-sm font-semibold text-white transition-colors hover:bg-lime hover:text-ink lg:hidden">
           <SlidersHorizontal className="h-4 w-4" />
           {t.catalog.filters}
         </label>
@@ -161,30 +166,30 @@ export default async function PublicCatalogPage(props: { searchParams: Promise<S
             <div className="flex flex-wrap items-center gap-3">
               <form action="/catalog" method="get" className="relative">
                 {hidden(['q'])}
-                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
-                <input type="search" name="q" defaultValue={params.q} placeholder={t.catalog.searchPlaceholder} aria-label={t.catalog.search} className="h-10 w-56 rounded-full border border-line bg-bg-surface pl-9 pr-4 text-sm text-ink placeholder:text-ink-faint focus:border-ink/40 focus:outline-none" />
+                <Search className="pointer-events-none absolute left-3.5 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-ink-muted" />
+                <input type="search" name="q" defaultValue={params.q} placeholder={t.catalog.searchPlaceholder} aria-label={t.catalog.search} className="h-10 w-56 rounded-full border border-transparent bg-mist-light pl-9 pr-4 text-sm text-ink placeholder:text-ink-muted transition-colors hover:bg-mist focus:border-ink focus:bg-bg-surface focus:outline-none focus:ring-[3px] focus:ring-lime" />
               </form>
               <StyleFilter label={t.catalog.style} allLabel={t.catalog.allStyles} options={STYLE_IDS.map((id) => ({ id, label: styleLabel(t, id) }))} selected={styles} raw={params.raw} />
-              <form action="/catalog" method="get" className="flex h-10 items-stretch overflow-hidden rounded-full border border-line bg-bg-surface">
+              <form action="/catalog" method="get" className="flex h-10 items-stretch overflow-hidden rounded-full bg-mist-light">
                 {hidden(['min', 'max'])}
-                <span className="eyebrow flex items-center pl-4 pr-2">{t.catalog.price}</span>
-                <input type="number" name="min" min={0} step={1} defaultValue={params.get('min')} placeholder={t.catalog.priceFrom} aria-label={t.catalog.priceFrom} className="w-20 min-w-0 border-l border-line bg-transparent px-2 text-sm tabular-nums text-ink placeholder:text-ink-faint focus:outline-none" />
-                <input type="number" name="max" min={0} step={1} defaultValue={params.get('max')} placeholder={t.catalog.priceTo} aria-label={t.catalog.priceTo} className="w-20 min-w-0 border-l border-line bg-transparent px-2 text-sm tabular-nums text-ink placeholder:text-ink-faint focus:outline-none" />
-                <button type="submit" className="border-l border-line px-4 text-xs font-semibold uppercase tracking-wide text-ink transition-colors hover:bg-ink hover:text-white">
+                <span className="flex items-center pl-4 pr-2 text-xs font-semibold text-ink">{t.catalog.price}</span>
+                <input type="number" name="min" min={0} step={1} defaultValue={params.get('min')} placeholder={t.catalog.priceFrom} aria-label={t.catalog.priceFrom} className="w-20 min-w-0 border-l border-stone/60 bg-transparent px-2 text-sm tabular-nums text-ink placeholder:text-ink-muted focus:outline-none" />
+                <input type="number" name="max" min={0} step={1} defaultValue={params.get('max')} placeholder={t.catalog.priceTo} aria-label={t.catalog.priceTo} className="w-20 min-w-0 border-l border-stone/60 bg-transparent px-2 text-sm tabular-nums text-ink placeholder:text-ink-muted focus:outline-none" />
+                <button type="submit" className="m-1 rounded-full bg-ink px-4 text-xs font-bold text-white transition-colors hover:bg-lime hover:text-ink">
                   {t.catalog.apply}
                 </button>
               </form>
               <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-x-4 gap-y-2">
-                <p className="text-sm text-ink-muted">{fill(t.catalog.results, { n: total })}</p>
+                <p className="text-sm font-medium text-ink-muted">{fill(t.catalog.results, { n: total })}</p>
                 <SortSelect label={t.catalog.sort} value={params.sort} options={SORTS.map((s) => ({ value: s, label: sortLabels[s], href: hrefWith('/catalog', params.raw, { sort: s === 'featured' ? undefined : s, page: undefined }) }))} />
               </div>
             </div>
             {chips.length > 0 && (
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 {chips.map((chip) => (
-                  <Link key={chip.href} href={chip.href} scroll={false} className="inline-flex items-center gap-1.5 rounded-full bg-sand px-3 py-1 text-xs text-ink transition-colors hover:bg-sand-dark">
+                  <Link key={chip.href} href={chip.href} scroll={false} className="inline-flex items-center gap-1.5 rounded-full bg-ink py-1 pl-3 pr-2 text-xs font-semibold text-white transition-colors hover:bg-ink-soft">
                     {chip.label}
-                    <X className="h-3 w-3 text-ink-muted" />
+                    <X className="h-3 w-3 text-white/70" />
                   </Link>
                 ))}
               </div>
@@ -200,7 +205,7 @@ export default async function PublicCatalogPage(props: { searchParams: Promise<S
               </PagerLink>
               <div className="flex min-w-0 items-center gap-0.5 sm:gap-1">
                 {pageWindow(params.page, pageCount).map((p) => (
-                  <Link key={p} href={pageHref(p)} className={cn('grid h-8 w-8 shrink-0 place-items-center rounded-full text-sm tabular-nums transition-colors sm:h-9 sm:w-9', p === params.page ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand/60 hover:text-ink')}>
+                  <Link key={p} href={pageHref(p)} className={cn('grid h-8 w-8 shrink-0 place-items-center rounded-full text-sm font-semibold tabular-nums transition-colors sm:h-9 sm:w-9', p === params.page ? 'bg-lime text-ink' : 'text-ink-soft hover:bg-mist hover:text-ink')}>
                     {p}
                   </Link>
                 ))}
@@ -217,10 +222,10 @@ export default async function PublicCatalogPage(props: { searchParams: Promise<S
 }
 
 function PagerLink({ href, disabled, children }: { href: string; disabled: boolean; children: React.ReactNode }) {
-  const className = 'inline-flex h-9 shrink-0 items-center gap-1 rounded-full px-2 font-medium transition-colors sm:px-3';
+  const className = 'inline-flex h-9 shrink-0 items-center gap-1 rounded-full px-2 font-semibold transition-colors sm:px-3';
   if (disabled) return <span className={cn(className, 'text-ink-faint')}>{children}</span>;
   return (
-    <Link href={href} className={cn(className, 'text-ink-soft hover:bg-sand/60 hover:text-ink')}>
+    <Link href={href} className={cn(className, 'text-ink hover:bg-mist')}>
       {children}
     </Link>
   );

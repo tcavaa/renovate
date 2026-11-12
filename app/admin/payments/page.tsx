@@ -124,7 +124,7 @@ export default async function AdminPaymentsPage(props: { searchParams: Promise<S
         defaultSort="newest"
       />
 
-      <p className="rounded-r-xl border-l-2 border-wood bg-sand-light/60 py-2 pl-4 pr-3 text-sm text-ink-soft">
+      <p className="rounded-r-xl border-l-4 border-lime bg-mist-light py-2 pl-4 pr-3 text-sm text-ink-soft">
         {fill(s.summary, { n: Number(sums.approved), charged: formatGEL(Number(sums.charged), true), bank: formatGEL(Number(sums.bankFees), true), reversed: formatGEL(Number(sums.reversed), true) })}
       </p>
 
@@ -144,7 +144,7 @@ export default async function AdminPaymentsPage(props: { searchParams: Promise<S
           {rows.map((r) => (
             <Tr key={r.id}>
               <td className="px-4 py-2.5">
-                <Link href={`${PATH}/${r.id}`} className="font-medium text-brand hover:underline">
+                <Link href={`${PATH}/${r.id}`} className="font-medium text-ink underline decoration-lime decoration-2 underline-offset-4 hover:decoration-ink">
                   #{r.id}
                 </Link>
                 <span className="block max-w-[11rem] truncate font-mono text-[11px] text-ink-muted" title={r.orderId}>

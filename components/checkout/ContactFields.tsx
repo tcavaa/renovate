@@ -128,7 +128,7 @@ export function ContactFields({
 
   return (
     <section className="space-y-3" aria-labelledby="co-contact">
-      <h3 id="co-contact" className="text-sm font-semibold text-ink">
+      <h3 id="co-contact" className="text-sm font-bold tracking-normal text-ink">
         {address ? c.titleDelivery : c.title}
       </h3>
       <div className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-bg-surface text-sm">
@@ -168,7 +168,7 @@ export function ContactFields({
       </div>
       {typing && (
         <label className="flex items-start gap-2 text-sm text-ink-soft">
-          <input type="checkbox" checked={value.saveAsDefault} onChange={(e) => onChange({ ...value, saveAsDefault: e.target.checked })} className="mt-0.5 accent-ink" />
+          <input type="checkbox" checked={value.saveAsDefault} onChange={(e) => onChange({ ...value, saveAsDefault: e.target.checked })} className="mt-0.5 h-4 w-4 accent-ink" />
           <span>{keepLabel}</span>
         </label>
       )}
@@ -181,14 +181,14 @@ export function ContactFields({
 function Stored({ icon, label, text, change, onChange }: { icon: React.ReactNode; label: string; text: string; change: string; onChange: () => void }) {
   return (
     <div className="flex items-center gap-3 px-4 py-2.5">
-      <span className="text-wood" aria-hidden>
+      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-mist-light text-ink" aria-hidden>
         {icon}
       </span>
       <span className="min-w-0 flex-1">
         <span className="block text-xs text-ink-muted">{label}</span>
-        <span className="block truncate font-medium text-ink">{text}</span>
+        <span className="block truncate font-semibold text-ink">{text}</span>
       </span>
-      <button type="button" onClick={onChange} className="shrink-0 rounded-full border border-ink/15 px-3 py-1 text-xs font-semibold text-ink transition-colors hover:border-ink/40 hover:text-brand">
+      <button type="button" onClick={onChange} className="shrink-0 rounded-full bg-mist-light px-3 py-1 text-xs font-semibold text-ink transition-colors hover:bg-mist">
         {change}
       </button>
     </div>

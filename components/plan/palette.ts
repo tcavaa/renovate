@@ -29,8 +29,8 @@ export const ROOM_TINT_STRONG: Record<RoomType, string> = {
 
 /** Structure by who put it there. */
 export const ORIGIN_COLOR: Record<ElementOrigin, string> = {
-  existing: '#3A3733',
-  user: '#B5462B',
+  existing: '#2B2B30',
+  user: '#6C47FF',
   generated: '#2E8B85',
 };
 
@@ -58,37 +58,37 @@ export const ELECTRICAL_COLOR = {
 };
 
 export const EDITOR = {
-  paper: '#FBF8F2',
-  gridMinor: '#EEE8DE',
-  gridMajor: '#DDD4C6',
+  paper: '#F7F7F8',
+  gridMinor: '#EDEDF0',
+  gridMajor: '#DFDFE4',
   /** Every room's floor, a studio's two parts alike; its type is on its label. */
   roomFill: '#FFFFFF',
-  roomHover: '#F5F1EA',
-  roomSelected: '#F7E7E0',
+  roomHover: '#F4F4F6',
+  roomSelected: '#EFEAFF',
   wall: '#141414',
   wallLocked: '#2B2B2B',
   /**
    * A partition a black frame still has to build (`wallsToBuild`): grey until it stands. Every
    * wall that stands — the building's outer walls, a balcony's, one marked `built` — is `wall`.
    */
-  wallToBuild: '#A29C93',
+  wallToBuild: '#A1A1AA',
   /** A room separator (`Wall.separator`): the dashed line where one room opens onto the next. */
   separator: '#141414',
-  selected: '#B5462B',
-  hover: '#A8784E',
+  selected: '#6C47FF',
+  hover: '#9478FF',
   guide: '#2FA7A0',
   door: '#D92D20',
   window: '#5B8FB9',
   /** A balcony's railing (`Opening.kind === 'railing'`): the wall's gap with a railing in it. */
   railing: '#3F7D5A',
-  label: '#1E1F23',
-  labelMuted: '#6F6A63',
-  dimension: '#3A3733',
+  label: '#0B0B0C',
+  labelMuted: '#6B6B73',
+  dimension: '#2B2B30',
   column: '#4A4A4A',
-  beam: '#7A6E62',
+  beam: '#71717A',
   zone: '#2E8B85',
-  furniture: '#B9B2A6',
-  furnitureFill: 'rgba(233,226,216,0.55)',
+  furniture: '#A1A1AA',
+  furnitureFill: 'rgba(236,236,239,0.6)',
   valid: '#22C55E',
   invalid: '#EF4444',
 };

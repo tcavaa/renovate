@@ -38,10 +38,10 @@ export function VersionsPanel({ className }: { className?: string }) {
       <p className="text-[11px] leading-snug text-ink-muted">{t.build.versionsHint}</p>
       <ul className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
         {versions.map((v, i) => (
-          <li key={v.id} className="rounded-[12px] border border-line bg-bg-surface p-3">
+          <li key={v.id} className="rounded-xl border border-line bg-bg-surface p-3">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+                <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-ink-muted">
                   {v.kind === 'existing' ? <History className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
                   {String(i + 1).padStart(2, '0')}
                 </p>
@@ -59,20 +59,20 @@ export function VersionsPanel({ className }: { className?: string }) {
                 </button>
               )}
             </div>
-            <button type="button" onClick={() => gate('catalog') && restoreVersion(v.id, t.build.versionBeforeRestore)} className="mt-2 flex h-8 w-full items-center justify-center gap-1.5 rounded-full border border-line text-xs font-medium text-ink-soft hover:border-ink hover:text-ink">
+            <button type="button" onClick={() => gate('catalog') && restoreVersion(v.id, t.build.versionBeforeRestore)} className="mt-2 flex h-8 w-full items-center justify-center gap-1.5 rounded-full bg-mist-light text-xs font-semibold text-ink hover:bg-mist">
               <RotateCcw className="h-3.5 w-3.5" />
               {t.build.versionRestore}
             </button>
           </li>
         ))}
-        <li className="rounded-[12px] border border-dashed border-ink/40 bg-sand-light/60 p-3">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">{String(nextNumber).padStart(2, '0')} · {t.build.versionCurrent}</p>
-          <p className="mt-0.5 text-sm font-semibold text-ink">{versions.some((v) => v.kind === 'existing') ? t.build.versionModified : t.build.versionStart}</p>
+        <li className="rounded-xl bg-lime-soft p-3 ring-1 ring-inset ring-lime">
+          <p className="text-[11px] font-bold uppercase tracking-wide text-ink/70">{String(nextNumber).padStart(2, '0')} · {t.build.versionCurrent}</p>
+          <p className="mt-0.5 text-sm font-bold text-ink">{versions.some((v) => v.kind === 'existing') ? t.build.versionModified : t.build.versionStart}</p>
         </li>
       </ul>
       <div className="flex gap-2">
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder={fill(t.build.versionN, { n: String(nextNumber).padStart(2, '0') })} maxLength={120} className="h-9 min-w-0 flex-1 rounded-[8px] border border-line bg-bg-surface px-2 text-sm" />
-        <button type="button" onClick={save} className="flex h-9 items-center gap-1.5 rounded-full bg-ink px-3 text-xs font-semibold text-white hover:bg-brand">
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder={fill(t.build.versionN, { n: String(nextNumber).padStart(2, '0') })} maxLength={120} className="h-9 min-w-0 flex-1 rounded-full border border-line bg-bg-surface px-3 text-sm focus:border-ink focus:outline-none" />
+        <button type="button" onClick={save} className="flex h-9 items-center gap-1.5 rounded-full bg-ink px-3 text-xs font-semibold text-white hover:bg-lime hover:text-ink">
           <Save className="h-3.5 w-3.5" />
           {t.build.saveVersion}
         </button>

@@ -21,7 +21,7 @@ export function FloatingPanel({
     <section className={cn('glass flex max-h-full flex-col overflow-hidden rounded-2xl animate-fade-in', className)}>
       <header className="flex items-start justify-between gap-3 px-4 pb-2 pt-4">
         <div className="min-w-0">
-          <h3 className="font-serif text-base font-semibold leading-tight text-ink">{title}</h3>
+          <h3 className="font-display text-lg leading-tight text-ink">{title}</h3>
           {subtitle && <p className="mt-0.5 truncate text-xs text-ink-muted">{subtitle}</p>}
         </div>
         {onClose && (
@@ -29,7 +29,7 @@ export function FloatingPanel({
             type="button"
             onClick={onClose}
             aria-label="close"
-            className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-ink-muted transition-colors hover:bg-bg-surface hover:text-ink"
+            className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-mist-light text-ink transition-colors hover:bg-ink hover:text-white"
           >
             <X className="h-4 w-4" />
           </button>

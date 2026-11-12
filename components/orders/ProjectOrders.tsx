@@ -26,7 +26,7 @@ export async function ProjectOrders({ projectId, t, locale }: { projectId: numbe
   return (
     <FoldSection title={t.market.ordersTitle} count={orders.length} aside={feeSummary} defaultOpen={orders.length > 0}>
       {orders.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-stone bg-sand-light/60 p-8 text-center text-sm text-ink-muted">{t.market.ordersEmpty}</p>
+        <p className="dots rounded-2xl bg-mist-light p-8 text-center text-sm text-ink-muted">{t.market.ordersEmpty}</p>
       ) : (
         <OrderCards orders={orders} t={t} locale={locale} />
       )}
@@ -61,7 +61,7 @@ export function OrderCards({ orders, t, locale }: { orders: ProjectOrder[]; t: D
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="eyebrow">{partner.kind}</p>
-                <p className="mt-1 truncate font-serif text-lg font-semibold text-ink">{localizedName(locale, partner)}</p>
+                <p className="mt-1 truncate font-display text-lg text-ink">{localizedName(locale, partner)}</p>
                 <p className="mt-0.5 flex flex-wrap items-center gap-x-3 text-xs text-ink-muted">
                   <span>{fill(t.market.orderNo, { id: o.id })}</span>
                   <span>
@@ -77,7 +77,7 @@ export function OrderCards({ orders, t, locale }: { orders: ProjectOrder[]; t: D
                 </p>
               </div>
               <div className="text-right">
-                <p className="font-serif text-lg font-semibold tabular-nums text-ink">{formatGEL(Number(o.subtotal))}</p>
+                <p className="font-display text-lg tabular-nums text-ink">{formatGEL(Number(o.subtotal))}</p>
                 {(delivery > 0 || deliveryWas != null) && (
                   <p className="text-xs text-ink-muted">
                     {t.market.delivery} {formatGEL(delivery)}
@@ -91,14 +91,14 @@ export function OrderCards({ orders, t, locale }: { orders: ProjectOrder[]; t: D
             </div>
             <p className="mt-2 text-xs text-ink-muted">{(r.customerHints as Record<string, string>)[stage]}</p>
             {o.partnerMessage && (
-              <div className="mt-3 border-l-2 border-wood pl-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-muted">{t.market.partnerMessage}</p>
+              <div className="mt-3 border-l-4 border-lime pl-3">
+                <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-muted">{t.market.partnerMessage}</p>
                 <p className="mt-1 text-sm text-ink">{o.partnerMessage}</p>
               </div>
             )}
             {o.items.length > 0 && (
               <details className="group mt-3 border-t border-line pt-2" open={changed || undefined}>
-                <summary className="flex cursor-pointer list-none items-center gap-1.5 text-xs font-medium text-ink hover:text-brand">
+                <summary className="flex cursor-pointer list-none items-center gap-1.5 text-xs font-semibold text-ink underline decoration-lime decoration-2 underline-offset-2 hover:decoration-ink">
                   <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
                   {fill(t.market.showItems, { n: o.items.length })}
                 </summary>

@@ -59,11 +59,11 @@ export function SubscribeDialog({
       <DialogContent className={cn('max-h-[calc(100dvh-2rem)] overflow-y-auto', paying ? 'max-w-[56rem]' : 'max-w-md')} backdrop={paying} onInteractOutside={paying ? keepOpenOutside : undefined}>
         {done ? (
           <div className="py-4 text-center">
-            <div className="mx-auto grid h-16 w-16 animate-scale-in place-items-center rounded-full bg-olive text-sand-light">
+            <div className="mx-auto grid h-16 w-16 animate-scale-in place-items-center rounded-full bg-lime text-ink">
               <CheckCircle2 className="h-8 w-8" />
             </div>
             <DialogHeader className="mt-4 space-y-2">
-              <DialogTitle className="text-center font-serif text-2xl">{t.plans.paidPlanTitle}</DialogTitle>
+              <DialogTitle className="text-center font-display text-2xl">{t.plans.paidPlanTitle}</DialogTitle>
               <DialogDescription className="text-center">{fill(t.plans.paidPlanDesc, { plan: planName, date: until ? formatDateTime(until, false) : '—' })}</DialogDescription>
             </DialogHeader>
             <Button type="button" variant="ink" size="lg" className="mt-6 w-full" onClick={() => close(false)}>
@@ -77,7 +77,7 @@ export function SubscribeDialog({
               itemLabel={fill(t.plans.subscribeItem, { plan: planName, period: periodName })}
               header={
                 <DialogHeader>
-                  <DialogTitle className="font-serif text-xl">{fill(t.plans.subscribeTitle, { plan: planName })}</DialogTitle>
+                  <DialogTitle className="font-display text-xl">{fill(t.plans.subscribeTitle, { plan: planName })}</DialogTitle>
                   <DialogDescription>
                     {offer?.ok
                       ? fill(offer.kind === 'renew' ? t.plans.subscribeRenewDesc : t.plans.subscribeDesc, { from: formatDateTime(offer.startsAt, false), to: formatDateTime(offer.endsAt, false) })

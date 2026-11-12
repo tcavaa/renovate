@@ -83,8 +83,8 @@ export function UpgradeHost() {
       <Dialog open={!!request && !buying} onOpenChange={(next) => !next && close()}>
         <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-3xl overflow-y-auto">
           <DialogHeader>
-            <div className="mb-2 grid h-11 w-11 place-items-center rounded-full bg-accent/15 text-accent-dark">{request && 'limit' in request ? <FolderLock className="h-5 w-5" /> : <Lock className="h-5 w-5" />}</div>
-            <DialogTitle className="font-serif text-2xl">{title}</DialogTitle>
+            <div className="mb-2 grid h-12 w-12 place-items-center rounded-2xl bg-lime text-ink">{request && 'limit' in request ? <FolderLock className="h-5 w-5" /> : <Lock className="h-5 w-5" />}</div>
+            <DialogTitle className="font-display text-2xl">{title}</DialogTitle>
             <DialogDescription className="leading-relaxed">{desc}</DialogDescription>
           </DialogHeader>
 

@@ -24,7 +24,7 @@ export function FeePaidNote({ kind, payment }: { kind: CheckoutKind; payment: Pa
           <span className="block text-xs text-ink-muted">{fill(t.market.platformFeeHint, { fee: formatGEL(payment.feePerM2), m2: formatM2(payment.totalM2) })}</span>
         </span>
       </span>
-      <span className="shrink-0 font-medium tabular-nums text-ink-muted">{formatGEL(payment.amount)}</span>
+      <span className="shrink-0 font-semibold tabular-nums text-ink-muted">{formatGEL(payment.amount)}</span>
     </div>
   );
 }

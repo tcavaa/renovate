@@ -7,23 +7,29 @@ html {
 }
 
 html, body {
-  background-color: #F3EEE6;
-  color: #1E1F23;
+  background-color: #FAFAFA;
+  color: #0B0B0C;
   font-family: var(--font-latin-sans), var(--font-sans), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
 
+/* Headings are the one family, heavy and tight. A weight or tracking class on the element
+   still wins (an element selector is weaker than a class). */
 h1, h2, h3, h4 {
-  font-family: var(--font-latin-serif), var(--font-serif), Georgia, serif;
-  letter-spacing: -0.005em;
+  font-weight: 800;
+  letter-spacing: -0.035em;
   text-wrap: balance;
 }
 
-/* Cormorant draws old-style figures by default; prices and counts want lining ones. */
-h1, h2, h3, h4, .font-serif {
-  font-feature-settings: 'lnum' 1;
+@layer base {
+  /* The display voice anywhere else: a name, a number, a price. In the base layer so a
+     `font-*` or `tracking-*` utility on the same element overrides it. */
+  .font-display {
+    font-weight: 800;
+    letter-spacing: -0.035em;
+  }
 }
 
 p {
@@ -31,19 +37,19 @@ p {
 }
 
 * {
-  border-color: #E2D9CC;
+  border-color: #E8E8EC;
 }
 
 ::selection {
-  background-color: rgba(181, 70, 43, 0.2);
-  color: #1E1F23;
+  background-color: #C8F135;
+  color: #0B0B0C;
 }
 
 /* Subtle scrollbar */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #D7CCBC; border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
-::-webkit-scrollbar-thumb:hover { background: #A8784E; background-clip: padding-box; }
+::-webkit-scrollbar-thumb { background: #D4D4D8; border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: #0B0B0C; background-clip: padding-box; }
 
 /* A row that scrolls without a scrollbar. Not inside a layer: it has to beat the global
    ::-webkit-scrollbar rules above. `ScrollRow` (components/ui/scroll-row.tsx) is what uses
@@ -93,51 +99,55 @@ p {
 @layer components {
   /* Translucent panel used over imagery and the 3D canvas. */
   .glass {
-    @apply border border-white/60 bg-white/70 shadow-glass backdrop-blur-xl;
+    @apply border border-white/70 bg-white/85 shadow-glass backdrop-blur-xl;
   }
   .glass-dark {
-    @apply border border-white/10 bg-ink/70 text-white shadow-float backdrop-blur-xl;
+    @apply border border-white/10 bg-ink/80 text-white shadow-float backdrop-blur-xl;
   }
-  /* Display type in the wordmark's voice — the geometric sans, uppercase, light and airy. */
+  /* Display type — the headline voice: the grotesk at its heaviest, set tight. */
   .display {
-    @apply font-sans font-normal uppercase;
-    letter-spacing: 0.04em;
-    line-height: 0.98;
+    @apply font-display;
+    font-weight: 900;
+    letter-spacing: -0.055em;
+    line-height: 0.92;
   }
-  /* Small caps label used above headings, spaced like the wordmark's tagline. */
+  /* Small label above a heading. */
   .eyebrow {
-    @apply text-[11px] font-medium uppercase tracking-[0.2em] text-ink-muted;
+    @apply text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-muted;
   }
-  /* A paper label — the brand board's torn-paper tags: cream, square, a serif in capitals. */
-  .paper-label {
-    @apply inline-block bg-bg-surface px-3 py-1.5 font-serif text-sm font-semibold uppercase tracking-[0.2em] text-ink shadow-card;
+  /* The highlighter: a lime block behind a word, as behind ROOMIT in the headline. */
+  .mark {
+    @apply bg-lime text-ink;
+    padding: 0.02em 0.16em 0.06em;
+    border-radius: 0.1em;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
   }
-  /* An arch — the brand's window shape — for pictures and colour blocks. */
+  /* A sticker — a short word on a lime block, set heavy. */
+  .sticker {
+    @apply inline-block rounded-lg bg-lime px-3 py-1.5 font-display text-sm text-ink;
+  }
+  /* An arch for pictures and colour blocks: a half circle standing on a square. */
   .arch {
     border-radius: 999px 999px 0 0;
   }
-  /* Bracketed inline link, e.g. ( Learn more ) */
-  .bracket-link::before { content: '( '; }
-  .bracket-link::after { content: ' )'; }
-  .bracket-link::before, .bracket-link::after { @apply text-ink-faint transition-colors; }
-  .bracket-link:hover::before, .bracket-link:hover::after { @apply text-brand; }
+  /* A secondary inline link that ends in an arrow, e.g. Learn more → */
+  .arrow-link { @apply inline-flex items-center gap-1 font-semibold underline decoration-lime decoration-[3px] underline-offset-[5px] transition-colors; }
+  .arrow-link::after { content: '→'; @apply transition-transform; }
+  .arrow-link:hover { @apply decoration-ink; }
+  .arrow-link:hover::after { transform: translateX(3px); }
   /* The one button that is allowed depth: a hard offset shadow that the button sinks into. */
   .btn-3d {
-    @apply inline-flex items-center justify-center gap-2 rounded-full border-2 border-ink bg-brand px-6 font-semibold text-white transition-[transform,box-shadow] duration-150;
-    box-shadow: 4px 4px 0 0 #1E1F23;
+    @apply inline-flex items-center justify-center gap-2 rounded-full border-2 border-ink bg-lime px-6 font-bold text-ink transition-[transform,box-shadow] duration-150;
+    box-shadow: 4px 4px 0 0 #0B0B0C;
   }
-  .btn-3d:hover { transform: translate(2px, 2px); box-shadow: 2px 2px 0 0 #1E1F23; }
-  .btn-3d:active { transform: translate(4px, 4px); box-shadow: 0 0 0 0 #1E1F23; }
-  .btn-3d:disabled { opacity: 0.5; transform: none; box-shadow: 4px 4px 0 0 #1E1F23; pointer-events: none; }
-  /* Fine paper grain over large flat areas. */
-  .grain::after {
-    content: '';
-    pointer-events: none;
-    position: absolute;
-    inset: 0;
-    opacity: 0.035;
-    mix-blend-mode: multiply;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  .btn-3d:hover { transform: translate(2px, 2px); box-shadow: 2px 2px 0 0 #0B0B0C; }
+  .btn-3d:active { transform: translate(4px, 4px); box-shadow: 0 0 0 0 #0B0B0C; }
+  .btn-3d:disabled { opacity: 0.5; transform: none; box-shadow: 4px 4px 0 0 #0B0B0C; pointer-events: none; }
+  /* The drawing sheet's dot grid, for empty stages and quiet bands. */
+  .dots {
+    background-image: radial-gradient(rgba(11, 11, 12, 0.11) 1px, transparent 1px);
+    background-size: 18px 18px;
   }
 }
 

@@ -38,7 +38,7 @@ export default async function PartnerProfilePage(props: { searchParams: Promise<
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="eyebrow">{t.partner.workerAccount}</p>
-          <h1 className="mt-2 font-serif text-3xl font-semibold">{worker.nameKa}</h1>
+          <h1 className="mt-2 font-display text-3xl md:text-4xl">{worker.nameKa}</h1>
           <p className="mt-1 text-sm text-ink-muted">{worker.specialty}</p>
         </div>
         {worker.isActive && WORKERS_DIRECTORY && (
@@ -57,9 +57,9 @@ export default async function PartnerProfilePage(props: { searchParams: Promise<
           [t.workers.reviews, String(worker.reviewCount ?? 0)],
           [t.partner.commissionRateLabel, `${formatNumber(pct)}%`],
         ].map(([label, value]) => (
-          <div key={label} className="rounded-2xl border border-line bg-bg-surface px-4 py-4">
+          <div key={label} className="rounded-2xl bg-mist-light px-5 py-4">
             <dt className="eyebrow">{label}</dt>
-            <dd className="mt-1 font-serif text-xl font-semibold text-ink">{value}</dd>
+            <dd className="mt-1.5 font-display text-2xl text-ink">{value}</dd>
           </div>
         ))}
       </dl>

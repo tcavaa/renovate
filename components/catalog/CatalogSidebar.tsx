@@ -78,7 +78,7 @@ export function CatalogSidebar({
               href={href({ category: group.category.slug })}
               scroll={false}
               aria-current={state.category === group.category.slug ? 'page' : undefined}
-              className={cn('mb-1.5 flex items-center gap-1.5 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] transition-colors', state.category === group.category.slug ? 'text-brand' : 'text-wood-dark/80 hover:text-ink')}
+              className={cn('mb-1.5 flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.08em] transition-colors', state.category === group.category.slug ? 'bg-lime text-ink' : 'text-ink-muted hover:text-ink')}
             >
               <CategoryIcon icon={group.category.icon} className="h-3 w-3" />
               <span className="truncate">{name(group.category)}</span>
@@ -100,7 +100,7 @@ export function CatalogSidebar({
       </div>
 
       {state.hasFilters && (
-        <Link href={PATH} className="inline-flex h-9 items-center rounded-full border border-ink/15 px-4 text-sm font-medium text-ink-soft transition-colors hover:border-ink/40 hover:bg-bg-surface hover:text-ink">
+        <Link href={PATH} className="inline-flex h-9 items-center rounded-full bg-mist-light px-4 text-sm font-semibold text-ink transition-colors hover:bg-ink hover:text-white">
           {t.catalog.clearFilters}
         </Link>
       )}
@@ -118,14 +118,13 @@ function CategoryLink({ href, active, onPath = false, depth, icon, label, count 
         href={href}
         scroll={false}
         aria-current={active ? 'page' : undefined}
-        className={cn('relative flex items-center justify-between gap-3 rounded-full py-2 pr-3 transition-colors', INDENT[depth] ?? INDENT[INDENT.length - 1], active ? 'bg-sand font-medium text-ink' : onPath ? 'text-ink hover:bg-sand/50' : 'text-ink-soft hover:bg-sand/50 hover:text-ink', depth > 1 && 'py-1.5 text-[13px]')}
+        className={cn('relative flex items-center justify-between gap-3 rounded-full py-2 pr-3 transition-colors', INDENT[depth] ?? INDENT[INDENT.length - 1], active ? 'bg-lime font-semibold text-ink' : onPath ? 'font-semibold text-ink hover:bg-mist-light' : 'text-ink-soft hover:bg-mist-light hover:text-ink', depth > 1 && 'py-1.5 text-[13px]')}
       >
-        <span className={cn('absolute left-1 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full', active ? 'bg-brand' : 'bg-transparent')} />
         <span className="flex min-w-0 items-center gap-2">
-          {icon && <CategoryIcon icon={icon} className={cn('h-3.5 w-3.5 shrink-0', active ? 'text-brand' : 'text-wood')} />}
+          {icon && <CategoryIcon icon={icon} className={cn('h-3.5 w-3.5 shrink-0', active ? 'text-ink' : 'text-ink-muted')} />}
           <span className="truncate">{label}</span>
         </span>
-        <span className={cn('shrink-0 text-xs tabular-nums', active ? 'text-ink-soft' : 'text-ink-faint')}>{count}</span>
+        <span className={cn('shrink-0 text-xs tabular-nums', active ? 'font-semibold text-ink' : 'text-ink-faint')}>{count}</span>
       </Link>
     </div>
   );
@@ -134,8 +133,8 @@ function CategoryLink({ href, active, onPath = false, depth, icon, label, count 
 function FilterLink({ href, active, label }: { href: string; active: boolean; label: string }) {
   return (
     <li>
-      <Link href={href} scroll={false} data-active={active || undefined} className={cn('flex items-center gap-2.5 rounded-full py-2 pl-3 pr-3 transition-colors', active ? 'bg-sand font-medium text-ink' : 'text-ink-soft hover:bg-sand/50 hover:text-ink')}>
-        <span className={cn('grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full border', active ? 'border-brand bg-brand' : 'border-stone bg-bg-surface')}>{active && <span className="h-1.5 w-1.5 rounded-full bg-white" />}</span>
+      <Link href={href} scroll={false} data-active={active || undefined} className={cn('flex items-center gap-2.5 rounded-full py-2 pl-3 pr-3 transition-colors', active ? 'bg-mist-light font-semibold text-ink' : 'text-ink-soft hover:bg-mist-light hover:text-ink')}>
+        <span className={cn('grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full border', active ? 'border-ink bg-ink' : 'border-stone bg-bg-surface')}>{active && <span className="h-1.5 w-1.5 rounded-full bg-lime" />}</span>
         <span className="truncate">{label}</span>
       </Link>
     </li>

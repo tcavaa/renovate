@@ -97,7 +97,7 @@ export function TeamForm({ team, workers }: { team: TeamFormValue; workers: Work
     <div className="space-y-5">
       <Card>
         <CardHeader>
-          <CardTitle className="font-serif">{t.admin.teams}</CardTitle>
+          <CardTitle className="font-display">{t.admin.teams}</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
           <label className="space-y-1.5">
@@ -149,7 +149,7 @@ export function TeamForm({ team, workers }: { team: TeamFormValue; workers: Work
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 font-serif">
+          <CardTitle className="flex items-center gap-2 font-display">
             <UsersRound className="h-4 w-4" />
             {t.teams.membersTitle}
           </CardTitle>
@@ -167,7 +167,7 @@ export function TeamForm({ team, workers }: { team: TeamFormValue; workers: Work
                   <button
                     type="button"
                     onClick={() => toggleMember(w.id)}
-                    className={cn('flex w-full items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left text-sm transition-colors', on ? 'border-olive bg-olive text-white' : 'border-line hover:border-ink/40 hover:bg-sand/40')}
+                    className={cn('flex w-full items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left text-sm transition-colors', on ? 'border-ink bg-ink text-white' : 'border-line hover:border-ink')}
                   >
                     <span className="min-w-0">
                       <span className="block truncate font-medium">{w.nameKa}</span>
@@ -187,7 +187,7 @@ export function TeamForm({ team, workers }: { team: TeamFormValue; workers: Work
                             update('leadWorkerId', w.id);
                           }
                         }}
-                        className={cn('shrink-0 rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wide', form.leadWorkerId === w.id ? 'border-white bg-white text-olive' : 'border-white/40 text-white/70')}
+                        className={cn('shrink-0 rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wide', form.leadWorkerId === w.id ? 'border-lime bg-lime font-bold text-ink' : 'border-white/40 text-white/70 hover:border-white hover:text-white')}
                       >
                         {t.teams.lead}
                       </span>
@@ -201,7 +201,7 @@ export function TeamForm({ team, workers }: { team: TeamFormValue; workers: Work
         </CardContent>
       </Card>
 
-      {error && <p className="rounded-xl border border-danger/40 bg-danger/5 px-4 py-2 text-sm text-danger">{error}</p>}
+      {error && <p className="rounded-xl border border-danger/40 bg-coral-soft px-4 py-2 text-sm text-danger">{error}</p>}
 
       <div className="flex items-center justify-between gap-3">
         {team.id ? (

@@ -119,13 +119,13 @@ export default function CalculatorStep1Page() {
                   role="tab"
                   aria-selected={active}
                   onClick={() => setMode(o.id)}
-                  className={cn('group flex items-start gap-4 rounded-2xl border p-5 text-left transition-[background-color,border-color,box-shadow]', active ? 'border-olive bg-olive text-white shadow-cardHover' : 'border-line bg-bg-surface hover:border-ink/20 hover:bg-sand-light hover:shadow-card')}
+                  className={cn('group flex items-start gap-4 rounded-2xl border p-5 text-left transition-[background-color,border-color,box-shadow]', active ? 'border-brand bg-brand-50 ring-1 ring-brand' : 'border-line bg-bg-surface hover:border-stone hover:bg-mist-light')}
                 >
-                  <span className={cn('grid h-10 w-10 shrink-0 place-items-center rounded-full', active ? 'bg-brand text-white' : 'bg-sand text-wood-dark')}>{o.icon}</span>
+                  <span className={cn('grid h-11 w-11 shrink-0 place-items-center rounded-xl transition-colors', active ? 'bg-brand text-white' : 'bg-mist-light text-ink group-hover:bg-bg-surface')}>{o.icon}</span>
                   <span className="min-w-0">
-                    <span className={cn('block font-serif text-base font-semibold leading-none tabular-nums', active ? 'text-sand/80' : 'text-wood')}>{String(i + 1).padStart(2, '0')}</span>
-                    <span className="mt-0.5 flex flex-wrap items-center gap-2 font-serif text-lg font-semibold leading-tight">{o.label}{o.id === 'upload' && uploadLocked && <PlanBadge plan={uploadLocked} tone={active ? 'dark' : 'light'} />}</span>
-                    <span className={cn('mt-1 block text-sm leading-relaxed', active ? 'text-sand-light/80' : 'text-ink-muted')}>{o.desc}</span>
+                    <span className={cn('block text-xs font-extrabold leading-none tabular-nums', active ? 'text-brand' : 'text-ink-faint')}>{String(i + 1).padStart(2, '0')}</span>
+                    <span className="mt-1.5 flex flex-wrap items-center gap-2 font-display text-lg leading-tight text-ink">{o.label}{o.id === 'upload' && uploadLocked && <PlanBadge plan={uploadLocked} tone="light" />}</span>
+                    <span className={cn('mt-1 block text-sm leading-relaxed', active ? 'text-ink-soft' : 'text-ink-muted')}>{o.desc}</span>
                   </span>
                 </button>
               );
@@ -133,8 +133,8 @@ export default function CalculatorStep1Page() {
           </div>
 
           {planOnFile && !replacingPlan && plan && (
-            <div className="grid items-center gap-5 rounded-2xl border border-line bg-bg-surface p-5 shadow-card sm:grid-cols-[220px_minmax(0,1fr)]">
-              <div className="overflow-hidden rounded-xl border border-line bg-white p-2">
+            <div className="grid items-center gap-5 rounded-2xl bg-lime-soft p-5 ring-1 ring-inset ring-lime sm:grid-cols-[220px_minmax(0,1fr)]">
+              <div className="overflow-hidden rounded-xl bg-bg-surface p-2">
                 {floorPlanUrl ? (
                   <Image src={floorPlanUrl} alt="" width={440} height={330} unoptimized className="h-auto max-h-44 w-full object-contain" />
                 ) : (
@@ -142,8 +142,8 @@ export default function CalculatorStep1Page() {
                 )}
               </div>
               <div>
-                <p className="font-medium text-success">{t.calculator.planAlreadyUploaded.replace('{n}', String(rooms.length))}</p>
-                <p className="mt-1 text-sm text-ink-muted">{t.calculator.uploadPlanHint}</p>
+                <p className="font-bold tracking-tight text-ink">{t.calculator.planAlreadyUploaded.replace('{n}', String(rooms.length))}</p>
+                <p className="mt-1 text-sm text-ink-soft">{t.calculator.uploadPlanHint}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button
                     type="button"
@@ -162,13 +162,13 @@ export default function CalculatorStep1Page() {
           )}
 
           {mode === 'upload' && (!planOnFile || replacingPlan) && (
-            <div className="rounded-2xl border border-line bg-bg-surface p-5 shadow-card">
+            <div className="rounded-2xl border border-line bg-bg-surface p-5">
               <p className="text-sm text-ink-muted">{t.calculator.uploadPlanHint}</p>
               <div className="mt-4">
                 {/* No button of its own: the plan waits here, and the one continue below takes it. */}
                 <PlanUploadCard showSample showContinue={false} onPlan={(read, imageUrl) => setUploaded({ plan: read, imageUrl })} onReset={() => setUploaded(null)} />
               </div>
-              {uploaded && <p className="mt-3 text-sm font-medium text-success">{t.calculator.planRoomsApplied.replace('{n}', String(uploaded.plan.rooms.length))}</p>}
+              {uploaded && <p className="mt-3 inline-flex rounded-full bg-lime px-3 py-1 text-sm font-semibold text-ink">{t.calculator.planRoomsApplied.replace('{n}', String(uploaded.plan.rooms.length))}</p>}
             </div>
           )}
         </section>

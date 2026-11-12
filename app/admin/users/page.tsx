@@ -117,10 +117,10 @@ export default async function AdminUsersPage(props: { searchParams: Promise<Sear
 
       {/* The groups are links: a click is the filtered list. */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Link href="/admin/users?group=staff"><StatCard label={ka.accounts.groupStaff} value={`${Number(groups?.staff ?? 0)}`} className="transition-colors hover:border-ink/40 hover:bg-sand/30" /></Link>
-        <Link href="/admin/users?group=partners"><StatCard label={ka.accounts.groupPartners} value={`${Number(groups?.partners ?? 0)}`} className="transition-colors hover:border-ink/40 hover:bg-sand/30" /></Link>
-        <Link href="/admin/users?role=user"><StatCard label={ka.accounts.groupCustomers} value={`${Number(groups?.customers ?? 0)}`} className="transition-colors hover:border-ink/40 hover:bg-sand/30" /></Link>
-        <Link href="/admin/users?status=inactive"><StatCard label={ka.accounts.groupDeactivated} value={`${Number(groups?.deactivated ?? 0)}`} className="transition-colors hover:border-ink/40 hover:bg-sand/30" /></Link>
+        <Link href="/admin/users?group=staff"><StatCard label={ka.accounts.groupStaff} value={`${Number(groups?.staff ?? 0)}`} className="transition-colors hover:border-ink hover:bg-mist-light" /></Link>
+        <Link href="/admin/users?group=partners"><StatCard label={ka.accounts.groupPartners} value={`${Number(groups?.partners ?? 0)}`} className="transition-colors hover:border-ink hover:bg-mist-light" /></Link>
+        <Link href="/admin/users?role=user"><StatCard label={ka.accounts.groupCustomers} value={`${Number(groups?.customers ?? 0)}`} className="transition-colors hover:border-ink hover:bg-mist-light" /></Link>
+        <Link href="/admin/users?status=inactive"><StatCard label={ka.accounts.groupDeactivated} value={`${Number(groups?.deactivated ?? 0)}`} className="transition-colors hover:border-ink hover:bg-mist-light" /></Link>
       </div>
 
       <FilterBar
@@ -158,7 +158,7 @@ export default async function AdminUsersPage(props: { searchParams: Promise<Sear
           {rows.map((u) => (
             <Tr key={u.id}>
               <td className="px-4 py-2.5">
-                <Link href={`/admin/users/${u.id}`} className="font-medium text-brand hover:underline">
+                <Link href={`/admin/users/${u.id}`} className="font-medium text-ink underline decoration-lime decoration-2 underline-offset-4 hover:decoration-ink">
                   #{u.id}
                 </Link>
               </td>
@@ -184,7 +184,7 @@ export default async function AdminUsersPage(props: { searchParams: Promise<Sear
                 )}
               </td>
               <td className="px-4 py-2.5 text-right tabular-nums">
-                <Link href={`/admin/projects?q=${encodeURIComponent(u.email)}`} className="hover:text-brand hover:underline">
+                <Link href={`/admin/projects?q=${encodeURIComponent(u.email)}`} className="underline-offset-4 hover:text-ink hover:underline">
                   {Number(u.projectCount)}
                 </Link>
               </td>

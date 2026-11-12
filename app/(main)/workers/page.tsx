@@ -92,24 +92,27 @@ export default async function WorkersPage(props: { searchParams: Promise<SearchP
 
   return (
     <div className="container py-10 md:py-14">
-      <header className="relative overflow-hidden rounded-3xl bg-sand-light px-6 py-8 md:px-10 md:py-10">
+      <header className="relative overflow-hidden rounded-3xl bg-mist-light px-6 py-8 md:px-10 md:py-10">
         <div className="relative z-10 max-w-2xl">
-          <p className="paper-label">{t.nav.workers}</p>
-          <h1 className="mt-4 font-serif text-3xl font-semibold leading-[1.05] tracking-tight text-ink md:text-[2.75rem]">{specialty ? workerSpecialtyLabel(t, specialty) : t.workers.title}</h1>
+          <p className="inline-flex items-center gap-2 rounded-full bg-bg-surface px-3 py-1.5 text-xs font-semibold text-ink">
+            <span className="h-2 w-2 bg-lime" aria-hidden />
+            {t.nav.workers}
+          </p>
+          <h1 className="mt-4 font-display text-4xl leading-[1] text-ink md:text-[3.25rem]">{specialty ? workerSpecialtyLabel(t, specialty) : t.workers.title}</h1>
           <p className="mt-3 max-w-xl text-base text-ink-muted">{t.workers.subtitle}</p>
         </div>
-        {/* A quiet brand corner: a wood arch with a terracotta sun. */}
-        <span className="pointer-events-none absolute bottom-0 right-12 hidden h-[78%] w-28 lg:block" aria-hidden>
-          <span className="arch absolute inset-0 bg-wood-light" />
-          <span className="absolute left-1/2 top-[22%] h-9 w-9 -translate-x-1/2 rounded-full bg-brand" />
-          <span className="absolute -left-10 bottom-0 h-[30%] w-14 rounded-t-xl bg-olive" />
-          <span className="absolute -right-6 bottom-0 h-[20%] w-10 rounded-t-xl bg-stone" />
+        {/* The brand corner: a sun slab, a lilac half circle, a cobalt square and a coral disc. */}
+        <span className="pointer-events-none absolute inset-y-0 right-0 hidden w-72 lg:block" aria-hidden>
+          <span className="absolute bottom-0 left-4 h-[72%] w-20 bg-sun" />
+          <span className="absolute bottom-0 right-8 h-[58%] w-32 rounded-t-full bg-lilac" />
+          <span className="absolute bottom-0 left-16 h-16 w-16 bg-cobalt" />
+          <span className="absolute right-6 top-6 h-9 w-9 rounded-full bg-coral" />
         </span>
       </header>
 
       <div className="mt-8 grid grid-cols-[minmax(0,1fr)] gap-10 lg:grid-cols-[240px_minmax(0,1fr)]">
         <input type="checkbox" id="worker-filters" className="peer sr-only" />
-        <label htmlFor="worker-filters" className="inline-flex h-10 cursor-pointer items-center gap-2 self-start rounded-full border border-ink/15 bg-bg-surface px-4 text-sm font-medium transition-colors hover:border-ink/40 lg:hidden">
+        <label htmlFor="worker-filters" className="inline-flex h-10 cursor-pointer items-center gap-2 self-start rounded-full bg-ink px-4 text-sm font-semibold text-white transition-colors hover:bg-lime hover:text-ink lg:hidden">
           <SlidersHorizontal className="h-4 w-4" />
           {t.common.filter}
         </label>
@@ -135,7 +138,7 @@ export default async function WorkersPage(props: { searchParams: Promise<SearchP
             </div>
           )}
           {params.hasFilters && (
-            <Link href={PATH} className="inline-flex h-9 items-center rounded-full border border-ink/15 px-4 text-sm font-medium text-ink-soft transition-colors hover:border-ink/40 hover:bg-bg-surface hover:text-ink">
+            <Link href={PATH} className="inline-flex h-9 items-center rounded-full bg-mist-light px-4 text-sm font-semibold text-ink transition-colors hover:bg-ink hover:text-white">
               {t.catalog.clearFilters}
             </Link>
           )}
@@ -146,28 +149,28 @@ export default async function WorkersPage(props: { searchParams: Promise<SearchP
             <div className="flex flex-wrap items-center gap-3">
               <form action={PATH} method="get" className="relative">
                 {hidden}
-                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
-                <input type="search" name="q" defaultValue={params.q} placeholder={t.workers.searchPlaceholder} aria-label={t.common.search} className="h-10 w-56 rounded-full border border-line bg-bg-surface pl-9 pr-4 text-sm text-ink placeholder:text-ink-faint focus:border-ink/40 focus:outline-none" />
+                <Search className="pointer-events-none absolute left-3.5 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-ink-muted" />
+                <input type="search" name="q" defaultValue={params.q} placeholder={t.workers.searchPlaceholder} aria-label={t.common.search} className="h-10 w-56 rounded-full border border-transparent bg-mist-light pl-9 pr-4 text-sm text-ink placeholder:text-ink-muted transition-colors hover:bg-mist focus:border-ink focus:bg-bg-surface focus:outline-none focus:ring-[3px] focus:ring-lime" />
               </form>
               <Link
                 href={href({ verified: verified ? undefined : '1' })}
                 scroll={false}
-                className={cn('inline-flex h-10 items-center gap-2 rounded-full border px-4 text-sm transition-colors', verified ? 'border-sand-dark bg-sand text-ink' : 'border-line bg-bg-surface text-ink-soft hover:border-ink/40')}
+                className={cn('inline-flex h-10 items-center gap-2 rounded-full px-4 text-sm font-medium transition-colors', verified ? 'bg-ink text-white' : 'bg-mist-light text-ink hover:bg-mist')}
               >
-                <BadgeCheck className={cn('h-4 w-4', verified ? 'text-success' : 'text-ink-faint')} />
+                <BadgeCheck className={cn('h-4 w-4', verified ? 'text-lime' : 'text-ink-muted')} />
                 {t.workers.verifiedOnly}
               </Link>
               <div className="ml-auto flex items-center gap-4">
-                <p className="text-sm text-ink-muted">{fill(t.workers.results, { n: matched })}</p>
+                <p className="text-sm font-medium text-ink-muted">{fill(t.workers.results, { n: matched })}</p>
                 <SortSelect label={t.workers.sort} value={params.sort} options={SORTS.map((s) => ({ value: s, label: sortLabels[s], href: href({ sort: s === 'rating' ? undefined : s }) }))} />
               </div>
             </div>
             {chips.length > 0 && (
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 {chips.map((chip) => (
-                  <Link key={chip.href} href={chip.href} scroll={false} className="inline-flex items-center gap-1.5 rounded-full bg-sand px-3 py-1 text-xs text-ink transition-colors hover:bg-sand-dark">
+                  <Link key={chip.href} href={chip.href} scroll={false} className="inline-flex items-center gap-1.5 rounded-full bg-ink py-1 pl-3 pr-2 text-xs font-semibold text-white transition-colors hover:bg-ink-soft">
                     {chip.label}
-                    <X className="h-3 w-3 text-ink-muted" />
+                    <X className="h-3 w-3 text-white/70" />
                   </Link>
                 ))}
               </div>
@@ -183,7 +186,7 @@ export default async function WorkersPage(props: { searchParams: Promise<SearchP
               </Pager>
               <div className="flex items-center gap-1">
                 {pageWindow(params.page, pageCount).map((p) => (
-                  <Link key={p} href={hrefWith(PATH, params.raw, { page: p > 1 ? p : undefined })} className={cn('grid h-9 w-9 place-items-center rounded-full text-sm tabular-nums transition-colors', p === params.page ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand/60 hover:text-ink')}>
+                  <Link key={p} href={hrefWith(PATH, params.raw, { page: p > 1 ? p : undefined })} className={cn('grid h-9 w-9 place-items-center rounded-full text-sm font-semibold tabular-nums transition-colors', p === params.page ? 'bg-lime text-ink' : 'text-ink-soft hover:bg-mist hover:text-ink')}>
                     {p}
                   </Link>
                 ))}
@@ -207,21 +210,20 @@ function SideLink({ href, active, label, count, current }: { href: string; activ
         href={href}
         scroll={false}
         aria-current={current && active ? 'page' : undefined}
-        className={cn('relative flex items-center justify-between gap-3 rounded-full py-2 pl-4 pr-3 transition-colors', active ? 'bg-sand font-medium text-ink' : 'text-ink-soft hover:bg-sand/50 hover:text-ink')}
+        className={cn('relative flex items-center justify-between gap-3 rounded-full py-2 pl-4 pr-3 transition-colors', active ? (current ? 'bg-lime font-semibold text-ink' : 'bg-ink font-semibold text-white') : 'text-ink-soft hover:bg-mist-light hover:text-ink')}
       >
-        <span className={cn('absolute left-1.5 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full', active ? 'bg-brand' : 'bg-transparent')} />
         <span className="truncate">{label}</span>
-        {count !== undefined && <span className={cn('shrink-0 text-xs tabular-nums', active ? 'text-ink-soft' : 'text-ink-faint')}>{count}</span>}
+        {count !== undefined && <span className={cn('shrink-0 text-xs tabular-nums', active ? 'font-semibold opacity-70' : 'text-ink-faint')}>{count}</span>}
       </Link>
     </li>
   );
 }
 
 function Pager({ href, disabled, children }: { href: string; disabled: boolean; children: React.ReactNode }) {
-  const className = 'inline-flex h-9 items-center gap-1 rounded-full px-3 font-medium transition-colors';
+  const className = 'inline-flex h-9 items-center gap-1 rounded-full px-3 font-semibold transition-colors';
   if (disabled) return <span className={cn(className, 'text-ink-faint')}>{children}</span>;
   return (
-    <Link href={href} className={cn(className, 'text-ink-soft hover:bg-sand/60 hover:text-ink')}>
+    <Link href={href} className={cn(className, 'text-ink hover:bg-mist')}>
       {children}
     </Link>
   );

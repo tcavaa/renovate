@@ -165,13 +165,13 @@ export function RatesTable({ initialRows }: { initialRows: RateRow[] }) {
     <Card key={kind} className="overflow-hidden">
       <CardContent className="overflow-x-auto p-0">
         <div className="border-b border-line px-4 py-3">
-          <h2 className="font-serif text-lg font-semibold">
+          <h2 className="font-display text-xl">
             {kind === 'material' ? t.admin.rateMaterials : t.admin.rateLabour}
           </h2>
         </div>
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-line bg-sand/50 text-left text-[11px] uppercase tracking-[0.08em] text-ink-muted">
+            <tr className="border-b border-line bg-mist-light text-left text-[11px] font-bold uppercase tracking-[0.06em] text-ink-muted">
               <th className="px-3 py-2">{t.admin.table.name}</th>
               <th className="px-3 py-2">{t.admin.rateKey}</th>
               <th className="px-3 py-2">{t.admin.ratePhase}</th>
@@ -187,8 +187,8 @@ export function RatesTable({ initialRows }: { initialRows: RateRow[] }) {
           <tbody>
             {phases.map(([phase, list]) => (
               <Fragment key={`p-${kind}-${phase}`}>
-                <tr className="bg-sand-light/70">
-                  <td colSpan={10} className="px-3 py-1.5 text-xs font-semibold text-wood-dark">
+                <tr className="bg-lime-soft">
+                  <td colSpan={10} className="px-3 py-1.5 text-xs font-bold text-ink">
                     {phase}. {phaseName(phase)}
                   </td>
                 </tr>
@@ -196,14 +196,14 @@ export function RatesTable({ initialRows }: { initialRows: RateRow[] }) {
                   const d = drafts[row.id];
                   const state = saving[row.id];
                   return (
-                    <tr key={row.id} className={cn('border-b border-line/60', !d.isActive && 'opacity-60')}>
+                    <tr key={row.id} className={cn('border-b border-line/70', !d.isActive && 'opacity-60')}>
                       <td className="px-3 py-1.5">
                         <Input value={d.labelKa} onChange={(e) => setField(row.id, 'labelKa', e.target.value)} className="h-8 min-w-[220px]" />
                       </td>
                       <td className="px-3 py-1.5 font-mono text-xs text-ink-muted">
                         {row.key}
                         {row.id < 0 && (
-                          <span title={t.admin.rateDefaultTitle} className="ml-2 rounded-full border border-line px-1.5 py-px font-sans text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
+                          <span title={t.admin.rateDefaultTitle} className="ml-2 rounded-full bg-mist px-1.5 py-px font-sans text-[10px] font-bold uppercase tracking-wide text-ink-muted">
                             {t.admin.rateDefaultBadge}
                           </span>
                         )}
@@ -213,7 +213,7 @@ export function RatesTable({ initialRows }: { initialRows: RateRow[] }) {
                       </td>
                       <td className="px-3 py-1.5">
                         {kind === 'material' ? (
-                          <select value={d.unit} onChange={(e) => setField(row.id, 'unit', e.target.value)} className="h-8 rounded-xl border border-line bg-bg-surface px-2 text-sm">
+                          <select value={d.unit} onChange={(e) => setField(row.id, 'unit', e.target.value)} className="h-8 rounded-xl border border-line bg-bg-surface px-2 text-sm focus:border-ink focus:outline-none focus:ring-[3px] focus:ring-lime">
                             {UNITS.map((u) => (
                               <option key={u} value={u}>{u}</option>
                             ))}
@@ -224,7 +224,7 @@ export function RatesTable({ initialRows }: { initialRows: RateRow[] }) {
                       </td>
                       {kind === 'material' && (
                         <td className="px-3 py-1.5">
-                          <select value={d.basis} onChange={(e) => setField(row.id, 'basis', e.target.value)} className="h-8 rounded-xl border border-line bg-bg-surface px-2 text-sm">
+                          <select value={d.basis} onChange={(e) => setField(row.id, 'basis', e.target.value)} className="h-8 rounded-xl border border-line bg-bg-surface px-2 text-sm focus:border-ink focus:outline-none focus:ring-[3px] focus:ring-lime">
                             {BASES.map((b) => (
                               <option key={b} value={b}>{b}</option>
                             ))}
@@ -245,7 +245,7 @@ export function RatesTable({ initialRows }: { initialRows: RateRow[] }) {
                         <Input type="number" step="0.01" min={0} value={d.pricePerUnit} onChange={(e) => setField(row.id, 'pricePerUnit', e.target.value)} className="h-8 w-28 font-semibold" />
                       </td>
                       <td className="px-3 py-1.5">
-                        <input type="checkbox" checked={d.isActive} onChange={(e) => setField(row.id, 'isActive', e.target.checked)} className="h-4 w-4 accent-brand" aria-label={t.admin.rateActive} />
+                        <input type="checkbox" checked={d.isActive} onChange={(e) => setField(row.id, 'isActive', e.target.checked)} className="h-4 w-4 accent-ink" aria-label={t.admin.rateActive} />
                       </td>
                       <td className="px-3 py-1.5 text-right">
                         <Button type="button" size="sm" variant={dirty(row) ? 'default' : 'outline'} disabled={!dirty(row) || state === 'saving'} onClick={() => save(row)}>
@@ -286,18 +286,18 @@ export function RatesTable({ initialRows }: { initialRows: RateRow[] }) {
 
       <Card>
         <CardContent className="space-y-3 pt-6">
-          <h2 className="font-serif text-lg font-semibold">{t.admin.rateAdd}</h2>
+          <h2 className="font-display text-xl">{t.admin.rateAdd}</h2>
           <p className="text-xs text-ink-muted">{t.admin.rateAddHint}</p>
           <div className="grid gap-2 md:grid-cols-4">
             <Input placeholder="key" value={newRate.key} onChange={(e) => setNewRate({ ...newRate, key: e.target.value })} />
             <Input placeholder={t.admin.table.name} value={newRate.labelKa} onChange={(e) => setNewRate({ ...newRate, labelKa: e.target.value })} className="md:col-span-2" />
             <Input type="number" placeholder={t.admin.ratePhase} value={newRate.phase} onChange={(e) => setNewRate({ ...newRate, phase: e.target.value })} />
-            <select value={newRate.unit} onChange={(e) => setNewRate({ ...newRate, unit: e.target.value })} className="h-10 rounded-xl border border-line bg-bg-surface px-2 text-sm">
+            <select value={newRate.unit} onChange={(e) => setNewRate({ ...newRate, unit: e.target.value })} className="h-11 rounded-xl border border-line bg-bg-surface px-3 text-sm focus:border-ink focus:outline-none focus:ring-[3px] focus:ring-lime">
               {UNITS.map((u) => (
                 <option key={u} value={u}>{u}</option>
               ))}
             </select>
-            <select value={newRate.basis} onChange={(e) => setNewRate({ ...newRate, basis: e.target.value })} className="h-10 rounded-xl border border-line bg-bg-surface px-2 text-sm">
+            <select value={newRate.basis} onChange={(e) => setNewRate({ ...newRate, basis: e.target.value })} className="h-11 rounded-xl border border-line bg-bg-surface px-3 text-sm focus:border-ink focus:outline-none focus:ring-[3px] focus:ring-lime">
               {BASES.map((b) => (
                 <option key={b} value={b}>{b}</option>
               ))}

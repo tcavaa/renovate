@@ -16,10 +16,10 @@ export const HEADER_HEIGHT_CLASS = 'h-[72px]';
 /**
  * Site header.
  *
- * Sits over the landing hero as pure typography and turns into a frosted sand bar as soon as
- * the page scrolls; on every other page it starts frosted. The PLAYCE lockup on the left, the
- * navigation centred as soft pills (the open one on a sand pill with a terracotta dot), the
- * account on the right — the chrome stays quiet so the imagery can speak.
+ * A white bar: the ROOMIT wordmark on the left, the navigation centred as plain heavy words (the
+ * open page on a lime pill), the account on the right. It sits clear over the landing hero and
+ * turns into a frosted white bar with a hairline as soon as the page scrolls; on every other
+ * page it starts frosted.
  */
 export function Header() {
   const pathname = usePathname();
@@ -54,7 +54,7 @@ export function Header() {
       data-site-nav
       className={cn(
         'sticky top-0 z-50 w-full transition-[background-color,border-color,box-shadow] duration-500',
-        frosted ? 'border-b border-line/70 bg-bg-base/85 backdrop-blur-xl' : 'border-b border-transparent bg-transparent'
+        frosted ? 'border-b border-line bg-bg-surface/90 backdrop-blur-xl' : 'border-b border-transparent bg-transparent'
       )}
     >
       {/* Three columns, the navigation in the middle one: centred by the grid rather than by the
@@ -62,10 +62,10 @@ export function Header() {
           (a different width) — that shift was most of the site's layout shift. */}
       <div className={cn('container grid grid-cols-[1fr_auto_1fr] items-center gap-4', HEADER_HEIGHT_CLASS)}>
         <Link href="/" className="col-start-1 flex items-center justify-self-start" aria-label={t.app.name}>
-          <Logo tagline={t.app.tagline} taglineClassName="hidden sm:block" />
+          <Logo />
         </Link>
 
-        <nav className="col-start-2 hidden items-center gap-0.5 rounded-full border border-line/80 bg-bg-surface/60 p-1 lg:flex" aria-label="Primary">
+        <nav className="col-start-2 hidden items-center gap-1 lg:flex" aria-label="Primary">
           {links.map((link) => {
             const active = pathname?.startsWith(link.href);
             return (
@@ -73,11 +73,10 @@ export function Header() {
                 key={link.href}
                 href={link.href}
                 className={cn(
-                  'relative flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors',
-                  active ? 'bg-sand text-ink' : 'text-ink-muted hover:bg-sand/50 hover:text-ink'
+                  'relative flex items-center rounded-full px-4 py-2 text-sm font-semibold text-ink transition-colors',
+                  active ? 'bg-lime' : 'hover:bg-mist'
                 )}
               >
-                {active && <span className="h-1.5 w-1.5 rounded-full bg-brand" aria-hidden />}
                 {link.label}
               </Link>
             );
@@ -96,7 +95,7 @@ export function Header() {
             aria-label="menu"
             aria-expanded={open}
             onClick={() => setOpen((v) => !v)}
-            className="grid h-10 w-10 place-items-center rounded-full border border-line bg-bg-surface/70"
+            className="grid h-10 w-10 place-items-center rounded-full bg-ink text-white"
           >
             {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
@@ -104,19 +103,19 @@ export function Header() {
       </div>
 
       {open && (
-        <div className="border-t border-line/70 bg-bg-base/95 backdrop-blur-xl lg:hidden">
+        <div className="border-t border-line bg-bg-surface lg:hidden">
           <nav className="container flex flex-col gap-1 py-4">
             {links.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
-                className={cn('rounded-2xl px-4 py-3 font-serif text-2xl font-semibold hover:bg-bg-surface', pathname?.startsWith(link.href) && 'bg-sand')}
+                className={cn('rounded-2xl px-4 py-3 font-display text-2xl hover:bg-mist-light', pathname?.startsWith(link.href) && 'bg-lime hover:bg-lime')}
               >
                 {link.label}
               </Link>
             ))}
             <div className="mt-3 space-y-3 border-t border-line pt-4">
-              <Link href="/design" className="flex h-12 items-center justify-center gap-2 rounded-full bg-brand text-sm font-medium text-white hover:bg-brand-dark">
+              <Link href="/design" className="flex h-12 items-center justify-center gap-2 rounded-full bg-ink text-sm font-semibold text-white hover:bg-lime hover:text-ink">
                 {t.landing.heroCta} <ArrowUpRight className="h-4 w-4" />
               </Link>
               <UserMenu variant="mobile" />

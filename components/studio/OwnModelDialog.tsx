@@ -251,7 +251,7 @@ export function OwnModelDialog({ open, onOpenChange, onCreated }: { open: boolea
   /** The model's price as the dialogue words it: the price and the bank's commission on top. */
   const priceNote = price && !price.free ? (price.credit ? t.design.ownPriceCredit : fill(t.design.ownPrice, { amount: formatGEL(price.charge.amount, true), pct: `${formatNumber(price.charge.bankFeePct)}%` })) : null;
 
-  const field = 'h-9 w-full rounded-[8px] border border-line bg-bg-surface px-3 text-sm text-ink focus:border-ink focus:outline-none';
+  const field = 'h-10 w-full rounded-xl border border-line bg-bg-surface px-3 text-sm text-ink focus:border-ink focus:outline-none focus:ring-[3px] focus:ring-lime';
 
   return (
     <Dialog
@@ -265,7 +265,7 @@ export function OwnModelDialog({ open, onOpenChange, onCreated }: { open: boolea
         onOpenChange(next);
       }}
     >
-      <DialogContent className={cn('max-h-[calc(100vh-2rem)] overflow-y-auto rounded-[18px]', cardStep ? 'max-w-[56rem]' : 'max-w-2xl')} backdrop={paying} onInteractOutside={paying ? keepOpenOutside : undefined}>
+      <DialogContent className={cn('max-h-[calc(100vh-2rem)] overflow-y-auto', cardStep ? 'max-w-[56rem]' : 'max-w-2xl')} backdrop={paying} onInteractOutside={paying ? keepOpenOutside : undefined}>
         {cardStep ? (
           submitting ? (
             <>
@@ -313,7 +313,7 @@ export function OwnModelDialog({ open, onOpenChange, onCreated }: { open: boolea
         )}
 
         {cardStep ? null : status !== 'authenticated' ? (
-          <div className="rounded-[12px] border border-line bg-bg-base p-5 text-center">
+          <div className="rounded-2xl bg-mist-light p-5 text-center">
             <p className="text-sm text-ink-muted">{t.design.ownSignIn}</p>
             <Button asChild variant="ink" className="mt-4">
               <Link href={`/login?callbackUrl=${encodeURIComponent(pathname)}`}>
@@ -342,19 +342,19 @@ export function OwnModelDialog({ open, onOpenChange, onCreated }: { open: boolea
                     clearFile();
                     setError(null);
                   }}
-                  className={cn('flex items-start gap-3 rounded-[12px] border p-3 text-left transition-colors', mode === tab.id ? 'border-ink bg-ink text-white' : 'border-line bg-bg-surface hover:border-ink/40')}
+                  className={cn('flex items-start gap-3 rounded-xl border p-3 text-left transition-colors', mode === tab.id ? 'border-lime bg-lime text-ink' : 'border-line bg-bg-surface hover:border-ink')}
                 >
                   <tab.icon className="mt-0.5 h-4 w-4 shrink-0" />
                   <span className="min-w-0">
-                    <span className="block text-sm font-semibold">{tab.label}</span>
-                    <span className={cn('mt-0.5 block text-xs leading-snug', mode === tab.id ? 'text-white/70' : 'text-ink-muted')}>{tab.hint}</span>
+                    <span className="block text-sm font-bold tracking-tight">{tab.label}</span>
+                    <span className={cn('mt-0.5 block text-xs leading-snug', mode === tab.id ? 'text-ink/70' : 'text-ink-muted')}>{tab.hint}</span>
                   </span>
                 </button>
               ))}
             </div>
 
             {/* The file, and what it looks like. */}
-            <label className={cn('flex cursor-pointer flex-col items-center justify-center gap-2 rounded-[12px] border border-dashed p-5 text-center transition-colors', picked ? 'border-line bg-bg-base' : 'border-ink/30 bg-bg-base hover:border-ink')}>
+            <label className={cn('flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed p-5 text-center transition-colors', picked ? 'border-line bg-mist-light' : 'border-ink/30 bg-mist-light hover:border-ink hover:bg-lime-soft')}>
               <input
                 type="file"
                 accept={mode === 'model' ? '.glb,model/gltf-binary' : 'image/png,image/jpeg,image/webp'}
@@ -366,7 +366,7 @@ export function OwnModelDialog({ open, onOpenChange, onCreated }: { open: boolea
                 }}
               />
               <Upload className="h-5 w-5 text-ink-muted" />
-              <span className="text-sm font-medium text-ink">{picked ? picked.name : mode === 'model' ? t.design.ownDropModel : t.design.ownDropPhoto}</span>
+              <span className="text-sm font-semibold text-ink">{picked ? picked.name : mode === 'model' ? t.design.ownDropModel : t.design.ownDropPhoto}</span>
               <span className="text-xs text-ink-muted">{mode === 'model' ? t.design.ownDropModelNote : t.design.ownDropPhotoNote}</span>
             </label>
             {mode === 'model' && optimizing && (
@@ -378,25 +378,25 @@ export function OwnModelDialog({ open, onOpenChange, onCreated }: { open: boolea
             {mode === 'model' && picked && file && picked.size > file.size * 1.05 && <p className="text-xs text-ink-muted">{fill(t.modelUploader.optimizedSize, { from: megabytes(picked.size), mb: megabytes(file.size) })}</p>}
 
             {previewUrl && mode === 'model' && (
-              <div className="relative aspect-[4/3] w-full overflow-hidden rounded-[12px] border border-line bg-bg-base">
+              <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl bg-mist-light">
                 <div ref={hostRef} className="h-full w-full" />
                 {loading && (
                   <div className="absolute inset-0 grid place-items-center bg-bg-surface/60 text-sm text-ink-muted">
                     <Loader2 className="h-5 w-5 animate-spin" />
                   </div>
                 )}
-                {loadFailed && <p className="absolute inset-x-3 bottom-3 rounded-[8px] bg-bg-surface/95 px-3 py-2 text-xs text-danger">{t.modelUploader.loadError}</p>}
+                {loadFailed && <p className="absolute inset-x-3 bottom-3 rounded-lg bg-bg-surface/95 px-3 py-2 text-xs text-danger">{t.modelUploader.loadError}</p>}
                 {!loading && !loadFailed && <p className="pointer-events-none absolute inset-x-3 bottom-3 text-center text-[11px] text-ink-muted">{t.modelUploader.previewHint}</p>}
               </div>
             )}
             {previewUrl && mode === 'photo' && (
-              <div className="relative aspect-[4/3] w-full overflow-hidden rounded-[12px] border border-line bg-bg-base">
+              <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl bg-mist-light">
                 <Image src={previewUrl} alt="" fill unoptimized className="object-contain" />
               </div>
             )}
-            {mode === 'photo' && <p className="rounded-[10px] bg-warning/10 px-3 py-2 text-xs leading-relaxed text-ink">{t.design.ownPhotoNote}</p>}
+            {mode === 'photo' && <p className="rounded-xl bg-sun-soft px-3 py-2 text-xs leading-relaxed text-ink">{t.design.ownPhotoNote}</p>}
             {priceNote && (
-              <p className="flex items-start gap-2 rounded-[10px] border border-line bg-bg-base px-3 py-2 text-xs leading-relaxed text-ink">
+              <p className="flex items-start gap-2 rounded-xl bg-mist-light px-3 py-2 text-xs leading-relaxed text-ink">
                 <CreditCard className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-muted" aria-hidden />
                 {priceNote}
               </p>

@@ -18,7 +18,7 @@ export interface OtherJourney {
   label: 'openIn3d' | 'createIn3d' | 'openInCalculator' | 'calculateCosts';
 }
 
-const ITEM = 'flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm text-ink transition-colors hover:bg-sand/50 focus:bg-sand/50 focus:outline-none';
+const ITEM = 'flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm font-medium text-ink transition-colors hover:bg-mist-light focus:bg-mist-light focus:outline-none';
 
 /**
  * A project card's "…": open it, rename it, open (or start) its other half — or, on the profile,
@@ -144,7 +144,7 @@ export function ProjectCardMenu({ projectId, name, openHref, other, canDelete }:
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
         onClick={() => setOpen((v) => !v)}
-        className={cn('flex h-9 w-9 items-center justify-center rounded-full bg-sand-light text-ink-muted transition-colors hover:bg-sand hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50', open && 'bg-sand text-ink')}
+        className={cn('flex h-9 w-9 items-center justify-center rounded-full bg-mist-light text-ink transition-colors hover:bg-ink hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand', open && 'bg-ink text-white')}
       >
         <MoreHorizontal className="h-4 w-4" />
       </button>

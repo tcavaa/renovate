@@ -39,17 +39,16 @@ export function SideList({
                 onClick={() => onSelect(item.id)}
                 aria-pressed={active}
                 className={cn(
-                  'relative flex w-full items-center justify-between gap-3 rounded-full py-2.5 pl-7 pr-3 text-left text-sm transition-colors',
-                  active ? 'bg-sand font-medium text-ink' : 'text-ink-soft hover:bg-sand/50 hover:text-ink'
+                  'relative flex w-full items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 text-left text-sm transition-colors',
+                  active ? 'bg-lime font-bold text-ink' : 'font-medium text-ink-soft hover:bg-mist-light hover:text-ink'
                 )}
               >
-                <span className={cn('absolute left-3 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full', active ? 'bg-brand' : 'bg-transparent')} />
                 <span className="min-w-0 truncate">
                   {item.label}
-                  {item.hint && <span className="ml-1.5 text-xs text-ink-muted">{item.hint}</span>}
+                  {item.hint && <span className={cn('ml-1.5 text-xs font-medium', active ? 'text-ink/60' : 'text-ink-muted')}>{item.hint}</span>}
                 </span>
                 {item.count !== undefined && item.count !== '' && (
-                  <span className={cn('shrink-0 text-xs tabular-nums', active ? 'font-serif text-sm font-semibold text-ink' : 'text-ink-faint')}>{item.count}</span>
+                  <span className={cn('shrink-0 rounded-full px-1.5 py-0.5 text-[11px] font-bold tabular-nums', active ? 'bg-ink text-white' : 'bg-mist-light text-ink-muted')}>{item.count}</span>
                 )}
               </button>
             </li>

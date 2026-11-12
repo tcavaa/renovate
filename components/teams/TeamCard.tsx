@@ -15,14 +15,14 @@ export function TeamCard({ row, t, locale, needed = [] }: { row: TeamListRow; t:
   const { team, members, trades } = row;
   const missing = needed.filter((slug) => !trades.includes(slug));
   return (
-    <article className="flex flex-col rounded-2xl border border-line bg-bg-surface p-5 shadow-card transition-[border-color,box-shadow] hover:border-ink/25 hover:shadow-cardHover">
+    <article className="flex flex-col rounded-2xl border border-line bg-bg-surface p-5 transition-[border-color,box-shadow] hover:border-ink hover:shadow-cardHover">
       <div className="flex items-start gap-4">
-        <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl bg-sand">
-          {team.logoUrl ? <Image src={team.logoUrl} alt="" width={48} height={48} className="h-full w-full object-cover" /> : <UsersRound className="h-6 w-6 text-wood-dark" />}
+        <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-xl bg-mist-light">
+          {team.logoUrl ? <Image src={team.logoUrl} alt="" width={48} height={48} className="h-full w-full object-cover" /> : <UsersRound className="h-6 w-6 text-ink" />}
         </span>
         <div className="min-w-0 flex-1">
-          <h3 className="flex items-center gap-1.5 font-serif text-lg font-semibold leading-tight text-ink">
-            <Link href={`/teams/${team.slug}`} className="hover:text-brand">
+          <h3 className="flex items-center gap-1.5 font-display text-lg leading-tight text-ink">
+            <Link href={`/teams/${team.slug}`} className="underline-offset-4 hover:underline">
               {localizedName(locale, team)}
             </Link>
             {team.isVerified && <BadgeCheck className="h-4 w-4 shrink-0 text-success" aria-label={t.workers.verified} />}
@@ -35,7 +35,7 @@ export function TeamCard({ row, t, locale, needed = [] }: { row: TeamListRow; t:
               </span>
             )}
             <span className="flex items-center gap-1">
-              <Star className="h-3 w-3 fill-accent text-accent" />
+              <Star className="h-3 w-3 fill-sun text-sun" />
               {Number(team.rating ?? 5).toFixed(1)}
             </span>
             <span>{members.length} {t.teams.membersCount}</span>
@@ -45,7 +45,7 @@ export function TeamCard({ row, t, locale, needed = [] }: { row: TeamListRow; t:
 
       <ul className="mt-3 flex flex-wrap gap-1.5">
         {trades.map((slug) => (
-          <li key={slug} className={cn('rounded-full px-2.5 py-1 text-[11px]', needed.includes(slug) ? 'bg-olive-soft font-medium text-olive' : 'bg-sand/70 text-ink-soft')}>
+          <li key={slug} className={cn('rounded-full px-2.5 py-1 text-[11px] font-medium', needed.includes(slug) ? 'bg-lime font-semibold text-ink' : 'bg-mist-light text-ink-soft')}>
             {workerSpecialtyLabel(t, slug)}
           </li>
         ))}
@@ -62,7 +62,7 @@ export function TeamCard({ row, t, locale, needed = [] }: { row: TeamListRow; t:
 
       <div className="mt-auto flex items-center justify-between gap-3 pt-4">
         <span className="text-xs text-ink-muted">{team.completedJobs ? `${team.completedJobs} ${t.teams.jobsDone}` : (team.leadName ?? '')}</span>
-        <Link href={`/teams/${team.slug}`} className="inline-flex h-9 items-center rounded-full border border-ink/15 px-4 text-sm font-medium text-ink transition-colors hover:border-brand hover:bg-brand hover:text-white">
+        <Link href={`/teams/${team.slug}`} className="inline-flex h-9 items-center rounded-full bg-ink px-4 text-sm font-semibold text-white transition-colors hover:bg-lime hover:text-ink">
           {t.teams.open} →
         </Link>
       </div>

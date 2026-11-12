@@ -36,8 +36,8 @@ function Notice({ icon, title, text, action }: { icon: ReactNode; title: string;
   return (
     <div role="alert" className="absolute inset-0 grid place-items-center bg-bg-base/95 p-6 text-center">
       <div className="max-w-sm">
-        <div className="mx-auto mb-3 grid h-11 w-11 place-items-center rounded-full bg-warning/15 text-warning">{icon}</div>
-        <p className="font-serif text-lg text-ink">{title}</p>
+        <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-xl bg-sun text-ink">{icon}</div>
+        <p className="font-display text-xl text-ink">{title}</p>
         <p className="mt-1 text-sm text-ink-muted">{text}</p>
         {action && <div className="mt-4">{action}</div>}
       </div>

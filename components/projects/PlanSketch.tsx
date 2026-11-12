@@ -35,11 +35,11 @@ export function PlanSketch({ plan, rooms, className }: { plan: FloorPlan | null;
         const fs = Math.max(0.22, Math.min(0.38, width / 10));
         return (
           <g key={room.id}>
-            <polygon points={points} fill="#FFFFFF" stroke="#141414" strokeWidth={1.6} vectorEffect="non-scaling-stroke" strokeLinejoin="miter" />
-            <text x={cx} y={cz - fs * 0.15} textAnchor="middle" fontSize={fs} fontWeight={600} fill="#1E1F23">
+            <polygon points={points} fill="#FFFFFF" stroke="#0B0B0C" strokeWidth={1.6} vectorEffect="non-scaling-stroke" strokeLinejoin="miter" />
+            <text x={cx} y={cz - fs * 0.15} textAnchor="middle" fontSize={fs} fontWeight={600} fill="#0B0B0C">
               {room.name}
             </text>
-            <text x={cx} y={cz + fs * 1.05} textAnchor="middle" fontSize={fs * 0.72} fill="#6F6A63">
+            <text x={cx} y={cz + fs * 1.05} textAnchor="middle" fontSize={fs * 0.72} fill="#6B6B73">
               {formatM2(room.areaM2)}
             </text>
           </g>

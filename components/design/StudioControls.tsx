@@ -64,7 +64,7 @@ export function ViewSwitch({
             aria-label={o.label}
             title={o.label}
             onClick={() => onView(o.id)}
-            className={cn('relative grid h-9 min-w-9 place-items-center rounded-full px-2.5 text-sm font-medium transition-colors', view === o.id ? 'bg-ink text-white' : 'text-ink-soft hover:text-ink')}
+            className={cn('relative grid h-9 min-w-9 place-items-center rounded-full px-3 text-sm font-bold transition-colors', view === o.id ? 'bg-ink text-white' : 'text-ink-soft hover:bg-mist-light hover:text-ink')}
           >
             {o.id === 'walk' ? <Eye className="h-4 w-4" /> : o.label}
             {o.id === 'walk' && locks?.walk && <PlanBadge plan={locks.walk} iconOnly className="absolute -right-1 -top-1 px-1" />}
@@ -143,14 +143,14 @@ function MenuButton<T extends string>({ title, value, onChange, options, disable
         aria-expanded={open}
         aria-label={`${title}: ${current.label}`}
         title={`${title}: ${current.label}`}
-        className={cn('flex items-center gap-0.5 rounded-full pl-2 pr-1 transition-colors disabled:opacity-40', compact ? 'h-8 border border-line' : 'h-9', open ? 'bg-ink text-white' : 'text-ink-soft hover:bg-bg-surface hover:text-ink')}
+        className={cn('flex items-center gap-0.5 rounded-full pl-2 pr-1 transition-colors disabled:opacity-40', compact ? 'h-8 border border-line' : 'h-9', open ? 'bg-ink text-white' : 'text-ink-soft hover:bg-mist-light hover:text-ink')}
       >
         <Icon className="h-4 w-4" />
         <ChevronDown className={cn('h-3 w-3 opacity-60 transition-transform', open && 'rotate-180')} />
       </button>
       {open && (
         <div role="menu" aria-label={title} className="absolute left-0 top-full z-50 mt-2 flex w-max min-w-[180px] max-w-[260px] flex-col gap-0.5 overflow-hidden rounded-2xl border border-line bg-bg-surface p-1.5 shadow-float animate-fade-in">
-          <p className="px-2 pb-1 pt-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-muted">{title}</p>
+          <p className="px-2 pb-1 pt-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-ink-muted">{title}</p>
           {options.map((o) => {
             const OptionIcon = o.icon;
             const active = o.id === value;
@@ -164,12 +164,12 @@ function MenuButton<T extends string>({ title, value, onChange, options, disable
                   onChange(o.id);
                   setOpen(false);
                 }}
-                className={cn('flex items-start gap-2 rounded-xl px-2 py-1.5 text-left transition-colors', active ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand/50 hover:text-ink')}
+                className={cn('flex items-start gap-2 rounded-xl px-2 py-1.5 text-left transition-colors', active ? 'bg-lime text-ink' : 'text-ink-soft hover:bg-mist-light hover:text-ink')}
               >
                 <OptionIcon className="mt-px h-4 w-4 shrink-0" />
                 <span className="min-w-0 flex-1">
                   <span className="block text-xs font-semibold">{o.label}</span>
-                  {o.hint && <span className={cn('block text-[10px] leading-snug', active ? 'text-white/70' : 'text-ink-muted')}>{o.hint}</span>}
+                  {o.hint && <span className={cn('block text-[10px] leading-snug', active ? 'text-ink/70' : 'text-ink-muted')}>{o.hint}</span>}
                 </span>
                 {active && <Check className="mt-px h-3.5 w-3.5 shrink-0" />}
               </button>
@@ -188,7 +188,7 @@ function Divider() {
 /** A plain icon button inside the bar. */
 function BarButton({ label, disabled, onClick, lock, children }: { label: string; disabled?: boolean; onClick: () => void; lock?: PaidPlanId | null; children: React.ReactNode }) {
   return (
-    <button type="button" title={label} aria-label={label} disabled={disabled} onClick={onClick} className="relative grid h-9 w-9 place-items-center rounded-full text-ink-soft transition-colors hover:bg-bg-surface hover:text-ink disabled:opacity-40">
+    <button type="button" title={label} aria-label={label} disabled={disabled} onClick={onClick} className="relative grid h-9 w-9 place-items-center rounded-full text-ink-soft transition-colors hover:bg-mist-light hover:text-ink disabled:opacity-40">
       {children}
       {lock && <PlanBadge plan={lock} iconOnly className="absolute -right-1 -top-1 px-1" />}
     </button>
@@ -263,7 +263,7 @@ export function IconButton({
       className={cn(
         'grid h-10 w-10 place-items-center rounded-full transition-colors disabled:opacity-40',
         !plain && 'glass',
-        pressed ? 'bg-ink text-white hover:bg-ink' : 'text-ink-soft hover:bg-bg-surface hover:text-ink'
+        pressed ? 'bg-ink text-white hover:bg-ink' : 'text-ink-soft hover:bg-mist-light hover:text-ink'
       )}
     >
       {children}

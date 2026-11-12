@@ -235,7 +235,7 @@ export default function CatalogStepPage() {
             {catLoading ? (
               <div className="space-y-2">
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="h-9 animate-pulse rounded-full bg-line/50" />
+                  <div key={i} className="h-9 animate-pulse rounded-full bg-mist" />
                 ))}
               </div>
             ) : (
@@ -257,8 +257,8 @@ export default function CatalogStepPage() {
           <section className="min-w-0">
             {room ? (
               <>
-                <div className="mb-4 border-b border-line/70 pb-3">
-                  <h2 className="font-serif text-xl font-semibold text-ink">{room.nameKa || roomTypeLabel(t, room.type)}</h2>
+                <div className="mb-4 border-b-2 border-ink pb-3">
+                  <h2 className="font-display text-2xl text-ink">{room.nameKa || roomTypeLabel(t, room.type)}</h2>
                   <p className="mt-1 text-xs text-ink-muted">
                     {roomTypeLabel(t, room.type)} · {t.calculator.summaryFloor} {formatM2(room.floorM2)} · {t.calculator.summaryWalls} {formatM2(room.wallM2)}
                   </p>
@@ -296,19 +296,19 @@ export default function CatalogStepPage() {
                       role="tab"
                       aria-selected={finishSlug === c.slug}
                       onClick={() => setFinishTab((tabs) => ({ ...tabs, [`${room.id}:${surface}`]: c.slug }))}
-                      className={cn('rounded-full border px-3.5 py-1.5 text-sm transition-colors', finishSlug === c.slug ? 'border-ink bg-ink text-white' : 'border-line bg-bg-surface text-ink hover:border-ink/40 hover:bg-sand/50')}
+                      className={cn('rounded-full px-3.5 py-1.5 text-sm font-semibold transition-colors', finishSlug === c.slug ? 'bg-ink text-white' : 'bg-mist-light text-ink hover:bg-mist')}
                     >
                       {pickLocalizedName(locale, c.nameKa, c.nameEn, c.nameRu)}
                     </button>
                   ))}
-                  <span className="ml-auto text-xs text-ink-muted" title={t.calculator.finishesHint}>
+                  <span className="ml-auto rounded-full bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand" title={t.calculator.finishesHint}>
                     {fill(t.calculator.choosingFor, { what: aimLabel })}
                   </span>
                 </div>
               </>
             ) : (
-              <div className="mb-4 flex items-baseline justify-between gap-4 border-b border-line/70 pb-3">
-                <h2 className="font-serif text-xl font-semibold text-ink">{category ? pickLocalizedName(locale, category.nameKa, category.nameEn, category.nameRu) : '…'}</h2>
+              <div className="mb-4 flex items-baseline justify-between gap-4 border-b-2 border-ink pb-3">
+                <h2 className="font-display text-2xl text-ink">{category ? pickLocalizedName(locale, category.nameKa, category.nameEn, category.nameRu) : '…'}</h2>
                 {category && <p className="text-right text-xs text-ink-muted">{t.calculator.forWholeFlat} · {t.calculator.autoQuantity}</p>}
               </div>
             )}
@@ -316,10 +316,10 @@ export default function CatalogStepPage() {
             <div className={cn(room && 'mt-4')}>
               {loading ? (
                 <div className="flex items-center justify-center py-24">
-                  <Loader2 className="h-6 w-6 animate-spin text-brand" />
+                  <Loader2 className="h-6 w-6 animate-spin text-ink" />
                 </div>
               ) : !openSlug || shown.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-stone bg-sand-light/50 p-16 text-center text-sm text-ink-muted">{t.catalog.noProducts}</div>
+                <div className="dots rounded-2xl bg-mist-light p-16 text-center text-sm text-ink-muted">{t.catalog.noProducts}</div>
               ) : (
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                   {shown.map((p) => (
@@ -332,10 +332,10 @@ export default function CatalogStepPage() {
 
           {/* What is chosen: each room's floor and walls, and the rest for the whole flat. */}
           <aside className="lg:sticky lg:top-24 lg:self-start">
-            <div className="overflow-hidden rounded-2xl border border-line bg-bg-surface shadow-card">
-              <div className="border-b border-line bg-sand-light/60 px-4 py-3">
+            <div className="overflow-hidden rounded-2xl border border-line bg-bg-surface">
+              <div className="border-b border-line bg-mist-light px-4 py-3">
                 <p className="eyebrow">
-                  {t.calculator.chosenTitle} <span className="ml-1 inline-grid min-w-5 place-items-center rounded-full bg-olive px-1.5 py-0.5 font-sans text-[10px] tracking-normal text-sand-light">{chosen.length}</span>
+                  {t.calculator.chosenTitle} <span className="ml-1 inline-grid min-w-5 place-items-center rounded-full bg-ink px-1.5 py-0.5 text-[10px] font-bold tracking-normal text-white">{chosen.length}</span>
                 </p>
               </div>
               {chosen.length === 0 ? (
@@ -346,19 +346,19 @@ export default function CatalogStepPage() {
                     const where = roomIdFromKey(key);
                     const inRoom = where ? rooms.find((r) => r.id === where) : null;
                     return (
-                      <li key={key} className="flex items-start gap-3 border-b border-line/70 px-4 py-3 text-sm">
-                        <span className="relative mt-0.5 block h-9 w-9 shrink-0 overflow-hidden rounded-lg border border-line bg-bg-base">
+                      <li key={key} className="flex items-start gap-3 border-b border-line px-4 py-3 text-sm">
+                        <span className="relative mt-0.5 block h-9 w-9 shrink-0 overflow-hidden rounded-lg bg-mist-light">
                           {p.imageUrl ? <Image src={p.imageUrl} alt="" fill sizes="36px" className="object-cover" /> : p.colorHex ? <span className="block h-full w-full" style={{ backgroundColor: p.colorHex }} /> : null}
                         </span>
                         <div className="min-w-0 flex-1">
-                          <p className="line-clamp-2 font-medium text-ink">{localizedName(locale, p)}</p>
+                          <p className="line-clamp-2 font-semibold text-ink">{localizedName(locale, p)}</p>
                           <p className="mt-0.5 text-xs tabular-nums text-ink-muted">
                             {inRoom ? `${[inRoom.nameKa || roomTypeLabel(t, inRoom.type), placeOf(p)].filter(Boolean).join(' · ')} · ` : ''}
                             {formatNumber(p.qty, p.unit === 'm2' ? 1 : 0)} {unitLabel(t, p.unit)} × {formatGEL(p.pricePerUnit)}
                           </p>
                         </div>
                         <div className="flex shrink-0 flex-col items-end gap-1">
-                          <span className="font-semibold tabular-nums">{formatGEL(p.totalPrice)}</span>
+                          <span className="font-bold tabular-nums">{formatGEL(p.totalPrice)}</span>
                           <button type="button" onClick={() => removeProduct(key)} aria-label={t.calculator.removeChoice} title={t.calculator.removeChoice} className="grid h-7 w-7 place-items-center rounded-full text-ink-faint transition-colors hover:bg-danger/10 hover:text-danger">
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -368,9 +368,9 @@ export default function CatalogStepPage() {
                   })}
                 </ul>
               )}
-              <div className="flex items-baseline justify-between bg-olive-soft px-4 py-3">
-                <span className="text-sm text-olive">{t.calculator.total}</span>
-                <span className="font-serif text-xl font-semibold tabular-nums text-olive">{formatGEL(totalSelected)}</span>
+              <div className="flex items-baseline justify-between bg-lime px-4 py-3.5">
+                <span className="text-sm font-semibold text-ink">{t.calculator.total}</span>
+                <span className="font-display text-xl tabular-nums text-ink">{formatGEL(totalSelected)}</span>
               </div>
             </div>
           </aside>
@@ -379,7 +379,7 @@ export default function CatalogStepPage() {
 
       <StepNav back={{ href: calculatorStepHref(projectId, 3), label: t.calculator.backButton }} next={{ label: t.calculator.nextButton, onClick: () => setAskFurniture(true) }}>
         <p className="text-sm text-ink-muted sm:text-right">
-          {t.calculator.chosenTitle} {chosen.length} · <span className="font-serif text-base font-semibold text-ink">{formatGEL(totalSelected)}</span>
+          {t.calculator.chosenTitle} {chosen.length} · <span className="font-display text-base text-ink">{formatGEL(totalSelected)}</span>
         </p>
       </StepNav>
 

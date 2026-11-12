@@ -4,24 +4,27 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0',
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0',
   {
     variants: {
       variant: {
+        /** The main action: a black pill that turns lime under the pointer. */
         default:
-          'bg-brand text-white hover:bg-brand-dark active:scale-[0.98]',
+          'bg-ink text-white hover:bg-lime hover:text-ink active:scale-[0.98]',
+        /** The quiet second action: a grey pill. */
         secondary:
-          'bg-olive text-white hover:bg-olive-dark active:scale-[0.98]',
+          'bg-mist text-ink hover:bg-mist-dark active:scale-[0.98]',
         outline:
-          'border border-ink/15 bg-transparent text-ink hover:border-ink/40 hover:bg-bg-surface',
-        ghost: 'text-ink hover:bg-sand/60',
-        link: 'text-brand underline-offset-4 hover:underline',
+          'border border-ink/15 bg-bg-surface text-ink hover:border-ink',
+        ghost: 'text-ink hover:bg-mist',
+        link: 'text-ink underline decoration-lime decoration-[3px] underline-offset-4 hover:decoration-ink',
         destructive:
           'bg-danger text-white hover:bg-danger/90 active:scale-[0.98]',
+        /** The lime call — the one thing on a screen that should be pressed. */
         accent:
-          'bg-accent text-white hover:bg-accent-dark active:scale-[0.98]',
-        /** The quiet primary: charcoal, turns terracotta on hover. */
-        ink: 'bg-ink text-white hover:bg-brand active:scale-[0.98]',
+          'bg-lime text-ink hover:bg-ink hover:text-lime active:scale-[0.98]',
+        /** The same black pill as the default (kept as a name the pages already use). */
+        ink: 'bg-ink text-white hover:bg-lime hover:text-ink active:scale-[0.98]',
       },
       size: {
         sm: 'h-8 px-3.5 text-xs',

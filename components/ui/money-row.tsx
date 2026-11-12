@@ -26,7 +26,7 @@ export function MoneyRow({
         className={cn(
           'shrink-0 tabular-nums',
           bold && 'text-base font-bold',
-          big && 'font-serif text-2xl font-bold text-brand-dark',
+          big && 'font-display text-2xl text-ink',
           !bold && !big && 'font-medium',
           muted && 'font-normal text-ink-muted'
         )}

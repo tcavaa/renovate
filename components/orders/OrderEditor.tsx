@@ -30,7 +30,7 @@ import { cn, formatDateTime, formatGEL, formatNumber } from '@/lib/utils';
 type ItemEdit = { qty: number; unitPrice: number; removed: boolean; note: string | null };
 type NewItem = { key: number; nameKa: string; qty: number; unitPrice: number; unit: string };
 
-const INPUT = 'h-8 w-full rounded-lg border border-line bg-white px-2 text-right text-sm tabular-nums text-ink focus:border-ink focus:outline-none disabled:bg-bg-base disabled:text-ink-muted';
+const INPUT = 'h-8 w-full rounded-lg border border-line bg-bg-surface px-2 text-right text-sm tabular-nums text-ink focus:border-ink focus:outline-none focus:ring-2 focus:ring-lime disabled:bg-mist-light disabled:text-ink-muted';
 
 export function OrderEditor({ order, backHref }: { order: OrderData; backHref: string }) {
   const t = useT();
@@ -91,9 +91,9 @@ export function OrderEditor({ order, backHref }: { order: OrderData; backHref: s
   return (
     <div className="space-y-6">
       {review && (
-        <section className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-warning/60 bg-warning/5 p-5">
+        <section className="flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-sun-soft p-5">
           <div className="max-w-2xl">
-            <p className="font-serif text-lg font-semibold text-ink">{r.awaitingTitle}</p>
+            <p className="font-display text-lg text-ink">{r.awaitingTitle}</p>
             <p className="mt-1 text-sm text-ink-soft">{r.awaitingHint}</p>
             <p className="mt-2 text-xs text-ink-muted">{fill(r.keptCount, { n: kept, total: order.items.length + added.length })}</p>
           </div>
@@ -119,7 +119,7 @@ export function OrderEditor({ order, backHref }: { order: OrderData; backHref: s
         {/* customer */}
         <section className="rounded-2xl border border-line bg-bg-surface p-5">
           <p className="eyebrow">{t.partner.customer}</p>
-          <p className="mt-2 font-serif text-xl font-semibold text-ink">{order.customerName}</p>
+          <p className="mt-2 font-display text-xl text-ink">{order.customerName}</p>
           <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ink-muted">
             <a href={`tel:${order.customerPhone}`} className="inline-flex items-center gap-1.5 hover:text-ink">
               <Phone className="h-3.5 w-3.5" />
@@ -141,8 +141,8 @@ export function OrderEditor({ order, backHref }: { order: OrderData; backHref: s
             </p>
           )}
           {order.customerNote && (
-            <div className="mt-4 border-l-2 border-wood pl-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-muted">{t.partner.customerNote}</p>
+            <div className="mt-4 border-l-4 border-lime pl-3">
+              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-ink-muted">{t.partner.customerNote}</p>
               <p className="mt-1 text-sm text-ink">{order.customerNote}</p>
             </div>
           )}
@@ -157,7 +157,7 @@ export function OrderEditor({ order, backHref }: { order: OrderData; backHref: s
               <div>
                 <dt className="uppercase tracking-wide">{t.partner.project}</dt>
                 <dd className="mt-0.5 text-sm text-ink">
-                  <Link href={`/admin/projects/${order.project.id}`} className="text-brand hover:underline">
+                  <Link href={`/admin/projects/${order.project.id}`} className="font-semibold underline decoration-lime decoration-2 underline-offset-2 hover:decoration-ink">
                     {order.project.nameKa ?? `#${order.project.id}`} · {formatNumber(order.project.totalM2)} {t.units.m2}
                   </Link>
                 </dd>
@@ -169,7 +169,7 @@ export function OrderEditor({ order, backHref }: { order: OrderData; backHref: s
         {/* money and status */}
         <section className="rounded-2xl border border-line bg-bg-surface p-5">
           <p className="eyebrow">{t.partner.total}</p>
-          <p className="mt-2 font-serif text-3xl font-semibold tabular-nums text-ink">{formatGEL(totals.subtotal + delivery)}</p>
+          <p className="mt-2 font-display text-3xl tabular-nums text-ink">{formatGEL(totals.subtotal + delivery)}</p>
           <dl className="mt-4 space-y-1.5 text-sm">
             <div className="flex justify-between text-ink-muted">
               <dt>{t.partner.items}</dt>
@@ -188,7 +188,7 @@ export function OrderEditor({ order, backHref }: { order: OrderData; backHref: s
               <dt>{fill(t.partner.commission, { pct: formatNumber(order.commissionPct) })}</dt>
               <dd className="tabular-nums">− {formatGEL(totals.commissionAmount)}</dd>
             </div>
-            <div className="flex justify-between border-t border-line pt-2 font-semibold text-ink">
+            <div className="flex justify-between border-t border-line pt-2 font-bold text-ink">
               <dt>{t.partner.net}</dt>
               <dd className="tabular-nums">{formatGEL(net)}</dd>
             </div>
@@ -199,7 +199,7 @@ export function OrderEditor({ order, backHref }: { order: OrderData; backHref: s
           </div>
           {/* A store's order still with the platform is sent on by the button above, not from a list. */}
           {!review && (
-            <select value={status} onChange={(e) => setStatus(e.target.value as OrderStatus)} className="mt-2 h-9 w-full rounded-xl border border-line bg-white px-3 text-sm text-ink focus:border-brand focus:outline-none" aria-label={t.partner.statusLabel}>
+            <select value={status} onChange={(e) => setStatus(e.target.value as OrderStatus)} className="mt-2 h-10 w-full rounded-xl border border-line bg-bg-surface px-3 text-sm text-ink focus:border-ink focus:outline-none focus:ring-2 focus:ring-lime" aria-label={t.partner.statusLabel}>
               {ORDER_STATUSES.map((s) => (
                 <option key={s} value={s}>
                   {orderStatusLabel(t, s)}
@@ -216,7 +216,7 @@ export function OrderEditor({ order, backHref }: { order: OrderData; backHref: s
           <p className="eyebrow">
             {t.partner.items} <span className="ml-2 normal-case tracking-normal text-ink-muted">{fill(r.keptCount, { n: kept, total: order.items.length + added.length })}</span>
           </p>
-          <button type="button" onClick={() => setAdded((a) => [...a, { key: Date.now(), nameKa: '', qty: 1, unitPrice: 0, unit: 'piece' }])} className="inline-flex items-center gap-1.5 rounded-full border border-ink/15 px-3 py-1 text-xs font-medium text-ink transition-colors hover:border-ink/40 hover:text-brand">
+          <button type="button" onClick={() => setAdded((a) => [...a, { key: Date.now(), nameKa: '', qty: 1, unitPrice: 0, unit: 'piece' }])} className="inline-flex items-center gap-1.5 rounded-full bg-mist-light px-3 py-1.5 text-xs font-semibold text-ink transition-colors hover:bg-lime">
             <Plus className="h-3.5 w-3.5" />
             {t.partner.addItem}
           </button>
@@ -224,7 +224,7 @@ export function OrderEditor({ order, backHref }: { order: OrderData; backHref: s
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-line bg-sand/50 text-left text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-muted">
+              <tr className="border-b border-line bg-mist-light text-left text-[11px] font-bold uppercase tracking-[0.08em] text-ink-muted">
                 <th className="w-10 px-3 py-2" aria-label={r.keep} />
                 <th className="px-2 py-2">{t.partner.item}</th>
                 <th className="px-2 py-2 text-right">{t.partner.qty}</th>
@@ -237,16 +237,16 @@ export function OrderEditor({ order, backHref }: { order: OrderData; backHref: s
                 const e = current(item);
                 const diff = lineDiff({ ...e, originalQty: item.originalQty, originalUnitPrice: item.originalUnitPrice });
                 return (
-                  <tr key={item.id} className={cn('border-b border-line/70 align-top last:border-b-0', e.removed && 'bg-bg-base/60')}>
+                  <tr key={item.id} className={cn('border-b border-line align-top last:border-b-0', e.removed && 'bg-mist-light')}>
                     <td className="px-3 py-2.5">
                       <input type="checkbox" checked={!e.removed} onChange={() => setItem(item, { removed: !e.removed })} aria-label={r.keep} title={r.keep} className="mt-1 h-4 w-4 accent-ink" />
                     </td>
                     <td className="px-2 py-2.5">
-                      <p className={cn('font-medium text-ink', e.removed && 'text-ink-muted line-through')}>{localizedName(locale, item)}</p>
+                      <p className={cn('font-semibold text-ink', e.removed && 'text-ink-muted line-through')}>{localizedName(locale, item)}</p>
                       <p className="text-xs text-ink-muted">
                         {[item.roomName, item.categorySlug?.includes(':') ? null : item.categorySlug].filter(Boolean).join(' · ')}
-                        {diff.kind === 'removed' && <span className="ml-2 rounded-full bg-danger/10 px-2 text-[10px] uppercase tracking-wide text-danger">{r.removedByManager}</span>}
-                        {diff.kind === 'added' && <span className="ml-2 rounded-full bg-success/10 px-2 text-[10px] uppercase tracking-wide text-success">{r.addedByManager}</span>}
+                        {diff.kind === 'removed' && <span className="ml-2 rounded-full bg-coral-soft px-2 text-[10px] font-bold uppercase tracking-wide text-danger">{r.removedByManager}</span>}
+                        {diff.kind === 'added' && <span className="ml-2 rounded-full bg-lime px-2 text-[10px] font-bold uppercase tracking-wide text-ink">{r.addedByManager}</span>}
                         {diff.kind === 'changed' && diff.qtyFrom != null && <span className="ml-2 text-warning">{fill(r.qtyWas, { qty: formatNumber(diff.qtyFrom) })}</span>}
                         {diff.kind === 'changed' && diff.priceFrom != null && <span className="ml-2 text-warning">{fill(r.priceWas, { price: formatGEL(diff.priceFrom) })}</span>}
                       </p>
@@ -274,9 +274,9 @@ export function OrderEditor({ order, backHref }: { order: OrderData; backHref: s
                 );
               })}
               {added.map((a, index) => (
-                <tr key={a.key} className="border-b border-line/70 bg-success/5 align-top last:border-b-0">
+                <tr key={a.key} className="border-b border-line bg-lime-soft align-top last:border-b-0">
                   <td className="px-3 py-2.5">
-                    <button type="button" onClick={() => setAdded((list) => list.filter((_, i) => i !== index))} aria-label={t.partner.remove} className="grid h-7 w-7 place-items-center rounded-full border border-line text-ink-faint hover:border-danger hover:text-danger">
+                    <button type="button" onClick={() => setAdded((list) => list.filter((_, i) => i !== index))} aria-label={t.partner.remove} className="grid h-7 w-7 place-items-center rounded-full bg-bg-surface text-ink-muted transition-colors hover:bg-coral-soft hover:text-danger">
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </td>
@@ -314,7 +314,7 @@ export function OrderEditor({ order, backHref }: { order: OrderData; backHref: s
                 <td colSpan={4} className="px-4 py-3 text-right text-sm font-semibold text-ink">
                   {t.partner.total}
                 </td>
-                <td className="px-2 py-3 text-right font-serif text-lg font-semibold tabular-nums text-ink">{formatGEL(totals.subtotal)}</td>
+                <td className="px-2 py-3 text-right font-display text-lg tabular-nums text-ink">{formatGEL(totals.subtotal)}</td>
               </tr>
             </tfoot>
           </table>
@@ -336,7 +336,7 @@ export function OrderEditor({ order, backHref }: { order: OrderData; backHref: s
         none of it is written anywhere until it is written here. Neither the customer nor the
         partner ever sees it — the API strips it for both.
       */}
-      <section className="rounded-2xl border border-warning/40 bg-warning/5 p-5">
+      <section className="rounded-2xl bg-sun-soft p-5">
         <label className="block">
           <span className="eyebrow">{t.admin.ordersPage.staffNote}</span>
           <Textarea value={staffNote} onChange={(e) => setStaffNote(e.target.value)} placeholder={t.admin.ordersPage.staffNotePlaceholder} rows={3} className="mt-2 bg-white" />
@@ -344,8 +344,8 @@ export function OrderEditor({ order, backHref }: { order: OrderData; backHref: s
         <p className="mt-2 text-xs text-ink-muted">{t.admin.ordersPage.staffNoteHint}</p>
       </section>
 
-      <div className="sticky bottom-0 z-20 flex flex-wrap items-center justify-between gap-3 border-t border-line bg-bg-base/90 py-3 backdrop-blur-md">
-        <Link href={backHref} className="text-sm font-medium text-ink-soft hover:text-brand">
+      <div className="sticky bottom-0 z-20 flex flex-wrap items-center justify-between gap-3 border-t border-line bg-bg-base/95 py-3 backdrop-blur-md">
+        <Link href={backHref} className="text-sm font-semibold text-ink underline decoration-lime decoration-2 underline-offset-4 hover:decoration-ink">
           ← {t.admin.ordersPage.backToAll}
         </Link>
         <div className="flex flex-wrap items-center gap-3">

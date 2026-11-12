@@ -38,7 +38,7 @@ export default function ForgotPasswordPage() {
       title={t.auth.forgotTitle}
       subtitle={t.auth.forgotDesc}
       footer={
-        <Link href="/login" className="bracket-link font-medium text-brand hover:text-brand-dark">
+        <Link href="/login" className="arrow-link text-ink">
           {t.auth.backToLogin}
         </Link>
       }

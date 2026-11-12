@@ -88,37 +88,37 @@ export function ProjectDetail({
     <div className="py-4 md:py-8">
       {crumbs ??
         (backHref && (
-          <Link href={backHref} className="inline-flex items-center gap-2 rounded-full text-sm text-ink-muted transition-colors hover:text-brand">
+          <Link href={backHref} className="inline-flex h-9 items-center gap-2 rounded-full bg-mist-light px-3.5 text-sm font-semibold text-ink transition-colors hover:bg-mist">
             <ArrowLeft className="h-4 w-4" />
             {backLabel}
           </Link>
         ))}
 
       {/* Title on its own line, the actions under it: side by side the buttons squeezed the name into a column of words. */}
-      <header className="mt-4 border-b border-line pb-8">
+      <header className="mt-5 pb-8">
         <div className="flex flex-wrap items-center gap-2">
           <ProjectKindTags t={t} kind={kind} />
-          <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]', project.status === 'saved' ? 'border-success/40 bg-success/10 text-success' : 'border-line bg-sand/50 text-ink-muted')}>{statusLabel(t, project.status ?? 'draft')}</span>
+          <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em]', project.status === 'saved' ? 'bg-lime text-ink' : 'bg-mist text-ink-muted')}>{statusLabel(t, project.status ?? 'draft')}</span>
         </div>
-        <h1 className="mt-3 max-w-4xl font-serif text-3xl font-semibold leading-[1.05] tracking-tight text-ink md:text-[2.75rem]">
+        <h1 className="display mt-4 max-w-4xl text-4xl text-ink md:text-6xl">
           {project.nameKa ?? t.profile.fallbackName} <span className="text-ink-faint">#{project.id}</span>
         </h1>
         {actions && <div className="mt-6 flex flex-wrap items-center gap-2">{actions}</div>}
       </header>
 
-      <div className="mt-6 overflow-hidden rounded-2xl border border-line bg-bg-surface">
+      <div className="overflow-hidden rounded-2xl bg-mist-light">
       <dl className="-mb-px -mr-px grid sm:grid-cols-2 lg:grid-cols-4">
         {facts.map((f) => (
-          <div key={f.label} className="border-b border-r border-line px-4 py-3">
+          <div key={f.label} className="border-b border-r border-bg-base px-5 py-4">
             <dt className="eyebrow">{f.label}</dt>
-            <dd className="mt-1 truncate text-sm font-medium text-ink">{f.value}</dd>
+            <dd className="mt-1 truncate text-sm font-semibold text-ink">{f.value}</dd>
           </div>
         ))}
       </dl>
       </div>
 
       {(sheets.calculatorPending || sheets.designPending) && (
-        <div className="mt-6 space-y-1 rounded-2xl border border-dashed border-stone bg-sand-light/60 px-5 py-3.5 text-sm text-ink-muted">
+        <div className="mt-6 space-y-1 rounded-2xl bg-sun-soft px-5 py-3.5 text-sm font-medium text-ink">
           {sheets.calculatorPending && <p>{t.profile.calculatorPendingNote}</p>}
           {sheets.designPending && <p>{t.profile.designPendingNote}</p>}
         </div>
@@ -143,30 +143,30 @@ export function ProjectDetail({
 
       {/* Every block folds on its title; the breakdown at the end stays open. */}
       <div className="mt-8">
-        <FoldSection title={`${t.calculator.layoutTitle} · ${t.summary.rooms}`} count={rooms.length} aside={<span className="font-serif text-lg font-semibold text-ink">{formatM2L(t, Number(project.totalM2))}</span>}>
+        <FoldSection title={`${t.calculator.layoutTitle} · ${t.summary.rooms}`} count={rooms.length} aside={<span className="font-display text-lg text-ink">{formatM2L(t, Number(project.totalM2))}</span>}>
         <div className="grid gap-8 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
         <div>
           {rooms.length > 0 || plan ? (
-            <div className="overflow-hidden rounded-2xl border border-line bg-white p-4">
+            <div className="overflow-hidden rounded-2xl bg-mist-light p-4">
               <PlanDrawing plan={plan} rooms={rooms} className="aspect-[4/3] w-full" />
             </div>
           ) : (
-            <p className="rounded-2xl border border-dashed border-stone bg-sand-light/60 p-10 text-center text-sm text-ink-muted">{t.profile.layoutEmpty}</p>
+            <p className="dots rounded-2xl bg-mist-light p-10 text-center text-sm text-ink-muted">{t.profile.layoutEmpty}</p>
           )}
         </div>
 
         <div>
           {rooms.length === 0 ? (
-            <p className="rounded-2xl border border-dashed border-stone bg-sand-light/60 p-10 text-center text-sm text-ink-muted">{t.summary.roomsEmpty}</p>
+            <p className="dots rounded-2xl bg-mist-light p-10 text-center text-sm text-ink-muted">{t.summary.roomsEmpty}</p>
           ) : (
             <ul className="overflow-hidden rounded-2xl border border-line bg-bg-surface">
               {rooms.map((r, i) => (
                 <li key={r.id} className="grid grid-cols-[1.5rem_minmax(0,1fr)_auto] items-center gap-3 border-b border-line px-4 py-3 last:border-b-0">
-                  <span className="font-serif text-sm font-semibold tabular-nums text-wood">{String(i + 1).padStart(2, '0')}</span>
+                  <span className="text-xs font-extrabold tabular-nums text-ink-faint">{String(i + 1).padStart(2, '0')}</span>
                   <div className="min-w-0">
-                    <p className="truncate font-serif text-base font-semibold text-ink">
+                    <p className="truncate text-base font-bold tracking-tight text-ink">
                       {r.nameKa}
-                      {r.isWetRoom && <span className="ml-2 rounded-full bg-olive-soft px-2 py-px font-sans text-[10px] font-medium uppercase tracking-wide text-olive">{t.rooms.wet}</span>}
+                      {r.isWetRoom && <span className="ml-2 rounded-full bg-cobalt-soft px-2 py-px align-middle text-[10px] font-bold uppercase tracking-wide text-cobalt">{t.rooms.wet}</span>}
                     </p>
                     <p className="mt-0.5 text-xs text-ink-muted">
                       {roomTypeLabel(t, r.type)}
@@ -180,7 +180,7 @@ export function ProjectDetail({
                       </span>
                     </p>
                   </div>
-                  <span className="font-serif text-base font-semibold tabular-nums text-ink">{formatM2L(t, r.floorM2)}</span>
+                  <span className="font-display text-base tabular-nums text-ink">{formatM2L(t, r.floorM2)}</span>
                 </li>
               ))}
             </ul>
@@ -229,9 +229,9 @@ export function ProjectDetail({
                   <MoneyRow label={t.summary.contingency} value={calculator.grandTotalWithMargin - calculator.grandTotal} muted />
                 </div>
                 {calculator.original && <EditsRows t={t} original={calculator.original.grandTotalWithMargin} edited={calculator.grandTotalWithMargin} />}
-                <div className="mt-4 flex items-baseline justify-between border-t-2 border-ink pt-4">
-                  <span className="font-serif text-lg font-semibold text-ink">{t.summary.grandTotalWithMargin}</span>
-                  <span className="font-serif text-3xl font-semibold tabular-nums text-ink">{formatGEL(calculator.grandTotalWithMargin)}</span>
+                <div className="mt-4 flex items-baseline justify-between gap-3 rounded-2xl bg-lime px-4 py-4">
+                  <span className="font-display text-lg text-ink">{t.summary.grandTotalWithMargin}</span>
+                  <span className="font-display text-3xl tabular-nums text-ink">{formatGEL(calculator.grandTotalWithMargin)}</span>
                 </div>
               </div>
             )}
@@ -245,9 +245,9 @@ export function ProjectDetail({
                     <MoneyRow label={t.summary.contingency} value={design.contingency} muted />
                   </div>
                 )}
-                <div className={cn('flex items-baseline justify-between', (design.originalGrandTotal != null || design.contingency > 0) && 'mt-4 border-t-2 border-ink pt-4')}>
-                  <span className="font-serif text-lg font-semibold text-ink">{design.contingency > 0 ? t.summary.grandTotalWithMargin : t.profile.designBudgetTotal}</span>
-                  <span className="font-serif text-3xl font-semibold tabular-nums text-ink">{formatGEL(design.grandTotal + design.contingency)}</span>
+                <div className={cn('flex items-baseline justify-between gap-3 rounded-2xl bg-lime px-4 py-4', (design.originalGrandTotal != null || design.contingency > 0) && 'mt-4')}>
+                  <span className="font-display text-lg text-ink">{design.contingency > 0 ? t.summary.grandTotalWithMargin : t.profile.designBudgetTotal}</span>
+                  <span className="font-display text-3xl tabular-nums text-ink">{formatGEL(design.grandTotal + design.contingency)}</span>
                 </div>
               </div>
             )}
@@ -266,8 +266,8 @@ export function ProjectDetail({
 function Section({ title, count, aside, className, children }: { title: string; count?: number; aside?: React.ReactNode; className?: string; children: React.ReactNode }) {
   return (
     <section className={className}>
-      <div className="mb-4 flex items-baseline justify-between border-b border-line pb-3">
-        <h2 className="font-serif text-2xl font-semibold text-ink">{title}</h2>
+      <div className="mb-4 flex items-baseline justify-between border-b-2 border-ink pb-3">
+        <h2 className="font-display text-2xl text-ink">{title}</h2>
         {aside ?? (count !== undefined && <span className="text-sm tabular-nums text-ink-muted">{count}</span>)}
       </div>
       {children}
@@ -280,7 +280,7 @@ function SheetAside({ total, original }: { total: number; original: number | nul
   return (
     <span className="flex items-baseline gap-2">
       {original != null && <s className="text-sm tabular-nums text-ink-faint">{formatGEL(original)}</s>}
-      <span className="font-serif text-lg font-semibold tabular-nums text-ink">{formatGEL(total)}</span>
+      <span className="font-display text-lg tabular-nums text-ink">{formatGEL(total)}</span>
     </span>
   );
 }
@@ -293,7 +293,7 @@ function EditsRows({ t, original, edited, flush = false }: { t: Dictionary; orig
       <MoneyRow label={t.build.originalEstimate} value={original} muted />
       <div className={cn('flex items-baseline justify-between gap-3', delta < 0 && 'text-danger')}>
         <span>{t.build.editsChange}</span>
-        <span className="shrink-0 font-medium tabular-nums">
+        <span className="shrink-0 font-semibold tabular-nums">
           {delta < 0 ? '−' : '+'}
           {formatGEL(Math.abs(delta))}
         </span>

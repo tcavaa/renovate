@@ -5,7 +5,7 @@ import Image from '@/components/ui/image';
  * them on the site (docs/payments.md): Visa, Mastercard, Apple Pay, Google Pay. The marks are
  * Flitt's own artwork (`public/payments/`), each on a white tile so they read on any background.
  */
-const TILE = 'flex h-8 items-center justify-center rounded-[6px] border border-line bg-white px-2';
+const TILE = 'flex h-8 items-center justify-center rounded-lg bg-white px-2';
 
 export function PaymentMarks({ className }: { className?: string }) {
   return (

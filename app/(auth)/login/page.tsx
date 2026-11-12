@@ -58,7 +58,7 @@ export default function LoginPage() {
       footer={
         <>
           <span>{t.auth.noAccount}</span>
-          <Link href={registerHref} className="bracket-link font-medium text-brand hover:text-brand-dark">
+          <Link href={registerHref} className="arrow-link text-ink">
             {t.auth.registerButton}
           </Link>
         </>
@@ -77,14 +77,14 @@ export default function LoginPage() {
             {loading && <Loader2 className="h-4 w-4 animate-spin" />}
             {t.auth.loginButton}
           </Button>
-          <Link href="/forgot-password" className="text-sm font-medium text-brand underline-offset-4 hover:text-brand-dark hover:underline">
+          <Link href="/forgot-password" className="text-sm font-semibold text-ink underline decoration-mist-dark decoration-2 underline-offset-4 hover:decoration-ink">
             {t.auth.forgotPassword}
           </Link>
         </div>
         {/* One row per configured social login; a provider with no keys has no button. */}
         {(GOOGLE_ENABLED || FACEBOOK_ENABLED) && (
           <div className="space-y-3 border-t border-line pt-5">
-            <p className="text-center text-[11px] uppercase tracking-[0.2em] text-ink-faint">{t.auth.orContinueWith}</p>
+            <p className="text-center text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-muted">{t.auth.orContinueWith}</p>
             {GOOGLE_ENABLED && (
               <Button type="button" variant="outline" size="lg" className="w-full" onClick={() => signIn('google', { callbackUrl })}>
                 {t.auth.googleLogin}

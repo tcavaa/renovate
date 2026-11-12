@@ -115,7 +115,7 @@ export function StoreForm({
               />
             </div>
             <fieldset className="space-y-3 rounded-2xl border border-line p-4 md:col-span-2">
-              <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">{ka.admin.forms.translations}</legend>
+              <legend className="px-1.5 text-[11px] font-bold uppercase tracking-[0.06em] text-ink-muted">{ka.admin.forms.translations}</legend>
               <p className="text-xs text-ink-muted">{ka.admin.forms.translationsHint}</p>
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="space-y-1">
@@ -250,7 +250,7 @@ export function StoreForm({
           </label>
 
           {materials && (
-            <div className="space-y-1 border-l-2 border-wood pl-3">
+            <div className="space-y-1 border-l-4 border-lime pl-3">
               <label className="flex items-center gap-2 text-sm font-medium">
                 <input type="checkbox" checked={suppliesMaterials} onChange={(e) => setSuppliesMaterials(e.target.checked)} />
                 {ka.admin.forms.suppliesMaterials}
@@ -263,7 +263,7 @@ export function StoreForm({
           )}
 
           {error && (
-            <p className="rounded-xl border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
+            <p className="rounded-xl border border-danger/30 bg-coral-soft px-3 py-2 text-sm text-danger">
               {error}
             </p>
           )}

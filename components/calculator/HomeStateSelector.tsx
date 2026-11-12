@@ -34,23 +34,23 @@ export function HomeStateSelector({ value, onChange }: { value: HomeState | null
             data-selected={selected}
             className={cn(
               'group relative flex min-h-[200px] flex-col rounded-2xl border p-5 text-left transition-[background-color,border-color,box-shadow] duration-300',
-              selected ? 'border-olive bg-olive text-white shadow-cardHover' : 'border-line bg-bg-surface hover:border-ink/20 hover:bg-sand-light hover:shadow-card'
+              selected ? 'border-brand bg-brand-50 ring-1 ring-brand' : 'border-line bg-bg-surface hover:border-stone hover:bg-mist-light'
             )}
           >
             <div className="flex items-start justify-between">
-              <span className={cn('font-serif text-lg font-semibold leading-none tabular-nums', selected ? 'text-sand/80' : 'text-wood')}>{String(i + 1).padStart(2, '0')}</span>
+              <span className={cn('text-sm font-extrabold leading-none tabular-nums', selected ? 'text-brand' : 'text-ink-faint')}>{String(i + 1).padStart(2, '0')}</span>
               <span
                 className={cn(
                   'grid h-6 w-6 place-items-center rounded-full border transition-colors',
-                  selected ? 'border-brand bg-brand text-white' : 'border-stone text-transparent group-hover:border-ink/40'
+                  selected ? 'border-brand bg-brand text-white' : 'border-stone text-transparent group-hover:border-ink'
                 )}
               >
-                <Check className="h-3 w-3" />
+                <Check className="h-3 w-3" strokeWidth={3} />
               </span>
             </div>
-            <h3 className={cn('mt-auto font-serif text-2xl font-semibold leading-tight', selected ? 'text-white' : 'text-ink')}>{copy.label}</h3>
-            <p className={cn('mt-2 text-sm leading-relaxed', selected ? 'text-sand-light/80' : 'text-ink-muted')}>{copy.description}</p>
-            <p className={cn('mt-4 text-[11px] font-medium uppercase tracking-[0.18em]', selected ? 'text-sand/60' : 'text-ink-faint')}>
+            <h3 className="mt-auto font-display text-2xl leading-tight text-ink">{copy.label}</h3>
+            <p className={cn('mt-2 text-sm leading-relaxed', selected ? 'text-ink-soft' : 'text-ink-muted')}>{copy.description}</p>
+            <p className={cn('mt-4 text-[11px] font-bold uppercase tracking-[0.08em]', selected ? 'text-brand' : 'text-ink-faint')}>
               {t.calculator.phasesLabel} {opt.phases}
             </p>
           </button>

@@ -61,7 +61,7 @@ export function FixturePanel({ point, room, catalog, styleId, onKind, onSwap, on
   const estimate = ELECTRICAL_MATERIAL_GEL[point.kind];
   const presets = heightPresets(info.defaultElevationM);
   const slide = (tt: number) => onSlide(Math.max(0.02, Math.min(0.98, tt)));
-  const select = 'h-8 w-full rounded-[8px] border border-line bg-bg-surface px-2 text-[13px] text-ink focus:border-ink focus:outline-none';
+  const select = 'h-8 w-full rounded-lg border border-line bg-bg-surface px-2 text-[13px] text-ink focus:border-ink focus:outline-none';
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -79,13 +79,13 @@ export function FixturePanel({ point, room, catalog, styleId, onKind, onSwap, on
         )}
       >
         {/* What it is: the photo, the name, the price, and the shop on one line under them. */}
-        <div className="overflow-hidden rounded-[10px] border border-line bg-bg-surface">
+        <div className="overflow-hidden rounded-xl bg-mist-light">
           <div className="flex items-center gap-2 p-2">
-            <div className="relative grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-[8px] bg-bg-base text-ink-soft">
+            <div className="relative grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-lg bg-bg-surface text-ink-soft">
               {product?.imageUrl ? <Image src={product.imageUrl} alt={localizedName(locale, product)} fill sizes="44px" className="object-cover" /> : <Icon className="h-5 w-5" />}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-[13px] font-semibold leading-tight text-ink">{product ? localizedName(locale, product) : t.build.fixtureEstimateTitle}</p>
+              <p className="truncate text-[13px] font-bold leading-tight tracking-tight text-ink">{product ? localizedName(locale, product) : t.build.fixtureEstimateTitle}</p>
               <p className="truncate text-[10px] text-ink-muted">
                 {electricalLabel(t, point.kind)}
                 {product?.store ? ` · ${localizedName(locale, product.store)}` : ''}
@@ -93,7 +93,7 @@ export function FixturePanel({ point, room, catalog, styleId, onKind, onSwap, on
             </div>
             {product ? (
               <p className="shrink-0 text-right">
-                <span className="block font-serif text-sm font-semibold tabular-nums text-brand-dark">{formatGEL(product.totalPrice)}</span>
+                <span className="block font-display text-sm tabular-nums text-ink">{formatGEL(product.totalPrice)}</span>
                 {product.qty !== 1 && <span className="block text-[10px] tabular-nums text-ink-muted">{product.qty} × {formatGEL(product.pricePerUnit)}</span>}
               </p>
             ) : (
@@ -108,7 +108,7 @@ export function FixturePanel({ point, room, catalog, styleId, onKind, onSwap, on
 
         {/* The kind, as a dropdown. */}
         <label className="block">
-          <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-ink-muted">{t.build.kind}</span>
+          <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-ink-muted">{t.build.kind}</span>
           <select value={point.kind} onChange={(e) => onKind(e.target.value as ElectricalKind)} className={select} aria-label={t.build.kind}>
             {ELECTRICAL_KIND_LIST.map((kind) => (
               <option key={kind} value={kind}>
@@ -135,7 +135,7 @@ export function FixturePanel({ point, room, catalog, styleId, onKind, onSwap, on
         {/* Left and right along the wall. */}
         {edge && alongM != null && (
           <label className="block">
-            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+            <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-ink-muted">
               {t.build.alongWall} · {fill(t.build.wallN, { n: edge.index + 1 })}
             </span>
             <div className="flex items-center gap-1.5">
@@ -157,7 +157,7 @@ export function FixturePanel({ point, room, catalog, styleId, onKind, onSwap, on
         <div className="flex flex-wrap items-end gap-2">
           {!light && point.kind !== 'switch' && point.kind !== 'tv' && point.kind !== 'internet' && (
             <div>
-              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-ink-muted">{t.build.outlets}</span>
+              <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-ink-muted">{t.build.outlets}</span>
               <div className="flex gap-1">
                 {[1, 2, 3, 4].map((n) => (
                   <button key={n} type="button" onClick={() => onUpdate({ count: n })} aria-pressed={(point.count ?? 1) === n} className={cn('h-8 w-8 rounded-full text-xs font-medium', (point.count ?? 1) === n ? 'bg-ink text-white' : 'border border-line bg-bg-surface text-ink-soft hover:border-ink')}>
@@ -169,7 +169,7 @@ export function FixturePanel({ point, room, catalog, styleId, onKind, onSwap, on
           )}
           {light && (
             <label className="block min-w-[150px] flex-1">
-              <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-ink-muted">{t.build.lightCategory}</span>
+              <span className="mb-1 block text-[11px] font-bold uppercase tracking-wide text-ink-muted">{t.build.lightCategory}</span>
               <select value={point.category ?? info.category ?? 'primary'} onChange={(e) => onUpdate({ category: e.target.value as LightCategory })} className={select} aria-label={t.build.lightCategory}>
                 {LIGHT_CATEGORIES.map((c) => (
                   <option key={c} value={c}>
@@ -181,7 +181,7 @@ export function FixturePanel({ point, room, catalog, styleId, onKind, onSwap, on
           )}
           {light && (
             <button type="button" role="switch" aria-checked={point.on !== false} onClick={() => onUpdate({ on: point.on === false })} className="flex h-8 items-center gap-2 rounded-full border border-line px-2.5 text-[11px] font-semibold text-ink transition-colors hover:border-ink">
-              <span className={cn('relative h-5 w-9 rounded-full transition-colors', point.on !== false ? 'bg-[#F5B400]' : 'bg-line')}>
+              <span className={cn('relative h-5 w-9 rounded-full transition-colors', point.on !== false ? 'bg-sun' : 'bg-line')}>
                 <span className={cn('absolute top-0.5 h-4 w-4 rounded-full bg-bg-surface shadow transition-all', point.on !== false ? 'left-[18px]' : 'left-0.5')} />
               </span>
               {point.on !== false ? t.build.lightOn : t.build.lightOff}
@@ -200,7 +200,7 @@ export function FixturePanel({ point, room, catalog, styleId, onKind, onSwap, on
       {/* The products of this kind, in a drawer along the bottom — like the furniture card. */}
       <section data-open={open} className={cn('-mx-1 flex min-h-[5.5rem] flex-1 flex-col border-line', open ? 'border-t-0' : 'border-t')}>
         <button type="button" aria-expanded={open} onClick={() => setOpen((v) => !v)} className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left">
-          <span className="text-[13px] font-semibold text-ink">{t.design.swapTitle}</span>
+          <span className="text-[13px] font-bold tracking-tight text-ink">{t.design.swapTitle}</span>
           <span className="flex items-center gap-1 text-[11px] text-ink-muted">
             {alternatives.length > 0 && <span className="tabular-nums">{alternatives.length}</span>}
             {open ? t.design.swapClose : t.design.swapOpen}
@@ -215,9 +215,9 @@ export function FixturePanel({ point, room, catalog, styleId, onKind, onSwap, on
               const active = candidate.id === product?.productId;
               return (
                 <li key={candidate.id}>
-                  <button type="button" onClick={() => onSwap(candidate)} className={cn('flex w-full items-center gap-3 rounded-[10px] border p-2 text-left transition-colors', active ? 'border-brand bg-sand-light' : 'border-line bg-bg-surface hover:border-ink/40')}>
-                    <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-[8px] bg-bg-base">
-                      {candidate.imageUrl ? <Image src={candidate.imageUrl} alt={localizedName(locale, candidate)} fill sizes="44px" className="object-cover" /> : <span className="block h-full w-full" style={{ backgroundColor: candidate.colorHex ?? '#DDD8CF' }} />}
+                  <button type="button" onClick={() => onSwap(candidate)} className={cn('flex w-full items-center gap-3 rounded-lg border p-2 text-left transition-colors', active ? 'border-brand bg-brand-50 ring-1 ring-brand' : 'border-line bg-bg-surface hover:border-ink/40')}>
+                    <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-mist-light">
+                      {candidate.imageUrl ? <Image src={candidate.imageUrl} alt={localizedName(locale, candidate)} fill sizes="44px" className="object-cover" /> : <span className="block h-full w-full" style={{ backgroundColor: candidate.colorHex ?? '#E7E7EA' }} />}
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-xs font-medium text-ink">{localizedName(locale, candidate)}</span>

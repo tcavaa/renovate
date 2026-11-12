@@ -30,7 +30,7 @@ export function StylePicker({ value, onChange }: { value: StyleId; onChange: (st
             onClick={() => onChange(id)}
             className={cn(
               'group relative flex flex-col overflow-hidden rounded-2xl border bg-bg-surface text-left transition-colors',
-              active ? 'border-brand ring-1 ring-brand' : 'border-line hover:border-ink/40'
+              active ? 'border-brand bg-brand-50 ring-2 ring-brand' : 'border-line hover:border-ink'
             )}
           >
             <div className="relative aspect-[4/5] w-full overflow-hidden">
@@ -55,7 +55,7 @@ export function StylePicker({ value, onChange }: { value: StyleId; onChange: (st
                   }}
                 />
               </div>
-              <span className="absolute left-3 top-3 rounded-full bg-bg-surface/85 px-2 py-0.5 font-serif text-xs font-semibold tabular-nums text-wood backdrop-blur">{String(i + 1).padStart(2, '0')}</span>
+              <span className="absolute left-3 top-3 rounded-full bg-bg-surface px-2 py-0.5 font-display text-xs tabular-nums text-ink">{String(i + 1).padStart(2, '0')}</span>
               <span
                 className={cn(
                   'absolute right-3 top-3 grid h-6 w-6 place-items-center rounded-full border transition-colors',
@@ -70,8 +70,8 @@ export function StylePicker({ value, onChange }: { value: StyleId; onChange: (st
                 ))}
               </div>
             </div>
-            <div className="border-t border-line p-4">
-              <p className="font-serif text-xl font-semibold leading-tight text-ink">{styleLabel(t, id)}</p>
+            <div className="p-4">
+              <p className="font-display text-xl leading-tight text-ink">{styleLabel(t, id)}</p>
               <p className="mt-1.5 text-xs leading-relaxed text-ink-muted">{t.styleBlurbs[id]}</p>
             </div>
           </button>

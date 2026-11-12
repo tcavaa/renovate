@@ -59,7 +59,7 @@ export default function RegisterPage() {
       footer={
         <>
           <span>{t.auth.haveAccount}</span>
-          <Link href={loginHref} className="bracket-link font-medium text-brand hover:text-brand-dark">
+          <Link href={loginHref} className="arrow-link text-ink">
             {t.auth.loginButton}
           </Link>
         </>
@@ -87,19 +87,19 @@ export default function RegisterPage() {
         <p className="eyebrow">{t.auth.partnerTitle}</p>
         <p className="mt-2 text-sm leading-relaxed text-ink-muted">{t.auth.partnerDesc}</p>
         <div className="mt-4 grid gap-2 sm:grid-cols-2">
-          <Link href="/register/store" className="group flex items-center gap-3 rounded-2xl border border-line bg-bg-surface p-4 transition-[border-color,box-shadow] hover:border-ink/30 hover:shadow-card">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-wood/15 text-wood-dark transition-colors group-hover:bg-wood group-hover:text-white">
+          <Link href="/register/store" className="group flex items-center gap-3 rounded-2xl bg-mist-light p-4 transition-colors hover:bg-mist">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-tangerine text-ink">
               <Store className="h-5 w-5" />
             </span>
-            <span className="min-w-0 flex-1 font-serif text-base font-semibold text-ink">{t.auth.registerStore}</span>
-            <ArrowUpRight className="h-4 w-4 text-ink-faint transition-[transform,color] group-hover:text-brand group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+            <span className="min-w-0 flex-1 text-[15px] font-bold tracking-tight text-ink">{t.auth.registerStore}</span>
+            <ArrowUpRight className="h-4 w-4 text-ink-muted transition-[transform,color] group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-ink" />
           </Link>
-          <Link href="/register/worker" className="group flex items-center gap-3 rounded-2xl border border-line bg-bg-surface p-4 transition-[border-color,box-shadow] hover:border-ink/30 hover:shadow-card">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-olive-soft text-olive transition-colors group-hover:bg-olive group-hover:text-sand-light">
+          <Link href="/register/worker" className="group flex items-center gap-3 rounded-2xl bg-mist-light p-4 transition-colors hover:bg-mist">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-lilac text-ink">
               <Hammer className="h-5 w-5" />
             </span>
-            <span className="min-w-0 flex-1 font-serif text-base font-semibold text-ink">{t.auth.registerWorker}</span>
-            <ArrowUpRight className="h-4 w-4 text-ink-faint transition-[transform,color] group-hover:text-brand group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+            <span className="min-w-0 flex-1 text-[15px] font-bold tracking-tight text-ink">{t.auth.registerWorker}</span>
+            <ArrowUpRight className="h-4 w-4 text-ink-muted transition-[transform,color] group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-ink" />
           </Link>
         </div>
       </div>

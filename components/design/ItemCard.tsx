@@ -34,13 +34,13 @@ export function ItemCard({ item, variant = 'tooltip', className }: ItemCardProps
   return (
     <div
       className={cn(
-        'overflow-hidden rounded-2xl border border-line bg-bg-surface shadow-cardHover',
-        compact ? 'w-72' : 'w-full',
+        'overflow-hidden rounded-2xl bg-bg-surface',
+        compact ? 'w-72 shadow-float' : 'w-full border border-line',
         className
       )}
     >
       <div className={cn('flex gap-2', compact ? 'p-3' : 'p-2')}>
-        <div className={cn('relative shrink-0 overflow-hidden rounded-lg bg-bg-base', compact ? 'h-16 w-16' : 'h-11 w-11')}>
+        <div className={cn('relative shrink-0 overflow-hidden rounded-xl bg-mist-light', compact ? 'h-16 w-16' : 'h-11 w-11')}>
           {product?.imageUrl ? (
             <Image
               src={product.imageUrl}
@@ -52,13 +52,13 @@ export function ItemCard({ item, variant = 'tooltip', className }: ItemCardProps
           ) : (
             <div
               className="h-full w-full"
-              style={{ backgroundColor: product?.colorHex ?? '#DDD8CF' }}
+              style={{ backgroundColor: product?.colorHex ?? '#E7E7EA' }}
             />
           )}
         </div>
 
         <div className="min-w-0 flex-1">
-          <p className={cn('uppercase tracking-wide text-ink-muted', compact ? 'text-[11px]' : 'text-[10px]')}>
+          <p className={cn('font-bold uppercase tracking-wide text-ink-muted', compact ? 'text-[11px]' : 'text-[10px]')}>
             {archetypeLabel(item.kind, locale)}
           </p>
           <p
@@ -79,7 +79,7 @@ export function ItemCard({ item, variant = 'tooltip', className }: ItemCardProps
                 ? t.design.originStudio
                 : t.design.originStyle}
           </p>
-          <p className={cn('truncate font-semibold leading-snug text-ink', compact ? 'text-sm' : 'text-[13px]')}>
+          <p className={cn('truncate font-bold leading-snug tracking-tight text-ink', compact ? 'text-sm' : 'text-[13px]')}>
             {product ? localizedName(locale, product) : '—'}
           </p>
           {/* The material variant it is in (`lib/design/variants`). */}
@@ -90,7 +90,7 @@ export function ItemCard({ item, variant = 'tooltip', className }: ItemCardProps
             </p>
           )}
           {product && (
-            <p className={cn('mt-0.5 font-serif font-semibold text-brand-dark', compact ? 'text-base' : 'text-sm')}>
+            <p className={cn('mt-0.5 font-display text-ink', compact ? 'text-base' : 'text-sm')}>
               {formatGEL(product.totalPrice)}
               {product.qty !== 1 && (
                 <span className="ml-1 text-xs font-normal text-ink-muted">
@@ -108,11 +108,11 @@ export function ItemCard({ item, variant = 'tooltip', className }: ItemCardProps
         hover card — the moment that proves the sofa is a real sofa you can buy — keeps them.
       */}
       {product?.store && !compact && (
-        <div className="flex items-center gap-1.5 border-t border-line bg-bg-base/70 px-2 py-1 text-[10px] text-ink-muted">
+        <div className="flex items-center gap-1.5 border-t border-line bg-mist-light px-2 py-1 text-[10px] text-ink-muted">
           <span className="min-w-0 flex-1 truncate font-semibold text-ink">{localizedName(locale, product.store)}</span>
           {product.store.rating != null && (
             <span className="flex shrink-0 items-center gap-0.5">
-              <Star className="h-3 w-3 fill-accent text-accent" />
+              <Star className="h-3 w-3 fill-sun text-sun" />
               {product.store.rating.toFixed(1)}
             </span>
           )}
@@ -126,7 +126,7 @@ export function ItemCard({ item, variant = 'tooltip', className }: ItemCardProps
       )}
 
       {product?.store && compact && (
-        <div className="border-t border-line bg-bg-base/70 px-3 py-2.5">
+        <div className="border-t border-line bg-mist-light px-3 py-2.5">
           <div className="flex items-center gap-2">
             {product.store.logoUrl && (
               <Image
@@ -138,14 +138,14 @@ export function ItemCard({ item, variant = 'tooltip', className }: ItemCardProps
               />
             )}
             <div className="min-w-0 flex-1">
-              <p className="text-[10px] uppercase tracking-wide text-ink-muted">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-ink-muted">
                 {t.design.soldBy}
               </p>
               <p className="truncate text-xs font-semibold text-ink">{localizedName(locale, product.store)}</p>
             </div>
             {product.store.rating != null && (
               <span className="flex items-center gap-0.5 rounded-full bg-bg-surface px-2 py-0.5 text-[11px] font-medium text-ink">
-                <Star className="h-3 w-3 fill-accent text-accent" />
+                <Star className="h-3 w-3 fill-sun text-sun" />
                 {product.store.rating.toFixed(1)}
               </span>
             )}
@@ -167,7 +167,7 @@ export function ItemCard({ item, variant = 'tooltip', className }: ItemCardProps
             {!compact && product.store.phone && (
               <p className="flex items-center gap-1.5">
                 <Phone className="h-3 w-3 shrink-0" />
-                <a href={`tel:${product.store.phone}`} className="hover:text-brand">
+                <a href={`tel:${product.store.phone}`} className="hover:text-ink hover:underline">
                   {product.store.phone}
                 </a>
               </p>

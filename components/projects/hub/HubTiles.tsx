@@ -12,6 +12,7 @@ import { calculatorStepHref } from '@/lib/calculator/steps';
 import { designStepHref } from '@/lib/design/steps';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';
+import { ACTION_TILE, ACTION_TILE_FRAME, ActionTileBody } from '@/components/projects/hub/ActionTile';
 import { fill } from '@/lib/admin/list';
 import { usePlan } from '@/hooks/usePlan';
 import { usePlanStore } from '@/store/planStore';
@@ -27,7 +28,7 @@ export interface HubPick {
 }
 
 /**
- * The ways to start, as a row of round buttons over the projects: **a new project** — named
+ * The ways to start, as a row of numbered tiles over the projects (the first on lime): **a new project** — named
  * first, in a dialogue, then its first step, where the plan is uploaded or drawn (step 1 offers
  * both) — and this product's half of a project the person already has in the other product,
  * chosen from a list.
@@ -95,21 +96,21 @@ export function HubTiles({ journey, defaultName, picks }: { journey: 'calculator
 
   return (
     <>
-      <div className="mt-8 flex flex-wrap items-start gap-x-8 gap-y-5">
-        <div className="flex w-36 flex-col items-center gap-1">
-          <RoundAction icon={<Plus className="h-7 w-7" strokeWidth={2.25} />} label={t.hub.createProject} title={calculator ? t.hub.newCalculatorLead : t.hub.newDesignLead} className="bg-brand group-hover:bg-brand-dark" onClick={startNew} />
+      <div className="mt-8 flex flex-wrap items-start gap-3">
+        <div className="flex w-full flex-col gap-1.5 sm:w-60">
+          <ActionTile n={1} tone="lime" icon={<Plus className="h-5 w-5" strokeWidth={2.5} />} label={t.hub.createProject} note={calculator ? t.hub.newCalculatorLead : t.hub.newDesignLead} onClick={startNew} />
           {allowance && (
-            <Link href="/profile?view=plan" className={cn('text-center text-[11px] leading-snug hover:text-ink', projects?.left === 0 ? 'text-danger' : 'text-ink-muted')}>
+            <Link href="/profile?view=plan" className={cn('px-1 text-[11px] font-medium leading-snug hover:text-ink', projects?.left === 0 ? 'text-danger' : 'text-ink-muted')}>
               {allowance}
             </Link>
           )}
         </div>
-        <span className="mt-4 hidden h-9 w-px bg-line sm:block" aria-hidden />
-        <RoundAction
-          icon={calculator ? <Box className="h-6 w-6" /> : <Calculator className="h-6 w-6" />}
+        <ActionTile
+          n={2}
+          tone="mist"
+          icon={calculator ? <Box className="h-5 w-5" /> : <Calculator className="h-5 w-5" />}
           label={calculator ? t.hub.tileFromDesign : t.hub.tileFromCalc}
-          title={calculator ? t.hub.tileFromDesignDesc : t.hub.tileFromCalcDesc}
-          className={calculator ? 'bg-olive group-hover:bg-olive-dark' : 'bg-wood group-hover:bg-wood-dark'}
+          note={calculator ? t.hub.tileFromDesignDesc : t.hub.tileFromCalcDesc}
           onClick={() => setPicking(true)}
         />
       </div>
@@ -165,18 +166,18 @@ export function HubTiles({ journey, defaultName, picks }: { journey: 'calculator
             <DialogDescription>{calculator ? t.hub.pickFromDesignLead : t.hub.pickFromCalcLead}</DialogDescription>
           </DialogHeader>
           {picks.length === 0 ? (
-            <p className="rounded-2xl border border-dashed border-stone bg-sand-light/60 p-8 text-center text-sm text-ink-muted">{t.hub.pickEmpty}</p>
+            <p className="rounded-2xl bg-mist-light p-8 text-center text-sm text-ink-muted">{t.hub.pickEmpty}</p>
           ) : (
             <ul className="-mx-2 max-h-[60vh] space-y-1 overflow-y-auto">
               {picks.map((pick) => (
                 <li key={pick.id}>
-                  <Link href={pick.href} className="group flex items-center gap-4 rounded-xl px-2 py-2 transition-colors hover:bg-sand/50 focus-visible:bg-sand/50 focus-visible:outline-none">
-                    <span className="block h-12 w-16 shrink-0 overflow-hidden rounded-lg border border-line">{pick.thumbnail}</span>
+                  <Link href={pick.href} className="group flex items-center gap-4 rounded-xl px-2 py-2 transition-colors hover:bg-mist-light focus-visible:bg-mist-light focus-visible:outline-none">
+                    <span className="block h-12 w-16 shrink-0 overflow-hidden rounded-lg">{pick.thumbnail}</span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate font-medium text-ink group-hover:text-brand">{pick.name}</span>
+                      <span className="block truncate font-semibold text-ink">{pick.name}</span>
                       <span className="block text-xs text-ink-muted">{pick.date}</span>
                     </span>
-                    <ArrowUpRight className="h-4 w-4 shrink-0 text-ink-faint group-hover:text-brand" aria-hidden />
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-mist-light text-ink transition-colors group-hover:bg-lime" aria-hidden><ArrowUpRight className="h-4 w-4" /></span>
                   </Link>
                 </li>
               ))}
@@ -188,12 +189,11 @@ export function HubTiles({ journey, defaultName, picks }: { journey: 'calculator
   );
 }
 
-/** One of the row's round buttons: a coloured circle with its icon, its name under it. */
-function RoundAction({ icon, label, title, className, onClick }: { icon: ReactNode; label: string; title: string; className: string; onClick: () => void }) {
+/** One of the row's tiles: a white icon tile, its numbered name and a line about it, on lime or grey. */
+function ActionTile({ n, tone, icon, label, note, onClick }: { n: number; tone: keyof typeof ACTION_TILE; icon: ReactNode; label: string; note: string; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} title={title} aria-haspopup="dialog" className="group flex w-36 flex-col items-center gap-2.5 text-center focus-visible:outline-none">
-      <span className={cn('grid h-16 w-16 place-items-center rounded-full text-white shadow-card transition-all group-hover:-translate-y-0.5 group-focus-visible:ring-2 group-focus-visible:ring-brand/50 group-focus-visible:ring-offset-2', className)}>{icon}</span>
-      <span className="text-sm font-medium leading-snug text-ink-soft transition-colors group-hover:text-ink">{label}</span>
+    <button type="button" onClick={onClick} title={note} aria-haspopup="dialog" className={cn(ACTION_TILE_FRAME, ACTION_TILE[tone])}>
+      <ActionTileBody n={n} icon={icon} label={label} note={note} />
     </button>
   );
 }

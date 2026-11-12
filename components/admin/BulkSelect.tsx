@@ -97,10 +97,10 @@ export function BulkBar({ endpoint, actions = ['show', 'hide', 'delete'], noun }
 
   if (count === 0 && !notice) return null;
   return (
-    <div className={cn('sticky top-2 z-20 flex flex-wrap items-center gap-2 rounded-2xl border px-3 py-2 text-sm', count > 0 ? 'border-olive bg-olive text-white shadow-float' : 'border-line bg-bg-surface')}>
+    <div className={cn('sticky top-2 z-20 flex flex-wrap items-center gap-2 rounded-2xl border px-3 py-2 text-sm', count > 0 ? 'border-ink bg-ink py-2.5 pl-4 text-white shadow-float' : 'border-line bg-bg-surface')}>
       {count > 0 ? (
         <>
-          <span className="font-medium">
+          <span className="font-bold text-lime">
             {fill(b.selected, { n: count })}
             {noun ? ` · ${noun}` : ''}
           </span>
@@ -123,12 +123,12 @@ export function BulkBar({ endpoint, actions = ['show', 'hide', 'delete'], noun }
               {b.delete}
             </Button>
           )}
-          <button type="button" onClick={clear} aria-label={b.clear} title={b.clear} className="grid h-8 w-8 place-items-center rounded-full text-white/80 hover:bg-white/10 hover:text-white">
+          <button type="button" onClick={clear} aria-label={b.clear} title={b.clear} className="grid h-8 w-8 place-items-center rounded-full text-white/80 transition-colors hover:bg-white/15 hover:text-white">
             <X className="h-4 w-4" />
           </button>
         </>
       ) : (
-        notice && <p className={notice.ok ? 'text-success' : 'text-danger'}>{notice.text}</p>
+        notice && <p className={cn('font-medium', notice.ok ? 'text-success' : 'text-danger')}>{notice.text}</p>
       )}
     </div>
   );

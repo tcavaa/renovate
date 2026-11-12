@@ -137,7 +137,7 @@ export function FilterFrame({ search, sort, filters = [], setCount = 0, onReset 
   const t = useT();
   const f = t.admin.filters;
   const resetButton = onReset && (
-    <button type="button" onClick={onReset} className="ml-auto inline-flex h-8 shrink-0 items-center gap-1 rounded-full px-2.5 text-xs font-medium text-ink-muted transition-colors hover:bg-danger/5 hover:text-danger">
+    <button type="button" onClick={onReset} className="ml-auto inline-flex h-8 shrink-0 items-center gap-1 rounded-full px-2.5 text-xs font-semibold text-ink-muted transition-colors hover:bg-coral-soft hover:text-danger">
       <X className="h-3.5 w-3.5" />
       {f.reset}
     </button>
@@ -154,10 +154,10 @@ export function FilterFrame({ search, sort, filters = [], setCount = 0, onReset 
       )}
       {filters.length > 0 && (
         <div className={cn('flex flex-wrap items-center gap-1.5 px-2.5 py-2', top && 'border-t border-line/70')}>
-          <span className="mr-1 inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+          <span className="mr-1 inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.06em] text-ink-muted">
             <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
             {f.title}
-            {setCount > 0 && <span className="grid h-4 min-w-4 place-items-center rounded-full bg-olive px-1 text-[10px] tabular-nums text-sand-light">{setCount}</span>}
+            {setCount > 0 && <span className="grid h-4 min-w-4 place-items-center rounded-full bg-lime px-1 text-[10px] font-bold tabular-nums text-ink">{setCount}</span>}
           </span>
           {filters}
           {resetButton}
@@ -254,7 +254,7 @@ export function FilterSearch({ value, placeholder, onCommit, className }: { valu
         onKeyDown={(e) => {
           if (e.code === 'Enter' || e.code === 'NumpadEnter') commit(draft);
         }}
-        className="h-9 w-full rounded-full border border-line bg-bg-base pl-9 pr-9 text-sm text-ink transition-colors placeholder:text-ink-muted focus:border-ink focus:bg-bg-surface focus:outline-none [&::-webkit-search-cancel-button]:hidden"
+        className="h-10 w-full rounded-full border border-transparent bg-mist-light pl-9 pr-9 text-sm text-ink transition-colors placeholder:text-ink-muted hover:bg-mist focus:border-ink focus:bg-bg-surface focus:outline-none focus:ring-[3px] focus:ring-lime [&::-webkit-search-cancel-button]:hidden"
       />
       {draft && (
         <button
@@ -264,7 +264,7 @@ export function FilterSearch({ value, placeholder, onCommit, className }: { valu
             commit('');
           }}
           aria-label={placeholder}
-          className="absolute right-1.5 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-full text-ink-muted hover:bg-sand/60 hover:text-ink"
+          className="absolute right-1.5 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-full text-ink-muted hover:bg-mist hover:text-ink"
         >
           <X className="h-3.5 w-3.5" />
         </button>
@@ -338,8 +338,8 @@ function FilterPopover({
 
   return (
     <div ref={ref} className={cn('relative', className)}>
-      <div className={cn('inline-flex h-8 items-stretch overflow-hidden rounded-full border text-xs transition-colors', set ? 'border-olive bg-olive text-white' : open ? 'border-ink bg-bg-surface text-ink' : 'border-line bg-bg-surface text-ink-soft hover:border-ink/40 hover:bg-sand/40 hover:text-ink')}>
-        <button ref={trigger} type="button" onClick={toggle} aria-expanded={open} aria-haspopup="dialog" className="inline-flex min-w-0 items-center gap-1.5 px-3 font-medium">
+      <div className={cn('inline-flex h-8 items-stretch overflow-hidden rounded-full border text-xs transition-colors', set ? 'border-ink bg-ink text-white' : open ? 'border-ink bg-bg-surface text-ink' : 'border-line bg-bg-surface text-ink-soft hover:border-ink hover:text-ink')}>
+        <button ref={trigger} type="button" onClick={toggle} aria-expanded={open} aria-haspopup="dialog" className="inline-flex min-w-0 items-center gap-1.5 px-3 font-semibold">
           {icon}
           <span className={cn('shrink-0', set && 'text-white/65')}>
             {label}
@@ -349,7 +349,7 @@ function FilterPopover({
           <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 opacity-60 transition-transform', open && 'rotate-180')} />
         </button>
         {set && onClear && (
-          <button type="button" onClick={onClear} aria-label={`${t.admin.filters.clearOne}: ${label}`} title={t.admin.filters.clearOne} className="grid w-7 place-items-center border-l border-white/20 pr-0.5 text-white/80 transition-colors hover:bg-white/10 hover:text-white">
+          <button type="button" onClick={onClear} aria-label={`${t.admin.filters.clearOne}: ${label}`} title={t.admin.filters.clearOne} className="grid w-7 place-items-center border-l border-white/20 pr-0.5 text-white/80 transition-colors hover:bg-lime hover:text-ink">
             <X className="h-3.5 w-3.5" />
           </button>
         )}
@@ -451,7 +451,7 @@ function OptionList({ label, options, value, allLabel, onPick }: { label: string
               }}
               placeholder={t.admin.filters.search}
               aria-label={`${label}: ${t.admin.filters.search}`}
-              className="h-8 w-full rounded-full border border-line bg-bg-base pl-8 pr-2 text-xs text-ink placeholder:text-ink-muted focus:border-ink focus:bg-bg-surface focus:outline-none"
+              className="h-8 w-full rounded-full border border-transparent bg-mist-light pl-8 pr-2 text-xs text-ink placeholder:text-ink-muted focus:border-ink focus:bg-bg-surface focus:outline-none focus:ring-[3px] focus:ring-lime"
             />
           </div>
         </div>
@@ -474,9 +474,9 @@ function OptionRow({ label, selected, muted, onClick }: { label: string; selecte
       role="option"
       aria-selected={selected}
       onClick={onClick}
-      className={cn('flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors hover:bg-sand/50 focus:bg-sand/50 focus:outline-none', selected ? 'font-semibold text-ink' : muted ? 'text-ink-muted' : 'text-ink-soft')}
+      className={cn('flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors hover:bg-mist-light focus:bg-mist-light focus:outline-none', selected ? 'font-bold text-ink' : muted ? 'text-ink-muted' : 'text-ink-soft')}
     >
-      <span className="grid w-3.5 shrink-0 place-items-center">{selected && <Check className="h-3.5 w-3.5 text-brand" />}</span>
+      <span className="grid w-3.5 shrink-0 place-items-center">{selected && <Check className="h-3.5 w-3.5 text-ink" strokeWidth={3} />}</span>
       <span className="min-w-0 whitespace-pre">{label}</span>
     </button>
   );
@@ -489,9 +489,9 @@ export function FilterToggle({ label, on, onChange }: { label: string; on: boole
       type="button"
       aria-pressed={on}
       onClick={() => onChange(!on)}
-      className={cn('inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors', on ? 'border-olive bg-olive text-white' : 'border-line bg-bg-surface text-ink-soft hover:border-ink/40 hover:bg-sand/40 hover:text-ink')}
+      className={cn('inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-colors', on ? 'border-ink bg-ink text-white' : 'border-line bg-bg-surface text-ink-soft hover:border-ink hover:text-ink')}
     >
-      <span className={cn('grid h-3.5 w-3.5 place-items-center rounded-full border', on ? 'border-white bg-white text-olive' : 'border-ink-muted/60')}>{on && <Check className="h-3 w-3" />}</span>
+      <span className={cn('grid h-3.5 w-3.5 place-items-center rounded-full border', on ? 'border-lime bg-lime text-ink' : 'border-ink-muted/60')}>{on && <Check className="h-3 w-3" />}</span>
       {label}
     </button>
   );
@@ -554,7 +554,7 @@ function RangeForm({ type, step, inputs, applyLabel, clearLabel, onApply, onClea
           <Fragment key={input.name}>
             {i > 0 && <span className="pb-2 text-ink-faint">–</span>}
             <label className="min-w-0 flex-1">
-              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-ink-muted">{input.caption}</span>
+              <span className="mb-1 block text-[10px] font-bold uppercase tracking-[0.06em] text-ink-muted">{input.caption}</span>
               <input
                 type={type}
                 inputMode={type === 'number' ? 'decimal' : undefined}
@@ -563,7 +563,7 @@ function RangeForm({ type, step, inputs, applyLabel, clearLabel, onApply, onClea
                 autoFocus={i === 0}
                 value={draft[input.name] ?? ''}
                 onChange={(e) => setDraft((d) => ({ ...d, [input.name]: e.target.value }))}
-                className="h-8 w-full rounded-xl border border-line bg-bg-base px-2.5 text-xs tabular-nums text-ink focus:border-ink focus:bg-bg-surface focus:outline-none"
+                className="h-9 w-full rounded-xl border border-line bg-bg-surface px-2.5 text-xs tabular-nums text-ink focus:border-ink focus:outline-none focus:ring-[3px] focus:ring-lime"
               />
             </label>
           </Fragment>
@@ -573,7 +573,7 @@ function RangeForm({ type, step, inputs, applyLabel, clearLabel, onApply, onClea
         <button type="button" onClick={onClear} className="text-xs text-ink-muted transition-colors hover:text-ink">
           {clearLabel}
         </button>
-        <button type="submit" className="h-8 rounded-full bg-ink px-4 text-xs font-semibold text-white transition-colors hover:bg-brand">
+        <button type="submit" className="h-8 rounded-full bg-ink px-4 text-xs font-semibold text-white transition-colors hover:bg-lime hover:text-ink">
           {applyLabel}
         </button>
       </div>

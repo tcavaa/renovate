@@ -149,8 +149,8 @@ export function Combobox({ value, onValueChange, options, placeholder, searchPla
           aria-label={ariaLabel}
           onKeyDown={onTriggerKeyDown}
           className={cn(
-            'flex h-10 w-full items-center justify-between gap-2 rounded-xl border border-line bg-bg-surface px-3.5 py-2 text-left text-sm',
-            'focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/40 data-[state=open]:border-brand',
+            'flex h-11 w-full items-center justify-between gap-2 rounded-xl border border-line bg-bg-surface px-4 py-2 text-left text-sm transition-colors hover:border-stone',
+            'focus:border-ink focus:outline-none focus:ring-[3px] focus:ring-lime data-[state=open]:border-ink',
             'disabled:cursor-not-allowed disabled:opacity-50',
             className
           )}
@@ -223,7 +223,7 @@ export function Combobox({ value, onValueChange, options, placeholder, searchPla
                     isChosen ? 'font-semibold text-ink' : hit.match ? 'text-ink-soft' : 'text-ink-muted'
                   )}
                 >
-                  <span className="grid w-4 shrink-0 place-items-center">{isChosen && <Check className="h-4 w-4 text-brand" />}</span>
+                  <span className="grid w-4 shrink-0 place-items-center">{isChosen && <Check className="h-4 w-4 text-ink" strokeWidth={3} />}</span>
                   {depth > 0 && (
                     <span aria-hidden className="shrink-0 text-ink-faint">
                       └

@@ -26,13 +26,13 @@ export function FoldSection({
   return (
     <section className="border-b border-line">
       <button type="button" aria-expanded={open} onClick={() => setOpen((o) => !o)} className="group flex w-full items-center justify-between gap-4 py-4 text-left">
-        <h2 className="font-serif text-2xl font-semibold text-ink">
+        <h2 className="font-display text-2xl text-ink">
           {title}
-          {count !== undefined && <span className="ml-2 text-base font-normal tabular-nums text-ink-muted">({count})</span>}
+          {count !== undefined && <span className="ml-2 inline-grid h-6 min-w-6 place-items-center rounded-full bg-mist px-1.5 align-middle text-xs font-bold tracking-normal tabular-nums text-ink">{count}</span>}
         </h2>
         <span className="flex shrink-0 items-center gap-4">
           {aside && <span className="text-sm text-ink-muted">{aside}</span>}
-          <span className={cn('grid h-8 w-8 place-items-center rounded-full border transition-colors', open ? 'border-ink bg-ink text-white' : 'border-ink/15 text-ink group-hover:border-ink/40 group-hover:bg-bg-surface')} aria-hidden>
+          <span className={cn('grid h-9 w-9 place-items-center rounded-full transition-colors', open ? 'bg-ink text-white' : 'bg-mist-light text-ink group-hover:bg-lime')} aria-hidden>
             {open ? <Minus className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
           </span>
         </span>

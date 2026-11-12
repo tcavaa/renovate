@@ -150,13 +150,13 @@ export function CatalogBrowser({
     { id: 'name', label: t.design.catalogSortName },
   ];
   const toggle = <T,>(list: T[], value: T): T[] => (list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
-  const sectionTitle = 'mb-1.5 mt-4 px-1 text-[10px] font-semibold uppercase tracking-wide text-ink-muted first:mt-0';
-  const filterRow = (active: boolean) => cn('flex h-8 w-full items-center gap-2 rounded-[8px] px-2 text-left text-xs transition-colors', active ? 'bg-ink text-white' : 'text-ink-soft hover:bg-sand-light hover:text-ink');
+  const sectionTitle = 'mb-1.5 mt-4 px-1 text-[10px] font-bold uppercase tracking-wide text-ink-muted first:mt-0';
+  const filterRow = (active: boolean) => cn('flex h-8 w-full items-center gap-2 rounded-lg px-2 text-left text-xs font-medium transition-colors', active ? 'bg-lime font-bold text-ink' : 'text-ink-soft hover:bg-mist hover:text-ink');
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="flex h-[min(800px,calc(100vh-2rem))] w-[calc(100vw-2rem)] max-w-[1200px] flex-col gap-0 overflow-hidden rounded-[18px] p-0"
+        className="flex h-[min(800px,calc(100vh-2rem))] w-[calc(100vw-2rem)] max-w-[1200px] flex-col gap-0 overflow-hidden rounded-3xl p-0 sm:p-0"
         // Escape closes the modal and nothing else: the studio's own Escape — give up the
         // piece on the pointer, put the tools down — listens further up and must not hear it.
         // Only while the modal is really open, though: Radix keeps the layer for the beat of
@@ -175,7 +175,7 @@ export function CatalogBrowser({
         {/* ---- header: the title, the count, the search, the sort ---- */}
         <div className="flex shrink-0 items-center gap-3 border-b border-line px-5 py-3 pr-14">
           <LayoutGrid className="h-5 w-5 shrink-0 text-ink" aria-hidden />
-          <h2 className="shrink-0 font-serif text-lg font-semibold text-ink">{t.design.catalogTitle}</h2>
+          <h2 className="shrink-0 font-display text-xl text-ink">{t.design.catalogTitle}</h2>
           <span className="shrink-0 text-xs tabular-nums text-ink-muted">{fill(t.design.catalogResults, { n: browse.results.length })}</span>
           <div className="relative min-w-0 flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
@@ -186,12 +186,12 @@ export function CatalogBrowser({
               onChange={(e) => patch({ query: e.target.value })}
               placeholder={t.design.searchFurniture}
               aria-label={t.design.searchFurniture}
-              className="h-9 w-full rounded-[10px] border border-line bg-bg-surface pl-9 pr-3 text-sm text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none"
+              className="h-10 w-full rounded-full border border-transparent bg-mist-light pl-9 pr-3 text-sm text-ink placeholder:text-ink-faint focus:border-ink focus:bg-bg-surface focus:outline-none"
             />
           </div>
           <label className="flex shrink-0 items-center gap-1.5 text-xs text-ink-muted">
             <span className="hidden sm:inline">{t.design.catalogSort}</span>
-            <select value={state.sort} onChange={(e) => patch({ sort: e.target.value as CatalogSort })} className="h-9 rounded-[10px] border border-line bg-bg-surface px-2 text-xs text-ink focus:border-ink focus:outline-none">
+            <select value={state.sort} onChange={(e) => patch({ sort: e.target.value as CatalogSort })} className="h-10 rounded-full border border-line bg-bg-surface px-3 text-xs font-medium text-ink focus:border-ink focus:outline-none">
               {sortOptions.map((o) => (
                 <option key={o.id} value={o.id}>
                   {o.label}
@@ -203,7 +203,7 @@ export function CatalogBrowser({
 
         <div className="flex min-h-0 flex-1">
           {/* ---- left: the filters ---- */}
-          <aside className="w-[236px] shrink-0 overflow-y-auto border-r border-line bg-sand-light/40 p-3">
+          <aside className="w-[236px] shrink-0 overflow-y-auto border-r border-line bg-bg-base p-3">
             {/* The person's own pieces: theirs to filter to, and the way to add one. */}
             <p className={sectionTitle}>{t.design.ownMine}</p>
             <button type="button" aria-pressed={state.mine} onClick={() => patch({ mine: !state.mine })} className={filterRow(state.mine)}>
@@ -212,7 +212,7 @@ export function CatalogBrowser({
               <span className="tabular-nums opacity-70">{browse.ownCount}</span>
             </button>
             {onAddOwn && (
-              <button type="button" onClick={onAddOwn} className="mt-1 flex h-8 w-full items-center gap-2 rounded-full border border-dashed border-ink/30 px-2 text-left text-xs font-semibold text-ink hover:border-ink hover:bg-bg-surface">
+              <button type="button" onClick={onAddOwn} className="mt-1 flex h-8 w-full items-center gap-2 rounded-full border border-dashed border-ink/40 px-2.5 text-left text-xs font-semibold text-ink hover:border-ink hover:bg-bg-surface">
                 <Plus className="h-3.5 w-3.5 shrink-0" />
                 <span className="truncate">{t.design.ownAdd}</span>
               </button>
@@ -267,7 +267,7 @@ export function CatalogBrowser({
                     aria-pressed={active}
                     title={own ? `${styleLabel(t, id)} · ${t.design.yourStyle}` : styleLabel(t, id)}
                     onClick={() => patch({ styles: toggle(state.styles, id) })}
-                    className={cn('flex h-7 items-center gap-1 rounded-full px-2 text-[11px] font-semibold transition-colors', active && own ? 'bg-brand text-white' : active ? 'bg-ink text-white' : own ? 'text-ink ring-1 ring-inset ring-brand/40 hover:bg-sand-light' : 'text-ink-soft ring-1 ring-inset ring-line hover:bg-sand-light hover:text-ink')}
+                    className={cn('flex h-7 items-center gap-1 rounded-full px-2 text-[11px] font-semibold transition-colors', active && own ? 'bg-brand text-white' : active ? 'bg-ink text-white' : own ? 'text-ink ring-1 ring-inset ring-brand/40 hover:bg-mist-light' : 'text-ink-soft ring-1 ring-inset ring-line hover:bg-mist-light hover:text-ink')}
                   >
                     {own && <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', active ? 'bg-bg-surface' : 'bg-brand')} aria-hidden />}
                     {styleLabel(t, id)}
@@ -315,7 +315,7 @@ export function CatalogBrowser({
                 onChange={(e) => patch({ priceMin: e.target.value === '' ? null : Math.max(0, Number(e.target.value)) })}
                 placeholder={browse.price ? String(Math.floor(browse.price.min)) : t.design.catalogPriceFrom}
                 aria-label={t.design.catalogPriceFrom}
-                className="h-8 w-full min-w-0 rounded-[8px] border border-line bg-bg-surface px-2 text-xs tabular-nums text-ink focus:border-ink focus:outline-none"
+                className="h-8 w-full min-w-0 rounded-lg border border-line bg-bg-surface px-2 text-xs tabular-nums text-ink focus:border-ink focus:outline-none"
               />
               <span className="text-ink-faint">–</span>
               <input
@@ -326,14 +326,14 @@ export function CatalogBrowser({
                 onChange={(e) => patch({ priceMax: e.target.value === '' ? null : Math.max(0, Number(e.target.value)) })}
                 placeholder={browse.price ? String(Math.ceil(browse.price.max)) : t.design.catalogPriceTo}
                 aria-label={t.design.catalogPriceTo}
-                className="h-8 w-full min-w-0 rounded-[8px] border border-line bg-bg-surface px-2 text-xs tabular-nums text-ink focus:border-ink focus:outline-none"
+                className="h-8 w-full min-w-0 rounded-lg border border-line bg-bg-surface px-2 text-xs tabular-nums text-ink focus:border-ink focus:outline-none"
               />
             </div>
 
             {browse.stores.length > 0 && (
               <>
                 <p className={sectionTitle}>{t.design.catalogStore}</p>
-                <select value={browse.storeId ?? ''} onChange={(e) => patch({ storeId: e.target.value === '' ? null : Number(e.target.value) })} aria-label={t.design.catalogStore} className="mx-1 h-8 w-[calc(100%-0.5rem)] rounded-[8px] border border-line bg-bg-surface px-2 text-xs text-ink focus:border-ink focus:outline-none">
+                <select value={browse.storeId ?? ''} onChange={(e) => patch({ storeId: e.target.value === '' ? null : Number(e.target.value) })} aria-label={t.design.catalogStore} className="mx-1 h-8 w-[calc(100%-0.5rem)] rounded-lg border border-line bg-bg-surface px-2 text-xs text-ink focus:border-ink focus:outline-none">
                   <option value="">{t.design.catalogAllStores}</option>
                   {browse.stores.map(({ store, count }) => (
                     <option key={store.id} value={store.id}>
@@ -358,7 +358,7 @@ export function CatalogBrowser({
               <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
                 <p className="max-w-sm text-sm text-ink-muted">{t.design.catalogNoResults}</p>
                 {hasCatalogFilters(state) && (
-                  <button type="button" onClick={() => onState({ ...initialCatalogBrowserState(), sort: state.sort })} className="h-8 rounded-full bg-ink px-3 text-xs font-semibold text-white hover:bg-brand">
+                  <button type="button" onClick={() => onState({ ...initialCatalogBrowserState(), sort: state.sort })} className="h-8 rounded-full bg-ink px-3 text-xs font-semibold text-white hover:bg-lime hover:text-ink">
                     {t.design.catalogClear}
                   </button>
                 )}
@@ -385,16 +385,16 @@ export function CatalogBrowser({
                           patch({ selectedId: p.id });
                         }
                       }}
-                      className={cn('group flex cursor-pointer flex-col overflow-hidden rounded-[12px] border bg-bg-surface text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ink', active ? 'border-brand ring-1 ring-brand' : refused === p.id ? 'border-danger' : 'border-line hover:border-ink/60')}
+                      className={cn('group flex cursor-pointer flex-col overflow-hidden rounded-2xl border bg-bg-surface text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ink', active ? 'border-brand ring-2 ring-brand' : refused === p.id ? 'border-danger' : 'border-line hover:border-ink/60')}
                     >
-                      <span className="relative block aspect-square w-full bg-bg-base">
-                        {p.imageUrl ? <Image src={p.imageUrl} alt={name} fill sizes="180px" className="pointer-events-none object-cover transition-transform group-hover:scale-105" /> : <span className="block h-full w-full" style={{ backgroundColor: p.colorHex ?? '#DDD8CF' }} />}
+                      <span className="relative block aspect-square w-full bg-mist-light">
+                        {p.imageUrl ? <Image src={p.imageUrl} alt={name} fill sizes="180px" className="pointer-events-none object-cover transition-transform group-hover:scale-105" /> : <span className="block h-full w-full" style={{ backgroundColor: p.colorHex ?? '#E7E7EA' }} />}
                       </span>
                       <span className="flex flex-1 flex-col gap-0.5 px-2.5 py-2">
-                        <span className="line-clamp-2 text-xs font-medium leading-snug text-ink">{name}</span>
+                        <span className="line-clamp-2 text-xs font-semibold leading-snug text-ink">{name}</span>
                         <span className="truncate text-[10px] text-ink-muted">{p.own ? (p.pending ? t.design.ownPending : t.design.ownBadge) : seller}</span>
                         <span className="mt-auto flex items-center justify-between gap-2 pt-1">
-                          <span className={cn('text-sm font-semibold tabular-nums', p.own ? 'text-ink-muted' : 'text-ink')}>{p.own ? t.design.ownFree : formatGEL(p.pricePerUnit)}</span>
+                          <span className={cn('text-sm font-bold tabular-nums', p.own ? 'text-ink-muted' : 'text-ink')}>{p.own ? t.design.ownFree : formatGEL(p.pricePerUnit)}</span>
                           <button
                             type="button"
                             disabled={!canPlace || !!p.pending}
@@ -404,7 +404,7 @@ export function CatalogBrowser({
                               e.stopPropagation();
                               place(p);
                             }}
-                            className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-ink text-white transition-colors hover:bg-brand disabled:cursor-not-allowed disabled:opacity-40"
+                            className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-lime text-ink transition-colors hover:bg-ink hover:text-lime disabled:cursor-not-allowed disabled:opacity-40"
                           >
                             <MousePointerClick className="h-3.5 w-3.5" />
                           </button>
@@ -442,19 +442,19 @@ function ProductDetails({ product: p, locale, styleId, roomLabel, canPlace, plac
   const colorName = (family: ColorFamily) => (t.design.colorNames as Record<string, string>)[family] ?? family;
   return (
     <>
-      <div className="relative aspect-square w-full overflow-hidden rounded-[12px] border border-line bg-bg-base">
-        {p.imageUrl ? <Image src={p.imageUrl} alt={name} fill sizes="300px" className="object-contain" /> : <span className="block h-full w-full" style={{ backgroundColor: p.colorHex ?? '#DDD8CF' }} />}
+      <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-mist-light">
+        {p.imageUrl ? <Image src={p.imageUrl} alt={name} fill sizes="300px" className="object-contain" /> : <span className="block h-full w-full" style={{ backgroundColor: p.colorHex ?? '#E7E7EA' }} />}
       </div>
-      <p className="mt-3 text-[10px] font-semibold uppercase tracking-wide text-ink-muted">{archetypeLabel(p.model3dKind!, locale)}</p>
-      <h3 className="mt-0.5 font-serif text-base font-semibold leading-snug text-ink">{name}</h3>
-      <p className="mt-1 text-xl font-semibold tabular-nums text-ink">{p.own ? t.design.ownFree : formatGEL(p.pricePerUnit)}</p>
+      <p className="mt-3 text-[10px] font-bold uppercase tracking-wide text-ink-muted">{archetypeLabel(p.model3dKind!, locale)}</p>
+      <h3 className="mt-0.5 font-display text-lg leading-snug text-ink">{name}</h3>
+      <p className="mt-1 font-display text-2xl tabular-nums text-ink">{p.own ? t.design.ownFree : formatGEL(p.pricePerUnit)}</p>
       {p.own && <p className={cn('mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold', p.pending ? 'bg-warning/15 text-warning' : 'bg-success/10 text-success')}>{p.pending ? t.design.ownPending : t.design.ownBadge}</p>}
       {p.pending && <p className="mt-2 text-xs leading-relaxed text-ink-muted">{t.design.ownPendingHint}</p>}
 
       <dl className="mt-3 space-y-1.5 text-xs">
         {p.store && (
           <div className="flex justify-between gap-3">
-            <dt className="shrink-0 text-ink-muted">{t.design.catalogStore}</dt>
+            <dt className="shrink-0 font-medium text-ink-muted">{t.design.catalogStore}</dt>
             <dd className="text-right text-ink">
               {localizedName(locale, p.store)}
               {p.store.deliveryDays != null && <span className="block text-[10px] text-ink-muted">{fill(t.design.catalogDelivery, { n: p.store.deliveryDays })}</span>}
@@ -463,22 +463,22 @@ function ProductDetails({ product: p, locale, styleId, roomLabel, canPlace, plac
         )}
         {p.brand && (
           <div className="flex justify-between gap-3">
-            <dt className="shrink-0 text-ink-muted">{t.design.catalogBrand}</dt>
+            <dt className="shrink-0 font-medium text-ink-muted">{t.design.catalogBrand}</dt>
             <dd className="text-right text-ink">{p.brand}</dd>
           </div>
         )}
         {size && (
           <div className="flex justify-between gap-3">
-            <dt className="shrink-0 text-ink-muted">{t.design.catalogDimensions}</dt>
+            <dt className="shrink-0 font-medium text-ink-muted">{t.design.catalogDimensions}</dt>
             <dd className="text-right tabular-nums text-ink">{size}</dd>
           </div>
         )}
         {styles.length > 0 && (
           <div className="flex justify-between gap-3">
-            <dt className="shrink-0 text-ink-muted">{t.design.styleTitle}</dt>
+            <dt className="shrink-0 font-medium text-ink-muted">{t.design.styleTitle}</dt>
             <dd className="flex flex-wrap justify-end gap-1">
               {styles.map((id) => (
-                <span key={id} className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold', id === styleId ? 'bg-brand/10 text-brand' : 'bg-sand-light text-ink-soft')}>
+                <span key={id} className={cn('rounded-full px-2 py-0.5 text-[10px] font-semibold', id === styleId ? 'bg-lime text-ink' : 'bg-mist-light text-ink-soft')}>
                   {styleLabel(t, id)}
                 </span>
               ))}
@@ -487,7 +487,7 @@ function ProductDetails({ product: p, locale, styleId, roomLabel, canPlace, plac
         )}
         {families.length > 0 && (
           <div className="flex justify-between gap-3">
-            <dt className="shrink-0 text-ink-muted">{t.design.shelfColors}</dt>
+            <dt className="shrink-0 font-medium text-ink-muted">{t.design.shelfColors}</dt>
             <dd className="flex items-center gap-1">
               {families.map((family) => (
                 <span key={family} title={colorName(family)} className="block h-4 w-4 rounded-full border border-black/15" style={{ backgroundColor: COLOR_FAMILIES.find((f) => f.id === family)?.hex }} />
@@ -504,7 +504,7 @@ function ProductDetails({ product: p, locale, styleId, roomLabel, canPlace, plac
 
       <div className="mt-auto pt-4">
         <p className="mb-1.5 truncate text-[11px] text-ink-muted">{fill(t.design.catalogPlaceInto, { room: roomLabel })}</p>
-        <button type="button" disabled={!canPlace || !!p.pending} onClick={onPlace} className="flex h-11 w-full items-center justify-center gap-2 rounded-full bg-ink text-sm font-semibold text-white transition-colors hover:bg-brand disabled:cursor-not-allowed disabled:opacity-40">
+        <button type="button" disabled={!canPlace || !!p.pending} onClick={onPlace} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-lime text-sm font-extrabold text-ink transition-colors hover:bg-ink hover:text-lime disabled:cursor-not-allowed disabled:opacity-40">
           <MousePointerClick className="h-4 w-4" />
           {placeLabel}
         </button>

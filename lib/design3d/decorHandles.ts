@@ -14,7 +14,7 @@ import type { DecorHandle, DecorExtent } from '@/lib/design/decor/resize';
 import type { PlanEdge } from '@/lib/design/planGeometry';
 
 const HANDLES: DecorHandle[] = ['left', 'right', 'top', 'bottom'];
-const ARROW_COLOR = 0xb5462b;
+const ARROW_COLOR = 0x6c47ff;
 /** How far in front of the piece's face the arrows stand. */
 const IN_FRONT_M = 0.04;
 const UP = new THREE.Vector3(0, 1, 0);

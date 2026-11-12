@@ -34,7 +34,7 @@ export function AdminPageHeader({
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
           {eyebrow && <p className="eyebrow mb-1">{eyebrow}</p>}
-          <h1 className="font-serif text-3xl font-semibold">{title}</h1>
+          <h1 className="font-display text-3xl md:text-4xl">{title}</h1>
           {subtitle && <p className="mt-1 text-sm text-ink-muted">{subtitle}</p>}
         </div>
         {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
@@ -50,15 +50,15 @@ export function AdminPageHeader({
  */
 export function SegmentedLinks({ items, label, className }: { items: Array<{ href: string; label: React.ReactNode; active: boolean; attention?: boolean }>; label: string; className?: string }) {
   return (
-    <nav aria-label={label} className={cn('inline-flex flex-wrap gap-0.5 rounded-full bg-sand/60 p-1', className)}>
+    <nav aria-label={label} className={cn('inline-flex flex-wrap gap-0.5 rounded-full bg-mist-light p-1', className)}>
       {items.map((item) => (
         <Link
           key={item.href}
           href={item.href}
           aria-current={item.active ? 'page' : undefined}
           className={cn(
-            'inline-flex h-7 items-center gap-1.5 rounded-full px-3.5 text-xs font-medium transition-colors',
-            item.active ? 'bg-bg-surface text-ink shadow-card' : item.attention ? 'text-warning hover:bg-warning/10' : 'text-ink-soft hover:bg-bg-surface/60 hover:text-ink'
+            'inline-flex h-8 items-center gap-1.5 rounded-full px-4 text-xs font-semibold transition-colors',
+            item.active ? 'bg-lime text-ink' : item.attention ? 'text-warning hover:bg-sun-soft' : 'text-ink-muted hover:bg-mist hover:text-ink'
           )}
         >
           {item.attention && !item.active && <span className="h-1.5 w-1.5 rounded-full bg-warning" aria-hidden />}
@@ -80,19 +80,19 @@ export function AdminTable({ children }: { children: React.ReactNode }) {
 }
 
 export function Th({ children, className, right }: { children?: React.ReactNode; className?: string; right?: boolean }) {
-  return <th className={cn('px-4 py-3 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-ink-muted', right && 'text-right', className)}>{children}</th>;
+  return <th className={cn('px-4 py-3 text-left text-[11px] font-bold uppercase tracking-[0.06em] text-ink-muted', right && 'text-right', className)}>{children}</th>;
 }
 
 export function THead({ children }: { children: React.ReactNode }) {
   return (
     <thead>
-      <tr className="border-b border-line bg-sand/50">{children}</tr>
+      <tr className="border-b border-line bg-mist-light">{children}</tr>
     </thead>
   );
 }
 
 export function Tr({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <tr className={cn('group border-b border-line/40 transition-colors last:border-0 hover:bg-sand/25', className)}>{children}</tr>;
+  return <tr className={cn('group border-b border-line/70 transition-colors last:border-0 hover:bg-mist-light/60', className)}>{children}</tr>;
 }
 
 export function EmptyRow({ colSpan, text }: { colSpan: number; text: string }) {
@@ -160,14 +160,14 @@ function PageLink({
   disabled?: boolean;
   label: string;
 }) {
-  const base = 'inline-flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-sm transition-colors';
+  const base = 'inline-flex h-8 min-w-8 items-center justify-center rounded-full px-2 text-sm font-semibold tabular-nums transition-colors';
   if (disabled) return <span className={cn(base, 'opacity-40')}>{children}</span>;
   return (
     <Link
       href={href}
       aria-label={label}
       aria-current={active ? 'page' : undefined}
-      className={cn(base, active ? 'bg-ink text-white' : 'hover:bg-sand/60 text-ink')}
+      className={cn(base, active ? 'bg-ink text-white' : 'text-ink hover:bg-mist')}
     >
       {children}
     </Link>

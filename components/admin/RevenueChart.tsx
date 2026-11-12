@@ -3,7 +3,7 @@ import { formatGEL } from '@/lib/utils';
 
 /**
  * Daily fees and commissions as stacked bars, drawn as static SVG on the server — no chart
- * library, nothing to hydrate. Fees (ink) sit under commissions (terracotta); the tallest
+ * library, nothing to hydrate. Fees (ink) sit under commissions (lime); the tallest
  * day sets the scale, and days with nothing still get their slot so gaps read as gaps.
  */
 export function RevenueChart({ days, locale }: { days: Array<{ day: string; fees: number; commissions: number }>; locale: Locale }) {
@@ -43,8 +43,8 @@ export function RevenueChart({ days, locale }: { days: Array<{ day: string; fees
           return (
             <g key={d.day}>
               <title>{`${label(d.day)} — ${formatGEL(d.fees)} + ${formatGEL(d.commissions)}`}</title>
-              {feeH > 0 && <rect x={x} y={baseY - feeH} width={bar} height={feeH} className="fill-olive" />}
-              {comH > 0 && <rect x={x} y={baseY - feeH - comH} width={bar} height={comH} className="fill-brand" />}
+              {feeH > 0 && <rect x={x} y={baseY - feeH} width={bar} height={feeH} className="fill-ink" />}
+              {comH > 0 && <rect x={x} y={baseY - feeH - comH} width={bar} height={comH} className="fill-lime" />}
               {feeH === 0 && comH === 0 && <rect x={x} y={baseY - 1} width={bar} height={1} className="fill-line" />}
               {i % labelEvery === 0 && (
                 <text x={x + bar / 2} y={H - 8} textAnchor="middle" className="fill-ink-muted text-[10px]">
