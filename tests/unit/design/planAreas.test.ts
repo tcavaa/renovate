@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildPlanFromReading, labelArea, normaliseReading, type AiOpening, type AiPlanReading, type AiRoom } from '@/lib/design/aiPlan';
+import { buildPlanFromReading, labelArea, normaliseReading, type AiOpening, type AiPlanReading, type AiRoom, planMismatch } from '@/lib/design/aiPlan';
 import { parseArea } from '@/lib/design/measure';
 import { areaStep, squeezedPairs } from '@/lib/design/planAreas';
 import { SOLID, assignCells, boundaryRuns } from '@/lib/design/planGrid';
@@ -285,6 +285,29 @@ describe('buildPlanFromReading from areas alone, without the image', () => {
     const sum = result.plan.rooms.reduce((s, r) => s + r.areaM2, 0);
     expect(sum).toBeGreaterThan(39 * 0.85);
     expect(sum).toBeLessThan(39 * 1.05);
+  });
+
+  it('lets the flat’s inside area outweigh a balcony’s few metres', () => {
+    const withBalcony = (interior: string | null): AiPlanReading => ({
+      ...reading(false),
+      rooms: [...reading(false).rooms, room('Balcony', 'balcony', '9 m²', { x0: 0.1, y0: 0.02, x1: 0.9, y1: 0.08 })],
+      interiorAreaLabel: interior,
+    });
+    const inside = (r: ReturnType<typeof buildPlanFromReading>) => r.plan.rooms.filter((x) => x.type !== 'balcony').reduce((sum, x) => sum + x.areaM2, 0);
+    const alone = buildPlanFromReading(normaliseReading(withBalcony(null)), { aspect: 1.25 });
+    const both = buildPlanFromReading(normaliseReading(withBalcony('39 m²')), { aspect: 1.25 });
+    // The balcony's area alone would make the flat far too big; the inside area holds it.
+    expect(inside(alone)).toBeGreaterThan(60);
+    expect(inside(both)).toBeGreaterThan(39 * 0.85);
+    expect(inside(both)).toBeLessThan(39 * 1.05);
+  });
+
+  it('tells two readings of one drawing apart by what the drawing prints', () => {
+    const good = { ...reading(true), totalAreaLabel: '39 m²' };
+    const bad = { ...good, rooms: good.rooms.map((r, i) => (i === 1 ? { ...r, parts: [{ ...r.parts[0], box: { x0: 0.52, y0: 0.1, x1: 0.9, y1: 0.3 } }] } : r)) };
+    const off = (r: AiPlanReading) => planMismatch(normaliseReading(r), buildPlanFromReading(normaliseReading(r), { aspect: 1.25 }));
+    expect(off(good)).toBeLessThan(0.05);
+    expect(off(bad)).toBeGreaterThan(off(good));
   });
 
   it('with nothing printed, asks for a size — and keeps the picture’s shape meanwhile', () => {

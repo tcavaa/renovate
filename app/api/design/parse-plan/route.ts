@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { MissingApiKeyError, buildPlanFromReading, readPlanWithClaudeDetailed } from '@/lib/design/aiPlan';
-import { prepareForVision, type VisionInput } from '@/lib/design/planVision';
+import { MissingApiKeyError, buildPlanFromReading, planMismatch, readPlanWithClaudeDetailed, reviewPlanReading } from '@/lib/design/aiPlan';
+import { prepareForVision, withReadingDrawn, type VisionInput } from '@/lib/design/planVision';
 import { checkIsPlan } from '@/lib/design/planCheck';
 import { parsePlanRequestSchema } from '@/lib/validations/plan.schema';
 import { RATE_RULES, rateLimited } from '@/lib/api/rateLimit';
@@ -16,6 +16,9 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 // A Claude read of a large plan takes minutes; the most a Vercel Hobby function may run.
 export const maxDuration = 300;
+/** The second look starts only with this much of the route's time left, and is given up a little before the end. */
+const CHECK_NEEDS_MS = 120_000;
+const ROUTE_BUDGET_MS = 280_000;
 
 /**
  * Reads an uploaded floor plan with Claude.
@@ -35,6 +38,7 @@ export const maxDuration = 300;
  */
 export async function POST(req: Request) {
   try {
+    const startedAt = Date.now();
     const limited = await rateLimited(req, RATE_RULES.parsePlan);
     if (limited) return limited;
     const allowed = await requirePlanFeature('planUpload');
@@ -65,11 +69,10 @@ export async function POST(req: Request) {
       }
     }
 
-    const { reading, usage } = await readPlanWithClaudeDetailed({
-      imageBase64: vision.image.base64,
-      mediaType: vision.image.mediaType,
-      ruler: vision.ruler,
-    });
+    const request = { imageBase64: vision.image.base64, mediaType: vision.image.mediaType, ruler: vision.ruler };
+    const first = await readPlanWithClaudeDetailed(request);
+    const usage = first.usage;
+    let reading = first.reading;
 
     if (!Array.isArray(reading.rooms) || reading.rooms.length === 0) {
       return NextResponse.json(
@@ -78,11 +81,33 @@ export async function POST(req: Request) {
       );
     }
 
-    const result = buildPlanFromReading(reading, {
-      ink: vision.ink,
-      imageUrl: parsed.data.imageUrl,
-      ceilingHeightM: parsed.data.ceilingHeightM,
-    });
+    const build = (from: typeof reading) =>
+      buildPlanFromReading(from, { ink: vision.ink, imageUrl: parsed.data.imageUrl, ceilingHeightM: parsed.data.ceilingHeightM });
+    let result = build(reading);
+
+    // The second look: the reading drawn over the image, held against it and corrected. Its plan
+    // is taken only when it comes back whole, in time, and no further from what the drawing
+    // prints than the first (`planMismatch`) — the first stands otherwise.
+    let checked: { durationMs: number; inputTokens: number; outputTokens: number; taken: boolean } | null = null;
+    const left = ROUTE_BUDGET_MS - (Date.now() - startedAt);
+    if (left >= CHECK_NEEDS_MS) {
+      try {
+        const drawn = await withReadingDrawn(vision, reading);
+        if (drawn) {
+          const second = await reviewPlanReading({ ...request, timeoutMs: left }, { reading, drawnBase64: drawn });
+          const rebuilt = second.reading.rooms.length > 0 ? build(second.reading) : null;
+          const taken = !!rebuilt && planMismatch(second.reading, rebuilt) <= planMismatch(reading, result);
+          if (rebuilt && taken) {
+            reading = second.reading;
+            result = rebuilt;
+          }
+          checked = { durationMs: second.usage.durationMs, inputTokens: second.usage.inputTokens, outputTokens: second.usage.outputTokens, taken };
+        }
+      } catch (e) {
+        log.warn('plan check failed, the first reading stands', { image: parsed.data.imageUrl, err: e });
+      }
+    }
+
     log.info('plan read with Claude', {
       image: parsed.data.imageUrl,
       rooms: result.plan.rooms.length,
@@ -97,6 +122,7 @@ export async function POST(req: Request) {
       dimensions: reading.dimensions?.length ?? 0,
       unitSystem: reading.unitSystem,
       ...usage,
+      checked,
     });
 
     return NextResponse.json({

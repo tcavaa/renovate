@@ -6,6 +6,7 @@
  *   pnpm plan:ai <plan.png> --save reading.json              also keep the raw reading
  *   pnpm plan:ai <plan.png> --replay reading.json            rebuild from a saved reading, no key
  *   pnpm plan:ai --replay reading.json                       the same without the image (no ink)
+ *   … --no-check                                             one read only, without the second look
  *   … --overlay out.png                                      draw the result over the plan
  *   … --model claude-sonnet-5-5                              read with another model, to compare
  *   … --no-fit                                               leave the rooms as the walls put them, not fitted to their printed areas
@@ -23,8 +24,8 @@ import './lib/loadEnv';
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import sharp from 'sharp';
-import { buildPlanFromReading, labelMetres, normaliseReading, readPlanWithClaudeDetailed, type AiPlanReading, type AiPlanResult } from '../lib/design/aiPlan';
-import { prepareForVision } from '../lib/design/planVision';
+import { buildPlanFromReading, labelMetres, planMismatch, normaliseReading, readPlanWithClaudeDetailed, reviewPlanReading, type AiPlanReading, type AiPlanResult } from '../lib/design/aiPlan';
+import { prepareForVision, withReadingDrawn } from '../lib/design/planVision';
 import { pointOnEdge, roomEdges } from '../lib/design/planGeometry';
 import { sniffImage } from '../lib/uploads/sniff';
 
@@ -67,6 +68,23 @@ async function main() {
     console.log(`model    ${result.usage.model}`);
     console.log(`tokens   ${result.usage.inputTokens} in · ${result.usage.outputTokens} out`);
     console.log(`time     ${(result.usage.durationMs / 1000).toFixed(1)} s`);
+    // The second look, as the route does it: the reading drawn over the image and corrected.
+    if (!args.includes('--no-check')) {
+      const drawn = await withReadingDrawn(vision, reading);
+      if (drawn) {
+        const first = reading;
+        const second = await reviewPlanReading({ imageBase64: vision.image.base64, mediaType: vision.image.mediaType, ruler: vision.ruler, ...(model ? { model } : {}) }, { reading, drawnBase64: drawn });
+        // Taken only when its plan is no further from what the drawing prints than the first's.
+        const off = (from: AiPlanReading) => planMismatch(from, buildPlanFromReading(from, { ink: vision.ink }));
+        const [before, after] = [off(first), second.reading.rooms.length > 0 ? off(second.reading) : Infinity];
+        if (after <= before) reading = second.reading;
+        console.log(`check    ${second.usage.inputTokens} in · ${second.usage.outputTokens} out · ${(second.usage.durationMs / 1000).toFixed(1)} s · rooms ${first.rooms.length} → ${second.reading.rooms.length} · openings ${first.openings.length} → ${second.reading.openings.length} · off ${before.toFixed(2)} → ${after.toFixed(2)} · ${after <= before ? 'taken' : 'not taken: the first reading stands'}`);
+        if (save) {
+          writeFileSync(save.replace(/(\.json)?$/, '.first.json'), JSON.stringify(first, null, 2));
+          writeFileSync(save.replace(/(\.json)?$/, '.check.png'), Buffer.from(drawn, 'base64'));
+        }
+      }
+    }
     if (save) {
       writeFileSync(save, JSON.stringify(reading, null, 2));
       console.log(`saved    ${save}`);
@@ -77,7 +95,7 @@ async function main() {
   if (reading.notes) console.log(`notes    ${reading.notes}`);
   const printed = reading.rooms.filter((r) => r.areaLabel).map((r) => `${r.name} ${r.areaLabel}`);
   if (printed.length > 0) console.log(`areas    ${printed.join(' · ')}`);
-  if (reading.totalAreaLabel) console.log(`total    ${reading.totalAreaLabel}`);
+  if (reading.totalAreaLabel || reading.interiorAreaLabel) console.log(`flat     ${[reading.interiorAreaLabel && `inside ${reading.interiorAreaLabel}`, reading.totalAreaLabel && `total ${reading.totalAreaLabel}`].filter(Boolean).join(' · ')}`);
   if (reading.voids?.length) console.log(`blocks   ${reading.voids.map((v) => `${v.box.x0.toFixed(2)},${v.box.y0.toFixed(2)} → ${v.box.x1.toFixed(2)},${v.box.y1.toFixed(2)}`).join(' · ')}`);
   console.log('\n  room                 type          part  box (x0,y0 → x1,y1)        width label → m      depth label → m');
   for (const room of reading.rooms) {

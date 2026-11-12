@@ -22,7 +22,7 @@ same upload card).
 | `lib/uploads/browserImage.ts` (`optimizePlanForUpload`) | browser: a plan goes as it came unless its longest side is over 4096 px or it is over 20 MB — then scaled down, aspect kept, a PNG staying PNG |
 | `lib/design/samplePlan.ts` | the sample flat behind "სანიმუშო გეგმის მოსინჯვა" on step 1 of both halves: about 150 m² laid out like an apartment — a hallway with the entrance and, off it, two bedrooms, a bathroom, a toilet, an office and the living room, the kitchen open to the living room, a balcony off the living room and one off the first bedroom (ten rooms; about 144 m² of floor once the walls stand) — with every door, archway, window and railing (each balcony stands out from the facade, so its front and both ends are railings); handed over by `PlanUploadCard` at once (drawn as `SamplePlanDrawing`), nothing read, the same with or without a key. The doors are cut in one room and their twins found on the board (`withOpeningTwins`). `public/samples/plan-2br.png` stays as the parser's and the reader's test drawing |
 | `app/api/design/parse-plan/route.ts` | the Claude reader (`readPlanWithClaudeDetailed`, model `PLAN_MODEL`): reads only stored plan keys (from storage) or the bundled sample (`public/samples`, traced into the function by `outputFileTracingIncludes`), prepares them with `planVision`, builds the plan with the ink; answers 503 with `fallback: 'cv'` when no `ANTHROPIC_API_KEY` is configured; `RATE_RULES.parsePlan`; may run 300 s (`maxDuration`) |
-| `lib/design/planVision.ts` | Node only (sharp): `prepareForVision` — the image within the API's limits (`fitForVision`) with a coordinate ruler drawn on for the model, and the same image without it as ink for the geometry |
+| `lib/design/planVision.ts` | Node only (sharp): `prepareForVision` — the image within the API's limits, a small one enlarged (`fitForVision`), with a coordinate ruler drawn on for the model, and the same image without it as ink for the geometry; `withReadingDrawn` — a reading drawn over that image for the second look |
 | `lib/design/rulerDigits.ts` | the ruler's numbers as stroked SVG paths (`rulerLabel`) — a Vercel function has no fonts, so `<text>` drew nothing there |
 | `lib/design/planPdf.ts` | browser: page 1 of a PDF rasterised through pdf.js to a PNG `File` |
 | `lib/design/planImage.ts` | browser: `File` → RGBA at ≤ 1100 px — the only part of the CV path that touches the DOM |
@@ -50,6 +50,8 @@ file (image or PDF) ─ planPdf (PDF → PNG, page 1) ─ optimizePlanForUpload 
    │       from the areas when no length is printed)
    │     → planGrid (cells, walls, separators) → roomsFromWalls → planAreas (every room its
    │       printed area) → openings onto the gaps, the doorways the reading missed
+   │     → the second look: the reading drawn over the image, read again, built again, and
+   │       taken when it is no further from the printed areas and sizes (planMismatch)
    │     → FloorPlan with walls (lowConfidence flags, scaleKnown)
    └─ 503 fallback:'cv' → planImage (RGBA ≤1100 px) → planParser (rooms as pixel polygons)
          → planGeometry at an assumed 70 m² → ensureWalls → FloorPlan
@@ -223,8 +225,9 @@ asked. Now:
 
 - **The scale.** Each room with a printed area is measured on the image, face to face — a
   pinned side at its wall band's inner face, the rest where the model put them, less the solid
-  blocks standing in it; the printed area over that is m² per unit², and the median over the
-  rooms is the plan's (one misread area does not move it). The image's width over its height
+  blocks standing in it; the printed area over that is m² per unit². The flat's own areas are
+  samples too (below), and the median of them all, each weighed by the floor it covers, is the
+  plan's: one misread area does not move it, and a balcony's few metres do not outvote the flat. The image's width over its height
   (`SolveOptions.aspect`, from the ink) splits it between the axes: a pixel is as wide as it is
   tall. Used only when no length is printed (`areaScale`); the same shape also gives an axis
   with nothing printed on it the other's scale, and keeps a plan with nothing printed at all
@@ -281,11 +284,32 @@ as they were, which is only right on a square image: on a 490 × 768 plan an 8 p
 drawn across made the 14 px outside wall drawn down "2.6 times the typical wall", and it lost
 its outer face and two thirds of its thickness.
 
-**The flat's total.** The total printed on the drawing (`totalAreaLabel`: "საერთო ფართი 54.6 მ²",
-a sum under a table of rooms) is read too, and used only when no room carries an area and no
-length is printed: the total over all the rooms drawn, balconies included, is the scale. It is
-rougher than the rooms' own areas — a total may or may not count the balconies, and nothing is
-fitted to it — but the flat comes out its size and no question is asked.
+**The flat's own areas.** A developer's sheet often carries a small table — the flat's number,
+its inside area, the balcony's and their sum ("42,1 მ² · 6,3 მ² · 48,4 მ²") — and nothing legible
+in the rooms. Both are read: the inside (`interiorAreaLabel`) is held against every room but the
+balconies, the total (`totalAreaLabel`) against all of them, and each is a sample of the scale
+beside the rooms' own areas. Nothing is fitted to them — the rooms keep the shape the walls give
+— so the inside comes out within a few per cent of the table, not on it. Project 408's plan sized
+from its balcony's 6.3 m² alone had 38.7 m² inside; with the table's 42.1 it has 42.4.
+
+**A small picture is enlarged first** (`planVision.fitForVision`, `MIN_IMAGE_EDGE_PX` 1100, at
+most five times). A 227 × 420 px copy off a messenger had its ruler's numbers running into each
+other and walls two pixels thick: the model put the flat's left wall a twentieth of the image
+out. Enlarged, the same file is read with its rectangles on the walls.
+
+**The second look** (`reviewPlanReading`, `planVision.withReadingDrawn`). A person redrawing a
+plan holds the drawing against the original and corrects it; one read cannot. So the route draws
+the first reading over the image the model was sent — room rectangles in violet, numbered, blocks
+grey, doors red, windows blue, open connections orange, railings green — and sends both back
+with the reading, asking for the whole reading again, corrected. Both readings are built, and the
+second is taken only when its plan is no further from what the drawing prints than the first's
+(`planMismatch`: rooms against their areas, the inside and the total against the table, the worst
+printed length) — a "correction" once split a bedroom into slivers and gave the balcony 14 m², and
+the numbers on the drawing said so. With nothing printed there is nothing to judge by, and the
+second is taken. The check runs only with two minutes of the route's time left
+(`CHECK_NEEDS_MS`) and is given up before the route's end; a failure or a late answer leaves the
+first reading. It about doubles a read's time and cost (logged as `checked`). `plan:ai` does the
+same (`--no-check` for one read; `--save` also writes the first reading and the drawn-over image).
 
 **No size at all.** When nothing printed could be read (`scaleKnown: false` on the result and the
 route's answer) the plan is at an assumed scale, and the upload card asks for one of three things
@@ -443,7 +467,8 @@ neither counts as sealed in; windows go on walls only, never on a separator's op
   room and no room made of it, the doorway the reading left out, a window squeezed beside a
   door, a thin-lined balcony's three railings, the board taking it as it is — then the same
   from a reading alone, a plan with nothing printed keeping the picture's shape, and an area
-  far from the drawing not held to.
+  far from the drawing not held to, the flat's inside area outweighing a balcony's, the total
+  alone sizing a flat, and `planMismatch` telling a broken reading from a whole one.
 - `tests/unit/design/placementGame.test.ts` — the game's answers from the room programs, what is
   left out, a round's spread over the rooms, scoring, the hint.
 - `pnpm plan:diagnose <plan.png>` and `pnpm plan:ai <plan.png> [--save r.json] [--replay r.json]
@@ -469,9 +494,12 @@ neither counts as sealed in; windows go on walls only, never on a separator's op
 - **Areas.** The fit moves walls, a few centimetres each, to make a room its printed area;
   where a drawing's own areas and lines disagree (a kitchen labelled 6.4 m² and drawn 6.9) the
   walls give. A plan that prints both a length and an area for a room holds the length. The
-  flat's printed total is the scale only when no room has an area, and is never checked against the
-  rooms' own areas; whether it counts the balconies is not known, so a flat sized from it can be a
-  few per cent out.
+  flat's printed inside area and total size the plan but nothing is fitted to them, so the rooms
+  can add up a few per cent off the table; a total is taken to count the balconies.
+- **The second look is one sample deep.** It was tried on one small plan (project 408's): taken
+  once, refused once. A reading whose bedroom was given a thin second rectangle along the balcony
+  wall built a balcony of 14 m² and a bedroom of 4.9 — the grid let the balcony through the sliver;
+  `planMismatch` kept that plan out, the geometry behind it is not fixed.
 - **Solid blocks.** A block over 0.6 m² inside is walled off at the read, but the board's next
   edit derives the rooms from the walls again and makes a room of it (`MIN_ROOM_AREA_M2`). A
   boxed corner the model does not report (a duct in a bathroom drawn white with thin walls)
@@ -496,6 +524,6 @@ neither counts as sealed in; windows go on walls only, never on a separator's op
   the drawing says nothing about heights.
 - A studio read from a plan has no line of its own and reads the default kitchen line
   (`effectiveSplit`), not the one the drawing shows.
-- A read takes 20 s to 2 minutes at high effort (the upload card shows "reading" meanwhile) and
-  costs $0.05–0.30; the `lowConfidence` flag and the model's `notes` are returned but the upload card
+- A read takes 20 s to 2 minutes at high effort, and the second look about as long again (the
+  upload card shows "reading" meanwhile); together they cost about twice the $0.05–0.30 of one read; the `lowConfidence` flag and the model's `notes` are returned but the upload card
   shows neither yet.

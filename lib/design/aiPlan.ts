@@ -127,6 +127,8 @@ export interface AiPlanReading {
   voids?: AiVoid[];
   /** The area of the whole flat as the drawing prints it ("54.6 m²"). Absent in older readings. */
   totalAreaLabel?: string | null;
+  /** The flat's area without its balconies and terraces, when the drawing prints that too. Absent in older readings. */
+  interiorAreaLabel?: string | null;
   /** The model's own note about anything ambiguous. Surfaced to the user, not acted on. */
   notes: string | null;
 }
@@ -147,7 +149,7 @@ const BOX_PROPERTIES = { x0: { type: 'number' }, y0: { type: 'number' }, x1: { t
 const PLAN_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['unitSystem', 'rooms', 'voids', 'openings', 'dimensions', 'totalAreaLabel', 'notes'],
+  required: ['unitSystem', 'rooms', 'voids', 'openings', 'dimensions', 'totalAreaLabel', 'interiorAreaLabel', 'notes'],
   properties: {
     unitSystem: { type: 'string', enum: ['imperial', 'metric'], description: 'Which units the drawing is annotated in.' },
     rooms: {
@@ -234,6 +236,7 @@ const PLAN_SCHEMA = {
       },
     },
     totalAreaLabel: { type: ['string', 'null'], description: 'The area of the whole flat as the drawing prints it — a total, "საერთო ფართი", a sum under a table of rooms — copied exactly ("54.6 m²"). When several totals are printed, the one that counts every room drawn, balconies included. Null if none.' },
+    interiorAreaLabel: { type: ['string', 'null'], description: 'The area of the flat without its balconies, terraces and loggias, when the drawing prints one — "living area", "შიდა ფართი", the line of a header table that the balcony\'s area is added to for the total — copied exactly ("42,1 მ²"). Null if none.' },
     notes: { type: ['string', 'null'], description: 'Anything ambiguous or unreadable worth telling the user about.' },
   },
 } as const;
@@ -251,7 +254,7 @@ const SYSTEM_PROMPT = `You read architectural floor plans for a home-design tool
 4. **Sizes.** These are the only exact numbers on the drawing. Copy each one exactly as printed — "18' 3\\"" not "18.25 ft", "3,50" not "3.5", "3.5 м", "350". There are two kinds, reported in different places:
    - A **dimension line**: a size between two arrows or tick marks, with extension lines running to the walls — usually chained along the outside of the plan, often with an overall size beyond the chain. Report every one in dimensions: each segment of a chain on its own, and the overall too. axis is across when it measures left to right, down when top to bottom; from and to are where its two ends are along that axis on the ruler (x for across, y for down) — where the arrows or ticks are, which is where the extension lines meet the walls; at is where the dimension line itself is drawn on the other axis (its y for across, its x for down). Do not attach these to rooms.
    - A **size written in a room** (or in a table of rooms by name) with no dimension line — "3.50 x 4.20", "Bed 01: 3.5 x 3.0m": that room's clear inside size. Put it on the room's part, widthLabel for across and depthLabel for down, matching the two numbers to the room's shape.
-   - An **area printed in a room** (or beside its name in a table) — "10.8 m²", "10,8 მ²", "116 sq ft": copy it into that room's areaLabel exactly as printed. It is the area of that room's floor, wall face to wall face, so the room's parts should cover about that much: when the rectangles you have drawn are far from the printed area, look again at where the room ends. An area of the whole flat — a total, a line in a summary table — belongs to no room: copy it into totalAreaLabel (the total that counts every room drawn, balconies included, when several are printed), and never into a room.
+   - An **area printed in a room** (or beside its name in a table) — "10.8 m²", "10,8 მ²", "116 sq ft": copy it into that room's areaLabel exactly as printed. It is the area of that room's floor, wall face to wall face, so the room's parts should cover about that much: when the rectangles you have drawn are far from the printed area, look again at where the room ends. An area of the whole flat — a total, a line in a summary table — belongs to no room: copy it into totalAreaLabel (the total that counts every room drawn, balconies included, when several are printed), and never into a room. Many drawings carry a small table with the flat's number and three areas — the inside, the balcony (or "summer" area) and their sum: the inside goes to interiorAreaLabel, the sum to totalAreaLabel, and the balcony's to the balcony's own areaLabel when the flat has one balcony.
 
 5. **Openings.** Every door, window, archway, open connection and balcony railing, each once:
    - door: a leaf with its swing arc. A door is in the wall its gap is in — find the gap in the wall at the pivot of the arc, not where the arc ends: side is the side of roomA that wall is on, from and to are the two ends of the gap. hinge is the point the arc pivots on (the corner of the opening the leaf hangs from); swingsInto is the room the leaf swings into, null when it swings outside.
@@ -280,6 +283,14 @@ export interface AiPlanRequest {
   model?: string;
   /** Overrides the env key, for testing. */
   apiKey?: string;
+  /** Gives the call up after this long — the check's, which must end inside the route's time. */
+  timeoutMs?: number;
+}
+
+/** The second look: the first reading, and the image with that reading drawn over it (`planVision.withReadingDrawn`). */
+export interface AiPlanReview {
+  reading: AiPlanReading;
+  drawnBase64: string;
 }
 
 /** What one call cost and how long it took — logged per read so the bill is explainable. */
@@ -308,6 +319,40 @@ export async function readPlanWithClaude(request: AiPlanRequest): Promise<AiPlan
 
 /** Same call, with the usage figures alongside the reading. */
 export async function readPlanWithClaudeDetailed(request: AiPlanRequest): Promise<{ reading: AiPlanReading; usage: AiPlanUsage }> {
+  return callPlanModel(request, [
+    { type: 'image', source: { type: 'base64', media_type: request.mediaType, data: request.imageBase64 } },
+    {
+      type: 'text',
+      text: request.ruler === false
+        ? 'Read this floor plan. This image has no ruler: give coordinates as fractions of its width and height.'
+        : 'Read this floor plan. Give every coordinate on the blue ruler.',
+    },
+  ]);
+}
+
+/**
+ * The second look. A person redrawing a plan draws it, holds the drawing against the original
+ * and corrects what is off; one read cannot. So the first reading is drawn over the image and
+ * sent back with it: the model sees where its own rectangles and openings landed, and answers
+ * the whole reading again, corrected. Costs about what the first read did.
+ */
+export async function reviewPlanReading(request: AiPlanRequest, review: AiPlanReview): Promise<{ reading: AiPlanReading; usage: AiPlanUsage }> {
+  const rooms = review.reading.rooms.map((room, r) => `${r + 1} = ${room.name}`).join(', ');
+  return callPlanModel(request, [
+    { type: 'image', source: { type: 'base64', media_type: request.mediaType, data: request.imageBase64 } },
+    { type: 'image', source: { type: 'base64', media_type: 'image/png', data: review.drawnBase64 } },
+    {
+      type: 'text',
+      text: `The first image is a floor plan; the second is the same image with a first reading of it drawn over: every room rectangle outlined in violet with its room's number in a corner (${rooms}), solid blocks in grey, doors red, windows blue, archways and open connections orange, railings green. The reading itself:
+
+${JSON.stringify(review.reading)}
+
+Hold the drawing-over against the plan and correct the reading. Look for: a rectangle's side that is not on the wall face the plan shows (too far in, or over a wall into the next room); floor no rectangle covers, or two rooms' rectangles overlapping; a room missing, two rooms read as one, or one room split in two where the plan has no wall or change of floor between them; a staircase, shaft or column read as floor; an opening on the wrong wall, at the wrong place along it, of the wrong kind, or missing — every room needs a way in; a printed size or area missed or given to the wrong room, and the flat's areas in a header table. Then answer with the whole reading again, corrected, in the same form and on the same ruler. Keep everything that is already right exactly as it is, and do not add thin slivers: a room is one rectangle unless the plan plainly shows it L-shaped, and a wall's thickness or a window's recess is not a part of a room.`,
+    },
+  ]);
+}
+
+async function callPlanModel(request: AiPlanRequest, content: Anthropic.Beta.BetaContentBlockParam[]): Promise<{ reading: AiPlanReading; usage: AiPlanUsage }> {
   const apiKey = request.apiKey ?? process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new MissingApiKeyError();
 
@@ -316,32 +361,22 @@ export async function readPlanWithClaudeDetailed(request: AiPlanRequest): Promis
 
   // Streamed only to keep a long read clear of the HTTP timeout; the answer is used whole.
   const model = request.model ?? PLAN_MODEL;
-  const stream = client.beta.messages.stream({
-    model,
-    max_tokens: 32000,
-    // A refusal on a floor plan would be a false positive; the server retries it on another
-    // model. Haiku has no server-side fallback.
-    ...(model.startsWith('claude-haiku') ? {} : { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const }),
-    // Reading a plan is a reasoning task, not a captioning one — which room a dimension
-    // belongs to, and which way a door swings, often takes working out.
-    thinking: { type: 'adaptive' },
-    output_config: { effort: 'high', format: { type: 'json_schema', schema: PLAN_SCHEMA } },
-    system: SYSTEM_PROMPT,
-    messages: [
-      {
-        role: 'user',
-        content: [
-          { type: 'image', source: { type: 'base64', media_type: request.mediaType, data: request.imageBase64 } },
-          {
-            type: 'text',
-            text: request.ruler === false
-              ? 'Read this floor plan. This image has no ruler: give coordinates as fractions of its width and height.'
-              : 'Read this floor plan. Give every coordinate on the blue ruler.',
-          },
-        ],
-      },
-    ],
-  });
+  const stream = client.beta.messages.stream(
+    {
+      model,
+      max_tokens: 32000,
+      // A refusal on a floor plan would be a false positive; the server retries it on another
+      // model. Haiku has no server-side fallback.
+      ...(model.startsWith('claude-haiku') ? {} : { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const }),
+      // Reading a plan is a reasoning task, not a captioning one — which room a dimension
+      // belongs to, and which way a door swings, often takes working out.
+      thinking: { type: 'adaptive' },
+      output_config: { effort: 'high', format: { type: 'json_schema', schema: PLAN_SCHEMA } },
+      system: SYSTEM_PROMPT,
+      messages: [{ role: 'user', content }],
+    },
+    request.timeoutMs ? { signal: AbortSignal.timeout(request.timeoutMs) } : undefined
+  );
   const response = await stream.finalMessage();
 
   if (response.stop_reason === 'refusal') throw new Error('The model declined to read the plan');
@@ -428,7 +463,7 @@ export function normaliseReading(reading: AiPlanReading): AiPlanReading {
     .map((v) => ({ box: box(v.box) }))
     .filter((v) => v.box.x1 - v.box.x0 > 0.004 && v.box.y1 - v.box.y0 > 0.004 && (v.box.x1 - v.box.x0) * (v.box.y1 - v.box.y0) < 0.03);
 
-  return { unitSystem: reading.unitSystem === 'imperial' ? 'imperial' : 'metric', rooms, voids, openings, dimensions, ...(reading.totalAreaLabel !== undefined ? { totalAreaLabel: label(reading.totalAreaLabel) } : {}), notes: label(reading.notes) };
+  return { unitSystem: reading.unitSystem === 'imperial' ? 'imperial' : 'metric', rooms, voids, openings, dimensions, ...(reading.totalAreaLabel !== undefined ? { totalAreaLabel: label(reading.totalAreaLabel) } : {}), ...(reading.interiorAreaLabel !== undefined ? { interiorAreaLabel: label(reading.interiorAreaLabel) } : {}), notes: label(reading.notes) };
 }
 
 // ---------------------------------------------------------------------------
@@ -459,6 +494,25 @@ export interface AiPlanResult {
   areas: Array<{ room: string; target: number; solved: number; fitted: boolean }>;
   /** The solve behind the plan — for the `plan:ai` tool's overlay, not for the client. */
   solve: SolveResult;
+}
+
+/**
+ * How far a built plan is from what the drawing prints, as shares added up: each room against
+ * the area printed in it, the rooms but the balconies against the flat's inside area, all of
+ * them against its total, and the worst printed length against a metre. Two readings of one
+ * drawing are told apart by it (the first and the second look): the lower is the truer, and 0
+ * says only that nothing printed could judge.
+ */
+export function planMismatch(reading: AiPlanReading, result: AiPlanResult): number {
+  const share = (target: number | null, built: number) => (target != null && target > 0 ? Math.abs(built - target) / target : 0);
+  const balconies = result.plan.rooms.filter((r) => r.type === 'balcony').reduce((sum, r) => sum + r.areaM2, 0);
+  const all = result.plan.rooms.reduce((sum, r) => sum + r.areaM2, 0);
+  return (
+    result.areas.reduce((sum, a) => sum + share(a.target, a.solved), 0) +
+    share(labelArea(reading.interiorAreaLabel, reading.unitSystem), all - balconies) +
+    share(labelArea(reading.totalAreaLabel, reading.unitSystem), all) +
+    result.worstResidualM
+  );
 }
 
 /** A printed dimension in metres; a bare metric number is read in the unit its size implies (350 → cm, 3500 → mm). */
@@ -698,9 +752,9 @@ function farthestShift(lines: number[], base: number[]): number {
  * on it, where they are the only numbers there are. Each room's rectangles are measured face to
  * face on the image (a pinned side at its wall band's inner face, the rest where the model put
  * them, less the solid blocks standing in them); the printed area over that is metres² per unit²,
- * the median over the rooms is the plan's, and the image's shape splits it between the axes.
- * With no area in any room, the flat's printed total over all the rooms drawn does the same,
- * more roughly (it may or may not count the balconies). Null when no area is printed at all.
+ * and so is the flat's inside area over every room but the balconies, and its total over all of
+ * them; the median of those, each weighed by the floor it covers, is the plan's, and the image's
+ * shape splits it between the axes. Null when no area is printed at all.
  */
 function scaleFromAreas(
   reading: AiPlanReading,
@@ -715,9 +769,12 @@ function scaleFromAreas(
     return side === 'x0' || side === 'y0' ? band.centre + band.thickness / 2 : band.centre - band.thickness / 2;
   };
   const overlap = (a: NormBox, b: NormBox) => Math.max(0, Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0)) * Math.max(0, Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0));
-  const ratios: number[] = [];
-  let drawn = 0;
-  reading.rooms.forEach((_, r) => {
+  // Each printed area against the floor it is the area of, weighed by that floor: a room's own,
+  // the flat's inside (every room but the balconies) and the flat's total (every room).
+  const samples: Array<{ ratio: number; weight: number }> = [];
+  let inside = 0;
+  let outside = 0;
+  reading.rooms.forEach((entry, r) => {
     const target = printedAreas[r];
     let floor = 0;
     for (const { room, rough } of parts) {
@@ -725,14 +782,29 @@ function scaleFromAreas(
       const box = { x0: face(rough, 'x0'), x1: face(rough, 'x1'), y0: face(rough, 'y0'), y1: face(rough, 'y1') };
       floor += Math.max(0, box.x1 - box.x0) * Math.max(0, box.y1 - box.y0) - blocks.reduce((sum, b) => sum + overlap(box, b.box), 0);
     }
-    drawn += Math.max(0, floor);
-    if (target != null && floor > 1e-5) ratios.push(target / floor);
+    floor = Math.max(0, floor);
+    if (entry.type === 'balcony') outside += floor;
+    else inside += floor;
+    if (target != null && floor > 1e-5) samples.push({ ratio: target / floor, weight: floor });
   });
-  // No room carries an area: the flat's printed total over every room drawn.
+  const interior = labelArea(reading.interiorAreaLabel, reading.unitSystem);
   const total = labelArea(reading.totalAreaLabel, reading.unitSystem);
-  if (ratios.length === 0 && total != null && drawn > 1e-5) ratios.push(total / drawn);
-  if (ratios.length === 0) return null;
-  const perUnit2 = ratios.sort((a, b) => a - b)[Math.floor(ratios.length / 2)];
+  if (interior != null && inside > 1e-5) samples.push({ ratio: interior / inside, weight: inside });
+  if (total != null && inside + outside > 1e-5) samples.push({ ratio: total / (inside + outside), weight: inside + outside });
+  if (samples.length === 0) return null;
+  // The median by floor: one misread area does not move it, and a balcony's few metres — its
+  // open sides are the hardest to place — do not outvote the flat's own.
+  samples.sort((a, b) => a.ratio - b.ratio);
+  const half = samples.reduce((sum, v) => sum + v.weight, 0) / 2;
+  let passed = 0;
+  let perUnit2 = samples[samples.length - 1].ratio;
+  for (const sample of samples) {
+    passed += sample.weight;
+    if (passed >= half - 1e-12) {
+      perUnit2 = sample.ratio;
+      break;
+    }
+  }
   const y = Math.sqrt(perUnit2 / aspect);
   return { x: y * aspect, y };
 }
