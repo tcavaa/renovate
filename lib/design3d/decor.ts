@@ -399,11 +399,25 @@ function buildBox(piece: DecorPiece, wall: DecorWall): THREE.Group {
  * Heights and depths per section; the machine, the basin and the dryer are products drawn by their
  * own models inside it.
  */
+/** The worktop every made-to-measure run's model has (anthracite), so a corner leg's matches it. */
+const KITCHEN_WORKTOP = '#2e2f31';
+
 function buildCabinet(piece: DecorPiece): THREE.Group {
   const g = new THREE.Group();
   const face = decorMaterial(piece.materials.face, '#E9E4DC', 0.6);
   const gap = plain('#2A2622', 0.9);
   const t = CARCASS_M;
+  // A corner leg's wall cabinets, hung over it in the same fronts.
+  const hung = piece.params.wallUnits;
+  if (hung && hung.to - hung.from > 0.05) {
+    const w = hung.to - hung.from;
+    const h = hung.heightMm / 1000;
+    const d = hung.depthMm / 1000;
+    const y = hung.bottomMm / 1000;
+    g.add(mesh(metreBox(w, h, d), face, hung.from + w / 2, y + h / 2, d / 2));
+    const doors = Math.max(1, Math.ceil(w / 0.6 - 1e-6));
+    for (let i = 1; i < doors; i++) g.add(mesh(metreBox(0.004, h - 0.01, 0.004), gap, hung.from + (w * i) / doors, y + h / 2, d + 0.001));
+  }
   for (const { section, x0, x1 } of sectionSpans(piece)) {
     const w = x1 - x0;
     const h = section.heightMm / 1000;
@@ -423,6 +437,20 @@ function buildCabinet(piece: DecorPiece): THREE.Group {
       }
       continue;
     }
+    if (section.kind === 'kitchen') {
+      // A kitchen's corner leg: base units under a worktop the colour of the run's (`scripts/kitchen-models`).
+      const top = 0.04;
+      const foot = 0.1;
+      const body = h - top - foot;
+      g.add(mesh(metreBox(w, body, d - 0.02), face, cx, foot + body / 2, (d - 0.02) / 2));
+      g.add(mesh(metreBox(w, foot, d - 0.07), gap, cx, foot / 2, (d - 0.07) / 2));
+      g.add(mesh(metreBox(w, top, d + 0.02), plain(KITCHEN_WORKTOP, 0.45), cx, h - top / 2, (d + 0.02) / 2));
+      const units = Math.max(1, Math.ceil(w / 0.6 - 1e-6));
+      for (let i = 1; i < units; i++) g.add(mesh(metreBox(0.004, body - 0.01, 0.004), gap, x0 + (w * i) / units, foot + body / 2, d - 0.019));
+      // A drawer line under the worktop, as the run's fronts have.
+      g.add(mesh(metreBox(w - 0.01, 0.004, 0.004), gap, cx, foot + body - 0.16, d - 0.019));
+      continue;
+    }
     // A closed carcass, a plinth set back under it.
     const plinth = section.kind === 'basin' ? 0 : 0.08;
     g.add(mesh(metreBox(w, h - plinth, d), face, cx, plinth + (h - plinth) / 2, d / 2));
@@ -437,6 +465,49 @@ function buildCabinet(piece: DecorPiece): THREE.Group {
       for (const band of [h - 0.35, plinth + 0.08]) for (let k = 0; k < 5; k++) g.add(mesh(metreBox(w - 0.08, 0.008, 0.006), gap, cx, band + k * 0.05, d + 0.002));
     }
   }
+  return g;
+}
+
+/**
+ * A boiler's cupboard (`lib/design/boilerCabinet`), in the frame of its wall — x along it about the
+ * boiler's middle, y up from the cupboard's bottom, z into the room: a carcass in the joiner's
+ * material with louvres at the top and the bottom of its door; outdoors (`tall`, the owner's photo
+ * of 13 Nov 2026) from the floor to the ceiling, a filler strip at one side, two leaves below and
+ * two above with their handles at the middle.
+ */
+export function buildBoilerCupboard(size: { width: number; depth: number; height: number }, material: DecorMaterial | undefined, tall: boolean): THREE.Group {
+  const g = new THREE.Group();
+  const face = decorMaterial(material, '#DCD5C8', 0.6);
+  const gap = plain('#2A2622', 0.9);
+  const { width: w, depth: d, height: h } = size;
+  const front = d + 0.001;
+  g.add(mesh(metreBox(w, h, d), face, 0, h / 2, d / 2));
+  const louvres = (cx: number, span: number, from: number, count: number) => {
+    for (let k = 0; k < count; k++) g.add(mesh(metreBox(span, 0.008, 0.006), gap, cx, from + k * 0.045, front + 0.001));
+  };
+  if (!tall) {
+    // One door, or two when it is wide, a shadow gap round it.
+    const leaves = w > 0.75 ? 2 : 1;
+    for (let i = 1; i < leaves; i++) g.add(mesh(metreBox(0.004, h - 0.04, 0.004), gap, -w / 2 + (w * i) / leaves, h / 2, front));
+    for (const y of [0.02, h - 0.02]) g.add(mesh(metreBox(w - 0.02, 0.004, 0.004), gap, 0, y, front));
+    louvres(0, w - 0.1, 0.07, 4);
+    louvres(0, w - 0.1, h - 0.07 - 3 * 0.045, 4);
+    return g;
+  }
+  const strip = 0.09;
+  const doorsFrom = -w / 2 + strip;
+  const doorsMid = doorsFrom + (w - strip) / 2;
+  const split = Math.min(h - 0.7, h * 0.62);
+  // The filler strip's joint, the leaves' meeting line, the line between the lower and the upper pair.
+  g.add(mesh(metreBox(0.006, h - 0.04, 0.004), gap, doorsFrom, h / 2, front));
+  g.add(mesh(metreBox(0.004, h - 0.04, 0.004), gap, doorsMid, h / 2, front));
+  g.add(mesh(metreBox(w - 0.02, 0.006, 0.004), gap, 0, split, front));
+  for (const y of [0.02, h - 0.02]) g.add(mesh(metreBox(w - 0.02, 0.004, 0.004), gap, 0, y, front));
+  const handle = plain('#E4E4E1', 0.35);
+  for (const y of [split * 0.56, split + (h - split) * 0.5]) for (const side of [-1, 1]) g.add(mesh(metreBox(0.018, 0.12, 0.03), handle, doorsMid + side * 0.03, y, front + 0.015));
+  // Air for the boiler: louvres low in the lower leaves and high in the upper.
+  louvres(doorsMid, w - strip - 0.16, 0.1, 4);
+  louvres(doorsMid, w - strip - 0.16, h - 0.1 - 3 * 0.045, 4);
   return g;
 }
 

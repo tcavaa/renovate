@@ -8,6 +8,8 @@
  * Isomorphic: no React, no `window`, no clock but the `at` it is handed.
  */
 
+import { settleFitted } from './fitted';
+import { fitKitchenCorners } from './kitchenCorner';
 import { applyReviewFixes, clearOfDecor, proposalDecor, proposalNotes, proposalPicks, settleToWalls, underCeilingDecor, withoutArtOverDecor, withProposalFinishes, type AiProposal } from './aiProposal';
 import type { AiReview } from './aiReview';
 import { layoutPlan } from './autoLayout';
@@ -95,6 +97,9 @@ export function generateScene(input: GenerateSceneInput): GeneratedScene {
   // A bedroom's wall of wardrobe where the wardrobe's wall is otherwise empty (no chest besides).
   const wardrobes = fitWardrobes({ rooms: underCeilings, items, catalog, styleId });
   items = wardrobes.items;
+  // A kitchen whose run is short of a kitchen turns the corner where the next wall is free (an
+  // L-shaped kitchen): more of the same kitchen along the next wall, and its wall cabinets.
+  items = fitKitchenCorners(underCeilings, items, [...fitted.decor, ...hall.decor, ...wardrobes.decor], plan.technical?.points);
   // Every floor and wall is the style's product for its room — tiles in the bathroom, laminate
   // and paint elsewhere — so the budget buys what the flat is shown in. Re-laying out the
   // furniture is not a reason to lose the tiles someone picked. The designer's floors and walls
@@ -109,17 +114,19 @@ export function generateScene(input: GenerateSceneInput): GeneratedScene {
   // did. Every fitting is bought as a product where the catalogue has one — and so is every door
   // and window.
   const known = input.electrical.filter((p) => p.origin === 'user' || p.origin === 'generated');
-  const wired = withFixtureProducts(suggestElectrical(plan, items, known, styleId), catalog, styleId, plan.rooms);
   const rooms = withOpeningProducts(plan.rooms, catalog, styleId);
   const laid = rooms !== plan.rooms ? { ...plan, rooms } : plan;
-  // A door, a window, a radiator, a socket or a light the calculation chose for the whole flat
-  // stays its choice — the catalogue's product, from its shop.
-  const dressed = calculatorPicks ? applyBoardPicks(laid, wired, calculatorPicks, catalog) : { plan: laid, electrical: wired };
   // The designer's wall decor, measured against where the engine put the bed, the sofa, the TV
   // unit (`proposalDecor`). An engine generation has none.
   // A box behind every WC for its concealed cistern (the design rules), whoever designed the rest.
   const designed = proposalDecor(laid, proposal, items, catalog);
   const decor = [...designed, ...fitted.decor, ...hall.decor, ...wardrobes.decor, ...wcBoxes(laid.rooms, items, catalog, designed)];
+  // Wired once the joinery and the decor stand, so no switch or general socket lands behind a
+  // wardrobe (`standardFor`).
+  const wired = withFixtureProducts(suggestElectrical(plan, items, known, styleId, decor), catalog, styleId, plan.rooms);
+  // A door, a window, a radiator, a socket or a light the calculation chose for the whole flat
+  // stays its choice — the catalogue's product, from its shop.
+  const dressed = calculatorPicks ? applyBoardPicks(laid, wired, calculatorPicks, catalog) : { plan: laid, electrical: wired };
   // Tidied once everything stands: every wall piece back on its wall, nothing in the decor, the
   // hanging lamps and ceiling points under a lowered ceiling hung from it.
   items = clearOfDecor(settleToWalls(withoutArtOverDecor(items, decor, laid), laid), decor, laid);
@@ -140,7 +147,9 @@ export function reviewedScene(
   review: AiReview,
   catalog: CatalogProduct[]
 ): { items: PlacedItem[]; decor: DecorPiece[]; generation: GenerationRecord } {
-  const fixed = applyReviewFixes(scene.items, scene.decor, review, scene.plan, catalog);
+  const reviewed = applyReviewFixes(scene.items, scene.decor, review, scene.plan, catalog);
+  // What was built for a piece the check moved or took away goes with it (`lib/design/fitted`).
+  const fixed = settleFitted(reviewed.decor, reviewed.items, scene.plan.rooms);
   // The room's note after the check says how it reads now; the designer's first note stays before it.
   const notes = { ...(scene.generation.notes ?? {}) };
   for (const [roomId, note] of Object.entries(review.notes)) notes[roomId] = (notes[roomId] ? `${notes[roomId]} ${note}` : note).slice(0, 1200);

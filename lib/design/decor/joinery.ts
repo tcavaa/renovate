@@ -16,7 +16,7 @@ import { isKitchenMaterial } from '@/lib/design/catalog';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import { roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
 import type { CabinetSection, DecorMaterial, DecorPiece, PlacedItem, PlanRoom, StyleId } from '@/lib/design/types';
-import { freeSpans } from './layout';
+import { decorDepth, freeSpans } from './layout';
 import { WC_BOX_WIDTH_M, WC_SIDE_M } from '@/lib/design/rules';
 import { decorMaterialFrom } from './resolve';
 
@@ -109,10 +109,18 @@ export function cabinetFacadeM2(piece: Pick<DecorPiece, 'params' | 'span' | 'hei
     m2 += (x1 - x0) * h;
     const left = spans[i - 1]?.section;
     const right = spans[i + 1]?.section;
+    // A kitchen's corner leg: its front and its one free end — the other is against the run.
+    if (section.kind === 'kitchen') {
+      m2 += d * h;
+      return;
+    }
     // An end's side shows whole; a side against a lower or shallower neighbour shows above or in front of it.
     m2 += d * (h - Math.min(h, left ? left.heightMm / 1000 : 0));
     m2 += d * (h - Math.min(h, right ? right.heightMm / 1000 : 0));
   });
+  // A corner leg's wall cabinets: their front.
+  const hung = piece.params.wallUnits;
+  if (hung) m2 += Math.abs(hung.to - hung.from) * (hung.heightMm / 1000);
   return Math.round(m2 * 100) / 100;
 }
 
@@ -123,29 +131,101 @@ export function cabinetDepth(piece: Pick<DecorPiece, 'params'>): number {
   return Math.min(0.9, Math.max(0.1, deepest / 1000));
 }
 
+/** Decor that takes floor — a cabinet, a box, a niche wall: what joinery may not be built into. */
+const SOLID_DECOR = new Set<string>(['cabinet', 'box', 'niche']);
+/** The way a door on the wall round the corner needs kept clear in front of it, and the little a window there does. */
+const CORNER_DOOR_CLEAR_M = 0.9;
+const CORNER_WINDOW_CLEAR_M = 0.4;
+/** How much of such an opening joinery may stand in front of before it has to keep off the corner. */
+const CORNER_OVERLAP_M = 0.25;
+
+/** The floor a piece of decor stands on, as its four corners — null for one that is flat on its wall. */
+export function decorFootprint(piece: Pick<DecorPiece, 'family' | 'params' | 'wallIndex' | 'span' | 'anchor'>, room: Pick<PlanRoom, 'polygon'>): Array<{ x: number; z: number }> | null {
+  if (piece.wallIndex == null || !SOLID_DECOR.has(piece.family)) return null;
+  const edge = roomEdges(room.polygon).find((e) => e.index === piece.wallIndex);
+  if (!edge) return null;
+  const lo = Math.min(piece.span.from, piece.span.to);
+  const hi = Math.max(piece.span.from, piece.span.to);
+  const depth = decorDepth(piece);
+  const at = (s: number, off: number) => ({ x: edge.a.x + edge.dir.x * s + edge.inward.x * off, z: edge.a.z + edge.dir.z * s + edge.inward.z * off });
+  return [at(lo, 0), at(hi, 0), at(hi, depth), at(lo, depth)];
+}
+
 /**
- * The stretch of a wall clear of its doors and windows and of every piece standing against it
- * (but those in `except`) that contains `at` metres along the wall — what joinery may fill there.
+ * How far joinery `depth` deep keeps off each end of a wall: a door on the wall round the corner
+ * that it would stand in front of (by 25 cm or more of the opening) needs its way kept clear
+ * (90 cm), and a window there is not built over (40 cm). `[from, to]` along the wall.
  */
-export function freeStretch(room: PlanRoom, edge: PlanEdge, at: number, items: PlacedItem[], except: readonly string[] = [], depth = 0.65): [number, number] | null {
+export function cornerClearance(room: PlanRoom, edge: PlanEdge, depth: number): [number, number] {
+  const edges = roomEdges(room.polygon);
+  let lo = 0;
+  let hi = edge.length;
+  for (const opening of room.openings) {
+    if (opening.wallIndex === edge.index || opening.kind === 'railing') continue;
+    const other = edges.find((e) => e.index === opening.wallIndex);
+    // Only a wall that meets this one at a corner: one across the room is no concern of the joinery's.
+    if (!other || Math.abs(other.dir.x * edge.dir.x + other.dir.z * edge.dir.z) > 0.3) continue;
+    const centre = opening.t * other.length;
+    const ends = [centre - opening.widthM / 2, centre + opening.widthM / 2].map((s) => ({ x: other.a.x + other.dir.x * s, z: other.a.z + other.dir.z * s }));
+    const off = ends.map((p) => (p.x - edge.a.x) * edge.inward.x + (p.z - edge.a.z) * edge.inward.z);
+    // How much of the opening the joinery would stand in front of: a hand's width of a door's
+    // edge is lived with (a hall 1.8 m wide, its door in the middle of the end wall), more is not.
+    if (Math.min(Math.max(...off), depth) - Math.max(Math.min(...off), 0) < CORNER_OVERLAP_M) continue;
+    const along = ends.map((p) => (p.x - edge.a.x) * edge.dir.x + (p.z - edge.a.z) * edge.dir.z);
+    const clear = opening.kind === 'door' ? CORNER_DOOR_CLEAR_M : CORNER_WINDOW_CLEAR_M;
+    if (Math.max(...along) < 0.3) lo = Math.max(lo, clear);
+    else if (Math.min(...along) > edge.length - 0.3) hi = Math.min(hi, edge.length - clear);
+  }
+  return [lo, hi];
+}
+
+/**
+ * The stretch of a wall clear of its doors and windows, of every piece standing against it (but
+ * those in `except`) and of the joinery and boxes already built (but those in `exceptDecor`) that
+ * contains `at` metres along the wall — what joinery may fill there. It stops short of a corner
+ * whose other wall has a door or a window within its depth (`cornerClearance`), unless `at` itself
+ * is in that corner: what stands there was put there, and its cupboard goes round it.
+ */
+export function freeStretch(
+  room: PlanRoom,
+  edge: PlanEdge,
+  at: number,
+  items: readonly PlacedItem[],
+  except: readonly string[] = [],
+  depth = 0.65,
+  decor: readonly DecorPiece[] = [],
+  exceptDecor: readonly string[] = []
+): [number, number] | null {
   const spans = freeSpans(edge, room.openings, 0, edge.length, 0.05);
   const stretch = spans.find(([a, b]) => at >= a - 1e-6 && at <= b + 1e-6);
   if (!stretch) return null;
   let [a, b] = stretch;
+  const [cornerLo, cornerHi] = cornerClearance(room, edge, depth);
+  if (at - cornerLo >= JOINERY_SLIVER_M) a = Math.max(a, cornerLo);
+  if (cornerHi - at >= JOINERY_SLIVER_M) b = Math.min(b, cornerHi);
+  // What is in the way, as its corners: a piece of furniture, or decor that takes floor.
+  const blocks: Array<Array<{ x: number; z: number }>> = [];
   for (const item of items) {
     if (item.roomId !== room.id || except.includes(item.id) || item.elevationM > 1.2 || ['rug', 'curtain', 'pendant', 'artwork', 'mirror', 'blind', 'door_mat', 'tap', 'bath_mixer', 'dryer'].includes(item.slot)) continue;
-    // The piece's footprint as seen along the wall, where it comes within the joinery's depth of it.
     // A WC takes its box's 80 cm and its 40 cm either side of its middle, not its own 36 cm: a
     // washer's column 18 cm off a WC's middle left no room to sit and its box ran into the column.
-    const corners = footprint(item.slot === 'toilet' ? { ...item, size: { ...item.size, width: Math.max(item.size.width, 2 * WC_SIDE_M + 0.02, WC_BOX_WIDTH_M) } } : item);
+    blocks.push(footprint(item.slot === 'toilet' ? { ...item, size: { ...item.size, width: Math.max(item.size.width, 2 * WC_SIDE_M + 0.02, WC_BOX_WIDTH_M) } } : item));
+  }
+  for (const piece of decor) {
+    if (piece.roomId !== room.id || exceptDecor.includes(piece.id)) continue;
+    const corners = decorFootprint(piece, room);
+    if (corners) blocks.push(corners);
+  }
+  for (const corners of blocks) {
+    // The footprint as seen along the wall, where it comes within the joinery's depth of it.
     const off = corners.map((p) => (p.x - edge.a.x) * edge.inward.x + (p.z - edge.a.z) * edge.inward.z);
-    if (Math.min(...off) > depth + 0.05) continue;
+    if (Math.min(...off) > depth + 0.05 || Math.max(...off) < -0.05) continue;
     const along = corners.map((p) => (p.x - edge.a.x) * edge.dir.x + (p.z - edge.a.z) * edge.dir.z);
     const lo = Math.min(...along);
     const hi = Math.max(...along);
     if (hi <= a || lo >= b) continue;
-    if (hi <= at) a = Math.max(a, hi);
-    else if (lo >= at) b = Math.min(b, lo);
+    if (hi <= at + 1e-6) a = Math.max(a, hi);
+    else if (lo >= at - 1e-6) b = Math.min(b, lo);
     else return null;
   }
   return b - a > 0.05 ? [a, b] : null;

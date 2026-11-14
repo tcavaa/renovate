@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { boilerCabinetCandidates, boilerCabinetFacadeM2, boilerCabinetSize, withBoilerCabinet, withBoilerCabinets } from '@/lib/design/boilerCabinet';
+import { boilerCabinetCandidates, boilerCabinetFacadeM2, boilerCabinetSize, boilerRoom, isOutdoorCabinet, isThermalCabinet, withBoilerCabinet, withBoilerCabinets } from '@/lib/design/boilerCabinet';
 import { withEquipmentProducts } from '@/lib/design/equipment';
 import { priceScene } from '@/lib/design/pricing';
 import { tickFor } from '@/lib/design/ticks';
@@ -54,3 +54,47 @@ describe('the boiler’s ventilated cabinet', () => {
     expect(line.estimated).toBe(false);
   });
 });
+
+describe('a boiler’s cupboard on a balcony', () => {
+  // The owner's photo of 13 Nov 2026: a cupboard from the floor to the ceiling, insulated.
+  const balcony = refreshRoom({ id: 'bal', type: 'balcony', name: 'bal', polygon: [P(0, 3), P(3, 3), P(3, 4.2), P(0, 4.2)], heightM: 2.7, areaM2: 0, perimeterM: 0, openings: [] });
+  const thermal = { ...material(9, 640), slug: 'boiler-cabinet-thermal' } as CatalogProduct;
+  const catalog = [material(1, 520, ['modern']), material(2, 380), thermal];
+  const outside: TechnicalPoint = { id: 'b', kind: 'boiler', roomId: 'bal', position: P(1.5, 3.1), elevationM: 1.6, origin: 'user' };
+  const flat = (points: TechnicalPoint[]): FloorPlan => ({ ...planWith(points), rooms: [...planWith([]).rooms, balcony] });
+
+  it('stands from the floor to the ceiling, at least 80 cm wide, and is bought by that façade', () => {
+    expect(isOutdoorCabinet(balcony)).toBe(true);
+    expect(boilerCabinetSize(outside, balcony)).toEqual({ width: 0.8, depth: 0.45, height: 2.7 });
+    expect(boilerCabinetFacadeM2(outside, balcony)).toBeCloseTo(0.8 * 2.7 + 2 * 0.45 * 2.7, 2);
+    // Indoors it is the boiler's size and a hand all round, as before.
+    expect(boilerCabinetSize(outside, planWith([]).rooms[0]).height).toBeCloseTo(0.92, 3);
+    expect(boilerRoom(flat([outside]), outside)?.id).toBe('bal');
+  });
+
+  it('is made in the insulated material there by itself, and that material goes last indoors', () => {
+    expect(isThermalCabinet(thermal)).toBe(true);
+    expect(isThermalCabinet(catalog[0])).toBe(false);
+    expect(boilerCabinetCandidates(catalog, 'modern', balcony)[0].id).toBe(9);
+    expect(boilerCabinetCandidates(catalog, 'modern', planWith([]).rooms[0]).map((p) => p.id)).toEqual([1, 2, 9]);
+    const fitted = withBoilerCabinets(flat([outside]), catalog, 'modern').technical!.points[0];
+    expect(fitted.cabinet?.productId).toBe(9);
+    expect(fitted.cabinet?.qty).toBe(boilerCabinetFacadeM2(outside, balcony));
+  });
+
+  it('follows the boiler indoors and out when the app chose its material, and stays when the person did', () => {
+    const indoors = withBoilerCabinets(planWith([boiler]), catalog, 'modern').technical!.points[0];
+    expect(indoors.cabinet?.productId).toBe(1);
+    // The same boiler carried out onto the balcony.
+    const carried = { ...indoors, roomId: 'bal', position: P(1.5, 3.1) };
+    expect(withBoilerCabinets(flat([carried]), catalog, 'modern').technical!.points[0].cabinet?.productId).toBe(9);
+    const chosen = withBoilerCabinet(carried, catalog[1], balcony, true);
+    expect(chosen.cabinetChosen).toBe(true);
+    const kept = withBoilerCabinets(flat([chosen]), catalog, 'modern');
+    expect(kept.technical!.points[0].cabinet?.productId).toBe(2);
+    // Taken off, it stays off.
+    const off = flat([withBoilerCabinet(carried, null)]);
+    expect(withBoilerCabinets(off, catalog, 'modern')).toBe(off);
+  });
+});
+

@@ -53,9 +53,10 @@ export function makeDecorHandles(): THREE.Group {
 
 /**
  * Puts the arrows on a piece: `extent` on its wall (`edge`), `depth` how far its face stands off
- * the wall. Each arrow is tagged as a decor handle of the piece, so the viewer can grab it.
+ * the wall. Each arrow is tagged as a decor handle of the piece, so the viewer can grab it; those
+ * in `hidden` are left out.
  */
-export function placeDecorHandles(group: THREE.Group, piece: { id: string; roomId: string }, edge: PlanEdge, extent: DecorExtent, depth: number): void {
+export function placeDecorHandles(group: THREE.Group, piece: { id: string; roomId: string }, edge: PlanEdge, extent: DecorExtent, depth: number, hidden: readonly DecorHandle[] = []): void {
   const out = depth + IN_FRONT_M;
   const at = (along: number, up: number) => new THREE.Vector3(edge.a.x + edge.dir.x * along + edge.inward.x * out, up, edge.a.z + edge.dir.z * along + edge.inward.z * out);
   const { span, height } = extent;
@@ -71,6 +72,8 @@ export function placeDecorHandles(group: THREE.Group, piece: { id: string; roomI
   for (const handle of HANDLES) {
     const arrow = group.getObjectByName(`decor-handle-${handle}`);
     if (!arrow) continue;
+    // An arrow the piece has no use for (the bottom of joinery standing on the floor) is not shown.
+    arrow.visible = !hidden.includes(handle);
     arrow.position.copy(spots[handle].position);
     arrow.quaternion.setFromUnitVectors(UP, spots[handle].facing);
     arrow.traverse((child) => {

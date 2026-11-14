@@ -192,6 +192,8 @@ export interface TechnicalPoint {
    * person took it off.
    */
   cabinet?: SceneProduct | null;
+  /** The person picked the cabinet's material themselves: it is not changed for the room's (a thermal one on a balcony). */
+  cabinetChosen?: boolean;
   /** A piece of equipment: its product's size, what the 3D view draws its model at (absent: the model's own). */
   sizeM?: { width: number; depth: number; height: number } | null;
   origin: ElementOrigin;
@@ -402,6 +404,12 @@ export interface PlacedItem {
    * the bathroom allows (`SHOWER_SIZES_M`); the size check measures it, not the column.
    */
   areaM?: { width: number; depth: number };
+  /**
+   * A corner kitchen's piece — the leg, or the wall cabinets over it: the made-to-measure run it
+   * turns the corner of, and at which of the run's ends (`lib/design/kitchenCorner`).
+   */
+  legOf?: string | null;
+  legCorner?: 'left' | 'right';
   /** A shower's glass, as the person set it (`lib/design/shower`): unset, 3 cm thick and 2 m tall. */
   glass?: { thicknessM: number; heightM: number };
 }
@@ -594,7 +602,7 @@ export type DecorFamily = 'slats' | 'moulding' | 'niche' | 'slab' | 'light' | 'p
  * boiler's ventilated cupboard, coats, shoes, plain doors or open shelves. Each its own width,
  * height and depth.
  */
-export type CabinetSectionKind = 'basin' | 'washer' | 'boiler' | 'coats' | 'shoes' | 'doors' | 'open';
+export type CabinetSectionKind = 'basin' | 'washer' | 'boiler' | 'coats' | 'shoes' | 'doors' | 'open' | 'kitchen';
 export interface CabinetSection {
   kind: CabinetSectionKind;
   widthMm: number;
@@ -602,6 +610,8 @@ export interface CabinetSection {
   depthMm: number;
   /** A washer's column with a dryer stacked on the machine. */
   dryer?: boolean;
+  /** The piece of furniture standing in it — the basin on a vanity, the machine in its column: the two travel together (`lib/design/decor/housing`). */
+  itemId?: string;
 }
 
 /** The parts of a piece that wear a material of their own (`DECOR_FAMILIES` says which a family has). */
@@ -656,6 +666,10 @@ export interface DecorParams {
   full?: boolean;
   /** Cabinet (made-to-measure joinery): its sections, left to right along the wall. */
   sections?: CabinetSection[];
+  /** A kitchen run's corner leg (an L-shaped kitchen): the end of the run it turns the corner at. */
+  corner?: 'left' | 'right';
+  /** A corner leg's wall cabinets, when its run has them: the stretch of the wall they hang on (clear of windows), their bottom, height and depth. */
+  wallUnits?: { from: number; to: number; bottomMm: number; heightMm: number; depthMm: number };
 }
 
 /**
@@ -679,6 +693,12 @@ export interface DecorPiece {
   origin?: 'ai' | 'studio';
   /** What it was centred on (the bed, the kitchen run…): it follows that piece to its wall (`reanchorDecor`). */
   anchor?: 'bed' | 'tv' | 'sofa' | 'desk' | 'dining' | 'kitchen' | 'wall' | 'room' | 'wc' | 'joinery' | 'bath' | null;
+  /**
+   * The piece of furniture it is built for — a box's WC, an enclosure's bath, a corner leg's
+   * kitchen run: it goes where that piece goes (`lib/design/decor/housing`). A cabinet's sections
+   * name theirs themselves (`CabinetSection.itemId`).
+   */
+  itemId?: string | null;
 }
 
 /** How the flat was generated: by the rule engine or by the AI designer — kept so a flat can be explained. */

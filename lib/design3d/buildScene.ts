@@ -800,6 +800,8 @@ export function buildPlacedItem(item: PlacedItem): THREE.Object3D | null {
       wrapper.remove(pending);
       disposeOwnedGeometry(pending);
       fitToItem(model, item);
+      // A corner kitchen's leg is its run's model without a second sink and hob.
+      if (item.legOf && item.slot === 'kitchen_run') hideSinkAndHob(model);
       // A piece in one of its product's material variants: those parts of the model in its look.
       // A made-to-measure kitchen drawn as its material's model is that model as it is.
       if (item.product?.variant && drawnModelUrl(item) === item.product.model3dUrl) itemVariants.apply(model, item.product.variant);
@@ -861,6 +863,41 @@ function ghostFor(item: PlacedItem): THREE.Object3D {
  * conversion script, so the proportions already agree and stretching an axis would only
  * distort. The exception is a slot the layout engine sized itself — see below.
  */
+/**
+ * The parts of a kitchen run's model that are its sink and its hob, by their material's name (the
+ * made-to-measure runs' are named by `scripts/kitchen-models`: satin steel, the hob's glass and
+ * body), hidden: a corner leg is drawn as its run's model, and a kitchen has one sink and one hob.
+ * A model whose sink is part of its worktop's mesh keeps it.
+ */
+const SINK_AND_HOB = /steel-satin|glass-heavy|-default$|sink|hob|cooktop|stove|faucet/i;
+let legWorktop: THREE.MeshStandardMaterial | null = null;
+function hideSinkAndHob(model: THREE.Object3D): void {
+  let hidden = false;
+  model.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return;
+    const materials = Array.isArray(child.material) ? child.material : [child.material];
+    if (materials.every((m) => SINK_AND_HOB.test(m?.name ?? '')) || SINK_AND_HOB.test(child.name)) {
+      child.visible = false;
+      hidden = true;
+    }
+  });
+  if (!hidden) return;
+  // Where the sink and the hob were the worktop is cut out: a slab the worktop's colour over the
+  // whole top closes it (the made-to-measure runs' worktop is this anthracite — `scripts/kitchen-models`).
+  model.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(model);
+  const size = box.getSize(new THREE.Vector3());
+  const centre = box.getCenter(new THREE.Vector3());
+  legWorktop ??= new THREE.MeshStandardMaterial({ name: 'kitchen-leg-worktop', color: 0x2e2f31, roughness: 0.45 });
+  const slab = new THREE.Mesh(new THREE.BoxGeometry(size.x, 0.012, size.z), legWorktop);
+  slab.userData.ownsGeometry = true;
+  slab.position.copy(model.worldToLocal(new THREE.Vector3(centre.x, box.max.y - 0.006, centre.z)));
+  slab.scale.set(1 / (model.scale.x || 1), 1 / (model.scale.y || 1), 1 / (model.scale.z || 1));
+  slab.castShadow = true;
+  slab.receiveShadow = true;
+  model.add(slab);
+}
+
 function fitToItem(model: THREE.Object3D, item: PlacedItem): void {
   const authored = model.userData.authoredSize as THREE.Vector3 | undefined;
   const size = authored ?? new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3());

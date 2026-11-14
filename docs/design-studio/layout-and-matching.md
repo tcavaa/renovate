@@ -288,6 +288,10 @@ own. The matcher re-measures every piece from the product it got, so the room st
   the run only when it is shaped like one** — at least 1.8 m long, 55–72 cm deep, 85 cm high or more
   (a range cooker filed under kitchen units, 166 × 67 × 80 cm, was taken for the whole kitchen) —
   and stands with its back on the run's wall at its own depth.
+- **A short run turns the corner** (`fitKitchenCorners`, `lib/design/kitchenCorner.ts`, after the
+  bathroom, hall and bedroom passes): a made-to-measure run under 2.6 m standing in a corner whose
+  next wall is free gets a leg along it and wall cabinets over the leg, furniture copied from the run's — an L-shaped kitchen
+  ([../budget.md](../budget.md#a-corner-l-shaped-kitchen-libdesignkitchencornerts)).
 - **A small kitchen goes on one wall**: the run, the fridge at its end, the wall cabinets over the
   run. The run tries first to start in one corner and leave the other end of the wall for the fridge
   (`leaveFor: 'fridge'` — the fridge's width and 8 cm, clear of openings and door swings), and only

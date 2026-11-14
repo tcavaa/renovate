@@ -18,6 +18,7 @@
  * Pure geometry over the plan and the placed items; no React, no THREE.
  */
 
+import { clearOf, nearestClear, wallBlocks } from './wallClear';
 import { isPassage, openingSpanUp, pointInPolygon, pointOnEdge, polygonBounds, roomEdges, wallEdges, type PlanEdge } from './planGeometry';
 import { closestOnSegment } from './walls';
 import { toSceneProduct, type CatalogProduct } from './matcher';
@@ -50,7 +51,7 @@ import {
   underCeiling,
   kitchenRunZones,
 } from './rules';
-import type { ElectricalKind, ElectricalPoint, FloorPlan, LightCategory, PlacedItem, PlanRoom, StyleId, TechnicalPoint, Vec2 } from './types';
+import type { DecorPiece, ElectricalKind, ElectricalPoint, FloorPlan, LightCategory, PlacedItem, PlanRoom, StyleId, TechnicalPoint, Vec2 } from './types';
 
 export { KITCHEN_SOCKET_M, KITCHEN_WORKTOP_M, HIGH_SOCKET_M, SOCKET_M, SWITCH_M, TV_SOCKET_M } from './rules';
 
@@ -187,7 +188,7 @@ function wiredByHand(existing: ElectricalPoint[]): { kept: ElectricalPoint[]; sk
  * (`standardElectrical`), then what the furniture standing in it calls for. A room the person
  * has wired by hand is kept as it is (`wiredByHand`); only the others are filled in.
  */
-export function suggestElectrical(plan: FloorPlan, items: PlacedItem[], existing: ElectricalPoint[] = [], styleId?: StyleId | null): ElectricalPoint[] {
+export function suggestElectrical(plan: FloorPlan, items: PlacedItem[], existing: ElectricalPoint[] = [], styleId?: StyleId | null, decor: readonly DecorPiece[] = []): ElectricalPoint[] {
   let counter = existing.length;
   const b: Builder = { points: [], next: () => `e${Date.now().toString(36)}-${counter++}` };
   const { kept, skip } = wiredByHand(existing);
@@ -197,7 +198,7 @@ export function suggestElectrical(plan: FloorPlan, items: PlacedItem[], existing
     if (wallEdges(room).length === 0) continue;
     // Ceiling lights at the ceiling one sees — a new one hangs lower than the slab.
     const ceiled = underCeiling(room, plan);
-    standardFor(b, ceiled);
+    standardFor(b, ceiled, items, decor);
     furnitureFor(b, ceiled, items.filter((i) => i.roomId === room.id), plan.technical?.points ?? [], styleId ?? null);
   }
 
@@ -212,13 +213,13 @@ export function suggestElectrical(plan: FloorPlan, items: PlacedItem[], existing
  * the design's furniture then adds its own (`suggestElectrical`). A room the person has wired
  * by hand is kept as it is (`wiredByHand`).
  */
-export function standardElectrical(plan: FloorPlan, existing: ElectricalPoint[] = []): ElectricalPoint[] {
+export function standardElectrical(plan: FloorPlan, existing: ElectricalPoint[] = [], items: readonly PlacedItem[] = [], decor: readonly DecorPiece[] = []): ElectricalPoint[] {
   let counter = existing.length;
   const b: Builder = { points: [], next: () => `e${Date.now().toString(36)}-${counter++}` };
   const { kept, skip } = wiredByHand(existing);
   for (const room of plan.rooms) {
     if (skip.has(room.id) || wallEdges(room).length === 0) continue;
-    standardFor(b, underCeiling(room, plan));
+    standardFor(b, underCeiling(room, plan), items, decor);
   }
   return [...kept, ...b.points];
 }
@@ -228,8 +229,13 @@ export function standardElectrical(plan: FloorPlan, existing: ElectricalPoint[] 
  * calculator, which has none, places exactly what the design does before its furniture adds
  * its own: the general sockets keep off the walls the switches are on, and nothing else.
  */
-function standardFor(b: Builder, room: PlanRoom): void {
+function standardFor(b: Builder, room: PlanRoom, items: readonly PlacedItem[] = [], decor: readonly DecorPiece[] = []): void {
   const edges = wallEdges(room);
+  // In a furnished room a switch or a general socket keeps off the joinery and the tall furniture
+  // standing against its wall (the owner's notes of 13 Nov 2026); a bare room is as it was.
+  const furnished = items.some((i) => i.roomId === room.id) || decor.some((d) => d.roomId === room.id);
+  const blocksOf = (edge: PlanEdge) => (furnished ? wallBlocks(room, edge, items, decor).filter((block) => block.built || block.top - block.bottom >= TALL_FURNITURE_M || block.bottom > 0.05) : []);
+  const blockedAt = (edge: PlanEdge, t: number, height: number) => blocksOf(edge).some((block) => !block.flat && t * edge.length > block.from - 0.05 && t * edge.length < block.to + 0.05 && height > block.bottom - 0.05 && height < block.top + 0.05);
   const centre = { x: room.polygon.reduce((s, p) => s + p.x, 0) / room.polygon.length, z: room.polygon.reduce((s, p) => s + p.z, 0) / room.polygon.length };
   const before = b.points.length;
 
@@ -248,7 +254,10 @@ function standardFor(b: Builder, room: PlanRoom): void {
     const side = door.hinge === 'right' ? -1 : 1;
     const offset = (door.widthM / 2 + SWITCH_FROM_OPENING_M) / edge.length;
     const t = door.t + side * offset;
-    if (t <= 0.02 || t >= 0.98) makeOnWall(b, room, 'switch', edge, door.t - side * offset);
+    const switchM = ELECTRICAL_KINDS.switch.defaultElevationM;
+    // The handle side, unless the wall ends there or a wardrobe stands there: then the other.
+    const other = door.t - side * offset;
+    if (t <= 0.02 || t >= 0.98 || (blockedAt(edge, t, switchM) && other > 0.02 && other < 0.98 && !blockedAt(edge, other, switchM))) makeOnWall(b, room, 'switch', edge, other);
     else makeOnWall(b, room, 'switch', edge, t);
   }
   if (room.type === 'hallway') twoWayCorridor(b, room, edges, before);
@@ -258,9 +267,21 @@ function standardFor(b: Builder, room: PlanRoom): void {
     const used = new Set(b.points.slice(before).filter((p) => p.wallIndex != null).map((p) => p.wallIndex));
     const free = edges.filter((e) => e.length >= 1.6 && !used.has(e.index)).sort((p, q) => q.length - p.length);
     const wanted = room.type === 'living_room' || room.type === 'studio' ? 2 : 1;
-    for (const edge of free.slice(0, wanted)) makeOnWall(b, room, 'socket', edge, 0.5);
+    const socketM = ELECTRICAL_KINDS.socket.defaultElevationM;
+    let made = 0;
+    for (const edge of free) {
+      if (made >= wanted) break;
+      // The middle of the wall, or the nearest spot along it that nothing tall stands in front of.
+      const clear = furnished ? nearestClear(clearOf([[0.15, edge.length - 0.15]], blocksOf(edge), { bottom: socketM - 0.1, top: socketM + 0.1 }, false), edge.length / 2, 0.2) : edge.length / 2;
+      if (clear == null) continue;
+      if (makeOnWall(b, room, 'socket', edge, clear / edge.length)) made++;
+      else if (!furnished) made++;
+    }
   }
 }
+
+/** Furniture this tall standing against a wall hides a socket or a switch behind it: a wardrobe, a fridge, shelving. */
+const TALL_FURNITURE_M = 1.2;
 
 /** The styles whose rooms take a ring of spots round the main light, the rooms, and from what size. */
 const RING_STYLES: readonly StyleId[] = ['scandinavian', 'modern', 'vintage'];

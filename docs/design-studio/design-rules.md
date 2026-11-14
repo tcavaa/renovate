@@ -359,6 +359,32 @@ How stage 6 built it — **the plan board**:
 - **The hall** (E-10, P-5): the hallway type reads "დერეფანი / ჰოლი" (Hallway / entrance hall,
   Коридор / прихожая); a room still called "დერეფანი" counts as the app's name and is dealt again.
 
+## The fitted pieces (owner, 13 Nov 2026)
+
+Nine notes on what is built round the furniture, and the answers to the three questions asked:
+
+1. **The boiler's cupboard is drawn** round the boiler, as joinery is
+   ([technical-and-fittings.md](technical-and-fittings.md#equipment-is-bought-one-per-point-libdesignequipmentts)).
+2. **Wall decor is moved by hand**, not only resized — joinery across the floor onto any wall,
+   as furniture moves — and joinery's height and width change for real ([decor.md](decor.md#the-studio-decorpanel)).
+3. **What is built for a piece goes with it** — a machine's column, a basin's vanity — and a piece
+   whose housing was deleted has a button on its card that builds it again; the same for a boiler
+   (its card's materials) and every piece that has one
+   ([decor.md](decor.md#furniture-and-what-is-built-for-it-housingts)).
+4. **A shower set down from the catalogue has its glass**, as a generated one does.
+5. **A boiler outdoors** stands in a cupboard from the floor to the ceiling, insulated (the owner's
+   photo). Answer: on a balcony only, in a thermal material of its own that admin prices
+   (migration 0016); indoors the small louvred cabinet stays.
+6. **A corner (L-shaped) kitchen**, as kitchen furniture like the run (its leg and its wall
+   cabinets are copies of the run's pieces, not joinery). Answer: a switch on the run's card, and
+   the generation turns the corner by itself for a short run ([../budget.md](../budget.md#a-corner-l-shaped-kitchen-libdesignkitchencornerts)).
+7. **A WC's installation box moves with its WC.**
+8. **Joinery overlaps nothing**: it stops at doors, windows, furniture and other joinery, and
+   furniture is not dropped into it.
+9. **Automatic technical placement in a furnished flat reads the furniture and the decor first.**
+   Answer: new points keep clear; points already placed are left where they are
+   ([technical-and-fittings.md](technical-and-fittings.md)).
+
 ## The decisions (owner, 28 Oct 2026)
 
 **Part 1 — technical**
@@ -541,10 +567,13 @@ AI check's problems).
   room" (L-9, L-10) are the existing tight-passage scoring, not rules of their own; the hall wardrobe's
   sections cannot be edited on its card; a boiler already placed before the wardrobe stays where it is.
 
-- From the third round's stage 1: the joinery, the taps, the bath's mixer and enclosure and the
-  dryer are placed at generation and do not follow the basin, the bath or the machine when it is
-  dragged or swapped afterwards (the WC's box does); a cabinet's sections cannot be edited on its
-  card yet (only resized whole). Vintage's bath enclosure is a tiled surround, not a raised alcove.
+- From the third round's stage 1: a cabinet's sections cannot be added, removed or re-ordered on
+  its card (they are resized with the piece); a basin set down from the catalogue gets its vanity
+  but no tap of its own. Vintage's bath enclosure is a tiled surround, not a raised alcove.
+- From the notes of 13 Nov: a housing follows its furniture on release, not live; a corner leg has
+  no sockets of its own, and a kitchen model whose sink is part of its worktop's mesh shows a second sink on the leg; the thermal cupboard's price is a placeholder
+  for admin to set; a point placed before the furniture is not moved when furniture later stands
+  in front of it (the rule checks flag a blocked radiator only).
 
 - From the second round's stage 6: a shower's glass in 3D follows a dragged shower on release, not
   live; a pane has no door drawn in it (a walk-in screen leaves its open end). The en-suite's lobby

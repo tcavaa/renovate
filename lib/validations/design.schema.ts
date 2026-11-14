@@ -123,6 +123,8 @@ export const technicalPointSchema = z.object({
   towelRail: z.boolean().optional(),
   // A boiler's ventilated cabinet: the joiner's material, bought by the façade.
   cabinet: sceneProductSchema.nullable().optional(),
+  // The person picked that material themselves: the app does not change it for the room's.
+  cabinetChosen: z.boolean().optional(),
   // A piece of equipment: its product's size, for the 3D view.
   sizeM: z.object({ width: z.number().min(0.01).max(5), depth: z.number().min(0.001).max(5), height: z.number().min(0.001).max(5) }).nullable().optional(),
   origin: elementOriginSchema,
@@ -195,6 +197,9 @@ export const placedItemSchema = z.object({
   locked: z.boolean().optional(),
   // A shower's tray and glass (`PlacedItem.areaM`).
   areaM: z.object({ width: z.number().positive().max(5), depth: z.number().positive().max(5) }).optional(),
+  // A corner kitchen's piece: its run and the end it turns at.
+  legOf: z.string().max(200).nullable().optional(),
+  legCorner: z.enum(['left', 'right']).optional(),
   // A shower's glass (`PlacedItem.glass`).
   glass: z.object({ thicknessM: z.number().positive().max(0.2), heightM: z.number().positive().max(4) }).optional(),
 });
@@ -307,14 +312,17 @@ export const decorPieceSchema = z.object({
       border: z.boolean().optional(),
       path: z.enum(['cove', 'line']).optional(),
       full: z.boolean().optional(),
+      corner: z.enum(['left', 'right']).optional(),
+      wallUnits: z.object({ from: z.number().min(-1).max(100), to: z.number().min(-1).max(100), bottomMm: z.number().min(0).max(4000), heightMm: z.number().min(100).max(2000), depthMm: z.number().min(100).max(900) }).optional(),
       sections: z
         .array(
           z.object({
-            kind: z.enum(['basin', 'washer', 'boiler', 'coats', 'shoes', 'doors', 'open']),
+            kind: z.enum(['basin', 'washer', 'boiler', 'coats', 'shoes', 'doors', 'open', 'kitchen']),
             widthMm: z.number().min(100).max(8000),
             heightMm: z.number().min(100).max(4000),
             depthMm: z.number().min(100).max(900),
             dryer: z.boolean().optional(),
+            itemId: z.string().max(200).optional(),
           })
         )
         .max(24)
@@ -326,6 +334,7 @@ export const decorPieceSchema = z.object({
   note: z.string().max(600).nullable().optional(),
   origin: z.enum(['ai', 'studio']).optional(),
   anchor: z.enum(['bed', 'tv', 'sofa', 'desk', 'dining', 'kitchen', 'wall', 'room', 'wc', 'joinery', 'bath']).nullable().optional(),
+  itemId: z.string().max(200).nullable().optional(),
 });
 
 /** How the flat was generated: by the engine or by the AI designer, with its per-room notes. */

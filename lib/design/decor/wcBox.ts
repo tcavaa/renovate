@@ -37,7 +37,8 @@ export function wcBoxes(rooms: readonly PlanRoom[], items: PlacedItem[], catalog
   const tile = defaultDecorMaterial(catalog, ['tile', 'stone']);
   for (const wc of items.filter((i) => i.slot === 'toilet')) {
     const room = rooms.find((r) => r.id === wc.roomId);
-    if (!room || [...decor, ...out].some((d) => d.family === 'box' && d.roomId === room.id && d.anchor === 'wc')) continue;
+    // One box a WC: its own (`itemId`), or one from before boxes named their WC.
+    if (!room || [...decor, ...out].some((d) => d.family === 'box' && d.anchor === 'wc' && (d.itemId ? d.itemId === wc.id : d.roomId === room.id))) continue;
     const edge = wallBehind(wc, room);
     if (!edge) continue;
     const centre = (wc.position.x - edge.a.x) * edge.dir.x + (wc.position.z - edge.a.z) * edge.dir.z;
@@ -58,6 +59,7 @@ export function wcBoxes(rooms: readonly PlanRoom[], items: PlacedItem[], catalog
       params: { depthMm: Math.round(WC_BOX_DEPTH_M * 1000), full: false },
       materials: { ...(gypsum ? { body: decorMaterialFrom(gypsum) } : {}), ...(tile ? { face: decorMaterialFrom(tile) } : {}) },
       anchor: 'wc',
+      itemId: wc.id,
     });
   }
   return out;

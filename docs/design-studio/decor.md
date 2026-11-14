@@ -19,7 +19,10 @@ proposal goes through) · [3d-engine.md](3d-engine.md) · [studio.md](studio.md)
 |---|---|
 | `lib/design/decor/reference-library.json` | the reference library: per room type × style, the concepts, the families they use, the composition rule and the room constraint; the primitives' parameters and fit rules (what the prompt quotes) |
 | `lib/design/decor/families.ts` | `DECOR_FAMILIES`: each family's slots, the material kinds each slot takes, its default knobs; `slotTakes`, `hasLed`; `STYLE_DECOR_FAMILIES` (the families each style takes) and `styleTakesLed` (Modern only) |
-| `lib/design/decor/resize.ts` | a piece resized by hand: `dragDecorHandle` (an arrow dragged to a point on its wall), `resizeDecor` (the card's width, height, height off the floor), `decorExtent`, `isResizable`, `resizesFromMiddle` |
+| `lib/design/decor/resize.ts` | a piece resized and moved by hand: `dragDecorHandle` (an arrow dragged to a point on its wall), `resizeDecor` (the card's width, height, height off the floor, distance from the wall's start), `moveDecor` (dragged by its body: along its wall, up it, onto another wall), `decorExtent`, `isResizable`, `isMovable`, `standsOnFloor`, `resizesFromMiddle` |
+| `lib/design/decor/housing.ts` | furniture and what is built for it kept together: `housingOf`, `adoptHoused`, `followHoused` (the furniture moved), `carryHoused` / `carryCompanions` (the housing moved; a dryer, a tap, a mixer ride with their piece), `houseItem` / `boxFor` (built for a piece set down), `cabinetAtExtent` (joinery resized section by section), `freeExtent` (joinery never runs into anything), `joineryObstacles` / `withJoinery` (furniture keeps out of joinery) |
+| `lib/design/fitted.ts` | what the store runs: `settleFitted` (after every change to the furniture), `withFitted` (a piece set down, or asked on its card), `takesHousing`, `lacksHousing` |
+| `lib/design/kitchenCorner.ts` | a corner (L-shaped) kitchen: `kitchenLeg`, `kitchenLegOf`, `runIntoCorner`, `runFromCorner`, `followKitchenLegs`, `resizedKitchenLeg`, `fitKitchenCorners` (the generation's) |
 | `lib/design3d/decorHandles.ts` | the selected piece's arrows and frame in 3D: `makeDecorHandles`, `placeDecorHandles`, `hideDecorHandles`, `decorDepth` |
 | `lib/design/decor/materials.ts` | decor materials: `DECOR_MATERIAL_CATEGORY` (`decor-materials`), the kinds (`decor-<kind>` sub-categories), `isDecorMaterial`, `decorMaterialsOf`, `defaultDecorMaterial` (an LED defaults to the warmest), `decorSpecs`, `ledColor` |
 | `lib/design/decor/layout.ts` | the fit, pure and in the wall's frame: `decorWall`, `freeSpans`, `fitSlats`, `fitMoulding`, `fitNiche`, `fitField`, `fitLight` |
@@ -43,6 +46,9 @@ proposal goes through) · [3d-engine.md](3d-engine.md) · [studio.md](studio.md)
 | `lib/db/migrations/0005_decor_materials.sql` | the category tree, the starter materials and the workshop store |
 | `tests/unit/design/decor.test.ts` | the fit, the quantities, the budget lines, the resolver, the proposal and its validation (the families and LED a style takes) |
 | `tests/unit/design/decorResize.test.ts` | the arrows dragged (one side, from the middle, kept on the wall and under the ceiling, the smallest size) and the card's sizes |
+| `tests/unit/design/housing.test.ts` | a WC and its box, a machine and its column, a basin and its vanity moved either way; a section leaving a longer run; joinery resized for real and stopped by doors, furniture and other joinery; decor moved by hand; a catalogue shower's glass; a generated flat left as it is by the pass |
+| `tests/unit/design/kitchenCorner.test.ts` | the leg at either corner, under a window, stopped by a door or furniture, resized, following its run, the generation's corner kitchens |
+| `tests/unit/design/fittedStore.test.ts` | the store's actions: a drag takes the column (one undo), a dragged column takes the machine, delete and the card's button, the corner switch; furniture kept out of joinery |
 | `tests/unit/design/placementSettle.test.ts` | the check's findings, its validation and its fixes applied; no print over slats |
 | `tests/unit/design/generateScene.test.ts` | the store and `generateScene` make the same flat for a seed, with the designer and without; `reviewedScene` |
 | `tests/unit/design/generationJob.test.ts` | a stale job; what the style page does with each job, on starting one and on opening the project again |
@@ -59,7 +65,10 @@ finish's span) and a band of height (`height`); a cove runs round the room's cei
 (`specs.tintable`), and the specs it draws with copied from the catalogue (`textureScaleM`,
 `tintable`, `cct`, `profileMm`, `roughness` — a `SceneProduct` carries no specs). `reference` is
 the library entry and concept it realises, `note` the designer's sentence, `origin` `ai` or
-`studio` (edited since). `scene.generation` records how the flat was generated (`engine` or `ai`,
+`studio` (edited since). A piece built for a piece of
+furniture names it: a box its WC or its bath and a kitchen's corner leg its run (`itemId`), a
+cabinet's section the basin or the machine standing in it (`CabinetSection.itemId`) — see
+[Furniture and what is built for it](#furniture-and-what-is-built-for-it-housingts). `scene.generation` records how the flat was generated (`engine` or `ai`,
 the model, the time, the per-room notes, how many AI runs the design has had). Both are saved with
 the scene, versioned, undone and persisted like the rest (`decor` is in `DesignSnapshot`,
 `partialize`, `scene()`, `DESIGN_SAVED`).
@@ -107,9 +116,9 @@ The reference library's rules, as code:
   the bath standing in it — and the bath is not pushed out of it (`clearOfDecor`).
 - **cabinet** — made-to-measure joinery (`lib/design/decor/joinery.ts`, the rulebook of 6 Nov
   2026): `params.sections`, left to right along the wall, each `{ kind, widthMm, heightMm,
-  depthMm, dryer? }` — `basin` (a vanity), `washer` (a column open in front round the machine, a
+  depthMm, dryer?, itemId? }` — `basin` (a vanity), `washer` (a column open in front round the machine, a
   shelf for a dryer on it), `boiler` (louvred doors), `coats`, `shoes`, `doors`, `open` (shelves).
-  A piece resized to another width stretches its sections in proportion (`sectionSpans`). Slot:
+  Resized by hand it is resized section by section (`cabinetAtExtent`, below). Slot:
   face, in the kitchen maker's materials (`kitchen-custom`, kind `joinery` — `decorMaterialKind`),
   the flat's kitchen run's own when it has one (`joineryMaterial`), so the joinery is one design.
   Measured as the joiner prices it: every section's front and the sides that show
@@ -205,6 +214,69 @@ took the second click on the piece and some presses meant for an arrow.
 A piece keeps to its wall, under the (lowered) ceiling, and is never narrower than 20 cm or lower
 than 10 cm (`DECOR_MIN_WIDTH_M`, `DECOR_MIN_HEIGHT_M`). The arrows show only where the flat can be
 changed — not in a view that only looks, nor while building, wiring or painting.
+
+**Moving** (the owner's notes of 13 Nov 2026). A piece is dragged by its body: a press selects it
+and, held, slides it along its wall and up it (`moveDecor`: its size kept, on the wall and under the
+ceiling), and onto another wall of its room — the pointer's ray is put on the piece's own wall while
+it is over it, else on the wall of the room it looks at from inside (`Viewer3D`, `handle: 'move'`).
+The built piece and the frame follow live; the store takes the place on release (`moveDecor`, one
+undo step). The card has the distance of its near side from the wall's start beside its width and
+height. A piece that was centred on a piece of furniture stops following it once it is put somewhere
+by hand (`anchor: 'wall'`). **Joinery and boxes move as furniture does** (`standsOnFloor`): the
+pointer's spot on the floor picks the wall — the nearest of the room, the piece's own holding on a
+little — and the place along it, so a cupboard is dragged across the room onto any wall; they stay
+on the floor and have no bottom arrow (`hiddenHandles`).
+
+**Joinery is resized for real** (`cabinetAtExtent`). A cabinet's sections each have their own
+height, so a height dragged on the piece used to change nothing. Now the sections that reached the
+old top go to the new one and the lower ones stay (a vanity beside a column); the width is shared
+out over the sections that stretch — a washing machine's column keeps its own while another section
+can take the change — and no section is made narrower or lower than what stands in it.
+
+## Furniture and what is built for it (`housing.ts`)
+
+A washing machine and its column, a basin and its vanity, a WC and its box, a built-in bath and its
+surround are one thing to the person and two records here — a `PlacedItem` with a model, a
+`DecorPiece` built in code — so one module keeps them together (the owner's notes of 13 Nov 2026):
+
+- **The link** is by id: `CabinetSection.itemId`, and `DecorPiece.itemId` for a box. The generation
+  writes it (`fitBathrooms`, `wcBoxes`); a design saved before it existed takes it from where the
+  pieces stand (`adoptHoused`), read off the flat *before* the change in hand (`linkedDecor` in the
+  store) — read after, a box would be lost the moment its WC was dragged away.
+- **The furniture moved** (`followHoused`, run by `settleFitted` after `placeItem`, a swap, a carry
+  set down, a delete, a kitchen's new length): a piece set down by another wall with its back not
+  to it is turned to stand with its back on that wall (`turnedToWall`), so its housing can go there;
+  a box sits centred behind its WC or its bath on whatever wall that now is (the WC stood out in
+  front of it); a basin moved about on its vanity's top — its own section and the plain doors beside
+  it at its height — changes nothing (the vanity used to shrink to the basin); a piece that is the
+  only thing its joinery was built for takes the whole of it, every section, to its new wall; and
+  where a run houses two things, the one that left takes its section with it as a piece of its own,
+  at the size it had, the run closing up behind it. Where the new place has no wall
+  behind the piece or no room, the housing is given up. A housing whose piece was deleted goes too.
+- **The housing moved or resized** (`carryHoused`): what stands in it goes with it — carried with a
+  section that moved, left where it stood when the section was only made wider (its pipes are
+  there), a basin at its vanity's new height.
+- **What rides on a piece goes with it** (`carryCompanions`, by id: `<id>-tap`, `-dryer`, `-mixer`):
+  the dryer on a dragged machine, the tap of a dragged basin, a bath's mixer.
+- **A piece set down from the catalogue** is given what a generated one has (`withFitted`, in
+  `addItem` and `finishCarry`): a WC its box, a washing machine its column and a countertop basin in
+  a bathroom its vanity (not in Vintage, as at generation — `takesHousing`), a built-in bath its
+  surround, a shower its floor and glass (`withShowerArea`). The joinery is made in the material the
+  flat's joinery already has, else the joiner's for the flat (`joinerFace`).
+- **The card builds it again.** A piece whose housing was deleted (or never built) has a button on
+  its card (`SwapPanel` `onAddFitted`, `lacksHousing`; the store's `addFitted`) — "add fitted
+  cupboard", "add installation box", "add tiled bath surround", "add shower glass". With no wall
+  behind the piece or no room, it says so.
+- **Joinery never runs into anything** (`freeExtent`, `freeStretch`): built, moved or resized, a
+  cabinet stays inside the stretch of its wall clear of the doors and windows, the furniture (but
+  what it houses) and the other joinery and boxes (`decorFootprint`), and keeps off a corner whose
+  other wall has a door or a window it would stand in front of (`cornerClearance`). Only a side
+  that was dragged is held back. The other way round, a piece of furniture being moved keeps out of
+  joinery (`joineryObstacles`, `withJoinery` in `Viewer3D`): each section is a block of its own
+  height, and the piece a housing was built for may stand in it.
+
+A generated flat is left exactly as it is by this pass (a test holds it to that): the studio runs it
+on every move of any piece, so a pass that shifted anything would shift it on the first drag.
 
 **By style.** The AI designer's decor is cut to the families its style takes
 (`STYLE_DECOR_FAMILIES`): Modern all of them; Scandinavian slats, niches, tiles and the WC's box
@@ -389,8 +461,13 @@ the next run). The route logs every run's tokens, cost and seed (`ai-generate`).
 
 ## Known gaps
 
-- A piece cannot be moved, resized or added by hand in the studio (only its materials, colours and
-  light, or removed); with no key there is no decor at all.
+- A decorative piece (slats, a panel, mouldings…) cannot be added by hand in the studio — it is
+  moved, resized, re-materialled or removed; with no key there is none at all. Joinery and boxes are
+  added from their furniture's card.
+- A housing follows its furniture on release, not live during the drag; the 2D board neither draws
+  decor nor keeps furniture out of joinery.
+- A cabinet's sections cannot be added, removed or re-ordered on its card (they are resized with
+  the piece).
 - No labour line for fitting decor: the materials are bought, the installation is not priced.
 - A cove needs a rectangular room; niches and fields do not check a socket or a radiator on their
   wall (the rules module of [ai-layout-plan.md](ai-layout-plan.md) is not written).

@@ -40,7 +40,7 @@ import type { KitchenManifestModel } from './kitchen-models';
 import { TRIM_PRODUCTS } from './lib/trimProducts';
 import { BLIND_CATEGORY, BLIND_MODEL_CM, BLIND_PRODUCTS, blindModelUrl, blindPhotoUrl } from './lib/blindProducts';
 import { productionRefusal } from './lib/productionGuard';
-import { BOILER_CABINET_MATERIALS, KITCHEN_MATERIALS, KITCHEN_STORE } from './lib/kitchenMaterials';
+import { BOILER_CABINET_MATERIALS, BOILER_CABINET_THERMAL_MATERIALS, KITCHEN_MATERIALS, KITCHEN_STORE } from './lib/kitchenMaterials';
 import { STORE_I18N } from './lib/translations';
 
 interface Manifest {
@@ -500,7 +500,7 @@ async function main() {
 
   // The same joiner's boiler cabinets (`lib/design/boilerCabinet`): per m² of façade, no model.
   await ensureCategory('boiler-cabinet');
-  for (const material of BOILER_CABINET_MATERIALS) {
+  for (const material of [...BOILER_CABINET_MATERIALS, ...BOILER_CABINET_THERMAL_MATERIALS]) {
     const existing = await db.select({ id: products.id }).from(products).where(eq(products.slug, material.slug)).limit(1);
     keepSlugs.push(material.slug);
     const row = {

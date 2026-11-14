@@ -109,7 +109,7 @@ export function fitBathrooms(input: BathroomInput): { items: PlacedItem[]; decor
       const dryerProduct = level === 'premium' && room.heightM >= DRYER_CEILING_M ? pick('dryer') : null;
       const columnW = round3(washer.size.width + 2 * CARCASS_M + 0.02);
       const columnH = round3(washer.size.height + 0.03 + (dryerProduct ? (dryerProduct.heightCm ?? 86) / 100 + 0.03 : 0));
-      const column: CabinetSection = { kind: 'washer', widthMm: mm(columnW), heightMm: mm(columnH), depthMm: mm(WASHER_COLUMN_DEPTH_M), ...(dryerProduct ? { dryer: true } : {}) };
+      const column: CabinetSection = { kind: 'washer', widthMm: mm(columnW), heightMm: mm(columnH), depthMm: mm(WASHER_COLUMN_DEPTH_M), ...(dryerProduct ? { dryer: true } : {}), itemId: washer.id };
       let placedWasher = washer;
       let piece: DecorPiece | null = null;
 
@@ -130,7 +130,7 @@ export function fitBathrooms(input: BathroomInput): { items: PlacedItem[]; decor
             const fillFrom = side === 'right' ? v.to : colFrom + columnW;
             const fillTo = side === 'right' ? colFrom : v.from;
             const vanityH = mm(v.height);
-            const basin: CabinetSection = { kind: 'basin', widthMm: mm(v.to - v.from), heightMm: vanityH, depthMm: mm(VANITY_DEPTH_M) };
+            const basin: CabinetSection = { kind: 'basin', widthMm: mm(v.to - v.from), heightMm: vanityH, depthMm: mm(VANITY_DEPTH_M), itemId: sinkId };
             const fill: CabinetSection[] = fillTo - fillFrom > 0.05 ? [{ kind: 'doors', widthMm: mm(fillTo - fillFrom), heightMm: vanityH, depthMm: mm(VANITY_DEPTH_M) }] : [];
             const sections = side === 'right' ? [basin, ...fill, column] : [column, ...fill, basin];
             const start = side === 'right' ? v.from : colFrom;
@@ -170,7 +170,7 @@ export function fitBathrooms(input: BathroomInput): { items: PlacedItem[]; decor
 
     // The vanities that did not take a washer: a cabinet each.
     for (const [sinkId, v] of vanities) {
-      decor.push(cabinetPiece(`decor-${room.id}-joinery-${sinkId}`, room, v.edge, v.from, [{ kind: 'basin', widthMm: mm(v.to - v.from), heightMm: mm(v.height), depthMm: mm(VANITY_DEPTH_M) }], face));
+      decor.push(cabinetPiece(`decor-${room.id}-joinery-${sinkId}`, room, v.edge, v.from, [{ kind: 'basin', widthMm: mm(v.to - v.from), heightMm: mm(v.height), depthMm: mm(VANITY_DEPTH_M), itemId: sinkId }], face));
     }
 
     // --- the bath: boxed and tiled when built in, Vintage's enclosure; its mixer at its head ---
@@ -297,5 +297,6 @@ function bathEnclosure(room: PlanRoom, edge: PlanEdge, along: number, bath: Plac
     params: { depthMm: mm(bath.size.depth + (vintage ? 0.12 : 0.03)), full: false },
     materials: { ...(gypsum ? { body: decorMaterialFrom(gypsum) } : {}), ...(tile ? { face: decorMaterialFrom(tile) } : {}) },
     anchor: 'bath',
+    itemId: bath.id,
   };
 }

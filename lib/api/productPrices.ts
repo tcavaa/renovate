@@ -6,7 +6,7 @@ import { isEquipmentKind } from '@/lib/design/equipment';
 import { radiatorSections } from '@/lib/design/radiators';
 import type { ElectricalPoint, FloorPlan, SceneProduct, SceneStore, TechnicalPoint } from '@/lib/design/types';
 import { productVariants, sceneVariant, variantUnitPrice, type ProductVariant } from '@/lib/design/variants';
-import { boilerCabinetFacadeM2 } from '@/lib/design/boilerCabinet';
+import { boilerCabinetFacadeM2, boilerRoom } from '@/lib/design/boilerCabinet';
 
 /**
  * Current catalogue prices, by product id, for repricing a client-submitted basket.
@@ -178,7 +178,7 @@ export function repricePlan<P extends FloorPlan | null, E extends ElectricalPoin
   // A boiler's cabinet: the joiner's material at the catalogue's price, by the façade the server measures.
   const cabinetRepriced = (point: TechnicalPoint): TechnicalPoint => {
     if (!point.cabinet) return point;
-    const cabinet = repriceSnapshot(point.cabinet, known, boilerCabinetFacadeM2(point));
+    const cabinet = repriceSnapshot(point.cabinet, known, boilerCabinetFacadeM2(point, plan ? boilerRoom(plan, point) : null));
     if (!cabinet) unknown.push(point.cabinet.productId);
     return cabinet ? { ...point, cabinet } : point;
   };

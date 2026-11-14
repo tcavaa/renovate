@@ -25,7 +25,12 @@ import { decorPieceSchema, electricalPointSchema, floorPlanSchema, placedItemSch
 import type { AiProposal } from '@/lib/design/aiProposal';
 import { defaultFinishes, generateScene, keepChosen, placeableOnly } from '@/lib/design/generateScene';
 import { reanchorDecor } from '@/lib/design/decor/resolve';
-import { withWcBoxes } from '@/lib/design/decor/wcBox';
+import { adoptHoused, carryCompanions, carryHoused, cabinetAtExtent, freeExtent, isKitchenLeg } from '@/lib/design/decor/housing';
+import { joineryFace, joineryMaterial } from '@/lib/design/decor/joinery';
+import type { DecorPlace } from '@/lib/design/decor/resize';
+import { resizesFromMiddle } from '@/lib/design/decor/resize';
+import { settleFitted, withFitted } from '@/lib/design/fitted';
+import { kitchenLeg, kitchenLegOf, radiatorObstacles, runFromCorner, runIntoCorner, KITCHEN_LEG_M, type KitchenCorner } from '@/lib/design/kitchenCorner';
 import { decorMaterialFrom } from '@/lib/design/decor/resolve';
 import { slotTakes } from '@/lib/design/decor/families';
 import { decorMaterialKind, isDecorMaterial } from '@/lib/design/decor/materials';
@@ -59,7 +64,7 @@ import { technicalElevation, type TechnicalCheck } from '@/lib/design/technical'
 import { suggestTechnical as suggestTechnicalIn } from '@/lib/design/autoTechnical';
 import { suggestRadiators, withRadiatorProduct, withRadiatorProducts } from '@/lib/design/radiators';
 import { withEquipmentProduct, withEquipmentProducts } from '@/lib/design/equipment';
-import { kitchenToWall, stretchedKitchen, withKitchenMaterial, withKitchenMaterials } from '@/lib/design/kitchen';
+import { KITCHEN_LENGTH_M, kitchenToWall, stretchedKitchen, withKitchenMaterial, withKitchenMaterials } from '@/lib/design/kitchen';
 import { withItemVariant } from '@/lib/design/variants';
 import { emptyHistory, pushHistory, redoHistory, undoHistory, type History } from '@/lib/design/history';
 import { fitSwapped, isPlacementValid } from '@/lib/design/manipulate';
@@ -73,6 +78,7 @@ import type {
   Column,
   DecorParams,
   DecorPiece,
+  DecorMaterial,
   DecorSlot,
   DesignMode,
   DesignScene,
@@ -97,7 +103,7 @@ import type {
 import { resizedShower } from '@/lib/design/shower';
 import { WC_BOX_HALF_M, underCeiling } from '@/lib/design/rules';
 import { withCeiling } from '@/lib/design/ceiling';
-import { withBoilerCabinet } from '@/lib/design/boilerCabinet';
+import { boilerRoom, withBoilerCabinet } from '@/lib/design/boilerCabinet';
 
 /**
  * The eight steps of the journey: upload · draw the existing house · technical setup ·
@@ -408,9 +414,28 @@ export interface DesignActions {
   setDecorColor: (id: string, slot: DecorSlot, colorHex: string | null) => void;
   /** A decor piece's knobs: its light line, slat gap, niche count… */
   setDecorParams: (id: string, patch: DecorParams) => void;
-  /** A decor piece resized by hand — its arrows in 3D or its card's sizes (`lib/design/decor/resize`). */
-  setDecorExtent: (id: string, extent: Pick<DecorPiece, 'span' | 'height'>) => void;
+  /**
+   * A decor piece resized by hand — its arrows in 3D or its card's sizes (`lib/design/decor/resize`).
+   * Joinery is resized section by section and stops at what stands beside it; what stands in it goes
+   * with it (`lib/design/decor/housing`). False when it would not fit.
+   */
+  setDecorExtent: (id: string, extent: Pick<DecorPiece, 'span' | 'height'>) => boolean;
+  /** A decor piece moved by hand: slid along its wall, up it, or onto another wall of its room. False when joinery has no room there. */
+  moveDecor: (id: string, place: DecorPlace) => boolean;
   removeDecor: (id: string) => void;
+  /**
+   * What is built for a piece of furniture, added from its card: a washing machine's column, a
+   * basin's vanity, a WC's box, a bath's enclosure, a shower's glass (`lib/design/fitted`). With the
+   * catalogue the joinery is made in the joiner's material. False when there is no wall or room for it.
+   */
+  addFitted: (itemId: string, catalog?: CatalogProduct[]) => boolean;
+  /**
+   * A made-to-measure kitchen run turned round a corner (an L-shaped kitchen) at one of its ends,
+   * or made straight again (`null`) — `lib/design/kitchenCorner`. False when that corner has no room.
+   */
+  setKitchenCorner: (itemId: string, corner: KitchenCorner | null) => boolean;
+  /** The length of a kitchen run's corner leg, metres; false when its wall has no room for it. */
+  setKitchenLegLength: (itemId: string, lengthM: number) => boolean;
   /**
    * Empties the flat and leaves the flat: every piece of furniture, every fitting and every
    * chosen finish goes, the walls, doors, windows and technical points stay. The starting
@@ -473,14 +498,15 @@ export interface DesignActions {
    * Puts one more product into a room: the layout engine finds it a spot among what is
    * already there. Returns the new item's id, or null when the room has no room for it.
    */
-  addItem: (product: CatalogProduct, roomId: string) => string | null;
+  addItem: (product: CatalogProduct, roomId: string, catalog?: CatalogProduct[]) => string | null;
   /**
    * Adds a product and hands it to the pointer: the viewer moves it with the mouse, R turns
    * it, a click sets it down where it fits, Escape (`cancelCarry`) removes it again. With no
    * room (the whole flat) it starts in the first room that has space, largest first.
    */
   beginAdd: (product: CatalogProduct, roomId: string | null) => string | null;
-  finishCarry: () => void;
+  /** The piece on the pointer was set down; with the catalogue, what is built for it is made in the joiner's material. */
+  finishCarry: (catalog?: CatalogProduct[]) => void;
   cancelCarry: () => void;
   /** With the catalogue, the new door or window is the best product of its kind at once. */
   addOpening: (roomId: string, kind: OpeningKind, wallIndex?: number | null, catalog?: CatalogProduct[]) => string | null;
@@ -1112,7 +1138,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
           commit((s) => {
             if (!s.plan?.technical) return null;
             const plan = s.plan;
-            return { plan: { ...plan, technical: { ...plan.technical!, points: plan.technical!.points.map((p) => (p.id === id && p.kind === 'boiler' ? withBoilerCabinet(p, material) : p)) } } };
+            return { plan: { ...plan, technical: { ...plan.technical!, points: plan.technical!.points.map((p) => (p.id === id && p.kind === 'boiler' ? withBoilerCabinet(p, material, boilerRoom(plan, p), true) : p)) } } };
           }),
         ensureEquipmentProducts: (catalog) => {
           const { plan, styleId } = get();
@@ -1128,7 +1154,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             const nextId = () => `${uid('t')}${n++}`;
             const points = suggestTechnicalIn(s.plan, s.items, nextId, s.decor).points;
             const withPoints: FloorPlan = { ...s.plan, technical: { ...s.plan.technical, points: [...(s.plan.technical?.points ?? []), ...points] } };
-            const radiators = suggestRadiators(withPoints, nextId, catalog, s.items);
+            const radiators = suggestRadiators(withPoints, nextId, catalog, s.items, s.decor);
             if (points.length === 0 && radiators.length === 0) return null;
             placed.points = points.length;
             placed.radiators = radiators.length;
@@ -1160,11 +1186,12 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             const nextId = () => `${uid('t')}${n++}`;
             const points = suggestTechnicalIn(s.plan, s.items, nextId, s.decor).points;
             let plan: FloorPlan = { ...s.plan, technical: { ...s.plan.technical, points: [...(s.plan.technical?.points ?? []), ...points] } };
-            const radiators = suggestRadiators(plan, nextId, catalog, s.items);
+            const radiators = suggestRadiators(plan, nextId, catalog, s.items, s.decor);
             plan = withRadiatorProducts({ ...plan, technical: { ...plan.technical!, points: [...(plan.technical?.points ?? []), ...radiators] } }, catalog, s.styleId);
             plan = withEquipmentProducts(plan, catalog, s.styleId);
             const before = s.electrical.filter((p) => p.origin !== 'generated').length;
-            const electrical = withFixtureProducts(standardElectrical(plan, s.electrical), catalog, s.styleId, plan.rooms);
+            // The sockets and switches keep off the joinery and the tall furniture a furnished flat has.
+            const electrical = withFixtureProducts(standardElectrical(plan, s.electrical, s.items, s.decor), catalog, s.styleId, plan.rooms);
             placed.technical = points.length;
             placed.radiators = radiators.length;
             placed.electrical = electrical.length - before;
@@ -1274,14 +1301,96 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             const height = (d: DecorPiece) => (d.family === 'box' && patch.full !== undefined ? { height: { from: 0, to: patch.full ? 20 : WC_BOX_HALF_M } } : {});
             return { decor: s.decor.map((d) => (d.id === id ? { ...d, params: { ...d.params, ...patch }, ...height(d), origin: 'studio' as const } : d)) };
           }),
-        setDecorExtent: (id, extent) =>
+        setDecorExtent: (id, extent) => {
+          let ok = false;
           commit((s) => {
             const piece = s.decor.find((d) => d.id === id);
-            if (!piece || (piece.span.from === extent.span.from && piece.span.to === extent.span.to && piece.height.from === extent.height.from && piece.height.to === extent.height.to)) return null;
-            return { decor: s.decor.map((d) => (d.id === id ? { ...d, span: { ...extent.span }, height: { ...extent.height }, origin: 'studio' as const } : d)) };
-          }),
+            const room = piece && s.plan?.rooms.find((r) => r.id === piece.roomId);
+            if (!piece || !room || piece.wallIndex == null || (piece.span.from === extent.span.from && piece.span.to === extent.span.to && piece.height.from === extent.height.from && piece.height.to === extent.height.to)) return null;
+            // Joinery stops at the doors, the furniture and the other joinery, and is resized section by section.
+            const decor = linkedDecor(s);
+            const linked = decor.find((d) => d.id === id) ?? piece;
+            const free = freeExtent(linked, extent, piece.wallIndex, room, s.items, decor, false);
+            if (!free) return null;
+            const next: DecorPiece = { ...cabinetAtExtent(linked, free, s.items), origin: 'studio' };
+            ok = true;
+            return { decor: decor.map((d) => (d.id === id ? next : d)), items: carryHoused(linked, next, s.items, s.plan!.rooms) };
+          });
+          return ok;
+        },
+        moveDecor: (id, place) => {
+          let ok = false;
+          commit((s) => {
+            const piece = s.decor.find((d) => d.id === id);
+            const room = piece && s.plan?.rooms.find((r) => r.id === piece.roomId);
+            if (!piece || !room || piece.wallIndex == null || isKitchenLeg(piece)) return null;
+            const decor = linkedDecor(s);
+            const linked = decor.find((d) => d.id === id) ?? piece;
+            const free = freeExtent(linked, place, place.wallIndex, room, s.items, decor, true);
+            if (!free) return null;
+            if (place.wallIndex === piece.wallIndex && free.span.from === piece.span.from && free.span.to === piece.span.to && free.height.from === piece.height.from && free.height.to === piece.height.to) return null;
+            // Put somewhere by hand, a piece no longer follows the furniture it was centred on.
+            const next: DecorPiece = { ...linked, wallIndex: place.wallIndex, span: { ...free.span }, height: { ...free.height }, origin: 'studio', ...(resizesFromMiddle(piece) && piece.anchor !== 'wc' && piece.anchor !== 'bath' && piece.anchor !== 'joinery' ? { anchor: 'wall' as const } : {}) };
+            ok = true;
+            return { decor: decor.map((d) => (d.id === id ? next : d)), items: carryHoused(linked, next, s.items, s.plan!.rooms) };
+          });
+          return ok;
+        },
         removeDecor: (id) =>
           commit((s) => ({ decor: s.decor.filter((d) => d.id !== id), selectedElement: s.selectedElement?.kind === 'decor' && s.selectedElement.id === id ? null : s.selectedElement })),
+        addFitted: (itemId, catalog = []) => {
+          let ok = false;
+          commit((s) => {
+            if (!s.plan) return null;
+            const fitted = withFitted(itemId, s.plan.rooms, s.items, s.decor, s.styleId, joinerFace(s, catalog), true);
+            if (!fitted) return null;
+            ok = true;
+            return fitted;
+          });
+          return ok;
+        },
+        setKitchenCorner: (itemId, corner) => {
+          let ok = false;
+          commit((s) => {
+            const run = s.items.find((i) => i.id === itemId);
+            const room = run && s.plan?.rooms.find((r) => r.id === run.roomId);
+            if (!run || !room) return null;
+            const was = kitchenLegOf(itemId, s.items);
+            const without = s.items.filter((i) => i.legOf !== itemId);
+            // A leg drawn as joinery (how a corner was first made) gives way to the furniture.
+            const decor = s.decor.some((d) => d.params.corner) ? s.decor.filter((d) => !d.params.corner) : s.decor;
+            if (!corner) {
+              if (without.length === s.items.length && decor === s.decor) return null;
+              ok = true;
+              return { items: without, decor, selectedItemId: itemId };
+            }
+            // The run fills its corner first; the leg goes on from it along the next wall — neither over a radiator.
+            const radiators = radiatorObstacles(s.plan?.technical?.points);
+            const inCorner = runIntoCorner(run, room, corner, [...without, ...radiators]);
+            const items = inCorner ? without.map((i) => (i.id === itemId ? inCorner : i)) : without;
+            const legs = inCorner ? kitchenLeg(inCorner, room, corner, [...items, ...radiators], decor, was ? was.size.width : KITCHEN_LEG_M.initial) : [];
+            if (legs.length === 0) return null;
+            ok = true;
+            return { items: [...items, ...legs], decor };
+          });
+          return ok;
+        },
+        setKitchenLegLength: (itemId, lengthM) => {
+          let ok = false;
+          commit((s) => {
+            const run = s.items.find((i) => i.id === itemId);
+            const room = run && s.plan?.rooms.find((r) => r.id === run.roomId);
+            const was = kitchenLegOf(itemId, s.items);
+            if (!run || !room || !was?.legCorner) return null;
+            // Built again from its corner at the new length: the leg, and the wall cabinets over it.
+            const without = s.items.filter((i) => i.legOf !== itemId);
+            const legs = kitchenLeg(run, room, was.legCorner, [...without, ...radiatorObstacles(s.plan?.technical?.points)], s.decor, lengthM);
+            if (legs.length === 0) return null;
+            ok = true;
+            return { items: [...without, ...legs] };
+          });
+          return ok;
+        },
 
         // --- furniture ---
         generate: (catalog, proposal, seed = randomSeed()) => {
@@ -1515,7 +1624,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
           }),
         removeFinishZone: (roomId, zoneId) => commit((s) => ({ finishes: s.finishes.filter((f) => !(f.roomId === roomId && f.zone?.id === zoneId)), selectedElement: s.selectedElement?.kind === 'zone' && s.selectedElement.id === zoneId ? null : s.selectedElement })),
 
-        addItem: (product, roomId) => {
+        addItem: (product, roomId, catalog = []) => {
           const { plan, items } = get();
           const room = plan?.rooms.find((r) => r.id === roomId);
           const kind = product.model3dKind;
@@ -1528,8 +1637,9 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
           if (!extra) return null;
           const id = `${extra.id}-${Date.now().toString(36)}`;
           const placed = applySwap([...items, { ...extra, id }], id, product);
-          // A WC added by hand gets its installation box like a generated one.
-          commit((s) => ({ items: placed, decor: withWcBoxes(plan.rooms, placed, s.decor), selectedItemId: id, focusRoomId: s.focusRoomId ?? null }));
+          // What a generated piece is given, a piece added by hand is too: a WC its box, a washing
+          // machine its column, a basin its vanity, a shower its glass (`lib/design/fitted`).
+          commit((s) => ({ ...(withFitted(id, plan.rooms, placed, s.decor, s.styleId, joinerFace(s, catalog)) ?? { items: placed }), selectedItemId: id, focusRoomId: s.focusRoomId ?? null }));
           return id;
         },
 
@@ -1587,8 +1697,19 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
          * history — one step, back to the flat as it was before the piece was picked off the
          * shelf or the swap was asked for, however many times it was turned on the way.
          */
-        finishCarry: () =>
-          set((s) => (s.carryingItemId ? { carryingItemId: null, carryRestore: null, decor: s.plan ? withWcBoxes(s.plan.rooms, s.items, s.decor) : s.decor, history: pushHistory(s.history, beforeCarry(s)) } : s)),
+        finishCarry: (catalog = []) =>
+          set((s) => {
+            if (!s.carryingItemId) return s;
+            const done = { carryingItemId: null, carryRestore: null, history: pushHistory(s.history, beforeCarry(s)) };
+            if (!s.plan) return done;
+            // Where it was set down: what was built for it comes to it (a swap that rode on the
+            // pointer), and a new piece is given what a generated one has (`lib/design/fitted`).
+            // A piece that was picked up and carried (a swap that found no room) takes what rides on it.
+            const carried = s.carryRestore?.id === s.carryingItemId ? carryCompanions(s.items, s.carryRestore) : s.items;
+            const settled = settleFitted(linkedDecor(s), carried, s.plan.rooms);
+            const fitted = withFitted(s.carryingItemId, s.plan.rooms, settled.items, settled.decor, s.styleId, joinerFace(s, catalog)) ?? settled;
+            return { ...done, items: fitted.items, decor: fitted.decor };
+          }),
 
         cancelCarry: () => {
           const state = get();
@@ -1701,8 +1822,10 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             // for the person to drag — which is what a swap always did.
             const next = placed ?? swapped;
             const items = others.map((i) => (i.id === itemId ? next : i));
-            // Decor centred on the piece (tiles behind the kitchen run) follows it to its wall.
-            commit(() => ({ items, decor: state.plan ? reanchorDecor(state.decor, items, state.plan.rooms) : state.decor, carryingItemId: null, carryRestore: null }));
+            // Decor centred on the piece (tiles behind the kitchen run) follows it to its wall, and
+            // so does what is built for it (a column round a wider machine).
+            const fitted = state.plan ? settleFitted(reanchorDecor(linkedDecor(state), items, state.plan.rooms), items, state.plan.rooms) : { items, decor: state.decor };
+            commit(() => ({ items: fitted.items, decor: fitted.decor, carryingItemId: null, carryRestore: null }));
             return 'swapped';
           }
           // It does not fit here: it rides on the pointer until it is set down somewhere it
@@ -1721,16 +1844,32 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
           // The piece on the pointer is turned and moved without a word to the history: the
           // whole carry is one step, recorded when it is set down (`finishCarry`).
           if (get().carryingItemId === itemId) set(place);
-          else commit(place);
+          // Set down, what is built for it goes with it: its column, its vanity, its box, its corner leg.
+          else
+            commit((s) => {
+              const moved = place(s);
+              const before = s.items.find((i) => i.id === itemId);
+              // Its dryer, its tap, its mixer ride with it.
+              const items = moved.items && before ? carryCompanions(moved.items, before) : moved.items;
+              return s.plan && items ? { ...moved, ...settleFitted(linkedDecor(s), items, s.plan.rooms) } : moved;
+            });
         },
 
         removeItem: (itemId) =>
-          commit((s) => (s.items.find((i) => i.id === itemId)?.locked ? null : {
-            items: s.items.filter((i) => i.id !== itemId),
-            selectedItemId: s.selectedItemId === itemId ? null : s.selectedItemId,
-            // Deleting the piece on the pointer ends the carry; of a swap, neither sofa is left.
-            ...(s.carryingItemId === itemId ? { carryingItemId: null, carryRestore: null } : {}),
-          })),
+          commit((s) => {
+            if (s.items.find((i) => i.id === itemId)?.locked) return null;
+            const items = s.items.filter((i) => i.id !== itemId);
+            // What was built for it goes with it: a column with no machine is nobody's cupboard.
+            const fitted = s.plan ? settleFitted(linkedDecor(s), items, s.plan.rooms) : { items, decor: s.decor };
+            return {
+              items: fitted.items,
+              decor: fitted.decor,
+              selectedItemId: s.selectedItemId === itemId ? null : s.selectedItemId,
+              selectedElement: s.selectedElement?.kind === 'decor' && !fitted.decor.some((d) => d.id === s.selectedElement!.id) ? null : s.selectedElement,
+              // Deleting the piece on the pointer ends the carry; of a swap, neither sofa is left.
+              ...(s.carryingItemId === itemId ? { carryingItemId: null, carryRestore: null } : {}),
+            };
+          }),
 
         mirrorItem: (itemId) => commit((s) => (s.items.find((i) => i.id === itemId)?.locked ? null : { items: s.items.map((i) => (i.id === itemId ? { ...i, mirrored: !i.mirrored, pinned: true } : i)) })),
         // Locking is an edit like any other: undo takes it back (it went around the history,
@@ -1744,9 +1883,15 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
           const { items, plan } = get();
           const item = items.find((i) => i.id === itemId);
           const room = item && plan?.rooms.find((r) => r.id === item.roomId);
-          const next = item && room ? stretchedKitchen(item, widthM, room, items) : null;
+          // A corner kitchen grows from its corner: the end the leg is at stays there.
+          const leg = item ? kitchenLegOf(item.id, items) : null;
+          const length = Math.min(KITCHEN_LENGTH_M.max, Math.max(KITCHEN_LENGTH_M.min, widthM));
+          const next = item && room ? (leg?.legCorner ? runFromCorner(item, room, leg.legCorner, length, items.filter((i) => i.legOf !== item.id)) : stretchedKitchen(item, widthM, room, items)) : null;
           if (!next) return false;
-          commit((s) => ({ items: s.items.map((i) => (i.id === itemId ? next : i)) }));
+          commit((s) => {
+            const moved = s.items.map((i) => (i.id === itemId ? next : i));
+            return s.plan ? settleFitted(linkedDecor(s), moved, s.plan.rooms) : { items: moved };
+          });
           return true;
         },
         setShowerSize: (itemId, change) => {
@@ -1763,7 +1908,10 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
           const room = item && plan?.rooms.find((r) => r.id === item.roomId);
           const next = item && room ? kitchenToWall(item, room, items) : null;
           if (!next) return false;
-          commit((s) => ({ items: s.items.map((i) => (i.id === itemId ? next : i)) }));
+          commit((s) => {
+            const moved = s.items.map((i) => (i.id === itemId ? next : i));
+            return s.plan ? settleFitted(linkedDecor(s), moved, s.plan.rooms) : { items: moved };
+          });
           return true;
         },
         ensureKitchenMaterials: (catalog) => {
@@ -2192,6 +2340,27 @@ const persistedSchema = z.object({
  * The items with whatever is riding on the pointer given up, the way Escape gives it up: a
  * piece that was being added is gone, a swap that was looking for room is the old piece again.
  */
+/**
+ * The face new joinery is made in: the joiner's material for the flat when the catalogue is to
+ * hand (the kitchen run's own, else the style's), else the kitchen run's as the scene has it.
+ * Joinery the flat already has goes before either (`lib/design/decor/housing`).
+ */
+function joinerFace(s: Pick<DesignState, 'items' | 'styleId'>, catalog: CatalogProduct[]): Partial<Record<DecorSlot, DecorMaterial>> {
+  if (catalog.length > 0) return joineryFace(joineryMaterial(catalog, s.styleId, s.items));
+  const material = s.items.find((i) => i.slot === 'kitchen_run' && i.kitchenMaterial)?.kitchenMaterial;
+  return material ? { face: { product: { ...material, qty: 1, totalPrice: material.pricePerUnit } } } : {};
+}
+
+/**
+ * The decor with every housing naming its furniture, read off the flat as it stood before the
+ * change in hand (`adoptHoused`): a design saved before joinery named what stands in it would lose
+ * a box the moment its WC was dragged away from it. A piece riding on the pointer is read where it
+ * was picked up.
+ */
+function linkedDecor(s: Pick<DesignState, 'plan' | 'decor' | 'items' | 'carryingItemId' | 'carryRestore'>): DecorPiece[] {
+  return s.plan ? adoptHoused(s.decor, withoutCarry(s), s.plan.rooms) : s.decor;
+}
+
 function withoutCarry(state: Pick<DesignState, 'items' | 'carryingItemId' | 'carryRestore'>): PlacedItem[] {
   const { items, carryingItemId, carryRestore } = state;
   if (!carryingItemId) return items;

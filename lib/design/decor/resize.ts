@@ -6,6 +6,11 @@
  * both ways from its middle, so it stays centred when the furniture moves (`reanchorDecor`); any
  * other moves the side that was dragged.
  *
+ * And moved by hand (the owner's notes of 13 Nov 2026: "draggable, its position changed, not only
+ * its height and width"): dragged by its body it slides along its wall and up it, and onto another
+ * wall of its room (`moveDecor`); its card takes its distance from the wall's start. Joinery and
+ * boxes stand on the floor, so they only slide.
+ *
  * Pure: no React, no three.js.
  */
 
@@ -33,6 +38,35 @@ export function resizesFromMiddle(piece: Pick<DecorPiece, 'anchor'>): boolean {
 /** Whether a piece can be resized by hand: one on a wall (not a cove round the ceiling). */
 export function isResizable(piece: Pick<DecorPiece, 'wallIndex' | 'family'>): boolean {
   return piece.wallIndex != null && piece.family !== 'light';
+}
+
+/** A place on a wall: the wall and the extent on it. */
+export interface DecorPlace extends DecorExtent {
+  wallIndex: number;
+}
+
+/** Families that stand on the floor: they slide along the wall and are never lifted off it. */
+export function standsOnFloor(piece: Pick<DecorPiece, 'family'>): boolean {
+  return piece.family === 'cabinet' || piece.family === 'box';
+}
+
+/** Whether a piece can be moved by hand: one on a wall, but a kitchen's corner leg — that stays at its corner. */
+export function isMovable(piece: Pick<DecorPiece, 'wallIndex' | 'family' | 'params'>): boolean {
+  return isResizable(piece) && !piece.params?.corner;
+}
+
+/**
+ * The piece put with its near bottom corner at `along` metres along wall `wallIndex` of its room
+ * and `up` metres off the floor — its size kept (a wall shorter than it takes what fits), on the
+ * wall and under the ceiling; joinery and boxes stay on the floor. Null when the room has no such wall.
+ */
+export function moveDecor(piece: DecorPiece, room: Pick<PlanRoom, 'polygon' | 'heightM'>, wallIndex: number, along: number, up: number): DecorPlace | null {
+  const edge = roomEdges(room.polygon).find((e) => e.index === wallIndex);
+  if (!edge || piece.wallIndex == null) return null;
+  const width = Math.abs(piece.span.to - piece.span.from);
+  const tall = Math.abs(piece.height.to - piece.height.from);
+  const bottom = standsOnFloor(piece) ? Math.min(piece.height.from, piece.height.to) : up;
+  return { wallIndex, ...settle({ span: { from: along, to: along + width }, height: { from: bottom, to: bottom + tall } }, edge.length, Math.max(room.heightM, 0.1)) };
 }
 
 /** The piece's extent as it stands — on its wall, under the ceiling — or null when it is not on a wall. */
@@ -81,14 +115,17 @@ export function dragDecorHandle(piece: DecorPiece, room: Pick<PlanRoom, 'polygon
 
 /**
  * The piece at a size typed on its card: a width (about its middle, kept on the wall), a height
- * (from its bottom up) or how high its bottom is off the floor (its height kept). Null when the
+ * (from its bottom up), how high its bottom is off the floor (its height kept) or how far its near
+ * side is from the wall's start (its width kept). Null when the
  * piece is not on a wall of this room.
  */
-export function resizeDecor(piece: DecorPiece, room: Pick<PlanRoom, 'polygon' | 'heightM'>, size: { widthM?: number; heightM?: number; bottomM?: number }): DecorExtent | null {
+export function resizeDecor(piece: DecorPiece, room: Pick<PlanRoom, 'polygon' | 'heightM'>, size: { widthM?: number; heightM?: number; bottomM?: number; leftM?: number }): DecorExtent | null {
   const now = decorExtent(piece, room);
   const edge = now && roomEdges(room.polygon).find((e) => e.index === piece.wallIndex);
   if (!now || !edge) return null;
   let { span, height } = now;
+  // How far its near side is from the wall's start: the piece slides, its width kept.
+  if (size.leftM != null) span = { from: size.leftM, to: size.leftM + (span.to - span.from) };
   if (size.widthM != null) {
     const width = clamp(size.widthM, DECOR_MIN_WIDTH_M, edge.length);
     const middle = clamp((span.from + span.to) / 2, width / 2, edge.length - width / 2);

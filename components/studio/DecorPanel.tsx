@@ -22,7 +22,7 @@ import { decorWall, paramsOf } from '@/lib/design/decor/layout';
 import { piecePurchases } from '@/lib/design/decor/quantities';
 import { PAINT_COLORS } from '@/lib/design/styles';
 import { Chip, NumberField } from '@/components/plan/ElementInspector';
-import { decorExtent, isResizable } from '@/lib/design/decor/resize';
+import { decorExtent, isMovable, isResizable, standsOnFloor } from '@/lib/design/decor/resize';
 import type { Dictionary } from '@/lib/i18n/ka';
 
 /** The colours a paintable part offers: the studio's paints, then a few deeper accents. */
@@ -66,8 +66,8 @@ export function DecorPanel({
   onMaterial: (slot: DecorSlot, product: CatalogProduct | null) => void;
   onColor: (slot: DecorSlot, colorHex: string | null) => void;
   onParams: (patch: DecorParams) => void;
-  /** A size typed on the card: its width, its height, or its bottom off the floor (metres). */
-  onSize: (size: { widthM?: number; heightM?: number; bottomM?: number }) => void;
+  /** A size typed on the card: its width, its height, its bottom off the floor, or how far its near side is from the wall's start (metres). */
+  onSize: (size: { widthM?: number; heightM?: number; bottomM?: number; leftM?: number }) => void;
   onRemove: () => void;
 }) {
   const t = useT();
@@ -108,10 +108,13 @@ export function DecorPanel({
       {extent && (
         <div>
           <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-ink-muted">{t.decor.size}</p>
-          <div className="grid grid-cols-3 gap-1.5">
+          <div className="grid grid-cols-2 gap-1.5">
             <NumberField label={t.decor.width} value={extent.span.to - extent.span.from} min={0.2} max={30} step={0.05} onCommit={(widthM) => onSize({ widthM })} />
-            <NumberField label={t.decor.height} value={extent.height.to - extent.height.from} min={0.1} max={room.heightM} step={0.05} onCommit={(heightM) => onSize({ heightM })} />
-            <NumberField label={t.decor.fromFloor} value={extent.height.from} min={0} max={room.heightM} step={0.05} onCommit={(bottomM) => onSize({ bottomM })} />
+            {/* A kitchen's corner leg is its worktop's height and stays at its corner: only its length is its own. */}
+            {!piece.params.corner && <NumberField label={t.decor.height} value={extent.height.to - extent.height.from} min={0.1} max={room.heightM} step={0.05} onCommit={(heightM) => onSize({ heightM })} />}
+            {isMovable(piece) && <NumberField label={t.decor.fromStart} value={extent.span.from} min={0} max={30} step={0.05} onCommit={(leftM) => onSize({ leftM })} />}
+            {/* Joinery and boxes stand on the floor. */}
+            {!standsOnFloor(piece) && <NumberField label={t.decor.fromFloor} value={extent.height.from} min={0} max={room.heightM} step={0.05} onCommit={(bottomM) => onSize({ bottomM })} />}
           </div>
           <p className="mt-1 text-[11px] text-ink-soft">{t.decor.resizeHint}</p>
         </div>

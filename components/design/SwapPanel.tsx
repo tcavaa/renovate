@@ -10,12 +10,13 @@
 
 import { useState } from 'react';
 import Image from '@/components/ui/image';
-import { Check, ChevronUp, Copy, FlipHorizontal2, Lock, LockOpen, RotateCcw, RotateCw, Trash2 } from 'lucide-react';
+import { Check, ChevronUp, Copy, FlipHorizontal2, Lock, LockOpen, Plus, RotateCcw, RotateCw, Trash2 } from 'lucide-react';
 import { ItemCard } from '@/components/design/ItemCard';
 import { ProductPageLink } from '@/components/design/ProductPageLink';
 import { IconAction } from '@/components/plan/ElementInspector';
 import { candidatesFor, type CatalogProduct } from '@/lib/design/matcher';
 import { KITCHEN_LENGTH_M, kitchenFacadeM2, kitchenMaterialCandidates } from '@/lib/design/kitchen';
+import { KITCHEN_LEG_M } from '@/lib/design/kitchenCorner';
 import { productVariants, variantUnitPrice, type ProductVariant } from '@/lib/design/variants';
 import { SHOWER_AREA_MAX_M, SHOWER_AREA_MIN_M, SHOWER_GLASS_MAX_THICKNESS_M, SHOWER_GLASS_MIN_THICKNESS_M, glassOf } from '@/lib/design/shower';
 import { fill } from '@/lib/admin/list';
@@ -52,6 +53,17 @@ interface SwapPanelProps {
   onKitchenToWall?: () => boolean;
   /** A shower: its tray's width and depth and its glass's thickness and height (`lib/design/shower`). */
   onShower?: (change: { widthM?: number; depthM?: number; glassThicknessM?: number; glassHeightM?: number }) => void;
+  /**
+   * The piece has nothing built for it — a washing machine no column, a basin no vanity, a WC no
+   * box, a bath no surround, a shower no glass (`lib/design/fitted`): builds it; false when there
+   * is no wall or room for it where the piece stands.
+   */
+  onAddFitted?: () => boolean;
+  /**
+   * A made-to-measure kitchen run: the corner it turns (an L-shaped kitchen, `lib/design/kitchenCorner`)
+   * and its leg's length; each setter answers false when the corner or the wall has no room.
+   */
+  kitchenCorner?: { corner: 'left' | 'right' | null; legM: number | null; onCorner: (corner: 'left' | 'right' | null) => boolean; onLeg: (lengthM: number) => boolean };
   /** The plan swapping and removing need, when the person's has not got it. */
   swapLock?: PaidPlanId | null;
   /** The plan moving, turning and mirroring need, when the person's has not got it. */
@@ -112,6 +124,8 @@ export function SwapPanel({
   onKitchenLength,
   onShower,
   onKitchenToWall,
+  onAddFitted,
+  kitchenCorner,
   swapLock,
   moveLock,
   onLockedSwap,
@@ -195,7 +209,9 @@ export function SwapPanel({
         )}
         {item.locked && <p className="text-[11px] text-ink-muted">{t.build.itemLockedHint}</p>}
         {onKitchenLength && !item.locked && <KitchenLength item={item} onLength={onKitchenLength} onToWall={onKitchenToWall} />}
+        {kitchenCorner && !item.locked && <KitchenCornerRow {...kitchenCorner} />}
         {onShower && item.areaM && !item.locked && <ShowerSize item={item} onChange={onShower} />}
+        {onAddFitted && !item.locked && <AddFitted slot={item.slot} onAdd={onAddFitted} />}
         {onVariant && catalogProduct && variants.length > 0 && (
           <VariantSwatches item={item} product={catalogProduct} variants={variants} locked={!!swapLock} onPick={(variantId) => onVariant(catalogProduct, variantId)} />
         )}
@@ -359,6 +375,89 @@ function ShowerSize({ item, onChange }: { item: PlacedItem; onChange: NonNullabl
       {field(t.build.showerDepth, Math.round(item.areaM!.depth * 100), SHOWER_AREA_MIN_M * 100, SHOWER_AREA_MAX_M * 100, 5, (cm) => onChange({ depthM: cm / 100 }))}
       {field(t.build.glassThickness, Math.round(glass.thicknessM * 100), SHOWER_GLASS_MIN_THICKNESS_M * 100, SHOWER_GLASS_MAX_THICKNESS_M * 100, 1, (cm) => onChange({ glassThicknessM: cm / 100 }))}
       {field(t.build.glassHeight, Math.round(glass.heightM * 100), 160, 260, 5, (cm) => onChange({ glassHeightM: cm / 100 }))}
+    </section>
+  );
+}
+
+/**
+ * What is built for a piece and is missing — deleted, or never there (a piece from the catalogue
+ * in a Vintage flat): one button builds it where the piece stands.
+ */
+function AddFitted({ slot, onAdd }: { slot: PlacedItem['slot']; onAdd: () => boolean }) {
+  const t = useT();
+  const [blocked, setBlocked] = useState(false);
+  const label = slot === 'toilet' ? t.build.fittedWcBoxAdd : slot === 'bathtub' ? t.build.fittedBathAdd : slot === 'shower' ? t.build.fittedGlassAdd : t.build.fittedCabinetAdd;
+  return (
+    <section className="space-y-1.5">
+      <button type="button" onClick={() => setBlocked(!onAdd())} className="flex h-8 w-full items-center justify-center gap-1.5 rounded-full border border-line bg-bg-surface text-xs font-medium text-ink hover:border-ink">
+        <Plus className="h-3.5 w-3.5" />
+        {label}
+      </button>
+      {blocked && (
+        <p role="alert" className="text-[11px] text-danger">
+          {t.build.fittedBlocked}
+        </p>
+      )}
+    </section>
+  );
+}
+
+/**
+ * A corner (L-shaped) kitchen: straight, or turned at its left or its right end onto the next
+ * wall, and how long that leg is. A corner with a door, a window or furniture in the way says so.
+ */
+function KitchenCornerRow({ corner, legM, onCorner, onLeg }: NonNullable<SwapPanelProps['kitchenCorner']>) {
+  const t = useT();
+  const [blocked, setBlocked] = useState(false);
+  const choice = (value: 'left' | 'right' | null, label: string) => (
+    <button
+      key={label}
+      type="button"
+      aria-pressed={corner === value}
+      onClick={() => setBlocked(corner === value ? false : !onCorner(value))}
+      className={cn('h-8 flex-1 rounded-full border text-xs font-medium', corner === value ? 'border-ink bg-ink text-white' : 'border-line bg-bg-surface text-ink hover:border-ink')}
+    >
+      {label}
+    </button>
+  );
+  const cm = legM != null ? Math.round(legM * 100) : null;
+  return (
+    <section className="space-y-1.5 rounded-lg bg-mist-light p-2.5">
+      <p className="text-[11px] font-bold uppercase tracking-wide text-ink-muted">{t.build.kitchenCorner}</p>
+      <div className="flex gap-1">
+        {choice(null, t.build.kitchenCornerNone)}
+        {choice('left', t.build.kitchenCornerLeft)}
+        {choice('right', t.build.kitchenCornerRight)}
+      </div>
+      {cm != null && (
+        <label className="flex items-center gap-2">
+          <span className="w-24 shrink-0 text-xs text-ink-soft">{t.build.kitchenLeg}</span>
+          <input
+            key={cm}
+            type="number"
+            min={KITCHEN_LEG_M.min * 100}
+            max={KITCHEN_LEG_M.max * 100}
+            step={5}
+            defaultValue={cm}
+            onBlur={(e) => {
+              const n = Number(e.target.value);
+              if (Number.isFinite(n) && n !== cm) setBlocked(!onLeg(n / 100));
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+            }}
+            aria-label={`${t.build.kitchenLeg} (${t.units.cm})`}
+            className="h-8 w-20 rounded-md border border-line bg-bg-surface px-1.5 text-right text-xs tabular-nums"
+          />
+          <span className="text-[11px] text-ink-muted">{t.units.cm}</span>
+        </label>
+      )}
+      <p className="text-[11px] leading-snug text-ink-muted">{t.build.kitchenCornerHint}</p>
+      {blocked && (
+        <p role="alert" className="text-[11px] text-danger">
+          {t.build.kitchenCornerBlocked}
+        </p>
+      )}
     </section>
   );
 }

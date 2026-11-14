@@ -113,6 +113,13 @@
       "when": 1793280000000,
       "tag": "0015_rulebook_rooms",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1793290000000,
+      "tag": "0016_boiler_cabinet_thermal",
+      "breakpoints": true
     }
   ]
 }

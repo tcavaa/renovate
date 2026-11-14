@@ -43,12 +43,13 @@ at runtime yet; the last one was seen on the sample plan.
 ## Next features
 
 - **The interior design rules, what is left** — the first brief (five stages), the second round
-  (six stages) and Nini's rulebook (six stages) are built; left: island sockets, a bidet, the
-  boiler cabinet in 3D, a sofa floated to the TV's range, lamps with a colour temperature, a track
-  light, a dressing table, a wine cabinet and a clothes rack (no products yet), the shower glass
-  following a live drag in 3D, the wardrobe against an en-suite's lobby; from the rulebook: the
-  joinery, taps and mixers not following their fixture when it is moved, a cabinet's sections not
-  editable on its card, a panel's door not built into the panel, the closet mirror by its corners —
+  (six stages), Nini's rulebook (six stages) and the fitted pieces (13 Nov) are built; left: island
+  sockets, a bidet, a sofa floated to the TV's range, lamps with a colour temperature, a track
+  light, a dressing table, a wine cabinet and a clothes rack (no products yet), the shower glass and
+  a piece's housing following a live drag in 3D, the wardrobe against an en-suite's lobby,
+  decor on the 2D board; from the rulebook: a cabinet's
+  sections not editable on its card, a panel's door not built into the panel, the closet mirror by
+  its corners —
   [design-studio/design-rules.md](design-studio/design-rules.md#known-gaps).
 - **AI generation, what is left** — phase 1 and the wall decor are built
   ([design-studio/decor.md](design-studio/decor.md#the-ai-designer)); next: the rules module and

@@ -188,3 +188,24 @@ export const BOILER_CABINET_MATERIALS: BoilerCabinetMaterialSpec[] = [
     imageUrl: '/uploads/products/kitchen-material-veneer.webp',
   },
 ];
+
+/**
+ * The joiner's insulated cupboard for a boiler outdoors — on a balcony it stands from the floor to
+ * the ceiling and is lined against the frost (`isThermalCabinet`: the slug says so). The
+ * boiler takes it there by itself (`boilerCabinetCandidates`). Migration
+ * `0016_boiler_cabinet_thermal` brings it to a deployment; `models:seed` keeps it too.
+ */
+export const BOILER_CABINET_THERMAL_MATERIALS: BoilerCabinetMaterialSpec[] = [
+  {
+    slug: 'boiler-cabinet-thermal',
+    nameKa: 'ქვაბის თბოიზოლირებული კარადა აივნისთვის — შეღებილი, ჟალუზით',
+    nameEn: 'Insulated boiler cupboard for a balcony — painted, louvred',
+    nameRu: 'Утеплённый шкаф для котла на балкон — крашеный, с жалюзи',
+    descriptionKa: 'ქვაბის კარადა გარეთ, აივანზე: იატაკიდან ჭერამდე, ლითონის კარკასი, თბოიზოლაცია (სენდვიჩ-პანელი), ტენგამძლე შეღებილი ფასადი, ორი კარი ქვემოთ და ორი ზემოთ, ჟალუზით. ფასი ფასადის 1 მ²-ზე, ზომების აღებითა და მონტაჟით.',
+    priceGelPerM2: 640,
+    styles: ['scandinavian', 'modern', 'industrial', 'vintage'],
+    colorHex: '#C9CEC6',
+    imageUrl: '/uploads/products/kitchen-material-mdf.webp',
+  },
+];
+

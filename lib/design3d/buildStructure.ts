@@ -32,7 +32,9 @@ import { EQUIPMENT_MODELS } from './equipmentManifest';
 import { DEFAULT_SECTION_WIDTH_M, radiatorPoints, radiatorRoom, radiatorSections, radiatorWallSpot } from '@/lib/design/radiators';
 import { clearOfOpenings, isEquipmentKind, pointProductKind } from '@/lib/design/equipment';
 import { technicalElevation } from '@/lib/design/technical';
-import { RADIATOR_FLOOR_GAP_M, RADIATOR_WALL_GAP_M, ceilingHeightM, kelvinHex, roomLightK, underCeiling } from '@/lib/design/rules';
+import { boilerCabinetSize, isOutdoorCabinet } from '@/lib/design/boilerCabinet';
+import { buildBoilerCupboard } from './decor';
+import { BOILER_CABINET_CLEARANCE_M, RADIATOR_FLOOR_GAP_M, RADIATOR_WALL_GAP_M, ceilingHeightM, kelvinHex, roomLightK, underCeiling } from '@/lib/design/rules';
 
 function own<T extends THREE.Mesh>(mesh: T): T {
   mesh.userData.ownsGeometry = true;
@@ -462,6 +464,24 @@ export function buildEquipment(plan: FloorPlan, rooms?: Set<string> | null): THR
       piece.rotation.y = spot.edge.facing;
     } else {
       piece.position.set(point.position.x, 0, point.position.z);
+    }
+
+    // A boiler's cupboard round it (`lib/design/boilerCabinet`): from the floor to the ceiling on a
+    // balcony, the boiler's size and a hand all round indoors. Picked, it is its boiler.
+    if (point.kind === 'boiler' && point.cabinet && spot) {
+      const ceiled = underCeiling(room, plan);
+      const outdoor = isOutdoorCabinet(ceiled);
+      const size = boilerCabinetSize(point, ceiled);
+      // Kept on its wall: a cupboard wider than the boiler does not run past the wall's end.
+      const half = Math.min(size.width, spot.edge.length) / 2;
+      const middle = Math.min(spot.edge.length - half, Math.max(half, (piece.position.x - spot.edge.a.x) * spot.edge.dir.x + (piece.position.z - spot.edge.a.z) * spot.edge.dir.z));
+      const at = pointOnEdge(spot.edge, middle / spot.edge.length);
+      const cupboard = buildBoilerCupboard(size, { product: point.cabinet }, outdoor);
+      cupboard.name = `boiler-cupboard-${point.id}`;
+      cupboard.position.set(at.x, outdoor ? 0 : Math.max(0, Math.min(ceiled.heightM - size.height, piece.position.y - BOILER_CABINET_CLEARANCE_M)), at.z);
+      cupboard.rotation.y = spot.edge.facing;
+      tag(cupboard, data);
+      group.add(cupboard);
     }
 
     loadModel(url)

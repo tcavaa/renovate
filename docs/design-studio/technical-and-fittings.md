@@ -22,6 +22,8 @@ priced) · [../3d-assets.md](../3d-assets.md) (`models:fixtures`, `models:radiat
 | `lib/design/technical.ts` | `TECHNICAL_KINDS`, `technicalElevation`, `WORK_ITEMS` / `WORK_STAGES` / `normalizeWorks`, `effectivePhases`, the step's checks (`TECHNICAL_CHECKS`, `technicalChecks`, `uncheckedTechnical`, `technicalCheckFrom`), `technicalAnchors`, `technicalSuggestions` |
 | `lib/design/rules.ts` | the design rules' numbers (heights, gaps, door widths, the boiler's rooms) and `kitchenRunZones` — [design-rules.md](design-rules.md) |
 | `lib/design/ruleChecks.ts` | `ruleViolations` (a blocked radiator, one up to its sill, a boiler off an outside wall or by a shower or a bath, a narrow door) and `radiatorKeepouts` |
+| `lib/design/wallClear.ts` | what stands in front of a wall (`wallBlocks`), the clear stretches at a height (`clearOf`), the nearest spot (`nearestClear`) — what the automatic placements read in a furnished flat |
+| `lib/design/boilerCabinet.ts` | a boiler's cabinet: its size by room (a balcony's from floor to ceiling), its façade, its materials (the thermal one outdoors), `withBoilerCabinets` |
 | `lib/design/autoTechnical.ts` | `suggestTechnical` — water, drains, extractors, gas, AC, one panel and one boiler placed by a fitter's rules (the technical step's automatic-placement check and the studio's technical tray; `origin: 'user'`) |
 | `lib/design/existing.ts` | what the flat already has (`EXISTING_KEYS`, `defaultExistingForHomeState`) — [overview.md](overview.md#what-the-flat-already-has-libdesignexistingts) |
 | `lib/design/technicalRates.ts` | estimate prices and labour keys: `ELECTRICAL_LABOUR` (`electric_point`), `TECHNICAL_RATES` (`plumbing_install`, `radiator_mount`, `heating_piping`, `ac_install`, `extractor_install`), `OPENING_ESTIMATE_GEL`, `ENTRANCE_DOOR_GEL`, `TRIM_INSTALL_DEFAULT_GEL` |
@@ -306,6 +308,24 @@ The boiler goes into the hall wardrobe's boiler section when the generation buil
 (`housedBoilerSpot`, `lib/design/hall.ts`; `suggestTechnical` takes the decor) and takes no cabinet of
 its own there (`cabinet: null`) — the wardrobe is its cupboard (the rulebook, E-4).
 
+**In a furnished flat the automatic placements read the furniture and the decor first**
+(`lib/design/wallClear.ts`, the owner's notes of 13 Nov 2026 — a towel rail had been hung through a
+vanity). A wall is read as blocks (`wallBlocks`): every piece standing within 45 cm of it, from its
+bottom to its top (a shower as its floor and glass), every piece of joinery, box or niche wall, and
+the slats and panels flat on it; the stretches clear of the doors and windows have the blocks that
+reach into a band of height taken out of them (`clearOf`), and a point goes to the nearest one that
+holds it (`nearestClear`). So a towel rail hangs clear of the vanity, its mirror and the washer's
+column (`towelRailSpot`); a radiator stays under its window when nothing stands there and otherwise
+goes to clear wall — the same wall, then another outside wall, then any (`clearSpot`; with nowhere
+clear it goes where it was wanted and the rule check flags it); a panel, a boiler, an air
+conditioner or a fan with no fixture to go by takes the widest stretch clear at its height
+(`spotFor`, `widestClear`), a wall with none only when no wall has one; a general socket takes the
+nearest spot to the middle of its wall that no joinery or tall furniture (1.2 m) stands in front
+of, and a switch the other side of its door when a wardrobe stands on the handle side
+(`standardFor` — `standardElectrical` and `suggestElectrical` take the items and the decor, and the
+generation wires once the joinery stands). A bare room — the calculator's board — is placed exactly
+as before. Points already placed are left where they are.
+
 A socket or a switch on a wall covered by decor is drawn on the decor's face (`decorFaceAt`,
 `lib/design/decor/layout.ts`; `buildElectrical` takes the flat's decor). A Scandinavian, Modern or
 Vintage living room, bedroom or office from 10 m² has four spots round its main ceiling light
@@ -395,16 +415,25 @@ studio (`HOOD_ROOM_TYPES`) and as a fan anywhere else, so the room decides
 - **A whole-flat pick** of equipment in the calculator goes on every point it is bought for
   (`dressBoard`'s `{ equipment }` target).
 - **The boiler's ventilated cabinet** (`lib/design/boilerCabinet.ts`, the design rules): the
-  boiler is built into a cabinet with louvres, its service access kept — the boiler's size and
-  10 cm all round, no deeper than 60 cm (`boilerCabinetSize`), made by the kitchen maker's joiner
-  in one of the `boiler-cabinet` materials (migration `0011_boiler_cabinet_materials` writes the
-  three, so a deployment brings them; `pnpm models:seed` keeps them too) and priced per m² of façade, its front and two sides
-  (`boilerCabinetFacadeM2`), like a made-to-measure kitchen; admin sets each material's price in
-  the product form. `withEquipmentProducts` gives every boiler one (`withBoilerCabinets`: the
-  style's material, else the cheapest, measured again when the boiler changes size); the
-  boiler's card lists the materials with what the cabinet comes to and "კარადის გარეშე"
-  (`setBoilerCabinet`; `cabinet: null` stays off). A line of its own in the budget, the joiner's
-  order; the save route reprices it by the façade it measures (`repricePlan`). Not drawn in 3D.
+  boiler is built into a cabinet with louvres, its service access kept, made by the kitchen maker's
+  joiner in one of the `boiler-cabinet` materials and priced per m² of façade, its front and two
+  sides (`boilerCabinetFacadeM2`), like a made-to-measure kitchen; admin sets each material's price
+  in the product form. **Indoors** it is the boiler's size and 10 cm all round, no deeper than 60 cm
+  (`boilerCabinetSize`). **On a balcony** (`isOutdoorCabinet`, the owner's photo of 13 Nov 2026) it
+  is a cupboard from the floor to the ceiling, at least 80 cm wide and 45 cm deep, insulated, made in
+  the joiner's **thermal** material (`isThermalCabinet`: the slug says so, or `specs.thermal`), which
+  goes first there and last indoors (`boilerCabinetCandidates`). Migration
+  `0011_boiler_cabinet_materials` writes the three indoor materials and `0016_boiler_cabinet_thermal`
+  the insulated one, so a deployment brings them; `pnpm models:seed` keeps them too.
+  `withEquipmentProducts` gives every boiler one (`withBoilerCabinets`: the first material for its
+  room, measured again when the boiler changes size or room); a material the app gave follows the
+  boiler indoors or out, one the person picked stays (`cabinetChosen`). The boiler's card lists the
+  materials with what the cabinet comes to and "კარადის გარეშე" (`setBoilerCabinet`; `cabinet: null`
+  stays off). A line of its own in the budget, the joiner's order; the save route reprices it by the
+  façade it measures for the boiler's room (`repricePlan`, `boilerRoom`). **Drawn in 3D** round the
+  boiler (`buildEquipment` → `buildBoilerCupboard`): a carcass with louvres at the top and bottom of
+  its door indoors; on a balcony a filler strip, two leaves below and two above with their handles.
+  Picked, it is its boiler's point.
 
 ## Doors and windows are editable (`lib/design/openings.ts`)
 

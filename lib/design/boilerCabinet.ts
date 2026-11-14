@@ -1,66 +1,118 @@
 /**
  * A gas boiler's ventilated cabinet (the design rules, `lib/design/rules.ts`): on a balcony, in a
  * kitchen or in a bathroom the boiler is built into a cabinet with louvres, its service access
- * kept, rather than hidden behind sealed finishes. The joiner makes it to measure — the boiler's
- * size and 10 cm all round, no deeper than 60 cm — and prices it like a made-to-measure kitchen:
- * per m² of its façade (the front and the two sides), in one of the joiner's materials, products
- * of the `boiler-cabinet` category whose price admin sets in the product form.
+ * kept, rather than hidden behind sealed finishes. The joiner makes it to measure and prices it
+ * like a made-to-measure kitchen: per m² of its façade (the front and the two sides), in one of
+ * the joiner's materials, products of the `boiler-cabinet` category whose price admin sets in the
+ * product form.
  *
- * Every boiler gets one in the catalogue's first material (the style's, then the cheapest) once
+ * - **Indoors** it is the boiler's size and 10 cm all round, no deeper than 60 cm.
+ * - **On a balcony** (the owner's photo of 13 Nov 2026) it is a cupboard from the floor to the
+ *   ceiling, at least 80 cm wide, with two leaves below and two above and a filler strip beside
+ *   them, insulated against the frost — made in the joiner's **thermal** material
+ *   (`isThermalCabinet`), which goes first there and last indoors.
+ *
+ * Every boiler gets one in the first material for its room (the style's, then the cheapest) once
  * the catalogue is in (`withBoilerCabinets`, run with the equipment's products); the boiler's card
- * changes the material or takes the cabinet off (`cabinet: null`). Not drawn in 3D. Pure.
+ * changes the material or takes the cabinet off (`cabinet: null`). A material the person chose
+ * stays (`cabinetChosen`); one the app gave follows the boiler indoors or out. Drawn in 3D round
+ * the boiler (`buildEquipment`). Pure.
  */
 
 import { isBoilerCabinetMaterial } from './catalog';
 import { toSceneProduct, type CatalogProduct } from './matcher';
+import { pointInPolygon } from './planGeometry';
 import { BOILER_CABINET_CLEARANCE_M, BOILER_CABINET_MAX_DEPTH_M, BOILER_DEFAULT_SIZE_M } from './rules';
-import type { FloorPlan, StyleId, TechnicalPoint } from './types';
+import type { FloorPlan, PlanRoom, StyleId, TechnicalPoint } from './types';
 
-/** The cabinet's outside size, metres: the boiler's and the clearance all round, its depth capped. */
-export function boilerCabinetSize(point: Pick<TechnicalPoint, 'sizeM'>): { width: number; depth: number; height: number } {
-  const boiler = point.sizeM ?? BOILER_DEFAULT_SIZE_M;
-  const c = BOILER_CABINET_CLEARANCE_M;
-  return { width: boiler.width + 2 * c, depth: Math.min(BOILER_CABINET_MAX_DEPTH_M, boiler.depth + c), height: boiler.height + 2 * c };
+/** The room a boiler's cabinet is measured in: its type and its ceiling. */
+type CabinetRoom = Pick<PlanRoom, 'type' | 'heightM'> | null | undefined;
+
+/** An outdoor cupboard is at least this wide and deep, and never taller than this. */
+const OUTDOOR_MIN_WIDTH_M = 0.8;
+const OUTDOOR_MIN_DEPTH_M = 0.45;
+const OUTDOOR_MAX_HEIGHT_M = 3;
+
+/** Whether a boiler's cupboard stands outdoors: on a balcony. */
+export function isOutdoorCabinet(room: CabinetRoom): boolean {
+  return room?.type === 'balcony';
 }
 
-/** Square metres of façade the joiner prices: the front and the two sides. */
-export function boilerCabinetFacadeM2(point: Pick<TechnicalPoint, 'sizeM'>): number {
-  const { width, depth, height } = boilerCabinetSize(point);
-  return Math.round((width * height + 2 * depth * height) * 100) / 100;
+/** A material for an outdoor cupboard: insulated. Named by its slug (a scene's snapshot has no specs), or `specs.thermal`. */
+export function isThermalCabinet(product: { slug?: string | null; specs?: unknown }): boolean {
+  const specs = product.specs as { thermal?: unknown } | null | undefined;
+  return specs?.thermal === true || /(^|-)thermal(-|$)/.test(product.slug ?? '');
 }
 
-/** The joiner's cabinet materials: the style's own first, then the cheaper. */
-export function boilerCabinetCandidates(catalog: CatalogProduct[], styleId: StyleId): CatalogProduct[] {
-  const affinity = (p: CatalogProduct) => (Array.isArray(p.styleTags) && (p.styleTags as string[]).includes(styleId) ? 1 : 0);
-  return catalog.filter(isBoilerCabinetMaterial).sort((a, b) => affinity(b) - affinity(a) || a.pricePerUnit - b.pricePerUnit);
-}
-
-/** The boiler with its cabinet in `material` (or none), bought by its façade. */
-export function withBoilerCabinet(point: TechnicalPoint, material: CatalogProduct | null): TechnicalPoint {
-  return { ...point, cabinet: material ? toSceneProduct(material, boilerCabinetFacadeM2(point)) : null };
+/** The room a boiler stands in: its own (`roomId`), else the one its point is in. */
+export function boilerRoom(plan: Pick<FloorPlan, 'rooms'>, point: Pick<TechnicalPoint, 'roomId' | 'position'>): PlanRoom | null {
+  return plan.rooms.find((r) => r.id === point.roomId) ?? plan.rooms.find((r) => pointInPolygon(point.position, r.polygon)) ?? null;
 }
 
 /**
- * Every boiler that has not been given a cabinet takes one in the first material, and one that has
- * is measured again (a boiler of another size). A cabinet taken off stays off. The same plan comes
- * back when nothing changed.
+ * The cabinet's outside size, metres: the boiler's and the clearance all round, its depth capped —
+ * or, on a balcony, a cupboard from the floor to the ceiling.
+ */
+export function boilerCabinetSize(point: Pick<TechnicalPoint, 'sizeM'>, room?: CabinetRoom): { width: number; depth: number; height: number } {
+  const boiler = point.sizeM ?? BOILER_DEFAULT_SIZE_M;
+  const c = BOILER_CABINET_CLEARANCE_M;
+  const size = { width: boiler.width + 2 * c, depth: Math.min(BOILER_CABINET_MAX_DEPTH_M, boiler.depth + c), height: boiler.height + 2 * c };
+  if (!isOutdoorCabinet(room)) return size;
+  return { width: Math.max(OUTDOOR_MIN_WIDTH_M, size.width + c), depth: Math.max(OUTDOOR_MIN_DEPTH_M, size.depth), height: Math.min(OUTDOOR_MAX_HEIGHT_M, Math.max(size.height, room!.heightM)) };
+}
+
+/** Square metres of façade the joiner prices: the front and the two sides. */
+export function boilerCabinetFacadeM2(point: Pick<TechnicalPoint, 'sizeM'>, room?: CabinetRoom): number {
+  const { width, depth, height } = boilerCabinetSize(point, room);
+  return Math.round((width * height + 2 * depth * height) * 100) / 100;
+}
+
+/**
+ * The joiner's cabinet materials for a room: outdoors the insulated ones first, indoors last (they
+ * cost more and are not needed); then the style's own, then the cheaper.
+ */
+export function boilerCabinetCandidates(catalog: CatalogProduct[], styleId: StyleId, room?: CabinetRoom): CatalogProduct[] {
+  const affinity = (p: CatalogProduct) => (Array.isArray(p.styleTags) && (p.styleTags as string[]).includes(styleId) ? 1 : 0);
+  const outdoor = isOutdoorCabinet(room);
+  const suits = (p: CatalogProduct) => (isThermalCabinet(p) === outdoor ? 1 : 0);
+  return catalog.filter(isBoilerCabinetMaterial).sort((a, b) => suits(b) - suits(a) || affinity(b) - affinity(a) || a.pricePerUnit - b.pricePerUnit);
+}
+
+/** The boiler with its cabinet in `material` (or none), bought by its façade; `chosen` when the person picked it. */
+export function withBoilerCabinet(point: TechnicalPoint, material: CatalogProduct | null, room?: CabinetRoom, chosen = false): TechnicalPoint {
+  const { cabinetChosen: _was, ...rest } = point;
+  return { ...rest, cabinet: material ? toSceneProduct(material, boilerCabinetFacadeM2(point, room)) : null, ...(chosen ? { cabinetChosen: true } : {}) };
+}
+
+/**
+ * Every boiler that has not been given a cabinet takes one in the first material for its room, one
+ * the app gave is changed for the room's when the boiler went out onto a balcony or came in from
+ * it, and one that has a cabinet is measured again (a boiler of another size, another room). A
+ * cabinet taken off stays off, a material the person chose stays. The same plan comes back when
+ * nothing changed.
  */
 export function withBoilerCabinets(plan: FloorPlan, catalog: CatalogProduct[], styleId: StyleId): FloorPlan {
   const points = plan.technical?.points ?? [];
   if (!points.some((p) => p.kind === 'boiler')) return plan;
-  const first = boilerCabinetCandidates(catalog, styleId)[0];
   let changed = false;
   const next = points.map((point) => {
     if (point.kind !== 'boiler' || point.cabinet === null) return point;
+    const room = boilerRoom(plan, point);
+    const first = boilerCabinetCandidates(catalog, styleId, room)[0];
     if (point.cabinet) {
-      const qty = boilerCabinetFacadeM2(point);
+      // The app's own pick follows the boiler indoors or out; the person's stays.
+      if (first && !point.cabinetChosen && first.id !== point.cabinet.productId && isThermalCabinet(first) !== isThermalCabinet(point.cabinet)) {
+        changed = true;
+        return withBoilerCabinet(point, first, room);
+      }
+      const qty = boilerCabinetFacadeM2(point, room);
       if (point.cabinet.qty === qty) return point;
       changed = true;
       return { ...point, cabinet: { ...point.cabinet, qty, totalPrice: Math.round(point.cabinet.pricePerUnit * qty * 100) / 100 } };
     }
     if (!first) return point;
     changed = true;
-    return withBoilerCabinet(point, first);
+    return withBoilerCabinet(point, first, room);
   });
   return changed ? { ...plan, technical: { ...plan.technical, points: next } } : plan;
 }

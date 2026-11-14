@@ -28,11 +28,14 @@ import { HOOD_ROOM_TYPES, TECHNICAL_KINDS, technicalElevation } from './technica
 import { dividerSegments, partRoom, studioParts } from './studio';
 import { outsideEdges } from './radiators';
 import { freeSpans } from './decor/layout';
+import { clearOf, wallBlocks, type WallBlock } from './wallClear';
 import { BOILER_CUPBOARD_M, BOILER_HALL_MIN_WIDTH_M, BOILER_PIPES_BELOW_M, BOILER_ROOMS, BOILER_WET_CLEAR_M, DISHWASHER_WATER, footprintQuad, KITCHEN_SINK_WATER, WATER_NEEDS, WATER_HEIGHT_REACH_M, WATER_PAIR_SPACING_M, WATER_POINT_REACH_M, alongWall, kitchenRunZones, underCeiling, type WaterNeed } from './rules';
 import type { FloorPlan, PlacedItem, PlanRoom, TechnicalKind, TechnicalPoint, Vec2, DecorPiece } from './types';
 
 /** The least stretch of wall, clear of openings, a point with no fixture to go by is put on: a boiler's width and some. */
 const CLEAR_WALL_M = 0.5;
+/** How tall what hangs at a point is taken to be, when looking for wall clear of the furniture: a boiler, a panel, an air conditioner. */
+const POINT_HEIGHT_M = 0.75;
 
 /** How far inside the room a wall-mounted point stands, so it reads as *on* that wall. */
 const OFF_WALL_M = 0.08;
@@ -89,7 +92,7 @@ export function suggestTechnical(plan: FloorPlan, items: PlacedItem[], nextId: (
   };
   const place = (room: PlanRoom, kind: TechnicalKind, notOn: Array<[Vec2, Vec2]> = [], prefer: PlanEdge[] = []) => {
     if (has(kind, room.id)) return;
-    const position = spotFor(plan, room, kind, items, notOn, [...existing, ...points], prefer);
+    const position = spotFor(plan, room, kind, items, notOn, [...existing, ...points], prefer, decor);
     if (!position) return;
     add(room, kind, position, technicalElevation(kind, underCeiling(room, plan)));
   };
@@ -130,7 +133,7 @@ export function suggestTechnical(plan: FloorPlan, items: PlacedItem[], nextId: (
     }
     const need = ROOM_WATER[room.type];
     if (here.length > 0 || !need || has('water_supply', room.id)) return;
-    const at = spotFor(plan, room, 'water_supply', items, notOn, [...existing, ...points]);
+    const at = spotFor(plan, room, 'water_supply', items, notOn, [...existing, ...points], [], decor);
     const edge = at ? nearestEdge(edges, at) : null;
     if (at && edge) pipes(room, edge, alongWall(edge, at), need);
   };
@@ -163,7 +166,7 @@ export function suggestTechnical(plan: FloorPlan, items: PlacedItem[], nextId: (
     // In the hall wardrobe's boiler section when the flat has one (the rulebook, E-4): the
     // wardrobe is its cupboard, so it takes no cabinet of its own.
     const housed = housedBoilerSpot(plan.rooms, decor);
-    const spot = housed ?? boilerSpot(plan, items, [...existing, ...points]);
+    const spot = housed ?? boilerSpot(plan, items, [...existing, ...points], decor);
     if (spot) {
       add(spot.room, 'boiler', spot.position, technicalElevation('boiler', underCeiling(spot.room, plan)));
       if (housed) points[points.length - 1].cabinet = null;
@@ -186,7 +189,7 @@ export function suggestTechnical(plan: FloorPlan, items: PlacedItem[], nextId: (
  * in the bathroom on a wall clear of the shower and the bath by `BOILER_WET_CLEAR_M`; else the old
  * rooms. Null when the flat has nowhere.
  */
-function boilerSpot(plan: FloorPlan, items: PlacedItem[], placed: TechnicalPoint[]): { room: PlanRoom; position: Vec2 } | null {
+function boilerSpot(plan: FloorPlan, items: PlacedItem[], placed: TechnicalPoint[], decor: readonly DecorPiece[] = []): { room: PlanRoom; position: Vec2 } | null {
   for (const type of BOILER_ROOMS) {
     const rooms = plan.rooms.filter((r) => r.type === type && r.areaM2 >= MIN_ROOM_M2);
     if (rooms.length === 0) continue;
@@ -210,7 +213,7 @@ function boilerSpot(plan: FloorPlan, items: PlacedItem[], placed: TechnicalPoint
       .map((room) => ({ room, outside: outsideEdges(plan, room) }))
       .sort((a, b) => Number(b.outside.length > 0) - Number(a.outside.length > 0) || b.room.areaM2 - a.room.areaM2)[0];
     if (type === 'storage' && best.outside.length === 0) continue;
-    const position = spotFor(plan, best.room, 'boiler', items, [], placed, best.outside);
+    const position = spotFor(plan, best.room, 'boiler', items, [], placed, best.outside, decor);
     if (position) return { room: best.room, position };
   }
   return null;
@@ -275,7 +278,7 @@ function clearOfWet(room: PlanRoom, items: PlacedItem[]): Vec2 | null {
  * otherwise on the wall a fitter would choose — the longest one with no door in it, so the
  * pipe or the duct has a clear run.
  */
-function spotFor(plan: FloorPlan, room: PlanRoom, kind: TechnicalKind, items: PlacedItem[], notOn: Array<[Vec2, Vec2]> = [], placed: TechnicalPoint[] = [], prefer: PlanEdge[] = []): Vec2 | null {
+function spotFor(plan: FloorPlan, room: PlanRoom, kind: TechnicalKind, items: PlacedItem[], notOn: Array<[Vec2, Vec2]> = [], placed: TechnicalPoint[] = [], prefer: PlanEdge[] = [], decor: readonly DecorPiece[] = []): Vec2 | null {
   const info = TECHNICAL_KINDS[kind];
   // A studio's dividing line is not a wall: nothing is fixed to it.
   // Nor is a room separator (`wallEdges`).
@@ -310,7 +313,13 @@ function spotFor(plan: FloorPlan, room: PlanRoom, kind: TechnicalKind, items: Pl
   // On a stretch of wall clear of its doors, windows and railings — a balcony's outside walls are
   // often railing their whole length, and its boiler was hung on the railing. A wall with no such
   // stretch only when no wall has one, and never one with a railing in it.
-  const clear = new Map(edges.map((e) => [e.index, widestClear(room, e)]));
+  // In a furnished room, clear of the furniture, the joinery and decorated wall too at the height
+  // it hangs at (the owner's notes of 13 Nov 2026) — a wall with no such stretch only when no wall has one.
+  const elevation = technicalElevation(kind, room);
+  const band = { bottom: Math.max(0, elevation - 0.15), top: elevation + POINT_HEIGHT_M };
+  const bare = new Map(edges.map((e) => [e.index, widestClear(room, e)]));
+  const furnished = new Map(edges.map((e) => [e.index, widestClear(room, e, wallBlocks(room, e, items, decor), band)]));
+  const clear = edges.some((e) => furnished.get(e.index)) ? furnished : bare;
   const usable = edges.filter((e) => clear.get(e.index));
   const walls = usable.length > 0 ? usable : edges.filter((e) => !room.openings.some((o) => o.kind === 'railing' && o.wallIndex === e.index));
   // An outside wall when the kind wants one (the boiler's flue) and the room has one.
@@ -321,9 +330,13 @@ function spotFor(plan: FloorPlan, room: PlanRoom, kind: TechnicalKind, items: Pl
   return offInto(edge, span ? (span[0] + span[1]) / 2 / edge.length : 0.5);
 }
 
-/** The widest stretch of a wall clear of its openings (10 cm round each), if one is `CLEAR_WALL_M` or more. */
-function widestClear(room: PlanRoom, edge: PlanEdge): [number, number] | null {
-  const spans = freeSpans(edge, room.openings, 0, edge.length, 0.1).filter(([a, b]) => b - a >= CLEAR_WALL_M);
+/**
+ * The widest stretch of a wall clear of its openings (10 cm round each) — and of what stands
+ * against it in a band of height, when given — if one is `CLEAR_WALL_M` or more.
+ */
+function widestClear(room: PlanRoom, edge: PlanEdge, blocks: readonly WallBlock[] = [], band: { bottom: number; top: number } = { bottom: 0, top: 0 }): [number, number] | null {
+  const open = freeSpans(edge, room.openings, 0, edge.length, 0.1);
+  const spans = (blocks.length > 0 ? clearOf(open, blocks, band) : open).filter(([a, b]) => b - a >= CLEAR_WALL_M);
   return spans.sort((p, q) => q[1] - q[0] - (p[1] - p[0]))[0] ?? null;
 }
 

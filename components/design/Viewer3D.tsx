@@ -41,7 +41,7 @@ import { releaseCachedModels } from '@/lib/design3d/modelLoader';
 import { ELECTRICAL_KINDS, placeElectrical, wallSpotNear } from '@/lib/design/electrical';
 import { wallForEdge, wallLength, wallNormal, wallHeightFor } from '@/lib/design/walls';
 import { cellAt, cellPolygon, patchAt, patchSpansOnWall, stripAt, type PaintTarget } from '@/lib/design/paint';
-import { roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
+import { roomEdges, wallEdges, type PlanEdge } from '@/lib/design/planGeometry';
 import type { ElementSelection } from '@/store/designStore';
 import { cornerMargin, edgeOf, projectToEdge, railingClash } from '@/lib/design/openings';
 import { pointOnEdge } from '@/lib/design/planGeometry';
@@ -57,7 +57,8 @@ import { buildGround, FOG_FAR_M, FOG_NEAR_M, skyTexture } from '@/lib/design3d/e
 import { buildDecor, releaseDecorMaterials } from '@/lib/design3d/decor';
 import { buildShowerGlass, releaseShowerGlassMaterials } from '@/lib/design3d/showerGlass';
 import { decorDepth, hideDecorHandles, makeDecorHandles, placeDecorHandles, scaleDecorHandles } from '@/lib/design3d/decorHandles';
-import { decorExtent, dragDecorHandle, isResizable, type DecorExtent, type DecorHandle } from '@/lib/design/decor/resize';
+import { decorExtent, dragDecorHandle, isMovable, isResizable, moveDecor, standsOnFloor, type DecorExtent, type DecorHandle, type DecorPlace } from '@/lib/design/decor/resize';
+import { adoptHoused, freeExtent, joineryObstacles, withJoinery } from '@/lib/design/decor/housing';
 import type { DecorPiece, DesignScene, ElectricalKind, ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, Vec2 } from '@/lib/design/types';
 import { loadProgress, subscribeLoadProgress } from '@/lib/design3d/loadProgress';
 import { ViewerGuard } from './ViewerGuard';
@@ -133,6 +134,8 @@ export interface Viewer3DProps {
   onMoveOpening?: (roomId: string, openingId: string, t: number) => void;
   /** A selected wall decor piece resized by its arrows (`lib/design/decor/resize`), on release. */
   onResizeDecor?: (id: string, extent: DecorExtent) => void;
+  /** A wall decor piece dragged by its body to another place on its wall, or onto another wall of its room, on release. */
+  onMoveDecor?: (id: string, place: DecorPlace) => void;
   /** Sockets, switches and lights; drawn as fittings, and the lights that are on light the rooms. */
   electrical?: ElectricalPoint[];
   /** Walls, doors, windows, columns and beams stay where they are until unlocked. */
@@ -327,6 +330,20 @@ const PAN_SPEED = 3.2;
 const tempVector = new THREE.Vector3();
 const tempVector2 = new THREE.Vector3();
 const tempVector3 = new THREE.Vector3();
+/**
+ * The arrows a decor piece has no use for: joinery and boxes stand on the floor (no bottom arrow),
+ * and a kitchen's corner leg is its worktop's height and fixed at its corner end — only its free
+ * end moves.
+ */
+function hiddenHandles(piece: Pick<DecorPiece, 'family' | 'params'>): DecorHandle[] {
+  if (piece.params.corner) return ['bottom', 'top', piece.params.corner === 'right' ? 'left' : 'right'];
+  return standsOnFloor(piece) ? ['bottom'] : [];
+}
+
+const dragFloorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+const dragWallPlane = new THREE.Plane();
+const dragWallNormal = new THREE.Vector3();
+const dragWallPoint = new THREE.Vector3();
 const dragRaycaster = new THREE.Raycaster();
 const dragNdc = new THREE.Vector2();
 const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -383,7 +400,7 @@ interface DragState {
   room: PlanRoom;
 }
 
-type Callbacks = Pick<Viewer3DProps, 'onHoverItem' | 'onSelectItem' | 'onSelectSurface' | 'onPlaceItem' | 'onMoveOpening' | 'onResizeDecor' | 'onCarryPlaced' | 'onSelectElement' | 'onOffsetWall' | 'onMoveColumn' | 'onMoveElectrical' | 'onPaint' | 'onLockedDrag'> & { lockItems?: boolean };
+type Callbacks = Pick<Viewer3DProps, 'onHoverItem' | 'onSelectItem' | 'onSelectSurface' | 'onPlaceItem' | 'onMoveOpening' | 'onResizeDecor' | 'onMoveDecor' | 'onCarryPlaced' | 'onSelectElement' | 'onOffsetWall' | 'onMoveColumn' | 'onMoveElectrical' | 'onPaint' | 'onLockedDrag'> & { lockItems?: boolean };
 
 function SceneContent({
   plan,
@@ -412,6 +429,7 @@ function SceneContent({
   onLockedDrag,
   onMoveOpening,
   onResizeDecor,
+  onMoveDecor,
   selectedElement = null,
   frameKey,
   onApi,
@@ -567,7 +585,7 @@ function SceneContent({
    * every render would otherwise re-subscribe them on every render.
    */
   const callbacks = useRef<Callbacks>({});
-  callbacks.current = { onHoverItem, onSelectItem, onSelectSurface, onPlaceItem, onMoveOpening, onResizeDecor, onCarryPlaced, onSelectElement, onOffsetWall, onMoveColumn, onMoveElectrical, onPaint, onLockedDrag, lockItems };
+  callbacks.current = { onHoverItem, onSelectItem, onSelectSurface, onPlaceItem, onMoveOpening, onResizeDecor, onMoveDecor, onCarryPlaced, onSelectElement, onOffsetWall, onMoveColumn, onMoveElectrical, onPaint, onLockedDrag, lockItems };
   // Doors and windows are grabbed in openings mode, and in build mode once unlocked.
   // Doors and windows are grabbed in build mode once the structure is unlocked.
   const editingOpenings = editMode === 'build' && !structureLocked;
@@ -617,7 +635,12 @@ function SceneContent({
   useEffect(() => () => disposeOwnedGeometry(radiatorGroup), [radiatorGroup]);
   // So does the equipment bought for them: the panel, the boiler, the air conditioners, hoods and fans, the drains.
   const equipmentGroup = useMemo(() => buildEquipment(plan, roomFilter), [plan, roomFilter]);
+  // A boiler's cupboard is built in code, its boxes its own.
+  useEffect(() => () => disposeOwnedGeometry(equipmentGroup), [equipmentGroup]);
 
+  // The joinery and boxes as floor the furniture keeps out of when it is moved (`joineryObstacles`).
+  // Read with each housing naming its furniture (`adoptHoused`), so a design saved before they did lets a WC stand at its box.
+  const joinery = useMemo(() => joineryObstacles(adoptHoused(scene.decor ?? [], scene.items, plan.rooms), plan.rooms), [scene.decor, scene.items, plan.rooms]);
   // The custom wall decor, rebuilt when it, the plan or the rooms in view change — not with the furniture.
   const decorGroup = useMemo(() => buildDecor(plan, scene.decor, roomFilter), [plan, scene.decor, roomFilter]);
   useEffect(() => () => disposeOwnedGeometry(decorGroup), [decorGroup]);
@@ -725,7 +748,7 @@ function SceneContent({
     // A turn that left the piece overlapping something is shown in red until it is dragged
     // somewhere it fits — the same colour a refused drop uses, so it reads as one rule.
     const room = selected ? plan.rooms.find((r) => r.id === selected.roomId) : undefined;
-    const fits = !selected || !room || isPlacementValid(room, selected, scene.items, plan.rooms);
+    const fits = !selected || !room || isPlacementValid(room, selected, withJoinery(scene.items, joinery, selected.id), plan.rooms);
     applyOutline(outlines.active, selected ?? null, fits ? 0x6c47ff : 0xef4444);
     applyOutline(
       outlines.hover,
@@ -733,7 +756,7 @@ function SceneContent({
       0xb9a6ff
     );
     invalidate();
-  }, [outlines, selectedItemId, hoveredId, itemsById, dragging, carryingItemId, plan.rooms, scene.items, invalidate]);
+  }, [outlines, selectedItemId, hoveredId, itemsById, dragging, carryingItemId, plan.rooms, scene.items, joinery, invalidate]);
 
   /**
    * Carrying: an item just added rides on the pointer. The camera stays put (orbit off), the
@@ -752,7 +775,7 @@ function SceneContent({
       carryRef.current = null;
       return;
     }
-    const initial = snapPlacement(room, item, { position: item.position, rotation: item.rotation }, scene.items, plan.rooms);
+    const initial = snapPlacement(room, item, { position: item.position, rotation: item.rotation }, withJoinery(scene.items, joinery, item.id), plan.rooms);
     carryRef.current = { itemId: carryingItemId, room, result: initial };
     applyOutline(outlines.active, { ...item, position: initial.position, rotation: initial.rotation }, initial.valid ? 0x22c55e : 0xef4444);
     outlines.hover.visible = false;
@@ -764,7 +787,7 @@ function SceneContent({
       if (orbit) orbit.enabled = true;
       canvas.style.cursor = 'default';
     };
-  }, [carryingItemId, itemsById, plan.rooms, scene.items, outlines, gl, invalidate]);
+  }, [carryingItemId, itemsById, plan.rooms, scene.items, joinery, outlines, gl, invalidate]);
 
   /** Converts a screen position into a point on the horizontal plane at `planeY`. */
   const floorPoint = useCallback(
@@ -1177,8 +1200,26 @@ function SceneContent({
   /** Moves the carried item to a screen point; set by the pointer effect, called from R3F handlers too. */
   const carryUpdateRef = useRef<((clientX: number, clientY: number) => void) | null>(null);
   const openingDragRef = useRef<OpeningDragState | null>(null);
-  /** A selected decor piece's arrow being dragged: the piece, its wall's plane, and the size it would take. */
-  const decorDragRef = useRef<{ piece: DecorPiece; room: PlanRoom; edge: PlanEdge; handle: DecorHandle; depth: number; plane: THREE.Plane; startX: number; startY: number; moved: boolean; extent: DecorExtent | null } | null>(null);
+  /**
+   * A decor piece being dragged: by one of its arrows (the size it would take) or by its body
+   * (`handle: 'move'` — the place it would stand at, where on it the press took hold, and the
+   * built piece, which slides with the pointer).
+   */
+  const decorDragRef = useRef<{
+    piece: DecorPiece;
+    room: PlanRoom;
+    edge: PlanEdge;
+    handle: DecorHandle | 'move';
+    depth: number;
+    plane: THREE.Plane;
+    startX: number;
+    startY: number;
+    moved: boolean;
+    extent: DecorExtent | null;
+    place?: DecorPlace | null;
+    grab?: { along: number; up: number };
+    object?: THREE.Object3D;
+  } | null>(null);
   /** A press on a floor or wall; becomes a surface selection if the pointer does not travel. */
   const surfacePressRef = useRef<{ roomId: string; surface: 'floor' | 'wall'; wallIndex?: number; x: number; y: number; paint?: PaintTarget | null } | null>(null);
   const wallDragRef = useRef<WallDragState | null>(null);
@@ -1192,6 +1233,11 @@ function SceneContent({
     const data = pick(event);
     if (data?.pickKind === 'decor-handle') {
       gl.domElement.style.cursor = data.handle === 'top' || data.handle === 'bottom' ? 'ns-resize' : 'ew-resize';
+      return;
+    }
+    // The selected decor piece is moved by its body.
+    if (data?.pickKind === 'decor' && data.decorId && selectedElement?.kind === 'decor' && selectedElement.id === data.decorId && !building && !wiring && !finishing && !walking) {
+      gl.domElement.style.cursor = 'move';
       return;
     }
     if (building) {
@@ -1373,6 +1419,21 @@ function SceneContent({
       surfacePressRef.current = null;
       openingDragRef.current = null;
       callbacks.current.onSelectElement?.({ kind: 'decor', id: data.decorId });
+      // And held, it is moved: along its wall, up it, onto another wall of its room.
+      const piece = scene.decor?.find((d) => d.id === data.decorId);
+      const raw = piece ? plan.rooms.find((r) => r.id === piece.roomId) : undefined;
+      const room = raw ? underCeiling(raw, plan) : undefined;
+      const edge = piece && room ? roomEdges(room.polygon).find((e) => e.index === piece.wallIndex) : undefined;
+      const stands = piece && room ? decorExtent(piece, room) : null;
+      const built = piece ? decorGroup.getObjectByName(`decor-${piece.id}`) : undefined;
+      if (piece && room && edge && stands && built && isMovable(piece) && !walking) {
+        const depth = decorDepth(built, edge);
+        const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(new THREE.Vector3(edge.inward.x, 0, edge.inward.z), new THREE.Vector3(edge.a.x + edge.inward.x * depth, 0, edge.a.z + edge.inward.z * depth));
+        // Where on the piece the press took hold, so it does not jump to the pointer.
+        const held = standsOnFloor(piece) ? (event.ray.intersectPlane(dragFloorPlane, dragHit) ?? event.point) : event.point;
+        const along = (held.x - edge.a.x) * edge.dir.x + (held.z - edge.a.z) * edge.dir.z;
+        decorDragRef.current = { piece, room, edge, handle: 'move', depth, plane, startX: event.clientX, startY: event.clientY, moved: false, extent: null, place: null, grab: { along: along - stands.span.from, up: event.point.y - stands.height.from }, object: built };
+      }
       return;
     }
 
@@ -1486,7 +1547,7 @@ function SceneContent({
         if (!ground) return;
         // Carrying into a neighbouring room re-homes the item there, like a drag does.
         room = roomAtPoint(plan.rooms, ground) ?? carry.room;
-        result = snapPlacement(room, item, { position: ground, rotation: item.rotation }, scene.items, plan.rooms);
+        result = snapPlacement(room, item, { position: ground, rotation: item.rotation }, withJoinery(scene.items, joinery, item.id), plan.rooms);
       }
       carry.room = room;
       carry.result = result;
@@ -1570,20 +1631,78 @@ function SceneContent({
           dd.moved = true;
           const orbit = orbitRef.current;
           if (orbit) orbit.enabled = false;
-          canvas.style.cursor = dd.handle === 'top' || dd.handle === 'bottom' ? 'ns-resize' : 'ew-resize';
+          canvas.style.cursor = dd.handle === 'move' ? 'move' : dd.handle === 'top' || dd.handle === 'bottom' ? 'ns-resize' : 'ew-resize';
         }
         // The pointer on the plane of the piece's face: metres along its wall, and up it.
         const rect = canvas.getBoundingClientRect();
         dragNdc.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
         dragRaycaster.setFromCamera(dragNdc, camera);
+        if (dd.handle === 'move') {
+          // The wall under the pointer: the piece's own while the pointer is on it, else the wall
+          // of its room the pointer looks at from inside — the piece hops onto it.
+          const ray = dragRaycaster.ray;
+          const onWall = (edge: PlanEdge) => {
+            const hit = ray.intersectPlane(dragWallPlane.setFromNormalAndCoplanarPoint(dragWallNormal.set(edge.inward.x, 0, edge.inward.z), dragWallPoint.set(edge.a.x + edge.inward.x * dd.depth, 0, edge.a.z + edge.inward.z * dd.depth)), dragHit);
+            return hit ? { edge, along: (hit.x - edge.a.x) * edge.dir.x + (hit.z - edge.a.z) * edge.dir.z, up: hit.y, distance: hit.distanceTo(ray.origin) } : null;
+          };
+          const own = onWall(dd.edge);
+          let target = own && own.along > -0.15 && own.along < dd.edge.length + 0.15 ? own : null;
+          // Joinery and boxes stand on the floor and move as furniture does: the pointer's spot on
+          // the floor picks the wall — the nearest of the room — and the place along it.
+          if (standsOnFloor(dd.piece)) {
+            const ground = ray.intersectPlane(dragFloorPlane, dragHit);
+            target = null;
+            if (ground) {
+              let nearest = Infinity;
+              for (const edge of wallEdges(dd.room)) {
+                const along = (ground.x - edge.a.x) * edge.dir.x + (ground.z - edge.a.z) * edge.dir.z;
+                const off = (ground.x - edge.a.x) * edge.inward.x + (ground.z - edge.a.z) * edge.inward.z;
+                const past = Math.max(0, -along, along - edge.length);
+                // Its own wall holds on a little, so a slide along it does not flicker onto the next at a corner.
+                const distance = Math.hypot(Math.abs(off), past) - (edge.index === dd.edge.index ? 0.25 : 0);
+                if (distance < nearest) {
+                  nearest = distance;
+                  target = { edge, along, up: 0, distance };
+                }
+              }
+            }
+          } else if (!target) {
+            for (const edge of wallEdges(dd.room)) {
+              if (edge.index === dd.edge.index || ray.direction.x * edge.inward.x + ray.direction.z * edge.inward.z > -0.05) continue;
+              const hit = onWall(edge);
+              if (hit && hit.along >= 0 && hit.along <= edge.length && hit.up > -0.5 && hit.up < dd.room.heightM + 1 && (!target || hit.distance < target.distance)) target = hit;
+            }
+          }
+          target ??= own;
+          const grab = dd.grab ?? { along: 0, up: 0 };
+          // On another wall the piece comes under the pointer by its middle.
+          const held = target && target.edge.index !== dd.edge.index ? Math.abs(dd.piece.span.to - dd.piece.span.from) / 2 : grab.along;
+          const wanted = target ? moveDecor(dd.piece, dd.room, target.edge.index, target.along - held, target.up - grab.up) : null;
+          // Joinery goes only where it fits: the frame stays at the last place it did.
+          const free = wanted && target ? freeExtent(dd.piece, wanted, wanted.wallIndex, dd.room, scene.items, scene.decor ?? [], true) : null;
+          if (!free || !wanted || !target) return;
+          dd.place = { wallIndex: wanted.wallIndex, ...free };
+          placeDecorHandles(decorHandles, dd.piece, target.edge, free, dd.depth, hiddenHandles(dd.piece));
+          // The built piece slides with it: its content is in its wall's frame, from the wall's start.
+          const stands = decorExtent(dd.piece, dd.room);
+          if (dd.object && stands) {
+            const shift = free.span.from - stands.span.from;
+            dd.object.position.set(target.edge.a.x + target.edge.dir.x * shift, free.height.from - stands.height.from, target.edge.a.z + target.edge.dir.z * shift);
+            dd.object.rotation.y = Math.atan2(target.edge.inward.x, target.edge.inward.z);
+          }
+          moveFrame();
+          return;
+        }
         const hit = dragRaycaster.ray.intersectPlane(dd.plane, dragHit);
         if (!hit) return;
         const along = (hit.x - dd.edge.a.x) * dd.edge.dir.x + (hit.z - dd.edge.a.z) * dd.edge.dir.z;
-        const extent = dragDecorHandle(dd.piece, dd.room, dd.handle, along, hit.y);
+        const dragged = dragDecorHandle(dd.piece, dd.room, dd.handle, along, hit.y);
+        // Joinery grows as far as the wall is clear beside it.
+        const extent = dragged ? freeExtent(dd.piece, dragged, dd.edge.index, dd.room, scene.items, scene.decor ?? [], false) : null;
         if (!extent) return;
         dd.extent = extent;
         // The arrows and the frame follow live; the piece is rebuilt at its new size on release.
-        placeDecorHandles(decorHandles, dd.piece, dd.edge, extent, dd.depth);
+        placeDecorHandles(decorHandles, dd.piece, dd.edge, extent, dd.depth, hiddenHandles(dd.piece));
         moveFrame();
         return;
       }
@@ -1656,7 +1775,7 @@ function SceneContent({
         const desired = hung ? ground : { x: ground.x + drag.grab.x, z: ground.z + drag.grab.z };
         // Dragging into a neighbouring room re-homes the item there.
         room = roomAtPoint(plan.rooms, desired) ?? drag.room;
-        result = snapPlacement(room, drag.item, { position: desired, rotation: drag.item.rotation }, scene.items, plan.rooms);
+        result = snapPlacement(room, drag.item, { position: desired, rotation: drag.item.rotation }, withJoinery(scene.items, joinery, drag.item.id), plan.rooms);
       }
       drag.room = room;
       drag.result = result;
@@ -1683,11 +1802,16 @@ function SceneContent({
         const orbit = orbitRef.current;
         if (orbit) orbit.enabled = true;
         canvas.style.cursor = 'default';
-        // Back where the piece stands; the store's new size (if it takes it) moves them again.
+        // Back where the piece stands; the store's new size or place (if it takes it) moves them again.
         const stands = decorExtent(dd.piece, dd.room);
-        if (stands) placeDecorHandles(decorHandles, dd.piece, dd.edge, stands, dd.depth);
+        if (stands) placeDecorHandles(decorHandles, dd.piece, dd.edge, stands, dd.depth, hiddenHandles(dd.piece));
+        if (dd.object) {
+          dd.object.position.set(dd.edge.a.x, 0, dd.edge.a.z);
+          dd.object.rotation.y = Math.atan2(dd.edge.inward.x, dd.edge.inward.z);
+        }
         invalidate();
-        if (dd.moved && dd.extent) callbacks.current.onResizeDecor?.(dd.piece.id, dd.extent);
+        if (dd.moved && dd.handle === 'move' && dd.place) callbacks.current.onMoveDecor?.(dd.piece.id, dd.place);
+        else if (dd.moved && dd.extent) callbacks.current.onResizeDecor?.(dd.piece.id, dd.extent);
         return;
       }
       const wd = wallDragRef.current;
@@ -1794,7 +1918,7 @@ function SceneContent({
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerUp);
     };
-  }, [gl, camera, walking, plan.rooms, plan.walls, scene.items, electrical, floorPoint, hangTargetAt, outlines, itemsGroup, threeScene, paintScope, finishing, paintTargetAt, showPaintGlow, invalidate, moveFrame, decorHandles]);
+  }, [gl, camera, walking, plan.rooms, plan.walls, scene.items, scene.decor, joinery, electrical, floorPoint, hangTargetAt, outlines, itemsGroup, threeScene, paintScope, finishing, paintTargetAt, showPaintGlow, invalidate, moveFrame, decorHandles]);
 
   // The arrows go on the selected wall decor piece, where the flat can be changed — not in a view
   // that only looks, nor while the walls are built, wired or painted. A drag moves them itself.
@@ -1811,7 +1935,7 @@ function SceneContent({
       if (hideDecorHandles(decorHandles)) invalidate();
       return;
     }
-    placeDecorHandles(decorHandles, piece, edge, extent, decorDepth(built, edge));
+    placeDecorHandles(decorHandles, piece, edge, extent, decorDepth(built, edge), hiddenHandles(piece));
     invalidate();
   }, [selectedElement, scene.decor, plan, decorGroup, decorHandles, readOnly, walking, building, wiring, finishing, invalidate]);
 

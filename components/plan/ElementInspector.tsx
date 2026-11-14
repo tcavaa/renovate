@@ -40,7 +40,7 @@ import { electricalLabel, technicalLabel } from './PlanToolbar';
 import { ELECTRICAL_ICON, TECHNICAL_ICON } from './icons';
 import { ROOM_TINT_STRONG, TECHNICAL_COLOR } from './palette';
 import { underCeiling } from '@/lib/design/rules';
-import { boilerCabinetCandidates, boilerCabinetFacadeM2, boilerCabinetSize } from '@/lib/design/boilerCabinet';
+import { boilerCabinetCandidates, boilerCabinetFacadeM2, boilerCabinetSize, isOutdoorCabinet } from '@/lib/design/boilerCabinet';
 
 export const MATERIALS: BuildMaterial[] = ['concrete', 'brick', 'block', 'drywall', 'wood', 'metal', 'aluminium', 'pvc', 'glass'];
 const MATERIAL_KEY: Record<BuildMaterial, keyof Dictionary['build']> = {
@@ -735,7 +735,7 @@ function EquipmentFields({ plan, point, catalog, styleId, locale, actions }: { p
           </div>
         </Field>
       )}
-      {point.kind === 'boiler' && <BoilerCabinetFields point={point} catalog={catalog} styleId={styleId} locale={locale} actions={actions} />}
+      {point.kind === 'boiler' && <BoilerCabinetFields point={point} room={room} catalog={catalog} styleId={styleId} locale={locale} actions={actions} />}
     </div>
   );
 }
@@ -745,15 +745,16 @@ function EquipmentFields({ plan, point, catalog, styleId, locale, actions }: { p
  * of façade, or none; and why it is there — on a balcony or in a kitchen or bathroom the boiler is
  * built into one, with its service access kept.
  */
-function BoilerCabinetFields({ point, catalog, styleId, locale, actions }: { point: TechnicalPoint; catalog: CatalogProduct[]; styleId: StyleId; locale: 'ka' | 'en' | 'ru'; actions: InspectorActions }) {
+function BoilerCabinetFields({ point, room, catalog, styleId, locale, actions }: { point: TechnicalPoint; room: PlanRoom | null; catalog: CatalogProduct[]; styleId: StyleId; locale: 'ka' | 'en' | 'ru'; actions: InspectorActions }) {
   const t = useT();
-  const materials = boilerCabinetCandidates(catalog, styleId);
-  const size = boilerCabinetSize(point);
-  const m2 = boilerCabinetFacadeM2(point);
+  const outdoor = isOutdoorCabinet(room);
+  const materials = boilerCabinetCandidates(catalog, styleId, room);
+  const size = boilerCabinetSize(point, room);
+  const m2 = boilerCabinetFacadeM2(point, room);
   return (
-    <Field label={t.build.boilerCabinet}>
+    <Field label={outdoor ? t.build.boilerCabinetOutdoor : t.build.boilerCabinet}>
       <p className="mb-1 text-[11px] leading-snug text-ink-muted">
-        {fill(t.build.boilerCabinetHint, { w: Math.round(size.width * 100), h: Math.round(size.height * 100), d: Math.round(size.depth * 100), m2: formatM2(m2) })}
+        {fill(outdoor ? t.build.boilerCabinetOutdoorHint : t.build.boilerCabinetHint, { w: Math.round(size.width * 100), h: Math.round(size.height * 100), d: Math.round(size.depth * 100), m2: formatM2(m2) })}
       </p>
       {actions.setBoilerCabinet && (
         <div className="flex flex-col gap-1">

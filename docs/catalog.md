@@ -170,7 +170,9 @@ without one before it looks at archetype or style. There are two ways a product 
   same joiner's three boiler-cabinet materials (`BOILER_CABINET_MATERIALS`, in `boiler-cabinet`;
   an existing one's price is admin's — migration `0011_boiler_cabinet_materials` inserts the same
   three, so a deployment brings them without the seed; `tests/unit/catalog/boilerCabinetMigration.test.ts`
-  keeps the two lists alike) and
+  keeps the two lists alike), the insulated cupboard for a boiler on a balcony
+  (`BOILER_CABINET_THERMAL_MATERIALS`, slug `boiler-cabinet-thermal` — the slug is how the studio
+  knows a thermal material; migration `0016_boiler_cabinet_thermal` inserts it the same way) and
   makes their store when the database has none — `seed-design.ts` writes the same store with
   the other partner stores. A material's 3D model (admin's upload, or the seed's) is how a
   kitchen made in it is drawn, never a piece placed on its own

@@ -59,6 +59,20 @@ export function showerArea(item: Pick<PlacedItem, 'slot' | 'areaM' | 'position' 
   return { centre: { x: item.position.x + forward.x * ahead, z: item.position.z + forward.z * ahead }, rotation: item.rotation, width: item.areaM.width, depth: item.areaM.depth };
 }
 
+/** The floor a shower is given when it has none: 90 × 90 cm, or its product's own size when that is larger (a cabin). */
+export const SHOWER_AREA_M = 0.9;
+
+/**
+ * A shower with its floor and glass: one set down from the catalogue has neither — the layout
+ * gives a generated one its area — so it stood as a bare column on the tiles. The same item for
+ * anything else or a shower that has its area.
+ */
+export function withShowerArea<T extends Pick<PlacedItem, 'slot' | 'areaM' | 'size'>>(item: T): T {
+  if (item.slot !== 'shower' || item.areaM) return item;
+  const side = (n: number) => Math.round(Math.min(SHOWER_AREA_MAX_M, Math.max(SHOWER_AREA_M, n)) * 1000) / 1000;
+  return { ...item, areaM: { width: side(item.size.width), depth: side(item.size.depth) } };
+}
+
 /** The area's four corners, back-left first, going round. */
 function corners(area: ShowerArea): Vec2[] {
   const { forward, right } = axes(area.rotation);

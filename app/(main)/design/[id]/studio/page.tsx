@@ -46,7 +46,10 @@ import { effectivePhases } from '@/lib/design/technical';
 import { archetypeLabel } from '@/lib/design/catalog';
 import { RuleWarnings } from '@/components/studio/RuleWarnings';
 import { underCeiling } from '@/lib/design/rules';
-import { resizeDecor, type DecorExtent } from '@/lib/design/decor/resize';
+import { resizeDecor, type DecorExtent, type DecorPlace } from '@/lib/design/decor/resize';
+import { adoptHoused } from '@/lib/design/decor/housing';
+import { lacksHousing } from '@/lib/design/fitted';
+import { kitchenLegLength, kitchenLegOf } from '@/lib/design/kitchenCorner';
 import { equipmentSignature } from '@/lib/design/equipment';
 import { isCustomKitchenItem, kitchenMaterialSignature } from '@/lib/design/kitchen';
 import { loadDesignVersions, saveDesign } from '@/lib/design/saveDesign';
@@ -457,10 +460,11 @@ export default function StudioPage() {
   const onLockedDrag = useCallback(() => setRefused(lockedMoveNote), [lockedMoveNote]);
   const onCarryPlaced = useCallback(
     (itemId: string) => {
-      store.finishCarry();
+      // With the catalogue, what is built for the piece set down is made in the joiner's material.
+      store.finishCarry(products);
       store.selectItem(itemId);
     },
-    [store]
+    [store, products]
   );
   const onSelectElement = useCallback((sel: Parameters<typeof store.selectElement>[0]) => store.selectElement(sel), [store]);
   const onOffsetWall = useCallback((wallId: string, distance: number) => store.offsetWall(wallId, distance), [store]);
@@ -480,6 +484,15 @@ export default function StudioPage() {
     [plan, decor, gate, store]
   );
   const onDecorDragged = useCallback((id: string, extent: DecorExtent) => onResizeDecor(id, () => extent), [onResizeDecor]);
+  // A decor piece dragged by its body: along its wall, up it, or onto another wall of its room.
+  const onMoveDecor = useCallback(
+    (id: string, place: DecorPlace) => {
+      if (plan && gate('catalog')) store.moveDecor(id, place);
+    },
+    [plan, gate, store]
+  );
+  // The joinery and boxes with the furniture they were built for named (`adoptHoused`), for the cards.
+  const housedDecor = useMemo(() => (plan ? adoptHoused(decor, items, plan.rooms) : decor), [decor, items, plan]);
 
   // The 3D view and the 2D board both carry; the walk-through has no pointer to carry on, so
   // entering it with a piece still on the pointer gives the piece up the way Escape does — an
@@ -1117,6 +1130,7 @@ export default function StudioPage() {
               selectedOpeningId={selectedElement?.kind === 'opening' ? selectedElement.id : null}
               onMoveOpening={onMoveOpening}
               onResizeDecor={onDecorDragged}
+              onMoveDecor={onMoveDecor}
               onSelectElement={onSelectElement}
               onOffsetWall={onOffsetWall}
               onMoveColumn={onMoveColumn}
@@ -1241,6 +1255,18 @@ export default function StudioPage() {
                   onKitchenLength={isCustomKitchenItem(selected) ? (widthM) => gate('catalog') && store.setKitchenLength(selected.id, widthM) : undefined}
                   onKitchenToWall={isCustomKitchenItem(selected) ? () => gate('catalog') && store.stretchKitchenToWall(selected.id) : undefined}
                   onShower={selected.areaM ? (change) => gate('moveFurniture') && store.setShowerSize(selected.id, change) : undefined}
+                  // What is built for it and is missing: its column, vanity, box, surround or glass.
+                  onAddFitted={lacksHousing(selected, housedDecor) ? () => !!gate('catalog') && store.addFitted(selected.id, products) : undefined}
+                  kitchenCorner={
+                    selected.slot === 'kitchen_run' && isCustomKitchenItem(selected) && !selected.legOf
+                      ? {
+                          corner: kitchenLegOf(selected.id, items)?.legCorner ?? null,
+                          legM: kitchenLegOf(selected.id, items) ? kitchenLegLength(kitchenLegOf(selected.id, items)!) : null,
+                          onCorner: (corner) => !!gate('catalog') && store.setKitchenCorner(selected.id, corner),
+                          onLeg: (lengthM) => !!gate('catalog') && store.setKitchenLegLength(selected.id, lengthM),
+                        }
+                      : undefined
+                  }
                   swapLock={needs('catalog')}
                   moveLock={needs('moveFurniture')}
                   onLockedSwap={() => gate('catalog')}
@@ -1290,7 +1316,14 @@ export default function StudioPage() {
                   onMaterial={(slot, product) => gate('catalog') && store.setDecorMaterial(selectedElement.id, slot, product)}
                   onColor={(slot, colorHex) => gate('catalog') && store.setDecorColor(selectedElement.id, slot, colorHex)}
                   onParams={(patch) => gate('catalog') && store.setDecorParams(selectedElement.id, patch)}
-                  onSize={(size) => onResizeDecor(selectedElement.id, (piece, room) => resizeDecor(piece, room, size))}
+                  onSize={(size) => {
+                    // Its distance from the wall's start slides it; the other sizes resize it.
+                    const piece = decor.find((d) => d.id === selectedElement.id);
+                    const room = piece ? plan.rooms.find((r) => r.id === piece.roomId) : undefined;
+                    const slid = size.leftM != null && piece && room && piece.wallIndex != null ? resizeDecor(piece, underCeiling(room, plan), size) : null;
+                    if (slid && piece?.wallIndex != null) onMoveDecor(selectedElement.id, { wallIndex: piece.wallIndex, ...slid });
+                    else if (size.leftM == null) onResizeDecor(selectedElement.id, (p, r) => resizeDecor(p, r, size));
+                  }}
                   onRemove={() => gate('catalog') && store.removeDecor(selectedElement.id)}
                 />
               </FloatingPanel>

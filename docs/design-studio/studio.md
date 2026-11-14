@@ -539,6 +539,19 @@ no snap through a wall's end),
 carry up), `tests/unit/design3d/footprintFromModel.test.ts`, and `e2e/design-studio.spec.ts`
 (a furnished studio with a price). The page, the trays and `ScrollRow` have no tests.
 
+## What is fitted to a piece (`lib/design/fitted.ts`)
+
+A selected piece's card (`SwapPanel`) knows what is built for it: a washing machine's column, a
+basin's vanity, a WC's box, a bath's surround, a shower's glass. When the piece has none — it was
+deleted, or the piece came from the catalogue where the rules build none — the card has one button
+that builds it (`onAddFitted` → `designStore.addFitted`), and says when there is no wall behind the
+piece or no room. A made-to-measure kitchen run's card has the **corner** switch — straight, corner
+left, corner right — and the leg's length (`kitchenCorner` → `setKitchenCorner`,
+`setKitchenLegLength`; [../budget.md](../budget.md#a-corner-l-shaped-kitchen-libdesignkitchencornerts)).
+Moving, turning, swapping or deleting a piece takes what is built for it and what rides on it along
+(`settleFitted`, `carryCompanions`), and a piece being moved keeps out of joinery — the whole of it
+in [decor.md](decor.md#furniture-and-what-is-built-for-it-housingts).
+
 ## Known gaps
 
 - **Realistic renders are queued, not produced.** `project_renders` rows wait in `queued`; wiring an image model (the plan is an AI API called with the screenshot and the scene) means a worker that reads the queue, writes `renderUrl` and flips the status — the project page, and the renders of the hubs and the profile, already show both states.

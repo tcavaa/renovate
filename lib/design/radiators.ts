@@ -20,11 +20,13 @@
  * Pure: plain data in, plain data out.
  */
 
+import { clearOf, nearestClear, wallBlocks } from './wallClear';
+import { freeSpans } from './decor/layout';
 import { pointOnEdge, polygonCentroid, roomEdges, wallEdges, type PlanEdge } from './planGeometry';
 import { toSceneProduct, type CatalogProduct } from './matcher';
 import { planEdgeWalls, edgeWallKey } from './wallPieces';
 import { WC_BOX_HALF_M, RADIATOR_BESIDE_WINDOW_M, RADIATOR_FLOOR_GAP_M, RADIATOR_SILL_GAP_M, TOWEL_RAIL_BOTTOM_M, TOWEL_RAIL_DEPTH_M, TOWEL_RAIL_HEIGHT_M, TOWEL_RAIL_ROOMS, TOWEL_RAIL_WIDTH_M } from './rules';
-import type { FloorPlan, Opening, PlacedItem, PlanRoom, StyleId, TechnicalPoint, Vec2 } from './types';
+import type { DecorPiece, FloorPlan, Opening, PlacedItem, PlanRoom, StyleId, TechnicalPoint, Vec2 } from './types';
 import type { RoomType } from '@/lib/calculator/types';
 
 export const RADIATOR_PRODUCT_KIND = 'radiator';
@@ -211,7 +213,7 @@ export function withRadiatorProducts(plan: FloorPlan, catalog: CatalogProduct[],
  * all — while one that was asked for has to be in the budget even in a finished home, where
  * only what the person added is new work.
  */
-export function suggestRadiators(plan: FloorPlan, nextId: () => string, catalog: CatalogProduct[] = [], items: PlacedItem[] = []): TechnicalPoint[] {
+export function suggestRadiators(plan: FloorPlan, nextId: () => string, catalog: CatalogProduct[] = [], items: PlacedItem[] = [], decor: readonly DecorPiece[] = []): TechnicalPoint[] {
   // The lowest radiator there is: a window whose sill leaves less room than this has its radiator beside it.
   const heights = catalog.filter((p) => p.model3dKind === RADIATOR_PRODUCT_KIND && p.heightCm).map((p) => p.heightCm! / 100);
   const lowest = heights.length > 0 ? Math.min(...heights) : LOWEST_RADIATOR_M;
@@ -229,7 +231,7 @@ export function suggestRadiators(plan: FloorPlan, nextId: () => string, catalog:
       // Over the WC when the room has one (the rulebook, BA-19: with no towel shelf the towels hang
       // there), its bottom clear of the WC's box; else the longest clear wall.
       const overWc = towelRailOverWc(room, items);
-      const spot = overWc?.at ?? towelRailSpot(room, edges);
+      const spot = overWc?.at ?? towelRailSpot(room, edges, items, decor);
       if (spot) {
         out.push({
           id: nextId(),
@@ -263,7 +265,9 @@ export function suggestRadiators(plan: FloorPlan, nextId: () => string, catalog:
       const edge = [...(pool.length > 0 ? pool : edges)].sort((a, b) => b.length - a.length)[0];
       if (edge) spots.push({ edge, t: 0.5 });
     }
-    for (const spot of spots) {
+    for (const wanted of spots) {
+      // In a furnished room, on wall clear of the furniture and the joinery (`clearSpot`).
+      const spot = clearSpot(plan, room, wanted, items, decor, lowest);
       const at = pointOnEdge(spot.edge, spot.t);
       out.push({
         id: nextId(),
@@ -297,8 +301,43 @@ function towelRailOverWc(room: PlanRoom, items: PlacedItem[]): { at: Vec2; botto
 /** What a towel rail gives, W: a bathroom's heat in one piece. */
 const TOWEL_RAIL_WATTS = 450;
 
-/** The middle of the longest stretch of wall clear of the doors and windows (10 cm round each) that holds a towel rail, a hand off the wall. */
-function towelRailSpot(room: PlanRoom, edges: PlanEdge[]): Vec2 | null {
+/**
+ * Where a radiator hangs in a furnished room (the owner's notes of 13 Nov 2026): where it was
+ * wanted when nothing stands there; else the nearest clear stretch of the same wall, then of
+ * another outside wall, then of any wall — clear of the doors and windows, of the furniture
+ * standing against the wall, of the joinery and of decorated wall. With nowhere clear it goes where
+ * it was wanted and the rule check says it is blocked. An empty room is as it was.
+ */
+function clearSpot(plan: FloorPlan, room: PlanRoom, wanted: { edge: PlanEdge; t: number }, items: readonly PlacedItem[], decor: readonly DecorPiece[], heightM: number): { edge: PlanEdge; t: number } {
+  if (!items.some((i) => i.roomId === room.id) && !decor.some((d) => d.roomId === room.id)) return wanted;
+  const band = { bottom: RADIATOR_FLOOR_GAP_M, top: RADIATOR_FLOOR_GAP_M + heightM };
+  const width = BESIDE_RADIATOR_M;
+  // What a radiator may hang on: wall clear of the doors, and under a window only when its sill leaves the room.
+  const stretches = (edge: PlanEdge) => {
+    const low = room.openings.filter((o) => o.wallIndex === edge.index && !(o.kind === 'window' && o.sillM - RADIATOR_FLOOR_GAP_M - RADIATOR_SILL_GAP_M >= heightM - 1e-6));
+    return clearOf(freeSpans(edge, low, 0.1, edge.length - 0.1, 0.1), wallBlocks(room, edge, items, decor), band);
+  };
+  const at = wanted.t * wanted.edge.length;
+  const here = nearestClear(stretches(wanted.edge), at, width);
+  if (here != null && Math.abs(here - at) < 0.01) return wanted;
+  if (here != null) return { edge: wanted.edge, t: here / wanted.edge.length };
+  const outside = outsideEdges(plan, room);
+  const others = [...outside, ...wallEdges(room).filter((e) => !outside.some((o) => o.index === e.index))].filter((e) => e.index !== wanted.edge.index);
+  for (const edge of others) {
+    const s = nearestClear(stretches(edge), edge.length / 2, width);
+    if (s != null) return { edge, t: s / edge.length };
+  }
+  return wanted;
+}
+
+/**
+ * The middle of the longest stretch of wall clear of the doors and windows (10 cm round each) that
+ * holds a towel rail, a hand off the wall — and, in a furnished bathroom, clear of what stands
+ * against the wall at the rail's height: the vanity and its mirror, the washing machine's column,
+ * the shower's glass. Null when no wall has the room.
+ */
+function towelRailSpot(room: PlanRoom, edges: PlanEdge[], items: readonly PlacedItem[] = [], decor: readonly DecorPiece[] = []): Vec2 | null {
+  const band = { bottom: TOWEL_RAIL_BOTTOM_M, top: TOWEL_RAIL_BOTTOM_M + TOWEL_RAIL_HEIGHT_M };
   let best: { at: Vec2; length: number } | null = null;
   for (const edge of edges) {
     const blocked = room.openings
@@ -312,7 +351,7 @@ function towelRailSpot(room: PlanRoom, edges: PlanEdge[]): Vec2 | null {
       from = Math.max(from, hi);
     }
     if (edge.length - 0.1 > from) spans.push([from, edge.length - 0.1]);
-    for (const [a, b] of spans) {
+    for (const [a, b] of clearOf(spans, wallBlocks(room, edge, items, decor), band)) {
       if (b - a < TOWEL_RAIL_WIDTH_M + 0.1 || (best && b - a <= best.length)) continue;
       const p = pointOnEdge(edge, (a + b) / 2 / edge.length);
       best = { at: { x: p.x + edge.inward.x * 0.08, z: p.z + edge.inward.z * 0.08 }, length: b - a };
