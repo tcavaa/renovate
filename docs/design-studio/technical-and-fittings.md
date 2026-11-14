@@ -412,6 +412,10 @@ studio (`HOOD_ROOM_TYPES`) and as a fan anywhere else, so the room decides
   the wall behind it — the hob is on the run — and, with no run placed yet, on the longest wall
   without a window or door (it used to go to the middle of the window wall, and a hood hung
   over the glass).
+- **A cooker hood's bottom hangs under the wall cabinets** (`buildEquipment`): left at its usual
+  height (`COOKER_HOOD_ELEVATION_M`), it is drawn with its bottom 10 cm below the wall cabinets'
+  (`WALL_UNIT_BOTTOM_M`; a hood slimmer than that wholly under them) — at 1.55 m it stood in front
+  of their doors. One given a height by hand stays where it is.
 - **A whole-flat pick** of equipment in the calculator goes on every point it is bought for
   (`dressBoard`'s `{ equipment }` target).
 - **The boiler's ventilated cabinet** (`lib/design/boilerCabinet.ts`, the design rules): the

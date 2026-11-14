@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { layoutRoom } from '@/lib/design/autoLayout';
 import { matchProducts, type CatalogProduct } from '@/lib/design/matcher';
 import { refreshRoom } from '@/lib/design/planGeometry';
-import { SHOWER_GLASS_HEIGHT_M, SHOWER_GLASS_MAX_THICKNESS_M, SHOWER_GLASS_THICKNESS_M, resizedShower, showerArea, showerGlass } from '@/lib/design/shower';
+import { SHOWER_GLASS_HEIGHT_M, SHOWER_GLASS_MAX_THICKNESS_M, SHOWER_GLASS_THICKNESS_M, dragShowerHandle, resizedShower, showerArea, showerGlass, showerHandleSpots } from '@/lib/design/shower';
 import type { PlacedItem, PlanRoom } from '@/lib/design/types';
 
 /** A shower's tray and glass (lib/design/shower.ts): the glass on the sides off the walls, following the piece. */
@@ -65,5 +65,36 @@ describe('resizing a shower on its card', () => {
     expect(next.position!.x).toBeCloseTo(1.94 - 0.15, 5);
     const grown = showerArea({ ...shower(), ...next })!;
     expect(grown.centre.x + grown.width / 2).toBeCloseTo(2.39, 5);
+  });
+});
+
+describe('a shower\'s arrows', () => {
+  it('stand on the sides off the walls, the front and the top of the glass', () => {
+    const found = showerHandleSpots(shower(), bath)!;
+    const panes = showerGlass(shower(), bath).length;
+    // One arrow a pane of glass (a side on a wall has neither), and the one on top.
+    expect(found.spots.length).toBe(panes + 1);
+    expect(found.spots.some((s) => s.handle === 'top' && s.facing === null && s.y === SHOWER_GLASS_HEIGHT_M)).toBe(true);
+    expect(found.spots.some((s) => s.handle === 'front')).toBe(true);
+  });
+
+  it('dragged, ask for the size the pointer is at', () => {
+    const item = shower();
+    const area = showerArea(item)!;
+    const forward = { x: Math.sin(area.rotation), z: Math.cos(area.rotation) };
+    // The front pulled 30 cm further out than it is.
+    const out = area.depth / 2 + 0.3;
+    const front = dragShowerHandle(item, bath, 'front', { x: area.centre.x + forward.x * out, z: area.centre.z + forward.z * out }, 1)!;
+    expect(front.depthM).toBeCloseTo(area.depth + 0.3, 2);
+    expect(resizedShower(item, bath, front)!.areaM!.depth).toBeCloseTo(area.depth + 0.3, 2);
+    // The top: the glass as tall as the pointer is high, kept in bounds by the resize.
+    expect(dragShowerHandle(item, bath, 'top', area.centre, 2.25)).toEqual({ glassHeightM: 2.25 });
+    expect(resizedShower(item, bath, { glassHeightM: 9 })!.glass!.heightM).toBe(2.6);
+    // A free side: from the side on a wall when there is one, so the tray grows by what it is pulled.
+    const side = showerHandleSpots(item, bath)!.spots.find((s) => s.handle === 'left' || s.handle === 'right');
+    if (side && side.facing && showerHandleSpots(item, bath)!.spots.filter((s) => s.handle === 'left' || s.handle === 'right').length === 1) {
+      const pulled = dragShowerHandle(item, bath, side.handle, { x: side.at.x + side.facing.x * 0.2, z: side.at.z + side.facing.z * 0.2 }, 1)!;
+      expect(pulled.widthM).toBeCloseTo(area.width + 0.2, 2);
+    }
   });
 });

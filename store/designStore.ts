@@ -25,7 +25,7 @@ import { decorPieceSchema, electricalPointSchema, floorPlanSchema, placedItemSch
 import type { AiProposal } from '@/lib/design/aiProposal';
 import { defaultFinishes, generateScene, keepChosen, placeableOnly } from '@/lib/design/generateScene';
 import { reanchorDecor } from '@/lib/design/decor/resolve';
-import { adoptHoused, carryCompanions, carryHoused, cabinetAtExtent, freeExtent, isKitchenLeg } from '@/lib/design/decor/housing';
+import { adoptHoused, carryCompanions, carryHoused, carryRiders, cabinetAtExtent, freeExtent, isKitchenLeg } from '@/lib/design/decor/housing';
 import { joineryFace, joineryMaterial } from '@/lib/design/decor/joinery';
 import type { DecorPlace } from '@/lib/design/decor/resize';
 import { resizesFromMiddle } from '@/lib/design/decor/resize';
@@ -1706,7 +1706,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             // Where it was set down: what was built for it comes to it (a swap that rode on the
             // pointer), and a new piece is given what a generated one has (`lib/design/fitted`).
             // A piece that was picked up and carried (a swap that found no room) takes what rides on it.
-            const carried = s.carryRestore?.id === s.carryingItemId ? carryCompanions(s.items, s.carryRestore) : s.items;
+            const carried = s.carryRestore?.id === s.carryingItemId ? carryRiders(carryCompanions(s.items, s.carryRestore), s.carryRestore) : s.items;
             const settled = settleFitted(linkedDecor(s), carried, s.plan.rooms);
             const fitted = withFitted(s.carryingItemId, s.plan.rooms, settled.items, settled.decor, s.styleId, joinerFace(s, catalog)) ?? settled;
             return { ...done, items: fitted.items, decor: fitted.decor };
@@ -1850,8 +1850,8 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             commit((s) => {
               const moved = place(s);
               const before = s.items.find((i) => i.id === itemId);
-              // Its dryer, its tap, its mixer ride with it.
-              const items = moved.items && before ? carryCompanions(moved.items, before) : moved.items;
+              // Its dryer, its tap, its mixer ride with it, and so does what stands on it (a TV on its unit).
+              const items = moved.items && before ? carryRiders(carryCompanions(moved.items, before), before) : moved.items;
               return s.plan && items ? { ...moved, ...settleFitted(linkedDecor(s), items, s.plan.rooms) } : moved;
             });
         },

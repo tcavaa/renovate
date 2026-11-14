@@ -54,7 +54,7 @@ import { WALL_STUB_M, type WallPartKind } from './wallMode';
 import { ceilingHeightM } from '@/lib/design/rules';
 
 export interface SceneUserData {
-  pickKind: 'item' | 'surface' | 'opening' | 'wall' | 'column' | 'beam' | 'electrical' | 'zone' | 'technical' | 'decor' | 'decor-handle';
+  pickKind: 'item' | 'surface' | 'opening' | 'wall' | 'column' | 'beam' | 'electrical' | 'zone' | 'technical' | 'decor' | 'decor-handle' | 'shower-handle';
   itemId?: string;
   openingId?: string;
   roomId: string;
@@ -83,6 +83,8 @@ export interface SceneUserData {
   decorId?: string;
   /** A selected decor piece's arrow: which side it resizes (`lib/design3d/decorHandles`). */
   handle?: 'left' | 'right' | 'top' | 'bottom';
+  /** A selected shower's arrow: what it resizes (`lib/design3d/showerHandles`). */
+  showerHandle?: 'left' | 'right' | 'front' | 'top';
 }
 
 /**

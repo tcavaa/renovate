@@ -31,10 +31,10 @@ import { RADIATOR_MODELS, TOWEL_RAIL_MODEL } from './radiatorManifest';
 import { EQUIPMENT_MODELS } from './equipmentManifest';
 import { DEFAULT_SECTION_WIDTH_M, radiatorPoints, radiatorRoom, radiatorSections, radiatorWallSpot } from '@/lib/design/radiators';
 import { clearOfOpenings, isEquipmentKind, pointProductKind } from '@/lib/design/equipment';
-import { technicalElevation } from '@/lib/design/technical';
+import { COOKER_HOOD_ELEVATION_M, technicalElevation } from '@/lib/design/technical';
 import { boilerCabinetSize, isOutdoorCabinet } from '@/lib/design/boilerCabinet';
 import { buildBoilerCupboard } from './decor';
-import { RADIATOR_FLOOR_GAP_M, RADIATOR_WALL_GAP_M, ceilingHeightM, kelvinHex, roomLightK, underCeiling } from '@/lib/design/rules';
+import { WALL_UNIT_BOTTOM_M, RADIATOR_FLOOR_GAP_M, RADIATOR_WALL_GAP_M, ceilingHeightM, kelvinHex, roomLightK, underCeiling } from '@/lib/design/rules';
 
 function own<T extends THREE.Mesh>(mesh: T): T {
   mesh.userData.ownsGeometry = true;
@@ -420,6 +420,8 @@ export function buildRadiators(plan: FloorPlan, style: StyleDefinition, rooms?: 
 // Equipment
 // ---------------------------------------------------------------------------
 
+/** How far under the wall cabinets a cooker hood's bottom hangs, at most. */
+const HOOD_UNDER_CABINET_M = 0.1;
 /** How far a wall-hung piece of equipment stands off the plaster (its bracket). */
 const EQUIPMENT_WALL_GAP_M = 0.01;
 /** How far a floor drain's grate stands proud of the floor; the rest of it is in the slab. */
@@ -457,7 +459,13 @@ export function buildEquipment(plan: FloorPlan, rooms?: Set<string> | null): THR
     tag(piece, data);
     if (spot) {
       // At its point along the wall, off the windows and doors, never past the wall's end.
-      const bottom = point.elevationM ?? technicalElevation(point.kind, underCeiling(room, plan));
+      const set = point.elevationM ?? technicalElevation(point.kind, underCeiling(room, plan));
+      // A cooker hood left at its usual height has its bottom under the wall cabinets' — a slim
+      // one hangs wholly under them, a taller one shows its canopy 10 cm below them. At 1.55 m it
+      // stood in front of their doors (the owner, 14 Nov 2026). One the person set a height for
+      // is where it is.
+      const autoHood = productKind === 'cooker_hood' && !!dims && Math.abs(set - COOKER_HOOD_ELEVATION_M) < 0.001;
+      const bottom = autoHood ? WALL_UNIT_BOTTOM_M - Math.min(dims.height, HOOD_UNDER_CABINET_M) : set;
       const along = clearOfOpenings(spot.room.openings, spot.edge, spot.s, dims?.width ?? 0.4, bottom, dims?.height ?? 0);
       const at = pointOnEdge(spot.edge, along / spot.edge.length);
       piece.position.set(at.x + spot.edge.inward.x * EQUIPMENT_WALL_GAP_M, bottom, at.z + spot.edge.inward.z * EQUIPMENT_WALL_GAP_M);

@@ -209,6 +209,32 @@ export function carryCompanions(items: PlacedItem[], before: PlacedItem): Placed
   return items.map((i) => (ids.has(i.id) ? moved(i, before, now) : i));
 }
 
+/**
+ * What stands on a piece that was just moved by hand goes with it (the owner's notes of 14 Nov
+ * 2026: "a TV on its cabinet moves with the cabinet"): anything resting on its top — a TV on its
+ * stand, a lamp on a bedside table — and a TV hung on the wall over its TV unit. `before` is the
+ * piece as it stood. The same array when nothing stood on it or it did not move.
+ */
+export function carryRiders(items: PlacedItem[], before: PlacedItem): PlacedItem[] {
+  const now = items.find((i) => i.id === before.id);
+  if (!now || (now.position.x === before.position.x && now.position.z === before.position.z && now.rotation === before.rotation && now.roomId === before.roomId)) return items;
+  const f = { x: Math.sin(before.rotation), z: Math.cos(before.rotation) };
+  const top = before.elevationM + before.size.height;
+  const companions = new Set(companionsOf(before.id, items).map((c) => c.id));
+  const rides = (i: PlacedItem) => {
+    if (i.id === before.id || i.roomId !== before.roomId || companions.has(i.id) || i.legOf) return false;
+    const dx = i.position.x - before.position.x;
+    const dz = i.position.z - before.position.z;
+    const over = Math.abs(dx * f.z - dz * f.x) <= before.size.width / 2 + 0.01 && Math.abs(dx * f.x + dz * f.z) <= before.size.depth / 2 + 0.01;
+    if (!over) return false;
+    // On its top; or a TV on the wall over the unit it belongs to.
+    return Math.abs(i.elevationM - top) <= 0.06 || (before.slot === 'tv_unit' && i.slot === 'tv' && i.elevationM >= top - 0.06);
+  };
+  const riders = new Set(items.filter(rides).map((i) => i.id));
+  if (riders.size === 0) return items;
+  return items.map((i) => (riders.has(i.id) ? moved(i, { ...before, elevationM: 0 }, { ...now, elevationM: now.elevationM - before.elevationM }) : i));
+}
+
 /** A cabinet without one of its sections, closed up along its wall; null when that was its only one. */
 function withoutSection(piece: DecorPiece, index: number): DecorPiece | null {
   const spans = sectionSpans(piece);

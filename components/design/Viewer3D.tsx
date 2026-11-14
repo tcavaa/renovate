@@ -56,6 +56,8 @@ import { cameraFacesWall, DEFAULT_WALL_MODE, wallPartVisible, type WallMode } fr
 import { buildGround, FOG_FAR_M, FOG_NEAR_M, skyTexture } from '@/lib/design3d/environment';
 import { buildDecor, releaseDecorMaterials } from '@/lib/design3d/decor';
 import { buildShowerGlass, releaseShowerGlassMaterials } from '@/lib/design3d/showerGlass';
+import { hideShowerHandles, makeShowerHandles, placeShowerHandles, scaleShowerHandles } from '@/lib/design3d/showerHandles';
+import { dragShowerHandle, resizedShower, type ShowerChange, type ShowerHandle } from '@/lib/design/shower';
 import { decorDepth, hideDecorHandles, makeDecorHandles, placeDecorHandles, scaleDecorHandles } from '@/lib/design3d/decorHandles';
 import { decorExtent, dragDecorHandle, isMovable, isResizable, moveDecor, standsOnFloor, type DecorExtent, type DecorHandle, type DecorPlace } from '@/lib/design/decor/resize';
 import { adoptHoused, freeExtent, joineryObstacles, withJoinery } from '@/lib/design/decor/housing';
@@ -134,6 +136,8 @@ export interface Viewer3DProps {
   onMoveOpening?: (roomId: string, openingId: string, t: number) => void;
   /** A selected wall decor piece resized by its arrows (`lib/design/decor/resize`), on release. */
   onResizeDecor?: (id: string, extent: DecorExtent) => void;
+  /** A selected shower resized by its arrows (`lib/design/shower`), on release: its tray's width or depth, or its glass's height. */
+  onResizeShower?: (itemId: string, change: ShowerChange) => void;
   /** A wall decor piece dragged by its body to another place on its wall, or onto another wall of its room, on release. */
   onMoveDecor?: (id: string, place: DecorPlace) => void;
   /** Sockets, switches and lights; drawn as fittings, and the lights that are on light the rooms. */
@@ -400,7 +404,7 @@ interface DragState {
   room: PlanRoom;
 }
 
-type Callbacks = Pick<Viewer3DProps, 'onHoverItem' | 'onSelectItem' | 'onSelectSurface' | 'onPlaceItem' | 'onMoveOpening' | 'onResizeDecor' | 'onMoveDecor' | 'onCarryPlaced' | 'onSelectElement' | 'onOffsetWall' | 'onMoveColumn' | 'onMoveElectrical' | 'onPaint' | 'onLockedDrag'> & { lockItems?: boolean };
+type Callbacks = Pick<Viewer3DProps, 'onHoverItem' | 'onSelectItem' | 'onSelectSurface' | 'onPlaceItem' | 'onMoveOpening' | 'onResizeDecor' | 'onResizeShower' | 'onMoveDecor' | 'onCarryPlaced' | 'onSelectElement' | 'onOffsetWall' | 'onMoveColumn' | 'onMoveElectrical' | 'onPaint' | 'onLockedDrag'> & { lockItems?: boolean };
 
 function SceneContent({
   plan,
@@ -429,6 +433,7 @@ function SceneContent({
   onLockedDrag,
   onMoveOpening,
   onResizeDecor,
+  onResizeShower,
   onMoveDecor,
   selectedElement = null,
   frameKey,
@@ -585,7 +590,7 @@ function SceneContent({
    * every render would otherwise re-subscribe them on every render.
    */
   const callbacks = useRef<Callbacks>({});
-  callbacks.current = { onHoverItem, onSelectItem, onSelectSurface, onPlaceItem, onMoveOpening, onResizeDecor, onMoveDecor, onCarryPlaced, onSelectElement, onOffsetWall, onMoveColumn, onMoveElectrical, onPaint, onLockedDrag, lockItems };
+  callbacks.current = { onHoverItem, onSelectItem, onSelectSurface, onPlaceItem, onMoveOpening, onResizeDecor, onResizeShower, onMoveDecor, onCarryPlaced, onSelectElement, onOffsetWall, onMoveColumn, onMoveElectrical, onPaint, onLockedDrag, lockItems };
   // Doors and windows are grabbed in openings mode, and in build mode once unlocked.
   // Doors and windows are grabbed in build mode once the structure is unlocked.
   const editingOpenings = editMode === 'build' && !structureLocked;
@@ -650,6 +655,9 @@ function SceneContent({
   // The selected wall decor piece's arrows, to resize it (`decorHandles`): one group for the viewer's life.
   const decorHandles = useMemo(() => makeDecorHandles(), []);
   useEffect(() => () => disposeOwnedGeometry(decorHandles), [decorHandles]);
+  // The selected shower's arrows, to resize its tray and glass (`showerHandles`).
+  const showerHandles = useMemo(() => makeShowerHandles(), []);
+  useEffect(() => () => disposeOwnedGeometry(showerHandles), [showerHandles]);
 
   // The room shells change only with the plan, the finishes or the style — not with furniture.
   const shell = useMemo(
@@ -1220,6 +1228,8 @@ function SceneContent({
     grab?: { along: number; up: number };
     object?: THREE.Object3D;
   } | null>(null);
+  /** A shower being resized by one of its arrows: the plane the pointer is read on, and what the drag asks so far. */
+  const showerDragRef = useRef<{ item: PlacedItem; room: PlanRoom; handle: ShowerHandle; plane: THREE.Plane; startX: number; startY: number; moved: boolean; change: ShowerChange | null } | null>(null);
   /** A press on a floor or wall; becomes a surface selection if the pointer does not travel. */
   const surfacePressRef = useRef<{ roomId: string; surface: 'floor' | 'wall'; wallIndex?: number; x: number; y: number; paint?: PaintTarget | null } | null>(null);
   const wallDragRef = useRef<WallDragState | null>(null);
@@ -1228,11 +1238,15 @@ function SceneContent({
   const handleMove = (event: ThreeEvent<PointerEvent>) => {
     if (readOnly) return; // nothing to point at in a view that only looks
     if (carryRef.current) return; // the carried item owns the pointer
-    if (dragRef.current?.moved || decorDragRef.current?.moved) return; // the drag loop owns the pointer
+    if (dragRef.current?.moved || decorDragRef.current?.moved || showerDragRef.current?.moved) return; // the drag loop owns the pointer
 
     const data = pick(event);
     if (data?.pickKind === 'decor-handle') {
       gl.domElement.style.cursor = data.handle === 'top' || data.handle === 'bottom' ? 'ns-resize' : 'ew-resize';
+      return;
+    }
+    if (data?.pickKind === 'shower-handle') {
+      gl.domElement.style.cursor = data.showerHandle === 'top' ? 'ns-resize' : 'ew-resize';
       return;
     }
     // The selected decor piece is moved by its body.
@@ -1313,6 +1327,24 @@ function SceneContent({
       return;
     }
     const data = pick(event);
+
+    // A selected shower's arrow: a press starts resizing its tray across the floor, or its glass up.
+    if (data?.pickKind === 'shower-handle' && data.itemId && data.showerHandle) {
+      dragRef.current = null;
+      openingDragRef.current = null;
+      surfacePressRef.current = null;
+      const item = scene.items.find((i) => i.id === data.itemId);
+      const room = item ? plan.rooms.find((r) => r.id === item.roomId) : undefined;
+      if (item && room) {
+        // A side or the front is read on the floor's level through the arrow; the top on an
+        // upright plane through it that faces the camera.
+        const normal = data.showerHandle === 'top' ? new THREE.Vector3(camera.position.x - event.point.x, 0, camera.position.z - event.point.z).normalize() : new THREE.Vector3(0, 1, 0);
+        if (normal.lengthSq() < 0.5) normal.set(0, 0, 1);
+        const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(normal, event.point);
+        showerDragRef.current = { item, room, handle: data.showerHandle, plane, startX: event.clientX, startY: event.clientY, moved: false, change: null };
+      }
+      return;
+    }
 
     // A selected decor piece's arrow: a press starts resizing it, along its wall or up it.
     if (data?.pickKind === 'decor-handle' && data.decorId && data.handle) {
@@ -1623,6 +1655,30 @@ function SceneContent({
         moveFrame();
         return;
       }
+      const sd = showerDragRef.current;
+      if (sd) {
+        if (walking) return;
+        if (!sd.moved) {
+          if (Math.abs(event.clientX - sd.startX) + Math.abs(event.clientY - sd.startY) < DRAG_THRESHOLD_PX) return;
+          sd.moved = true;
+          const orbit = orbitRef.current;
+          if (orbit) orbit.enabled = false;
+          canvas.style.cursor = sd.handle === 'top' ? 'ns-resize' : 'ew-resize';
+        }
+        const rect = canvas.getBoundingClientRect();
+        dragNdc.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
+        dragRaycaster.setFromCamera(dragNdc, camera);
+        const hit = dragRaycaster.ray.intersectPlane(sd.plane, dragHit);
+        if (!hit) return;
+        const change = dragShowerHandle(sd.item, sd.room, sd.handle, { x: hit.x, z: hit.z }, hit.y);
+        const next = change ? resizedShower(sd.item, sd.room, change) : null;
+        if (!change || !next) return;
+        sd.change = change;
+        // The arrows and the frame follow live; the tray and the glass are rebuilt on release.
+        placeShowerHandles(showerHandles, { ...sd.item, ...next }, sd.room);
+        moveFrame();
+        return;
+      }
       const dd = decorDragRef.current;
       if (dd) {
         if (walking) return;
@@ -1798,6 +1854,18 @@ function SceneContent({
     const onPointerUp = (event: PointerEvent) => {
       const { onSelectSurface, onSelectItem, onPlaceItem, onMoveOpening, onCarryPlaced, onOffsetWall, onMoveColumn, onMoveElectrical } = callbacks.current;
 
+      const sd = showerDragRef.current;
+      if (sd) {
+        showerDragRef.current = null;
+        const orbit = orbitRef.current;
+        if (orbit) orbit.enabled = true;
+        canvas.style.cursor = 'default';
+        // Back on the shower as it stands; the store's new size (if it takes it) moves them again.
+        placeShowerHandles(showerHandles, sd.item, sd.room);
+        invalidate();
+        if (sd.moved && sd.change) callbacks.current.onResizeShower?.(sd.item.id, sd.change);
+        return;
+      }
       const dd = decorDragRef.current;
       if (dd) {
         decorDragRef.current = null;
@@ -1920,7 +1988,7 @@ function SceneContent({
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerUp);
     };
-  }, [gl, camera, walking, plan, scene.items, scene.decor, joinery, electrical, floorPoint, hangTargetAt, outlines, itemsGroup, threeScene, paintScope, finishing, paintTargetAt, showPaintGlow, invalidate, moveFrame, decorHandles]);
+  }, [gl, camera, walking, plan, scene.items, scene.decor, joinery, electrical, floorPoint, hangTargetAt, outlines, itemsGroup, threeScene, paintScope, finishing, paintTargetAt, showPaintGlow, invalidate, moveFrame, decorHandles, showerHandles]);
 
   // The arrows go on the selected wall decor piece, where the flat can be changed — not in a view
   // that only looks, nor while the walls are built, wired or painted. A drag moves them itself.
@@ -1941,10 +2009,22 @@ function SceneContent({
     invalidate();
   }, [selectedElement, scene.decor, plan, decorGroup, decorHandles, readOnly, walking, building, wiring, finishing, invalidate]);
 
+  // The arrows go on the selected shower the same way: its tray's free sides, its front and the
+  // top of its glass. Not on a locked one, nor while it is dragged or carried.
+  useEffect(() => {
+    if (showerDragRef.current) return;
+    const item = selectedItemId ? scene.items.find((i) => i.id === selectedItemId) : undefined;
+    const room = item ? plan.rooms.find((r) => r.id === item.roomId) : undefined;
+    const shown = !!item && !!room && !item.locked && !lockItems && !dragging && !carryingItemId && !readOnly && !walking && !building && !wiring && !finishing && (!roomFilter || roomFilter.has(item.roomId)) && placeShowerHandles(showerHandles, item, room);
+    if (!shown && !hideShowerHandles(showerHandles)) return;
+    invalidate();
+  }, [selectedItemId, scene.items, plan, showerHandles, lockItems, dragging, carryingItemId, readOnly, walking, building, wiring, finishing, roomFilter, invalidate]);
+
   // The arrows keep their size on screen however far the camera is: a 9 cm grip is a few pixels
   // across a whole room.
   useFrame(() => {
     if (decorHandles.visible) scaleDecorHandles(decorHandles, camera.position);
+    if (showerHandles.visible) scaleShowerHandles(showerHandles, camera.position);
   });
 
   // Leaving openings mode drops any preview offset a cancelled drag may have left behind.
@@ -1992,6 +2072,7 @@ function SceneContent({
         <primitive object={shell} />
         <primitive object={decorGroup} />
         <primitive object={decorHandles} />
+        <primitive object={showerHandles} />
         <primitive object={itemsGroup} />
         <primitive object={showerGlassGroup} />
         <primitive object={electricalGroup} />

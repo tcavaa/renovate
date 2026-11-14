@@ -90,7 +90,9 @@ scene ──tightSpots──▶ amber warnings (not a rule)
   shower, which goes in only when there is room besides; a smaller bathroom has the shower alone.
   **Its glass** stands on the sides of the tray off the walls (`showerGlass`, `lib/design/shower.ts`:
   the tray found from the piece, so it follows it; 3 cm on the plan, 2–5, and 2 m tall,
-  `PlacedItem.glass`), drawn on the board and in 3D; the card resizes the tray and the glass.
+  `PlacedItem.glass`), drawn on the board and in 3D; the card resizes the tray and the glass, and so do the arrows on
+  the selected shower in 3D (`showerHandleSpots`, `dragShowerHandle`: a free side, the front, the
+  top of the glass — a side on a wall has none and stays on it).
 - **Partitions at generation** (`withGeneratedPartitions`, `lib/design/autoPartitions.ts`, first in
   `generateScene`): a front door into a living room or a studio gets a screen 1.3 m in front of it
   (`ENTRY_DEPTH_M`), an en-suite's door a lobby 1.1 m deep in its bedroom (`ENSUITE_DEPTH_M`, a

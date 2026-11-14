@@ -149,3 +149,57 @@ export function resizedShower(item: PlacedItem, room: Pick<PlanRoom, 'polygon'>,
     position: { x: round(item.position.x + right.x * across), z: round(item.position.z + right.z * across) },
   };
 }
+
+/** An arrow on a selected shower in 3D: a side of its tray, its front, or the top of its glass. */
+export type ShowerHandle = 'left' | 'right' | 'front' | 'top';
+export type ShowerChange = { widthM?: number; depthM?: number; glassThicknessM?: number; glassHeightM?: number };
+
+export interface ShowerHandleSpot {
+  handle: ShowerHandle;
+  /** Where the arrow stands on the floor plan, and how high. */
+  at: Vec2;
+  y: number;
+  /** The way the arrow points across the floor; null points up. */
+  facing: Vec2 | null;
+}
+
+/**
+ * Where a shower's arrows stand (the owner, 14 Nov 2026: "the glass should be adjustable as
+ * cabinets and wall decors are"): one in the middle of each side of the tray that is off a wall —
+ * a side on a wall stays on it, so it has none — one at the front, and one on top of the glass.
+ * With them the tray's corners, back-left first, and the glass's height, for the frame round it.
+ */
+export function showerHandleSpots(item: Pick<PlacedItem, 'slot' | 'areaM' | 'position' | 'rotation' | 'size' | 'glass'>, room: Pick<PlanRoom, 'polygon'>): { spots: ShowerHandleSpot[]; ring: Vec2[]; heightM: number } | null {
+  const area = showerArea(item);
+  if (!area) return null;
+  const { forward, right } = axes(area.rotation);
+  const ring = corners(area);
+  const { heightM } = glassOf(item);
+  const mid = (a: Vec2, b: Vec2) => ({ x: (a.x + b.x) / 2, z: (a.z + b.z) / 2 });
+  const spots: ShowerHandleSpot[] = [];
+  if (!onWall(ring[0], ring[3], room)) spots.push({ handle: 'left', at: mid(ring[0], ring[3]), y: heightM / 2, facing: { x: -right.x, z: -right.z } });
+  if (!onWall(ring[1], ring[2], room)) spots.push({ handle: 'right', at: mid(ring[1], ring[2]), y: heightM / 2, facing: right });
+  if (!onWall(ring[2], ring[3], room)) spots.push({ handle: 'front', at: mid(ring[2], ring[3]), y: heightM / 2, facing: forward });
+  spots.push({ handle: 'top', at: area.centre, y: heightM, facing: null });
+  return { spots, ring, heightM };
+}
+
+/**
+ * What an arrow dragged to a point asks of the shower (`resizedShower` takes it and keeps it in
+ * bounds): the front's distance from the back, a side's from the side on a wall — from the middle,
+ * doubled, when neither side is on one, as the tray then grows both ways — or the glass's height.
+ * To the centimetre.
+ */
+export function dragShowerHandle(item: Pick<PlacedItem, 'slot' | 'areaM' | 'position' | 'rotation' | 'size'>, room: Pick<PlanRoom, 'polygon'>, handle: ShowerHandle, point: Vec2, y: number): ShowerChange | null {
+  const area = showerArea(item);
+  if (!area) return null;
+  const cm = (n: number) => Math.round(n * 100) / 100;
+  if (handle === 'top') return { glassHeightM: cm(y) };
+  const { forward, right } = axes(area.rotation);
+  const rel = { x: point.x - area.centre.x, z: point.z - area.centre.z };
+  if (handle === 'front') return { depthM: cm(rel.x * forward.x + rel.z * forward.z + area.depth / 2) };
+  const ring = corners(area);
+  const out = (rel.x * right.x + rel.z * right.z) * (handle === 'right' ? 1 : -1);
+  const otherOnWall = handle === 'right' ? onWall(ring[0], ring[3], room) : onWall(ring[1], ring[2], room);
+  return { widthM: cm(otherOnWall ? out + area.width / 2 : out * 2) };
+}

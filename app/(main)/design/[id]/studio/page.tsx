@@ -1130,6 +1130,7 @@ export default function StudioPage() {
               selectedOpeningId={selectedElement?.kind === 'opening' ? selectedElement.id : null}
               onMoveOpening={onMoveOpening}
               onResizeDecor={onDecorDragged}
+              onResizeShower={(itemId, change) => gate('moveFurniture') && store.setShowerSize(itemId, change)}
               onMoveDecor={onMoveDecor}
               onSelectElement={onSelectElement}
               onOffsetWall={onOffsetWall}

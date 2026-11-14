@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { layoutRoom } from '@/lib/design/autoLayout';
 import { fitBathrooms } from '@/lib/design/bathroom';
-import { adoptHoused, cabinetAtExtent, carryHoused, followHoused, freeExtent, houseItem, housingOf } from '@/lib/design/decor/housing';
+import { adoptHoused, cabinetAtExtent, carryHoused, carryRiders, followHoused, freeExtent, houseItem, housingOf } from '@/lib/design/decor/housing';
 import { cornerClearance, freeStretch, sectionSpans } from '@/lib/design/decor/joinery';
 import { isMovable, moveDecor, resizeDecor } from '@/lib/design/decor/resize';
 import { wcBoxes } from '@/lib/design/decor/wcBox';
@@ -367,5 +367,29 @@ describe('cupboards move with their furniture like furniture', () => {
     const turned = followHoused(box, [wc(0.5, 1.2)], [r]);
     expect(turned.decor[0].wallIndex).toBe(3);
     expect(Math.sin(turned.items[0].rotation)).toBeCloseTo(1, 6);
+  });
+});
+
+describe('what stands on a moved piece', () => {
+  const unit: PlacedItem = { ...item('u', 'tv_unit', 1.5, 0.2, { width: 1.8, depth: 0.4, height: 0.5 }), kind: 'tv_unit' };
+  const tv = item('tv', 'tv', 1.2, 0.2, { width: 1.2, depth: 0.25, height: 0.75 }, 0, 0.5);
+  const hung = item('tv2', 'tv', 1.5, 0.04, { width: 1.2, depth: 0.06, height: 0.7 }, 0, 1.1);
+  const sofa = item('sofa', 'sofa', 1.5, 2, { width: 2, depth: 0.9, height: 0.8 }, Math.PI);
+
+  it('goes with it: a TV on its unit, or hung over it, along the wall and onto another', () => {
+    const slid = carryRiders([{ ...unit, position: P(2, 0.2) }, tv, hung, sofa], unit);
+    expect(slid.find((i) => i.id === 'tv')!.position).toEqual(P(1.7, 0.2));
+    expect(slid.find((i) => i.id === 'tv2')!.position).toEqual(P(2, 0.04));
+    expect(slid.find((i) => i.id === 'sofa')).toBe(sofa);
+    // Turned onto the east wall: the TV turns with it and stays where it stood on its top.
+    const turned = carryRiders([{ ...unit, position: P(2.8, 1.2), rotation: -Math.PI / 2 }, tv], unit);
+    const carried = turned.find((i) => i.id === 'tv')!;
+    expect(carried.position.x).toBeCloseTo(2.8, 3);
+    expect(carried.position.z).toBeCloseTo(0.9, 3);
+    expect(Math.sin(carried.rotation)).toBeCloseTo(-1, 6);
+    expect(carried.elevationM).toBe(0.5);
+    // Nothing moved, nothing carried.
+    const still = [unit, tv];
+    expect(carryRiders(still, unit)).toBe(still);
   });
 });

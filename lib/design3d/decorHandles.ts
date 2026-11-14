@@ -14,33 +14,38 @@ import type { DecorHandle, DecorExtent } from '@/lib/design/decor/resize';
 import type { PlanEdge } from '@/lib/design/planGeometry';
 
 const HANDLES: DecorHandle[] = ['left', 'right', 'top', 'bottom'];
-const ARROW_COLOR = 0x6c47ff;
 /** How far in front of the piece's face the arrows stand. */
 const IN_FRONT_M = 0.04;
 const UP = new THREE.Vector3(0, 1, 0);
+
+/** One arrow: a white disc to grab, and the head pointing (up, until turned) the way the piece grows. */
+export function makeHandleArrow(name: string, headMaterial: THREE.Material, discMaterial: THREE.Material): THREE.Group {
+  const arrow = new THREE.Group();
+  arrow.name = name;
+  const disc = new THREE.Mesh(new THREE.SphereGeometry(0.045, 16, 10), discMaterial);
+  const head = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.09, 16), headMaterial);
+  head.position.y = 0.07;
+  for (const mesh of [disc, head]) {
+    mesh.renderOrder = 1000;
+    mesh.userData.ownsGeometry = true;
+  }
+  arrow.add(disc, head);
+  return arrow;
+}
+
+/** The arrows' colour, and how big one is drawn per metre the camera is from it (about 16 px across). */
+export const HANDLE_COLOR = 0x6c47ff;
+export const HANDLE_SCREEN_SCALE_PER_M = 0.35;
 
 /** The arrows and the frame, hidden until a piece is placed. */
 export function makeDecorHandles(): THREE.Group {
   const group = new THREE.Group();
   group.name = 'decor-handles';
   group.visible = false;
-  const material = new THREE.MeshBasicMaterial({ color: ARROW_COLOR, depthTest: false, transparent: true, opacity: 0.95 });
+  const material = new THREE.MeshBasicMaterial({ color: HANDLE_COLOR, depthTest: false, transparent: true, opacity: 0.95 });
   const ring = new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false, transparent: true, opacity: 0.9 });
-  for (const handle of HANDLES) {
-    const arrow = new THREE.Group();
-    arrow.name = `decor-handle-${handle}`;
-    // A white disc to grab, and the terracotta head pointing the way the piece grows.
-    const disc = new THREE.Mesh(new THREE.SphereGeometry(0.045, 16, 10), ring);
-    const head = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.09, 16), material);
-    head.position.y = 0.07;
-    for (const mesh of [disc, head]) {
-      mesh.renderOrder = 1000;
-      mesh.userData.ownsGeometry = true;
-    }
-    arrow.add(disc, head);
-    group.add(arrow);
-  }
-  const frame = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({ color: ARROW_COLOR, depthTest: false, transparent: true, opacity: 0.9 }));
+  for (const handle of HANDLES) group.add(makeHandleArrow(`decor-handle-${handle}`, material, ring));
+  const frame = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({ color: HANDLE_COLOR, depthTest: false, transparent: true, opacity: 0.9 }));
   frame.name = 'decor-handle-frame';
   frame.renderOrder = 999;
   // Never picked: a line answers the pointer a whole metre round it (the raycaster's line
@@ -89,14 +94,11 @@ export function placeDecorHandles(group: THREE.Group, piece: { id: string; roomI
   group.visible = true;
 }
 
-/** How big an arrow is drawn per metre the camera is from it: about 16 px across in the studio's view. */
-const SCREEN_SCALE_PER_M = 0.35;
-
 /** Each arrow scaled to its distance from the camera, so it stays the same size on screen (never smaller than its own). */
 export function scaleDecorHandles(group: THREE.Group, camera: THREE.Vector3): void {
   for (const handle of HANDLES) {
     const arrow = group.getObjectByName(`decor-handle-${handle}`);
-    if (arrow) arrow.scale.setScalar(Math.max(1, arrow.position.distanceTo(camera) * SCREEN_SCALE_PER_M));
+    if (arrow) arrow.scale.setScalar(Math.max(1, arrow.position.distanceTo(camera) * HANDLE_SCREEN_SCALE_PER_M));
   }
 }
 
