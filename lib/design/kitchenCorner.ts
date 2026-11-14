@@ -187,12 +187,13 @@ export function kitchenLeg(run: PlacedItem, room: PlanRoom, corner: KitchenCorne
     mirrored: false,
   });
   const out = [copy(run, `${run.id}-leg`, length, from + length / 2, Math.max(0, wall.gap))];
-  // The run's wall cabinets turn the corner too: over the leg, and back into the corner as far
-  // as the run's own (shallower) wall cabinets leave it — never across a window.
+  // The run's wall cabinets turn the corner too: over the leg, and back into the corner flush
+  // against the front of the run's own (shallower) wall cabinets — a corner unit, with no gap —
+  // never across a window.
   const hung = others.find((i) => i.roomId === room.id && i.slot === 'kitchen_wall' && backWall(i, room, 0.3)?.edge.index === spot.edge.index);
   if (hung) {
     const hungGap = Math.max(0, backWall(hung, room, 0.3)?.gap ?? 0);
-    const back = Math.max(0, (spot.grows > 0 ? spot.start : spot.next.length - spot.start) - hungGap - hung.size.depth - 0.02);
+    const back = Math.max(0, (spot.grows > 0 ? spot.start : spot.next.length - spot.start) - hungGap - hung.size.depth);
     let a = spot.grows > 0 ? from - back : from;
     let b = spot.grows > 0 ? from + length : from + length + back;
     for (const o of room.openings) {

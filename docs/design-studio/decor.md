@@ -215,16 +215,18 @@ A piece keeps to its wall, under the (lowered) ceiling, and is never narrower th
 than 10 cm (`DECOR_MIN_WIDTH_M`, `DECOR_MIN_HEIGHT_M`). The arrows show only where the flat can be
 changed — not in a view that only looks, nor while building, wiring or painting.
 
-**Moving** (the owner's notes of 13 Nov 2026). A piece is dragged by its body: a press selects it
-and, held, slides it along its wall and up it (`moveDecor`: its size kept, on the wall and under the
-ceiling), and onto another wall of its room — the pointer's ray is put on the piece's own wall while
-it is over it, else on the wall of the room it looks at from inside (`Viewer3D`, `handle: 'move'`).
+**Moving** (the owner's notes of 13–14 Nov 2026). A piece is dragged by its body: a press selects
+it and, held, slides it along its wall and up it (`moveDecor`: its size kept, on the wall and under
+the ceiling) while the pointer is on that wall; off it the piece comes away and snaps onto **any
+wall of the flat** — the pointer's spot on the floor picks the room it is over and the nearest wall
+of that room, the piece keeping the height it hung at (`Viewer3D`, `handle: 'move'`; the place
+carries its room, `DecorPlace.roomId`).
 The built piece and the frame follow live; the store takes the place on release (`moveDecor`, one
 undo step). The card has the distance of its near side from the wall's start beside its width and
 height. A piece that was centred on a piece of furniture stops following it once it is put somewhere
 by hand (`anchor: 'wall'`). **Joinery and boxes move as furniture does** (`standsOnFloor`): the
-pointer's spot on the floor picks the wall — the nearest of the room, the piece's own holding on a
-little — and the place along it, so a cupboard is dragged across the room onto any wall; they stay
+pointer's spot on the floor always picks the room and the wall — the nearest, the piece's own
+holding on a little — and the place along it, so a cupboard is dragged across the flat onto any wall; they stay
 on the floor and have no bottom arrow (`hiddenHandles`).
 
 **Joinery is resized for real** (`cabinetAtExtent`). A cabinet's sections each have their own

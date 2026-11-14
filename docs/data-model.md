@@ -113,7 +113,7 @@ column, as the flow uses it, is [project-flow.md §6](project-flow.md); in short
   room `separator` (thickness 0, not a wall); a room carries its `open` edges and `keepWhole`;
   a technical point its `product` (a radiator, a piece of equipment) and, equipment, the
   product's `sizeM`, a boiler its `cabinet` (the joiner's material, bought by the façade; null
-  when taken off) and `cabinetChosen` (the person picked that material); `technical.ceilingDropM` (the new ceiling's drop); all JSON, no migration — `lib/validations/design.schema.ts`), **`scene`**
+  when taken off) `cabinetChosen` (the person picked that material) and `cabinetSize` (the cabinet's width, height and height off the floor as the person set them); `technical.ceilingDropM` (the new ceiling's drop); all JSON, no migration — `lib/validations/design.schema.ts`), **`scene`**
   (items — a made-to-measure kitchen with its `kitchenMaterial` (a corner's leg names its run: `legOf`, `legCorner`), the maker's product bought by
   the façade — finishes incl. per-wall and zones — a base floor two products share carries each
   one's `share` — electrical, **decor** (the code-built wall decor: family, wall, stretch,

@@ -161,7 +161,7 @@ export function clearOfOpenings(openings: Opening[], edge: { index: number; leng
 export function equipmentSignature(plan: FloorPlan | null): string {
   const points = (plan?.technical?.points ?? []).filter((p) => isEquipmentKind(p.kind));
   if (!plan || points.length === 0) return '';
-  return `${points.map((p) => `${p.id}:${p.kind}:${p.roomId ?? ''}:${p.product?.productId ?? ''}`).join('|')}#${plan.rooms.map((r) => `${r.id}:${r.type}:${r.areaM2}`).join(',')}`;
+  return `${points.map((p) => `${p.id}:${p.kind}:${p.roomId ?? ''}:${p.product?.productId ?? ''}${p.kind === 'boiler' ? `:${p.elevationM ?? ''}:${JSON.stringify(p.cabinetSize ?? null)}` : ''}`).join('|')}#${plan.rooms.map((r) => `${r.id}:${r.type}:${r.areaM2}`).join(',')}`;
 }
 
 /**

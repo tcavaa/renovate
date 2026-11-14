@@ -22,13 +22,19 @@ const planWith = (points: TechnicalPoint[]): FloorPlan => ({
 });
 
 describe('the boiler’s ventilated cabinet', () => {
-  it('is the boiler and 10 cm all round, no deeper than 60 cm, and bought by its front and sides', () => {
+  it('stands on the floor to a hand over the boiler, 10 cm either side, no deeper than 60 cm, bought by its front and sides — and is sized by hand', () => {
     const size = boilerCabinetSize({ sizeM: { width: 0.4, depth: 0.3, height: 0.7 } });
     expect(size.width).toBeCloseTo(0.6, 6);
     expect(size.depth).toBeCloseTo(0.4, 6);
-    expect(size.height).toBeCloseTo(0.9, 6);
+    // From the floor to 10 cm over a boiler hung at 1.6 m.
+    expect(size.bottom).toBe(0);
+    expect(size.height).toBeCloseTo(2.4, 6);
+    // The person's own sizes: lifted off the floor, lower, wider — never narrower than the boiler nor through the ceiling.
+    const own = { sizeM: { width: 0.4, depth: 0.3, height: 0.7 }, cabinetSize: { widthM: 0.9, heightM: 1, bottomM: 1.5 } };
+    expect(boilerCabinetSize(own, { type: 'kitchen', heightM: 2.7 })).toEqual({ width: 0.9, depth: 0.4, height: 1, bottom: 1.5 });
+    expect(boilerCabinetSize({ ...own, cabinetSize: { widthM: 0.1, heightM: 9 } }, { type: 'kitchen', heightM: 2.7 })).toMatchObject({ width: 0.44, height: 2.7, bottom: 0 });
     expect(boilerCabinetSize({ sizeM: { width: 0.6, depth: 0.7, height: 0.9 } }).depth).toBe(0.6);
-    expect(boilerCabinetFacadeM2({ sizeM: { width: 0.4, depth: 0.3, height: 0.7 } })).toBeCloseTo(0.6 * 0.9 + 2 * 0.4 * 0.9, 2);
+    expect(boilerCabinetFacadeM2({ sizeM: { width: 0.4, depth: 0.3, height: 0.7 } })).toBeCloseTo(0.6 * 2.4 + 2 * 0.4 * 2.4, 2);
   });
 
   it('comes with the boiler in the style’s material, then the cheapest; stays off when taken off', () => {
@@ -65,10 +71,10 @@ describe('a boiler’s cupboard on a balcony', () => {
 
   it('stands from the floor to the ceiling, at least 80 cm wide, and is bought by that façade', () => {
     expect(isOutdoorCabinet(balcony)).toBe(true);
-    expect(boilerCabinetSize(outside, balcony)).toEqual({ width: 0.8, depth: 0.45, height: 2.7 });
+    expect(boilerCabinetSize(outside, balcony)).toEqual({ width: 0.8, depth: 0.45, height: 2.7, bottom: 0 });
     expect(boilerCabinetFacadeM2(outside, balcony)).toBeCloseTo(0.8 * 2.7 + 2 * 0.45 * 2.7, 2);
-    // Indoors it is the boiler's size and a hand all round, as before.
-    expect(boilerCabinetSize(outside, planWith([]).rooms[0]).height).toBeCloseTo(0.92, 3);
+    // Indoors it stands on the floor to a hand over the boiler.
+    expect(boilerCabinetSize(outside, planWith([]).rooms[0]).height).toBeCloseTo(2.42, 3);
     expect(boilerRoom(flat([outside]), outside)?.id).toBe('bal');
   });
 

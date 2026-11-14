@@ -1322,15 +1322,16 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
           let ok = false;
           commit((s) => {
             const piece = s.decor.find((d) => d.id === id);
-            const room = piece && s.plan?.rooms.find((r) => r.id === piece.roomId);
+            // Its own room, or the room of the flat it was carried into.
+            const room = piece && s.plan?.rooms.find((r) => r.id === (place.roomId ?? piece.roomId));
             if (!piece || !room || piece.wallIndex == null || isKitchenLeg(piece)) return null;
             const decor = linkedDecor(s);
             const linked = decor.find((d) => d.id === id) ?? piece;
             const free = freeExtent(linked, place, place.wallIndex, room, s.items, decor, true);
             if (!free) return null;
-            if (place.wallIndex === piece.wallIndex && free.span.from === piece.span.from && free.span.to === piece.span.to && free.height.from === piece.height.from && free.height.to === piece.height.to) return null;
+            if (room.id === piece.roomId && place.wallIndex === piece.wallIndex && free.span.from === piece.span.from && free.span.to === piece.span.to && free.height.from === piece.height.from && free.height.to === piece.height.to) return null;
             // Put somewhere by hand, a piece no longer follows the furniture it was centred on.
-            const next: DecorPiece = { ...linked, wallIndex: place.wallIndex, span: { ...free.span }, height: { ...free.height }, origin: 'studio', ...(resizesFromMiddle(piece) && piece.anchor !== 'wc' && piece.anchor !== 'bath' && piece.anchor !== 'joinery' ? { anchor: 'wall' as const } : {}) };
+            const next: DecorPiece = { ...linked, roomId: room.id, wallIndex: place.wallIndex, span: { ...free.span }, height: { ...free.height }, origin: 'studio', ...(resizesFromMiddle(piece) && piece.anchor !== 'wc' && piece.anchor !== 'bath' && piece.anchor !== 'joinery' ? { anchor: 'wall' as const } : {}) };
             ok = true;
             return { decor: decor.map((d) => (d.id === id ? next : d)), items: carryHoused(linked, next, s.items, s.plan!.rooms) };
           });

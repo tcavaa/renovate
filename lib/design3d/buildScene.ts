@@ -873,9 +873,12 @@ const SINK_AND_HOB = /steel-satin|glass-heavy|-default$|sink|hob|cooktop|stove|f
 let legWorktop: THREE.MeshStandardMaterial | null = null;
 function hideSinkAndHob(model: THREE.Object3D): void {
   let hidden = false;
+  // The model's own worktop material, so the leg's top is the run's to the shade.
+  let worktop: THREE.Material | null = null;
   model.traverse((child) => {
     if (!(child instanceof THREE.Mesh)) return;
     const materials = Array.isArray(child.material) ? child.material : [child.material];
+    worktop ??= materials.find((m) => /iron-cast|worktop|counter/i.test(m?.name ?? '')) ?? null;
     if (materials.every((m) => SINK_AND_HOB.test(m?.name ?? '')) || SINK_AND_HOB.test(child.name)) {
       child.visible = false;
       hidden = true;
@@ -889,7 +892,7 @@ function hideSinkAndHob(model: THREE.Object3D): void {
   const size = box.getSize(new THREE.Vector3());
   const centre = box.getCenter(new THREE.Vector3());
   legWorktop ??= new THREE.MeshStandardMaterial({ name: 'kitchen-leg-worktop', color: 0x2e2f31, roughness: 0.45 });
-  const slab = new THREE.Mesh(new THREE.BoxGeometry(size.x, 0.012, size.z), legWorktop);
+  const slab = new THREE.Mesh(new THREE.BoxGeometry(size.x, 0.012, size.z), worktop ?? legWorktop);
   slab.userData.ownsGeometry = true;
   slab.position.copy(model.worldToLocal(new THREE.Vector3(centre.x, box.max.y - 0.006, centre.z)));
   slab.scale.set(1 / (model.scale.x || 1), 1 / (model.scale.y || 1), 1 / (model.scale.z || 1));

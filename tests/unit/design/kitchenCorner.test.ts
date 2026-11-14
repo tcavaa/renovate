@@ -105,10 +105,10 @@ describe('a corner’s wall cabinets', () => {
     expect(legs.map((l) => l.slot)).toEqual(['kitchen_run', 'kitchen_wall']);
     const upper = legs[1];
     expect(upper).toMatchObject({ id: 'run-leg-wall', legOf: 'run', elevationM: 1.45 });
-    // The window is 1.65–2.85 m along that wall: from the run's own cabinets (37 cm) to 5 cm short of it.
-    expect(upper.size).toEqual({ width: 1.23, depth: 0.35, height: 0.7 });
+    // The window is 1.65–2.85 m along that wall: flush from the run's own cabinets (35 cm) to 5 cm short of it.
+    expect(upper.size).toEqual({ width: 1.25, depth: 0.35, height: 0.7 });
     expect(upper.position.x).toBeCloseTo(3.6 - 0.175, 3);
-    expect(upper.position.z).toBeCloseTo(0.985, 3);
+    expect(upper.position.z).toBeCloseTo(0.975, 3);
     expect(kitchenLegsOf('run', [inCorner, hung, ...legs])).toHaveLength(2);
     // A run with no wall cabinets has none on its leg.
     expect(kitchenLeg(inCorner, room, 'right', [inCorner], [])).toHaveLength(1);

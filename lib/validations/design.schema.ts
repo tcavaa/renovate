@@ -125,6 +125,8 @@ export const technicalPointSchema = z.object({
   cabinet: sceneProductSchema.nullable().optional(),
   // The person picked that material themselves: the app does not change it for the room's.
   cabinetChosen: z.boolean().optional(),
+  // The cabinet's own width, height and height off the floor, as the person set them.
+  cabinetSize: z.object({ widthM: z.number().min(0.1).max(5).optional(), heightM: z.number().min(0.1).max(5).optional(), bottomM: z.number().min(0).max(5).optional() }).optional(),
   // A piece of equipment: its product's size, for the 3D view.
   sizeM: z.object({ width: z.number().min(0.01).max(5), depth: z.number().min(0.001).max(5), height: z.number().min(0.001).max(5) }).nullable().optional(),
   origin: elementOriginSchema,

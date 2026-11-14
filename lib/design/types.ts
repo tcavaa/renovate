@@ -192,6 +192,8 @@ export interface TechnicalPoint {
    * person took it off.
    */
   cabinet?: SceneProduct | null;
+  /** A boiler's cabinet as the person sized it on the boiler's card: its width, its height and how high its bottom is off the floor (unset: `boilerCabinetSize`). */
+  cabinetSize?: { widthM?: number; heightM?: number; bottomM?: number };
   /** The person picked the cabinet's material themselves: it is not changed for the room's (a thermal one on a balcony). */
   cabinetChosen?: boolean;
   /** A piece of equipment: its product's size, what the 3D view draws its model at (absent: the model's own). */

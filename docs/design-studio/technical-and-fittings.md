@@ -418,8 +418,11 @@ studio (`HOOD_ROOM_TYPES`) and as a fan anywhere else, so the room decides
   boiler is built into a cabinet with louvres, its service access kept, made by the kitchen maker's
   joiner in one of the `boiler-cabinet` materials and priced per m² of façade, its front and two
   sides (`boilerCabinetFacadeM2`), like a made-to-measure kitchen; admin sets each material's price
-  in the product form. **Indoors** it is the boiler's size and 10 cm all round, no deeper than 60 cm
-  (`boilerCabinetSize`). **On a balcony** (`isOutdoorCabinet`, the owner's photo of 13 Nov 2026) it
+  in the product form. **Indoors** it stands on the floor and reaches 10 cm over the boiler, the
+  boiler's width and 10 cm either side, no deeper than 60 cm (`boilerCabinetSize`); the boiler's
+  card has its width, height and height off the floor for the person to change
+  (`TechnicalPoint.cabinetSize` — never narrower than the boiler nor through the ceiling), and the
+  façade is measured from what they set. **On a balcony** (`isOutdoorCabinet`, the owner's photo of 13 Nov 2026) it
   is a cupboard from the floor to the ceiling, at least 80 cm wide and 45 cm deep, insulated, made in
   the joiner's **thermal** material (`isThermalCabinet`: the slug says so, or `specs.thermal`), which
   goes first there and last indoors (`boilerCabinetCandidates`). Migration
@@ -431,8 +434,9 @@ studio (`HOOD_ROOM_TYPES`) and as a fan anywhere else, so the room decides
   materials with what the cabinet comes to and "კარადის გარეშე" (`setBoilerCabinet`; `cabinet: null`
   stays off). A line of its own in the budget, the joiner's order; the save route reprices it by the
   façade it measures for the boiler's room (`repricePlan`, `boilerRoom`). **Drawn in 3D** round the
-  boiler (`buildEquipment` → `buildBoilerCupboard`): a carcass with louvres at the top and bottom of
-  its door indoors; on a balcony a filler strip, two leaves below and two above with their handles.
+  boiler (`buildEquipment` → `buildBoilerCupboard`): a tall one (over 1.6 m, and any on a balcony) with a
+  filler strip, two leaves below and two above with their handles; a low one a carcass with louvres
+  at the top and bottom of its door.
   Picked, it is its boiler's point.
 
 ## Doors and windows are editable (`lib/design/openings.ts`)

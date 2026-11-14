@@ -665,14 +665,14 @@ describe('POST /api/design/projects (the design)', () => {
   it('reprices a boiler’s cabinet at the catalogue’s price by the façade the server measures', async () => {
     signedIn();
     const POST = await load();
-    // A forged price and quantity: the server's are 520 ₾/m² over 0.62 × 0.92 + 2 × 0.44 × 0.92 = 1.38 m².
+    // A forged price and quantity: the server's are 520 ₾/m² over a cabinet from the floor to 10 cm over the boiler: 0.62 × 2.42 + 2 × 0.44 × 2.42 = 3.63 m².
     const boiler = { id: 'b1', kind: 'boiler', roomId: 'living', position: { x: 0.1, z: 2 }, elevationM: 1.6, origin: 'user', cabinet: { ...snapshot(13, 1), unit: 'm2', qty: 0.1, totalPrice: 0.1 } };
     const res = await POST(post('http://localhost/api/design/projects', { projectId: 42, plan: { ...plan, technical: { points: [boiler] } }, scene: { ...fittedScene, electrical: [] } }), ctx);
     expect(res.status).toBe(200);
     const set = lastUpdate() as { plan: { technical: { points: Array<{ cabinet: Record<string, number> }> } } };
-    expect(set.plan.technical.points[0].cabinet).toMatchObject({ pricePerUnit: 520, qty: 1.38, totalPrice: 717.6 });
+    expect(set.plan.technical.points[0].cabinet).toMatchObject({ pricePerUnit: 520, qty: 3.63, totalPrice: 1887.6 });
     const { cost } = (await res.json()).data;
-    expect(cost.lines.find((l: { key: string }) => l.key === 'product-13')).toMatchObject({ qty: 1.38, unit: 'm2', total: 717.6, estimated: false });
+    expect(cost.lines.find((l: { key: string }) => l.key === 'product-13')).toMatchObject({ qty: 3.63, unit: 'm2', total: 1887.6, estimated: false });
   });
 
   it('drops a kitchen “material” the catalogue does not sell by the m² — the kitchen is the estimate again', async () => {

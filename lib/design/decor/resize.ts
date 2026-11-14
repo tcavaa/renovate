@@ -43,6 +43,8 @@ export function isResizable(piece: Pick<DecorPiece, 'wallIndex' | 'family'>): bo
 /** A place on a wall: the wall and the extent on it. */
 export interface DecorPlace extends DecorExtent {
   wallIndex: number;
+  /** The room whose wall it is, when the piece was carried into another room of the flat. */
+  roomId?: string;
 }
 
 /** Families that stand on the floor: they slide along the wall and are never lifted off it. */

@@ -1646,42 +1646,44 @@ function SceneContent({
             return hit ? { edge, along: (hit.x - edge.a.x) * edge.dir.x + (hit.z - edge.a.z) * edge.dir.z, up: hit.y, distance: hit.distanceTo(ray.origin) } : null;
           };
           const own = onWall(dd.edge);
-          let target = own && own.along > -0.15 && own.along < dd.edge.length + 0.15 ? own : null;
-          // Joinery and boxes stand on the floor and move as furniture does: the pointer's spot on
-          // the floor picks the wall — the nearest of the room — and the place along it.
-          if (standsOnFloor(dd.piece)) {
+          const floorPiece = standsOnFloor(dd.piece);
+          const grab = dd.grab ?? { along: 0, up: 0 };
+          const stood = decorExtent(dd.piece, dd.room);
+          // Flat decor slides on its own wall while the pointer is on that wall. Off it — and for
+          // joinery and boxes always — the piece moves as furniture does: the pointer's spot on
+          // the floor picks the room it is over, any room of the flat, and the nearest wall of it.
+          let target: { edge: PlanEdge; along: number; up: number; room: PlanRoom } | null =
+            !floorPiece && own && own.along > -0.15 && own.along < dd.edge.length + 0.15 && own.up > 0.02 && own.up < dd.room.heightM + 0.3 ? { edge: own.edge, along: own.along, up: own.up, room: dd.room } : null;
+          if (!target) {
             const ground = ray.intersectPlane(dragFloorPlane, dragHit);
-            target = null;
-            if (ground) {
+            const spot = ground ? { x: ground.x, z: ground.z } : null;
+            const over = spot ? (roomAtPoint(plan.rooms, spot) ?? plan.rooms.find((r) => r.id === dd.room.id) ?? null) : null;
+            if (spot && over) {
+              const room = over.id === dd.room.id ? dd.room : underCeiling(over, plan);
               let nearest = Infinity;
-              for (const edge of wallEdges(dd.room)) {
-                const along = (ground.x - edge.a.x) * edge.dir.x + (ground.z - edge.a.z) * edge.dir.z;
-                const off = (ground.x - edge.a.x) * edge.inward.x + (ground.z - edge.a.z) * edge.inward.z;
+              for (const edge of wallEdges(room)) {
+                const along = (spot.x - edge.a.x) * edge.dir.x + (spot.z - edge.a.z) * edge.dir.z;
+                const off = (spot.x - edge.a.x) * edge.inward.x + (spot.z - edge.a.z) * edge.inward.z;
                 const past = Math.max(0, -along, along - edge.length);
                 // Its own wall holds on a little, so a slide along it does not flicker onto the next at a corner.
-                const distance = Math.hypot(Math.abs(off), past) - (edge.index === dd.edge.index ? 0.25 : 0);
+                const distance = Math.hypot(Math.abs(off), past) - (room.id === dd.room.id && edge.index === dd.edge.index ? 0.25 : 0);
                 if (distance < nearest) {
                   nearest = distance;
-                  target = { edge, along, up: 0, distance };
+                  // Onto another wall it keeps the height it hangs at.
+                  target = { edge, along, up: (stood?.height.from ?? 0) + grab.up, room };
                 }
               }
             }
-          } else if (!target) {
-            for (const edge of wallEdges(dd.room)) {
-              if (edge.index === dd.edge.index || ray.direction.x * edge.inward.x + ray.direction.z * edge.inward.z > -0.05) continue;
-              const hit = onWall(edge);
-              if (hit && hit.along >= 0 && hit.along <= edge.length && hit.up > -0.5 && hit.up < dd.room.heightM + 1 && (!target || hit.distance < target.distance)) target = hit;
-            }
           }
-          target ??= own;
-          const grab = dd.grab ?? { along: 0, up: 0 };
+          if (!target && own) target = { edge: own.edge, along: own.along, up: own.up, room: dd.room };
+          const sameWall = !!target && target.room.id === dd.room.id && target.edge.index === dd.edge.index;
           // On another wall the piece comes under the pointer by its middle.
-          const held = target && target.edge.index !== dd.edge.index ? Math.abs(dd.piece.span.to - dd.piece.span.from) / 2 : grab.along;
-          const wanted = target ? moveDecor(dd.piece, dd.room, target.edge.index, target.along - held, target.up - grab.up) : null;
+          const held = target && !sameWall ? Math.abs(dd.piece.span.to - dd.piece.span.from) / 2 : grab.along;
+          const wanted = target ? moveDecor(dd.piece, target.room, target.edge.index, target.along - held, target.up - grab.up) : null;
           // Joinery goes only where it fits: the frame stays at the last place it did.
-          const free = wanted && target ? freeExtent(dd.piece, wanted, wanted.wallIndex, dd.room, scene.items, scene.decor ?? [], true) : null;
+          const free = wanted && target ? freeExtent(dd.piece, wanted, wanted.wallIndex, target.room, scene.items, scene.decor ?? [], true) : null;
           if (!free || !wanted || !target) return;
-          dd.place = { wallIndex: wanted.wallIndex, ...free };
+          dd.place = { roomId: target.room.id, wallIndex: wanted.wallIndex, ...free };
           placeDecorHandles(decorHandles, dd.piece, target.edge, free, dd.depth, hiddenHandles(dd.piece));
           // The built piece slides with it: its content is in its wall's frame, from the wall's start.
           const stands = decorExtent(dd.piece, dd.room);
@@ -1918,7 +1920,7 @@ function SceneContent({
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerUp);
     };
-  }, [gl, camera, walking, plan.rooms, plan.walls, scene.items, scene.decor, joinery, electrical, floorPoint, hangTargetAt, outlines, itemsGroup, threeScene, paintScope, finishing, paintTargetAt, showPaintGlow, invalidate, moveFrame, decorHandles]);
+  }, [gl, camera, walking, plan, scene.items, scene.decor, joinery, electrical, floorPoint, hangTargetAt, outlines, itemsGroup, threeScene, paintScope, finishing, paintTargetAt, showPaintGlow, invalidate, moveFrame, decorHandles]);
 
   // The arrows go on the selected wall decor piece, where the flat can be changed — not in a view
   // that only looks, nor while the walls are built, wired or painted. A drag moves them itself.

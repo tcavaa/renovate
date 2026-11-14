@@ -3060,7 +3060,7 @@ export const en: Dictionary = {
     lineKitchenWall: 'Kitchen wall cabinets — made to measure',
     lineBoilerCabinet: 'Boiler cabinet, ventilated — made to measure',
     boilerCabinet: 'Ventilated cabinet',
-    boilerCabinetHint: 'The boiler is built into a ventilated cabinet (louvred), its front left open for servicing — {w}×{h} cm, {d} cm deep, {m2} of façade. Priced per m² of façade.',
+    boilerCabinetHint: 'The boiler is built into a ventilated cabinet standing on the floor (louvred), its front opening for servicing; change its sizes below — {w}×{h} cm, {d} cm deep, {m2} of façade. Priced per m² of façade.',
     boilerCabinetNone: 'No cabinet',
     boilerCabinetOutdoor: 'Insulated cupboard (on the balcony)',
     boilerCabinetOutdoorHint: 'On a balcony the boiler is built into an insulated cupboard from floor to ceiling: two doors below, two above, louvred — {w}×{h} cm, {d} cm deep, {m2} of façade. Priced per m² of façade.',
