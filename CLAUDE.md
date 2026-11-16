@@ -115,6 +115,7 @@ pnpm photos:webp [--dry-run]     # the seed pictures in public/uploads/products 
 pnpm uploads:cleanup [--dry-run]   # plan uploads no project references (the daily cron does it in production)
 pnpm uploads:optimize-models [--dry-run]   # the upload recipe over models stored before it
 pnpm audit:studio-products [--out r.md]    # read-only: which products the studio can place, generate, lay as finishes
+pnpm audit:generation [--seeds n] [--examples] [--flat '#412/modern/1'] [--write-baseline]   # whole flats from the fixture plans, each checked as a whole — after touching generation
 pnpm pdf:worker         # re-copy pdf.js's worker into public/vendor after upgrading pdfjs-dist
 pnpm draco:decoder      # re-copy three's Draco decoder into public/vendor/draco after upgrading three
 ```
@@ -159,7 +160,8 @@ install` before running anything.
    (`/_next/image` is billed on Vercel). **Files never go through a function**: the browser sends
    them to storage and the route claims the upload ([docs/uploads.md](docs/uploads.md)).
 10. **Before calling a change done**: `pnpm type-check`, `pnpm lint`, `pnpm test` (plus
-    `test:parser` / `test:solver` when the plan pipeline changed), and update the docs (below).
+    `test:parser` / `test:solver` when the plan pipeline changed, `audit:generation` when
+    generation did), and update the docs (below).
 
 ## Documentation index
 
@@ -190,6 +192,7 @@ documents are ordinary Markdown links (not auto-loaded) so a session reads only 
 | [docs/design-studio/3d-engine.md](docs/design-studio/3d-engine.md) | `lib/design3d/` and `Viewer3D`: scene building, walls, models, lighting, the Three.js gotchas | anything that draws in 3D |
 | [docs/design-studio/decor.md](docs/design-studio/decor.md) | custom wall decor built in code (slats, slabs, mouldings, niches, light, panels, cladding, murals, tiles): the fit, quantities and budget lines, decor materials, 3D, the decor card (materials, resizing, moving by hand); **furniture and the joinery built for it** kept together (a machine's column, a basin's vanity, a WC's box — `housing.ts`, `fitted.ts`); **the AI designer** at generation — a job on the server that finishes with the page closed (route, brief, schema, validation, fallback, cost) — and its check of every room after | `lib/design/decor/`, `lib/design/fitted.ts`, `lib/design3d/decor.ts`, `aiDesign.ts`, `aiReview.ts`, `aiProposal.ts`, `generateScene.ts`, `lib/api/designJob.ts`, `/api/design/ai-generate`, `/api/design/ai-review`, `DecorPanel`, decor materials |
 | [docs/design-studio/design-rules.md](docs/design-studio/design-rules.md) | the owner's interior design rules brief and the decisions on it: `lib/design/rules.ts` (heights, gaps, door widths, the kitchen run's zones), `ruleChecks.ts` (warnings, radiator strips), the five stages and what each built | any height, clearance, placement rule or rule warning; sockets, switches, radiators, the boiler, water points, ceilings, layout rules, styles |
+| [docs/design-studio/generation-audit.md](docs/design-studio/generation-audit.md) | the audit of design generation (16 Nov 2026): the pipeline, where the rules live, what each room gets, what 1,080 measured flats showed (missing pieces, clashes, products that never appear), the AI designer against the engine, contradictions, duplicated code — a checklist of open items and the order to fix them in | before changing the layout engine, the matcher, a room's program or the AI designer; before writing the per-room rules in; tick an item in the commit that fixes it |
 | [docs/design-studio/ai-layout-plan.md](docs/design-studio/ai-layout-plan.md) | the AI interior designer's plan — **phase 1 built** (see decor.md), the rules module, layout intent and evaluation still planned | before any work on AI layout, product or finish choice |
 | [docs/design-studio/material-variants.md](docs/design-studio/material-variants.md) | one 3D model in several looks: `specs.variants`, the form's editor and turntable preview, the item card's swatches, the look on the model in 3D, pricing, the save route's check, cleanup | `lib/design/variants.ts`, `variantMaterials.ts`, `VariantsEditor`, the item card's swatches, anything that builds an item's product snapshot |
 | [docs/design-studio/finishes.md](docs/design-studio/finishes.md) | floor/wall finishes, the paint brush, zones, skirting and cornices | `surfaces.ts`, `paint.ts`, `zones.ts`, `trims.ts`, the finishes tray |

@@ -15,6 +15,17 @@ what is *not* done; what *is* done lives in the topic documents; history lives i
 Most were found by reading the code while the docs were verified and have not been reproduced
 at runtime yet; the last one was seen on the sample plan.
 
+- **Design generation** (audited 16 Nov 2026, measured on 1,080 generated flats): essentials
+  dropped instead of downgraded (showers, beds, sofas, TVs), products bigger than their slots
+  standing in door zones, the TV unit on a room separator's line, joinery built into the shower
+  tray and in front of the bed, sockets on radiators, technical points left behind by the
+  furniture, the AI designer offered what the engine refuses, about 160 products that never
+  appear, Modern balconies in laminate, doors that never follow the style, calculator picks placed
+  with no fit test, a paid AI run lost to a save from another tab, rules stated twice, and tests
+  that cannot see any of it; the root cause of each lost piece is measured, with what one change
+  recovers. Being fixed in batches, the plain bugs first (`pnpm audit:generation` measures each
+  fix; ticked items are done); which piece gives way to which waits for the owner's per-room rules
+  — [design-studio/generation-audit.md](design-studio/generation-audit.md#how-it-is-being-fixed).
 - Windows with no product render as an empty hole (the fixtures manifest lost its window role;
   re-run `pnpm models:fixtures`) — [3d-assets.md](3d-assets.md#known-gaps).
 - Brigade orders are missing from the revenue report and the CSV —

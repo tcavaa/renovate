@@ -71,7 +71,7 @@ export interface RuleViolation {
 /** A radiator's depth when its product does not say. */
 const RADIATOR_DEPTH_M = 0.1;
 /** A radiator's height when it has no product: a middling one. */
-const RADIATOR_HEIGHT_M = 0.6;
+export const RADIATOR_HEIGHT_M = 0.6;
 
 interface Strip {
   roomId: string;

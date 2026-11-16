@@ -131,7 +131,8 @@ scene ──tightSpots──▶ amber warnings (not a rule)
   (`TV_UNIT_CLEAR_M`); with no spot that does, there is no TV unit (and so no TV).
 - **A bookcase stands beside or behind the sofa** (+8 behind, +4 beside), never on the TV's wall in
   its line of sight (−20). **A wardrobe stands beside the bed** (+6 on a side wall), never facing it
-  from its foot (−20), and every bedroom has one (no area gate).
+  from its foot (−20), and every bedroom of 8 m² or more has one (the program has no gate, but the
+  archetype's 8 m² still applies — [generation-audit.md](generation-audit.md), M5).
 - **Windows by style** (`windowDressing` in `rules.ts`, `LayoutOptions.styleId`): the program's
   curtain is a roller blind (`blind`, an archetype of the curtain's slot — sized to its window,
   `quantityFor` one a window) in a Modern or Industrial flat and in every kitchen, bathroom and
@@ -173,15 +174,20 @@ deterministic, so a person who swaps one product does not have the rest of the f
   third more and whose name or tags carry one of its materials a quarter more (`guideFit`,
   `lib/design/styleGuide.ts`), a price that suits the budget level up to half again
   as likely, one much wider than its slot a seventh, one already placed in another room a third.
-  None is ever zero: every product with a model can appear in a generated flat (`pnpm
-  audit:studio-products` lists, per kind, how many there are and which rooms generate them). A
+  None is ever zero in the draw (`pnpm audit:studio-products` lists, per kind, how many there are
+  and which rooms generate them) — but what is filtered out before it never appears: the style's
+  own only for the big pieces, what a slot can hold (`slotPool`), a kind no program lays out, a
+  product too big for any slot. About 160 of the 934 furniture products did not appear in 1,080
+  generated flats ([generation-audit.md](generation-audit.md#c-products-that-can-never-appear)). A
   product that does not fit gives way to another draw (`weightedOrder`). Still one product per
   kind per room.
 - **Floors and walls** (`generatedFinish`, [finishes.md](finishes.md)): drawn from the finishes
   like the style's own for the room.
 - **The kitchen run** is made to measure in a drawn material, or about a third of the time a
   shop's unit that fits the run (only a run-shaped one: worktop-high, deeper than 45 cm, wider than
-  deep — the library files hobs and coffee machines under the same kind). **The wall cabinets**
+  deep — the library files hobs and coffee machines under the same kind) — when one qualifies:
+  none of today's 40 does, since its name must say it has a sink and a hob (`hasSinkAndHob`), so
+  every generated run is made to measure ([generation-audit.md](generation-audit.md), P1). **The wall cabinets**
   (`kitchen_wall`, in the kitchen's program after the run and the fridge) hang over it: `placeAbove` puts them on
   the run's wall, as long as the run, shortened and slid along it to keep a window or a door clear
   — and on the longest clear wall when the room has no run; made to measure in the run's
@@ -437,6 +443,9 @@ whole. `lib/design/matcher.ts` is in the coverage gate.
 
 ## Known gaps
 
+- **The generation audit of 16 Nov 2026** ([generation-audit.md](generation-audit.md)) lists what
+  the engine and the matcher leave out, where they clash and what they can never place, measured on
+  1,080 generated flats; none of it is fixed yet.
 - **Only TVs of the home electronics are placed.** The library files a few appliances under
   kinds that do not fit them — coffee machines, a built-in oven and range cookers as
   `kitchen_run` — and there is no kind for a soundbar, speakers or a microwave; a kitchen's
