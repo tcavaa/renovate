@@ -625,10 +625,12 @@ are the quickest way to be sure of any change here.
 `model3dKind` a product carries — `door`, `entrance_door` (a door on an exterior wall),
 `window`; an archway buys nothing — and `withOpeningProducts` gives every door and window
 nobody chose a product for the catalogue's best (`openingCandidates`: its own kind first, the
-style's before the rest, the cheapest within that; of the first rank, the one whose width is
-nearest the hole's — `styleOpeningProduct`, since the model is stretched to the hole and a size
-that does not match is never seen, only bought), the same product on both halves of an interior
-door. Only the flat's front door is bought as an entrance door (`frontDoor`: of the doors that
+style's before the rest, the cheapest within that), one product per kind through the flat
+(`flatOpeningProducts`): every interior door the same door and every window the same window —
+of the first rank, the one most of them can take (no glass door into a bedroom or a bathroom),
+nearest all their widths together, since the model is stretched to the hole and a size that does
+not match is never seen, only bought (a door per width hung doors of two colours in one flat) —
+the same product on both halves of an interior door. Only the flat's front door is bought as an entrance door (`frontDoor`: of the doors that
 are a way in — `isFrontDoor` in `rules.ts`, the test the entrance's sight bands use: on an outside
 wall, not a balcony's — the one in the hall, else the first); any other door on an outside wall is
 bought as a door. **Who chose it** is recorded the way a finish's `origin: 'style'` is: the opening

@@ -556,18 +556,54 @@ function hasStyleTag(product: CatalogProduct, styleId: StyleId): boolean {
   return Array.isArray(product.styleTags) && (product.styleTags as string[]).includes(styleId);
 }
 
-/**
- * The style's product for an opening laid out (`candidates`, as `openingCandidates` ranks them for
- * the rooms either side): of the first rank — the opening's own kind, the style's — the one whose
- * width is nearest the hole's, the cheapest of those that are as near. The model is stretched to
- * the hole, so a 144 cm door bought for a 90 cm one was never seen, only paid for.
- */
-export function styleOpeningProduct(opening: Pick<Opening, 'widthM'>, candidates: CatalogProduct[], styleId: StyleId): CatalogProduct | null {
+/** Of an opening's candidates (`openingCandidates`, ranked), the first rank: the opening's own kind, as the style's as the first is. */
+function styleTier(candidates: CatalogProduct[], styleId: StyleId): CatalogProduct[] {
   const first = candidates[0];
-  if (!first) return null;
-  const tier = candidates.filter((p) => p.model3dKind === first.model3dKind && hasStyleTag(p, styleId) === hasStyleTag(first, styleId));
-  const off = (p: CatalogProduct) => (p.widthCm ? Math.abs(p.widthCm / 100 - opening.widthM) : Infinity);
-  return tier.reduce((best, p) => (off(p) < off(best) ? p : best), tier[0]);
+  return first ? candidates.filter((p) => p.model3dKind === first.model3dKind && hasStyleTag(p, styleId) === hasStyleTag(first, styleId)) : [];
+}
+
+/** How far a product's width is off a hole's, metres (a product with no width: as far as can be). */
+function widthOff(product: CatalogProduct, widthM: number): number {
+  return product.widthCm ? Math.abs(product.widthCm / 100 - widthM) : Infinity;
+}
+
+/**
+ * The style's product for every door and window it lays in the flat, by opening id (both halves
+ * of an interior door): one product per kind through the flat — every interior door the same
+ * door, every window the same window, as a designer would hang them — the one most of them can
+ * take (a glass door goes into no bedroom: `openingCandidates`), of those the nearest all their
+ * widths together, the cheapest of those as near; an opening that cannot take it gets the next
+ * such product the rest share. The model is stretched to its hole, so a 144 cm door bought for a
+ * 90 cm hole was never seen, only paid for — and a door per width hung doors of two colours in
+ * one flat. `bought` is the opening as it is bought (a door on an outside wall that is not the
+ * front door is a door).
+ */
+function flatOpeningProducts(laid: Array<{ ids: string[]; bought: Opening; tier: CatalogProduct[] }>): Map<string, CatalogProduct> {
+  const out = new Map<string, CatalogProduct>();
+  const groups = new Map<string, typeof laid>();
+  for (const entry of laid) {
+    const kind = entry.tier[0]?.model3dKind;
+    if (kind) groups.set(kind, [...(groups.get(kind) ?? []), entry]);
+  }
+  for (const group of groups.values()) {
+    let left = group;
+    while (left.length > 0) {
+      const options = [...new Map(left.flatMap((e) => e.tier).map((p) => [p.id, p])).values()];
+      const takers = (p: CatalogProduct) => left.filter((e) => e.tier.some((t) => t.id === p.id));
+      const total = (p: CatalogProduct) => takers(p).reduce((sum, e) => sum + widthOff(p, e.bought.widthM), 0);
+      const best = options.reduce((a, b) => {
+        const count = takers(b).length - takers(a).length;
+        if (count !== 0) return count > 0 ? b : a;
+        const nearer = total(a) - total(b);
+        if (Math.abs(nearer) > 1e-9) return nearer > 0 ? b : a;
+        return b.pricePerUnit < a.pricePerUnit ? b : a;
+      });
+      const taking = takers(best);
+      for (const entry of taking) for (const id of entry.ids) out.set(id, best);
+      left = left.filter((e) => !taking.includes(e));
+    }
+  }
+  return out;
 }
 
 /**
@@ -618,6 +654,25 @@ export function withOpeningProducts(rooms: PlanRoom[], catalog: CatalogProduct[]
   let out = rooms;
   const done = new Set<string>();
   const front = frontDoor(rooms)?.opening.id ?? null;
+  // The flat's door and window as the style lays them, one product each through the flat, for every
+  // opening nobody chose a product for (`flatOpeningProducts`).
+  const laid: Array<{ ids: string[]; bought: Opening; tier: CatalogProduct[] }> = [];
+  const seen = new Set<string>();
+  for (const room of rooms) {
+    for (const opening of room.openings) {
+      if (seen.has(opening.id) || !openingProductKind(opening)) continue;
+      const twin = opening.connectsToRoomId ? twinOf(rooms, opening) : null;
+      seen.add(opening.id);
+      if (twin) seen.add(twin.opening.id);
+      const halves = [opening, ...(twin ? [twin.opening] : [])];
+      const bought = opening.kind === 'door' && opening.exterior && opening.id !== front ? { ...opening, exterior: false } : opening;
+      const family = openingCandidates(bought, catalog, styleId);
+      if (halves.filter(isChosenOpeningProduct).some((o) => family.some((c) => c.id === o.product!.productId))) continue;
+      const tier = styleTier(openingCandidates(bought, catalog, styleId, [room.type, ...(twin ? [twin.room.type] : [])]), styleId);
+      if (tier.length > 0) laid.push({ ids: halves.map((o) => o.id), bought, tier });
+    }
+  }
+  const styled = flatOpeningProducts(laid);
   for (const room of rooms) {
     for (const opening of room.openings) {
       if (done.has(opening.id) || !openingProductKind(opening)) continue;
@@ -633,9 +688,9 @@ export function withOpeningProducts(rooms: PlanRoom[], catalog: CatalogProduct[]
       const patch: Partial<Opening> | null = chosen
         ? { product: toSceneProduct(chosen, 1) }
         : (() => {
-            const styled = styleOpeningProduct(bought, openingCandidates(bought, catalog, styleId, halves.map((h) => out.find((r) => r.id === h.roomId)!.type)), styleId);
+            const product = styled.get(opening.id) ?? null;
             // Nothing of this family in the catalogue: whatever stands stays as it is.
-            return styled ? { product: toSceneProduct(styled, 1), styleProductId: styled.id } : null;
+            return product ? { product: toSceneProduct(product, 1), styleProductId: product.id } : null;
           })();
       if (!patch) continue;
       const wanted = patch.product!.productId;

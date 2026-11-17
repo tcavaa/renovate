@@ -282,6 +282,24 @@ describe('dragging openings between walls', () => {
       expect(wide.flatMap((r) => r.openings).find((o) => o.id === 'bed-out')?.product?.productId).toBe(12);
     });
 
+    it('hangs one door through the flat — the one nearest all its holes together — not a door per width', () => {
+      const sized = (id: number, kind: string, widthCm: number, price: number, name = `p${id}`): CatalogProduct => ({ ...product(id, kind, price, ['modern']), widthCm, nameKa: name, nameEn: name });
+      // A grey door made 70 cm wide, a graphite one 80 cm, a glass one 90 cm.
+      const shop = [sized(20, 'door', 70, 500, 'grey flush door'), sized(21, 'door', 80, 520, 'graphite flush door'), sized(22, 'door', 90, 480, 'glass door'), sized(23, 'entrance_door', 100, 2500)];
+      const inner = (id: string, room: string, wallIndex: number, widthM: number): Opening => ({ id, roomId: room, kind: 'door', wallIndex, t: 0.5, widthM, heightM: 2.1, sillM: 0, exterior: false });
+      const bath = { ...rect('bath', 0, 0, 2, 2, 'bathroom'), openings: [inner('to-bath', 'bath', 1, 0.7)] };
+      const bed = { ...rect('bed', 2, 0, 4, 3, 'bedroom'), openings: [inner('to-bed', 'bed', 3, 0.8)] };
+      const office = { ...rect('office', 6, 0, 3, 3, 'office'), openings: [inner('to-office', 'office', 3, 0.8)] };
+      const rooms = withOpeningProducts([bath, bed, office], shop, 'modern');
+      const products = new Set(rooms.flatMap((r) => r.openings).map((o) => o.product?.productId));
+      // Every door the same: 80 cm suits holes of 70, 80 and 80 cm best together; the glass one goes
+      // into no bedroom or bathroom, so it is no door for the whole flat.
+      expect([...products]).toEqual([21]);
+      // A flat whose doors are all wide takes the wide one — still one for all.
+      const wide = withOpeningProducts([{ ...office, openings: [inner('a', 'office', 3, 0.9)] }, { ...rect('liv', 9, 0, 4, 4, 'living_room'), openings: [inner('b', 'liv', 3, 0.92)] }], shop, 'modern');
+      expect(new Set(wide.flatMap((r) => r.openings).map((o) => o.product?.productId))).toEqual(new Set([22]));
+    });
+
     it('aligns the twin\'s product with the primary\'s', () => {
       const rooms = withOpeningProducts(flat(), catalog, 'modern');
       const door = rooms[0].openings.find((o) => o.connectsToRoomId === 'bed')!;

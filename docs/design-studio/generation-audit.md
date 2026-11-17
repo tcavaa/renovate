@@ -1193,8 +1193,9 @@ no table in 60 of the 416 runs of 10 m² or more; an island 0 of 96.
   door gets an entrance door — four on one plan, 18,000 ₾.
   *Fixed:* the flat has one front door (`frontDoor`, from `isFrontDoor` — now the test
   `entranceSightBands` reads too): the hall's, else the first; every other outside door, a
-  balcony's included, is bought as a door. Of the style's candidates the one nearest the hole's
-  width is taken (`styleOpeningProduct`). 120 flats: entrance doors bought 0/1/2/4 a flat in
+  balcony's included, is bought as a door. Of the style's candidates the flat takes one door and
+  one window through it, the one nearest all its holes' widths together (`flatOpeningProducts` —
+  a door per hole's width had hung doors of two colours in one flat). 120 flats: entrance doors bought 0/1/2/4 a flat in
   44/60/12/4 → 44/76/0/0 (207,350 ₾ in all, was 271,250); products more than 20 cm off their hole —
   doors 141 → 83 of 352, windows 407 → 346 of 560, outside doors 46 → 39 of 100: what is left is
   what the style has (Scandinavian's one entrance door is 144 cm, its window 90 cm), Q6's. The
