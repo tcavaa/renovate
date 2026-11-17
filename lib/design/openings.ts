@@ -15,7 +15,7 @@
  *
  * Pure functions over `PlanRoom[]`; the store wraps them.
  */
-import { doorWidthFor } from './rules';
+import { doorWidthFor, isFrontDoor } from './rules';
 import type { RoomType } from '@/lib/calculator/types';
 import { alongEdge, edgesParallel, roomEdges, pointOnEdge, wallEdges, type PlanEdge } from './planGeometry';
 import { toSceneProduct, type CatalogProduct } from './matcher';
@@ -399,10 +399,12 @@ export function alignTwins(rooms: PlanRoom[]): PlanRoom[] {
         swing: mirrorSwing(opening.swing),
         ...(opening.material ? { material: opening.material } : {}),
         ...(opening.openAngleDeg != null ? { openAngleDeg: opening.openAngleDeg } : {}),
-        ...(opening.product ? { product: opening.product } : {}),
+        // The product with whoever chose it: the style's stays the style's on both halves.
+        ...(opening.product ? { product: opening.product, styleProductId: opening.styleProductId ?? null } : {}),
       };
       const same = Object.entries(wanted).every(([k, v]) => {
         const have = (twin.opening as unknown as Record<string, unknown>)[k];
+        if (k === 'styleProductId') return (have ?? null) === (v ?? null);
         return k === 'product' ? (have as Opening['product'])?.productId === (v as Opening['product'])?.productId : have === v;
       });
       if (same) continue;
@@ -534,7 +536,7 @@ export function openingCandidates(opening: Pick<Opening, 'kind' | 'exterior'>, c
   if (!wanted) return [];
   const family = wanted === 'window' ? ['window'] : ['door', 'entrance_door'];
   const rank = (p: CatalogProduct) => (p.model3dKind === wanted ? 0 : 1);
-  const affinity = (p: CatalogProduct) => (Array.isArray(p.styleTags) && (p.styleTags as string[]).includes(styleId) ? 0 : 1);
+  const affinity = (p: CatalogProduct) => (hasStyleTag(p, styleId) ? 0 : 1);
   const all = catalog.filter((p) => !!p.model3dUrl && family.includes(p.model3dKind ?? '')).sort((a, b) => rank(a) - rank(b) || affinity(a) - affinity(b) || a.pricePerUnit - b.pricePerUnit);
   // Laying the flat out (`between` given): a front door only at the entrance, an interior door only
   // between rooms, when the catalogue has both (the rulebook, G-11); no glass door into a bedroom or a
@@ -547,6 +549,37 @@ export function openingCandidates(opening: Pick<Opening, 'kind' | 'exterior'>, c
     if (solid.length > 0) pool = solid;
   }
   return pool;
+}
+
+/** Whether a product carries the style's own tag. */
+function hasStyleTag(product: CatalogProduct, styleId: StyleId): boolean {
+  return Array.isArray(product.styleTags) && (product.styleTags as string[]).includes(styleId);
+}
+
+/**
+ * The style's product for an opening laid out (`candidates`, as `openingCandidates` ranks them for
+ * the rooms either side): of the first rank — the opening's own kind, the style's — the one whose
+ * width is nearest the hole's, the cheapest of those that are as near. The model is stretched to
+ * the hole, so a 144 cm door bought for a 90 cm one was never seen, only paid for.
+ */
+export function styleOpeningProduct(opening: Pick<Opening, 'widthM'>, candidates: CatalogProduct[], styleId: StyleId): CatalogProduct | null {
+  const first = candidates[0];
+  if (!first) return null;
+  const tier = candidates.filter((p) => p.model3dKind === first.model3dKind && hasStyleTag(p, styleId) === hasStyleTag(first, styleId));
+  const off = (p: CatalogProduct) => (p.widthCm ? Math.abs(p.widthCm / 100 - opening.widthM) : Infinity);
+  return tier.reduce((best, p) => (off(p) < off(best) ? p : best), tier[0]);
+}
+
+/**
+ * The flat's front door — the one door bought as an entrance door. Of the doors that are a way
+ * into the flat (`isFrontDoor`: on an outside wall, not a balcony's), the one in the hall the door
+ * mat and the hall's wardrobe go in (a hall with one, the largest), else the first. Every other
+ * door on an outside wall — onto a balcony that is not drawn, a hole a plan read as a door — is a
+ * door. Null when the flat has none.
+ */
+export function frontDoor(rooms: PlanRoom[]): { room: PlanRoom; opening: Opening } | null {
+  const doors = rooms.flatMap((room) => room.openings.filter((o) => !o.reachesIn && isFrontDoor(room, o)).map((opening) => ({ room, opening })));
+  return doors.filter((d) => d.room.type === 'hallway').sort((a, b) => b.room.areaM2 - a.room.areaM2)[0] ?? doors[0] ?? null;
 }
 
 /** Rooms no glass door opens into. */
@@ -566,45 +599,66 @@ export function withOpeningProduct(opening: Opening, product: CatalogProduct | n
   return { ...opening, product: toSceneProduct(product, 1) };
 }
 
+/** Whether somebody chose the product on this opening: it has one, and it is not the one the style laid there (`Opening.styleProductId`). */
+export function isChosenOpeningProduct(opening: Pick<Opening, 'product' | 'styleProductId'>): boolean {
+  return !!opening.product && opening.product.productId !== opening.styleProductId;
+}
+
 /**
- * Gives every door and window without a product the best one the catalogue has, keeps a
- * chosen product that is still of the right family, and replaces one that is not (a door
- * that became a window). The two halves of an interior door end up with the same product.
- * Returns the same array when nothing changes.
+ * Gives every door and window the style's product where nobody chose one — without a product, or
+ * with the one a style laid there (`styleProductId`), so a generation or a load in another style
+ * lays that style's — and keeps a product somebody chose (in the studio, in the calculation, or
+ * on a plan saved before the mark) while it is still of the opening's family; one that is not (a
+ * door that became a window, a product gone from the catalogue) gives way to the style's. The two
+ * halves of an interior door end up with the same product, the chosen one where either half has
+ * it. Returns the same array when nothing changes.
  */
 export function withOpeningProducts(rooms: PlanRoom[], catalog: CatalogProduct[], styleId: StyleId): PlanRoom[] {
   if (catalog.length === 0) return rooms;
   let out = rooms;
   const done = new Set<string>();
+  const front = frontDoor(rooms)?.opening.id ?? null;
   for (const room of rooms) {
     for (const opening of room.openings) {
       if (done.has(opening.id) || !openingProductKind(opening)) continue;
       const twin = opening.connectsToRoomId ? twinOf(out, opening) : null;
-      const candidates = openingCandidates(opening, catalog, styleId, [room.type, ...(twin ? [twin.room.type] : [])]);
-      const current = opening.product ? candidates.find((c) => c.id === opening.product?.productId) : undefined;
-      const chosen = current ?? candidates[0] ?? null;
       done.add(opening.id);
       if (twin) done.add(twin.opening.id);
-      // Nothing of this family in the catalogue: whatever is chosen stays as it is.
-      if (!chosen) continue;
-      if (current && (!twin || twin.opening.product?.productId === chosen.id)) continue;
-      const product = toSceneProduct(chosen, 1);
-      out = replaceIn(out, room.id, (r) => patchOpening(r, opening.id, { product }));
-      if (twin) out = replaceIn(out, twin.room.id, (r) => patchOpening(r, twin.opening.id, { product }));
+      const halves = [{ roomId: room.id, opening }, ...(twin ? [{ roomId: twin.room.id, opening: twin.opening }] : [])];
+      // The flat has one front door: any other door on an outside wall is bought as a door.
+      const bought = opening.kind === 'door' && opening.exterior && opening.id !== front ? { ...opening, exterior: false } : opening;
+      // Somebody's choice, on either half, still of the family the person's swap list offers.
+      const family = openingCandidates(bought, catalog, styleId);
+      const chosen = halves.map((h) => h.opening).filter(isChosenOpeningProduct).map((o) => family.find((c) => c.id === o.product!.productId)).find((p) => !!p);
+      const patch: Partial<Opening> | null = chosen
+        ? { product: toSceneProduct(chosen, 1) }
+        : (() => {
+            const styled = styleOpeningProduct(bought, openingCandidates(bought, catalog, styleId, halves.map((h) => out.find((r) => r.id === h.roomId)!.type)), styleId);
+            // Nothing of this family in the catalogue: whatever stands stays as it is.
+            return styled ? { product: toSceneProduct(styled, 1), styleProductId: styled.id } : null;
+          })();
+      if (!patch) continue;
+      const wanted = patch.product!.productId;
+      for (const half of halves) {
+        const o = half.opening;
+        if (o.product?.productId === wanted && (chosen ? true : o.styleProductId === wanted)) continue;
+        // A chosen product copied onto the other half keeps that half's mark: it is a choice there too.
+        out = replaceIn(out, half.roomId, (r) => patchOpening(r, o.id, patch));
+      }
     }
   }
   return out;
 }
 
-/** Sets one opening's product (or none) on it and on its twin. */
+/** Sets one opening's product (or none) on it and on its twin: the person's choice, which a change of style keeps. */
 export function setOpeningProduct(rooms: PlanRoom[], roomId: string, openingId: string, product: CatalogProduct | null): PlanRoom[] {
   const room = rooms.find((r) => r.id === roomId);
   const opening = room?.openings.find((o) => o.id === openingId);
   if (!room || !opening) return rooms;
-  const value = product ? toSceneProduct(product, 1) : null;
-  let next = replaceIn(rooms, roomId, (r) => patchOpening(r, openingId, { product: value }));
+  const value = { product: product ? toSceneProduct(product, 1) : null, styleProductId: null };
+  let next = replaceIn(rooms, roomId, (r) => patchOpening(r, openingId, value));
   const twin = twinOf(rooms, opening);
-  if (twin) next = replaceIn(next, twin.room.id, (r) => patchOpening(r, twin.opening.id, { product: value }));
+  if (twin) next = replaceIn(next, twin.room.id, (r) => patchOpening(r, twin.opening.id, value));
   return next;
 }
 
@@ -631,8 +685,9 @@ export interface AddOpeningOptions {
   swing?: Opening['swing'];
   material?: Opening['material'];
   openAngleDeg?: number;
-  /** The product a moved opening brings along. */
+  /** The product a moved opening brings along, and the style's mark on it (`Opening.styleProductId`). */
   product?: Opening['product'];
+  styleProductId?: Opening['styleProductId'];
 }
 
 /** How far past a wall a neighbour's copy of it is looked for. */
@@ -750,7 +805,7 @@ export function addOpening(rooms: PlanRoom[], roomId: string, kind: OpeningKind,
     ...(kind === 'door' ? { hinge: options.hinge ?? 'left', swing: options.swing ?? 'in' } : {}),
     ...(options.material ? { material: options.material } : {}),
     ...(options.openAngleDeg != null ? { openAngleDeg: options.openAngleDeg } : {}),
-    ...(options.product ? { product: options.product } : {}),
+    ...(options.product ? { product: options.product, ...(options.styleProductId != null ? { styleProductId: options.styleProductId } : {}) } : {}),
   };
   const centre = t * chosen.length;
   const covered = (o: Opening) => kind === 'railing' && o.wallIndex === chosen.index && (o.kind === 'window' || o.kind === 'archway') && Math.abs(o.t * chosen.length - centre) < (o.widthM + width) / 2 - 1e-6;
@@ -883,6 +938,7 @@ export function moveOpeningToWall(rooms: PlanRoom[], roomId: string, openingId: 
     material: opening.material,
     openAngleDeg: opening.openAngleDeg,
     product: opening.product,
+    styleProductId: opening.styleProductId,
   });
   if (!added.openingId) return { rooms, openingId: null };
   return added;

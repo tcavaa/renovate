@@ -71,6 +71,13 @@ export interface Opening {
    * two halves of an interior door carry the same product.
    */
   product?: SceneProduct | null;
+  /**
+   * The product the style laid on this door or window (`withOpeningProducts`): while `product` is
+   * still that one, nobody chose it, and a generation or a load in another style lays that style's
+   * instead. Any other product — chosen in the studio (`setOpeningProduct`), by the calculation, or
+   * from a plan saved before the mark — is somebody's choice and stays.
+   */
+  styleProductId?: number | null;
   origin?: ElementOrigin;
   locked?: boolean;
   /**

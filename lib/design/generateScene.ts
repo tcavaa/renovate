@@ -108,7 +108,7 @@ export function generateScene(input: GenerateSceneInput): GeneratedScene {
   // replace the style's own draw.
   let finishes = withFlatFinish(withProposalFinishes(keepChosen(defaultFinishes(plan, styleId, catalog, rng), input.finishes), plan, proposal, styleId, catalog), plan.rooms, catalog);
   if (calculatorPicks) {
-    items = withoutOrphans(items, placeableOnly(applyFurniturePicks(items, plan, calculatorPicks, catalog)), plan.rooms);
+    items = withoutOrphans(items, placeableOnly(applyFurniturePicks(items, plan, calculatorPicks, catalog, obstacles)), plan.rooms);
     finishes = applyFinishPicks(finishes, plan, calculatorPicks, catalog);
   }
   // The wiring follows the furniture; a room the person wired by hand — on this board or on the
@@ -189,12 +189,16 @@ export function defaultFinishes(plan: FloorPlan | null, styleId: StyleId, catalo
  * Defaults, except where a room already has a finish somebody chose; single walls and zones
  * ride along. The style's own product is kept too, unless the defaults could look the style
  * up again — a new layout, with the catalogue to hand, lays the style's product for each room
- * as it is now; an edit to the plan has no catalogue, and keeps what the style had laid.
+ * as it is now; an edit to the plan has no catalogue, and keeps what the style had laid. A
+ * floor two products share (the calculation's split, `SurfaceFinish.share`) is kept whole —
+ * every part of it, not only the first.
  */
 export function keepChosen(defaults: SurfaceFinish[], current: SurfaceFinish[]): SurfaceFinish[] {
-  const base = defaults.map((d) => {
-    const kept = current.find((c) => c.roomId === d.roomId && c.surface === d.surface && isBaseFinish(c) && c.product);
-    return !kept || (isStyleFinish(kept) && d.product) ? d : kept;
+  const base = defaults.flatMap((d) => {
+    const kept = current.filter((c) => c.roomId === d.roomId && c.surface === d.surface && isBaseFinish(c) && c.product);
+    const chosen = kept.filter((c) => !isStyleFinish(c));
+    if (chosen.length > 0) return chosen;
+    return kept.length === 0 || d.product ? [d] : kept.slice(0, 1);
   });
   const extras = current.filter((c) => !isBaseFinish(c) && defaults.some((d) => d.roomId === c.roomId));
   return [...base, ...extras];

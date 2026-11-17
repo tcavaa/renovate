@@ -12,6 +12,7 @@
  */
 
 import type { RoomType } from '@/lib/calculator/types';
+import { usualFinishCategory } from '@/lib/calculator/roomFinishes';
 import type { CatalogProduct } from './matcher';
 import { toSceneProduct } from './matcher';
 import { getStyle, styleAffinity } from './styles';
@@ -25,7 +26,7 @@ export type Surface = 'floor' | 'wall';
 
 export interface SurfaceSpecs {
   surfaces?: Surface[];
-  /** Made for bathrooms — tiles. Preferred there, listed last elsewhere. */
+  /** Made for bathrooms — tiles: the only finishes a wet room takes; preferred there, listed last elsewhere (and laid elsewhere too). */
   wet?: boolean;
   /** Metres of real surface one texture tile covers. */
   textureScaleM?: number;
@@ -156,18 +157,44 @@ function sameTexture(a: string | null | undefined, b: string | null | undefined)
  * this surface of this room (`roomLook` — tiles in a bathroom, the bedroom's paint, the
  * kitchen's tiles), so what the studio shows is what the budget buys. A catalogue without that
  * one gives the style's own floor or wall for any room (a database the room paints have not
- * reached yet), then the room's best finish of the same kind — a wet one in a bathroom, a dry
- * one anywhere else (`surfaceOptions`); one without any leaves the look to stand unpriced (null).
+ * reached yet), then the room's best finish (`surfaceOptions`) — but a floor the app tiles
+ * (`hasTiledFloor`: a bathroom, a balcony, a closed kitchen) falls back only to the best floor
+ * tile, never to the living room's laminate. Only what may be laid in the room is looked at
+ * (`mayLay`: nothing but what is made for a wet room in a bathroom); a catalogue without any
+ * leaves the look to stand unpriced (null).
  */
 export function styleFinishProduct(catalog: CatalogProduct[], room: PlanRoom, surface: Surface, styleId: StyleId): CatalogProduct | null {
-  const options = surfaceOptions(catalog, surface, room, styleId);
+  const options = surfaceOptions(catalog, surface, room, styleId).filter((p) => mayLay(p, room));
   const style = getStyle(styleId);
-  for (const look of [roomLook(style, room.type, surface), roomLook(style, room.type, surface, true)]) {
+  // A tiled floor never falls back to the style's general floor — the living room's laminate.
+  const tiled = surface === 'floor' && hasTiledFloor(room);
+  const looks = tiled ? [roomLook(style, room.type, surface)] : [roomLook(style, room.type, surface), roomLook(style, room.type, surface, true)];
+  for (const look of looks) {
     const own = look.textureUrl ? options.find((p) => sameTexture(p.textureUrl, look.textureUrl)) : undefined;
     if (own) return own;
   }
-  const wet = isWetRoom(room.type);
-  return options.find((p) => !!surfaceSpecs(p).wet === wet) ?? null;
+  if (tiled) {
+    const tiles = usualFinishCategory(room.type, 'floor');
+    return options.find((p) => p.categorySlug === tiles) ?? null;
+  }
+  return options[0] ?? null;
+}
+
+/**
+ * Whether a finish may be laid in this room at all: a wet room (a bathroom, a toilet) takes only
+ * what is made for one; any other room takes anything — "wet" says a tile may go in a bathroom,
+ * not that it may go nowhere else (a terracotta balcony, a terrazzo kitchen).
+ */
+export function mayLay(product: CatalogProduct, room: Pick<PlanRoom, 'type'>): boolean {
+  return !isWetRoom(room.type) || !!surfaceSpecs(product).wet;
+}
+
+/**
+ * A room whose floor the app tiles: a bathroom, a toilet, a balcony and a closed kitchen — every
+ * room that does not share the flat's one floor (`sharesFlatFinish`).
+ */
+export function hasTiledFloor(room: Pick<PlanRoom, 'type' | 'open' | 'openings'>): boolean {
+  return !sharesFlatFinish(room);
 }
 
 /**
@@ -192,7 +219,8 @@ export function styleFinish(room: PlanRoom, surface: 'floor' | 'wall' | 'ceiling
 /**
  * A generated design's finish for a surface of a room, drawn rather than fixed: another of the
  * finishes like the style's own for the room — the same category (a paint for a painted wall, a
- * laminate for a laminate floor, a tile for a tiled kitchen), as wet or dry as the room — the
+ * laminate for a laminate floor, a tile for a tiled kitchen), and in a wet room only what is made
+ * for one (`mayLay`; a terracotta flagged wet still goes on the balcony the style names it for) — the
  * style's own three times as likely, then the style's tagged ones, any other least. Still
  * `origin: 'style'`: nobody chose it, so a change of style or a fresh generation replaces it, and
  * `withStyleFinishes` keeps it while it suits the room. Without an `rng`, or with nothing like
@@ -203,8 +231,7 @@ export function generatedFinish(room: PlanRoom, surface: 'floor' | 'wall' | 'cei
   if (!rng || surface === 'ceiling') return styled;
   const own = styleFinishProduct(catalog, room, surface, styleId);
   if (!own) return styled;
-  const wet = isWetRoom(room.type);
-  const pool = surfaceOptions(catalog, surface, room, styleId).filter((p) => p.categorySlug === own.categorySlug && !!surfaceSpecs(p).wet === wet);
+  const pool = surfaceOptions(catalog, surface, room, styleId).filter((p) => p.categorySlug === own.categorySlug && mayLay(p, room));
   const weight = (p: CatalogProduct) => (p.id === own.id ? 30 : [1, 4, 10][styleAffinity(styleId, p.styleTags, p.tags)] ?? 1);
   const product = weightedPick(pool, weight, rng);
   if (!product || product.id === own.id) return styled;
@@ -265,9 +292,9 @@ export function withFlatFinish(finishes: SurfaceFinish[], rooms: PlanRoom[], cat
   return next;
 }
 
-/** Whether a finish product suits this surface of this room as the style would lay it: the surface's, and wet in a bathroom, dry elsewhere. */
+/** Whether a finish product suits this surface of this room as the style would lay it: the surface's, and made for a wet room in a bathroom (`mayLay`). */
 function suitsRoom(product: CatalogProduct | undefined, room: PlanRoom, surface: Surface): boolean {
-  return !!product && isSurfaceProduct(product, surface) && !!surfaceSpecs(product).wet === isWetRoom(room.type);
+  return !!product && isSurfaceProduct(product, surface) && mayLay(product, room);
 }
 
 /** A whole-room finish the style laid rather than a person: marked so, or from before finishes had an origin and bare. */

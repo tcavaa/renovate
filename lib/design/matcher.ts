@@ -527,7 +527,7 @@ function workingFloor(run: Pick<PlacedItem, 'position' | 'rotation' | 'size'>): 
  * is not the kitchen's own furniture, the working floor in front of a kitchen run. With null, the
  * room, the windows and the other pieces alone.
  */
-function placeFitting(
+export function placeFitting(
   item: PlacedItem,
   preferred: CatalogProduct,
   ranked: CatalogProduct[],
@@ -1051,7 +1051,7 @@ export function quantityFor(item: PlacedItem): number {
   return 1;
 }
 
-function sizeFromProduct(product: CatalogProduct, item: PlacedItem): PlacedItem['size'] {
+export function sizeFromProduct(product: CatalogProduct, item: PlacedItem): PlacedItem['size'] {
   // Rugs and curtains are sized to the room by the layout engine, not by the SKU, and so is a
   // kitchen made to measure (its product a kitchen maker's material). A shop's kitchen unit is its own size.
   if (item.slot === 'rug' || item.slot === 'curtain' || ((item.slot === 'kitchen_run' || item.slot === 'kitchen_wall' || item.slot === 'kitchen_island') && isKitchenMaterial(product))) {

@@ -62,6 +62,8 @@ const openingSchema = z.object({
   swing: z.enum(['in', 'out']).optional(),
   openAngleDeg: z.number().min(0).max(180).optional(),
   product: sceneProductSchema.nullable().optional(),
+  // The product the style laid on it (`Opening.styleProductId`); without it here a save strips it.
+  styleProductId: z.number().int().positive().nullable().optional(),
   origin: elementOriginSchema.optional(),
   locked: z.boolean().optional(),
 });

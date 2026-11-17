@@ -590,8 +590,27 @@ simply resumes it, carrying no picks. The handoff:
 - The handoff marks the design dirty, so it is written at once. A calculation with no rooms or
   home state yet has nothing to carry: the entry sends it back to the calculator.
 - On `generate`, `applyFurniturePicks` puts each furniture pick into its room's slot of the same
-  kind (placing an extra item when there is no such slot), and fixtures picked in the catalogue
-  (a toilet, a pendant) take every slot of their kind; `applyFinishPicks` lays each room's floor
+  kind the way the matcher gives a slot a product (`placeFitting`): where the real product belongs
+  (its back on the slot's wall, a nightstand beside the real bed), inside the room, clear of the
+  other pieces, the windows, a door's way and the floor the layout kept clear (the radiators'
+  strips, the columns); what the engine placed off the piece (the nightstands, the coffee table) is
+  measured again off it, and what hangs over it is hung again for it (`placement.above`: the TV onto
+  a picked TV unit's top, `rehung`). When the slot cannot take it, or the room has no such slot, a
+  free spot is looked for with the product's own size (`placeAdditional`). Slot and spot are tried
+  keeping a door's way and that floor clear first, and only then by the room and the pieces alone —
+  the matcher's careful pass before its careless one. A shop's kitchen unit picked for the run is a
+  unit at its own size, its back on the run's wall, tested like any floor piece (the matcher leaves
+  a run out of the test because the layout sizes one made to measure to fit; `fitPick` tests the
+  unit as the fridge beside it is tested), and the wall cabinets over the run it took come down, as
+  the matcher hangs none over a shop's unit (`cabinetsOver`); a kitchen maker's material makes the
+  run made to measure in it (`asPlacedKitchen`, as the matcher and the studio's swap do). A pick
+  sold by the piece is placed as many times as it was picked (four chairs, four chairs;
+  `picksFromCalculator`). A pick is never swapped for another product: one that fits nowhere goes
+  where it always did — into its slot at its size (a shop's kitchen unit into the run at the run's
+  size, the run left made to measure), or a spot found for the kind's typical size, or, with none,
+  it is left to the summary. Fixtures picked in the catalogue
+  (a toilet, a pendant) take every slot of their kind, each stood in its slot the same way (in the
+  slot at its size where it does not fit there); `applyFinishPicks` lays each room's floor
   and walls on their surface — walls chosen one by one on those walls, a floor two products
   share in both by their shares — the mouldings round every room, and a whole-flat finish (from
   before) by wetness. The wiring keeps the calculation's rooms wired by hand whole and wires the
@@ -622,7 +641,9 @@ to save gets the conflict banner.
   per-room picks, quantities, groups, the migration of old picks, the board's finishes, a copy
   of another version discarded, re-counting on room changes.
 - **Handoff** (`tests/unit/design/fromCalculator.test.ts`): a room's finish lands on its surface
-  only.
+  only; a split floor survives a new layout; a furniture pick stands in its slot at its real size,
+  moves to a free spot when its slot cannot take it, and is kept where it fits nowhere; a shop's
+  kitchen unit, the TV on a picked unit, a pick's quantity.
 - **Rows** (`tests/unit/projects/saved.test.ts`): `projectKind`, `calculatorProgress` (seven-step
   progress), `picksFromScene`; `tests/unit/projects/checkoutParts.test.ts` for the checkout's
   summary of each half.
@@ -700,3 +721,15 @@ Each of these was a real bug found in review or by hand; don't undo the fix.
   areas counted unlike the studio's) are in [calculator.md](calculator.md#known-gaps).
 - The design's version 01 and "empty the rooms" are the only ways back inside a project; there is
   no project-level undo across sessions beyond the versions.
+- **What a calculator pick leaves behind when it moves.** A pick that fits only at a free spot away
+  from its slot leaves what belonged to the slot where it was: what hangs over it (the TV, a print),
+  a rug laid under it (`placement.type: 'under'` — only `relative` pieces are measured again), a
+  nightstand that does not fit beside the moved bed, and the joinery built for the piece it replaced
+  (a basin's vanity, a WC's box: picks are put in after `fitBathrooms` / `fitHall` /
+  `fitWardrobes`). A shop's kitchen unit that fits nowhere (1,580 of 2,800 picked into the fixture
+  plans' runs, nearly all wider than their run) stays in the run at the run's size, made to measure,
+  as before.
+- **Picks applied in the studio keep less floor clear.** The store's `applyPendingPicks` calls
+  `applyFurniturePicks` without the obstacles `generateScene` passes, so a pick put in there keeps a
+  door's way and a kitchen run's working floor clear but not a radiator's strip, a column or a
+  partition's floor.

@@ -333,9 +333,12 @@ How stage 5 built it — **the whole flat**:
   large ceiling light in the middle and gets four spots round it at the room's quarters
   (`ringSpots`, category secondary).
 - **Doors** (G-11, G-12, BA-25): laid out, an interior door takes an interior door product and the
-  front door an entrance door when the catalogue has both; a door into a bedroom, a bathroom or a
-  toilet is never a glass one (`isGlassDoor`) — `openingCandidates` takes the rooms on either side;
-  the person's swap list still offers every door.
+  front door an entrance door when the catalogue has both — the flat's one front door (`frontDoor`:
+  of the ways in, `isFrontDoor`, the hall's, else the first); any other door on an outside wall,
+  a balcony's included, is a door; a door into a bedroom, a bathroom or a toilet is never a glass
+  one (`isGlassDoor`) — `openingCandidates` takes the rooms on either side; of the style's doors
+  (and windows) the one nearest the hole's width (`styleOpeningProduct`); the person's swap list
+  still offers every door.
 - **Panels** (G-23): a wall panel the designer asks for takes its whole clear stretch of the wall
   (`WHOLE_WALL`, its width asked ignored); it stays resizable by hand.
 - **Sockets and switches on decor** (the owner, 6 Nov 2026): a fitting on a wall covered by decor —

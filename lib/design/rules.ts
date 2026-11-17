@@ -405,17 +405,21 @@ export function roomSightBands(room: PlanRoom): SightBand[] {
   return room.openings.filter(isPassage).flatMap((o) => doorSightBand(room, o) ?? []);
 }
 
+/** A way into the flat: a door on an outside wall of a room that is not a balcony (a balcony's door out is the balcony's). */
+export function isFrontDoor(room: Pick<PlanRoom, 'type'>, opening: Pick<Opening, 'kind' | 'exterior'>): boolean {
+  return room.type !== 'balcony' && opening.kind === 'door' && opening.exterior;
+}
+
 /**
- * What one sees coming in through the flat's front door (a door on an outside wall that is not
- * onto a balcony): the band in the room it opens into and, when that band ends at a doorway
- * straight ahead, the band carried on through it into the next room.
+ * What one sees coming in through the flat's front door (`isFrontDoor`): the band in the room it
+ * opens into and, when that band ends at a doorway straight ahead, the band carried on through it
+ * into the next room.
  */
 export function entranceSightBands(rooms: PlanRoom[]): SightBand[] {
   const out: SightBand[] = [];
   for (const room of rooms) {
-    if (room.type === 'balcony') continue;
     for (const door of room.openings) {
-      if (door.kind !== 'door' || !door.exterior) continue;
+      if (!isFrontDoor(room, door)) continue;
       const band = doorSightBand(room, door);
       if (!band) continue;
       out.push(band);

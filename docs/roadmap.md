@@ -34,6 +34,12 @@ at runtime yet; the last one was seen on the sample plan.
   hover card's phone line never renders — [design-studio/studio.md](design-studio/studio.md#known-gaps).
 - Floor zones can no longer be created from the UI — [design-studio/finishes.md](design-studio/finishes.md#known-gaps).
 - The calculator's summary lines have no product link (`slug: ''`) — [budget.md](budget.md#known-gaps).
+- The calculation's sheet charges tiling for a kitchen or balcony floor picked in laminate (the
+  design's budget lays it as laminate) — [budget.md](budget.md#known-gaps).
+- A calculation's entrance-door pick goes on every outside door, and a design made from it buys one
+  for each — [technical-and-fittings.md](design-studio/technical-and-fittings.md#known-gaps).
+- A calculator pick that moves to a free spot leaves its rug, TV and joinery at its old slot; picks
+  applied in the studio keep no radiator strip clear — [project-flow.md](project-flow.md#18-known-gaps).
 - Inferred doors can leave a flat with no front door (windows are placed first; the sample
   plan has none) — [design-studio/plan-reading.md](design-studio/plan-reading.md#known-gaps).
 - The admin is cut off on a phone: its sidebar keeps 240 px at every width —

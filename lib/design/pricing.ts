@@ -29,7 +29,7 @@ import type { HomeState, MaterialItem, Room, SelectedProduct, WorkChoices, Worke
 import { CONTINGENCY_PCT } from '@/lib/calculator/constants';
 import { finishPickQuantity } from '@/lib/calculator/quantities';
 import { isLampOutlet } from './electrical';
-import { countDoors } from './openings';
+import { countDoors, frontDoor } from './openings';
 import { partitionArea } from './partitions';
 import { planToCalculatorRooms } from './planGeometry';
 import { effectivePhases } from './technical';
@@ -40,7 +40,7 @@ import { radiatorSections } from './radiators';
 import { isEquipmentKind, pointProductKind, type EquipmentProductKind } from './equipment';
 import { kitchenMaterialOf, measureKitchens } from './kitchen';
 import { namesWithVariant } from './variants';
-import { finishCoverage, type FinishCoverage } from './zones';
+import { finishCoverage, isBaseFinish, type FinishCoverage } from './zones';
 import { visibleFinishes } from './finishQuantity';
 import { decorPurchases } from './decor/quantities';
 import { tickFor, tickedOff, validQuantity, type Quantities } from './ticks';
@@ -93,6 +93,33 @@ export interface PriceOptions {
    * has none drawn (`lib/calculator/boardCounts`). The design passes none.
    */
   counts?: Partial<EstimateCounts> | null;
+  /**
+   * The calculation's own sheet (`calculationCost`): the floor's laying labour by the rooms' types,
+   * as the calculator's engine always prices it. Unset — a design's budget — it follows what the
+   * design lays (`tiledShares`): a kitchen floored in laminate is laid as laminate.
+   */
+  floorLabourByRoomType?: boolean;
+}
+
+/** The categories laid as tiles (a wall tile laid on a floor too): tiling labour, not laying. */
+const TILE_CATEGORIES: ReadonlySet<string> = new Set(['floor-tiles', 'wall-tiles']);
+
+/**
+ * Of each room's floor, the part the design lays in tiles, read off its whole-floor products (a
+ * floor two products share by their shares); a room whose floor has no product is left out — laid
+ * by its type (`EstimateOptions.tiledShare`).
+ */
+function tiledShares(finishes: SurfaceFinish[]): Record<string, number> {
+  const parts = new Map<string, { tiled: number; all: number }>();
+  for (const finish of finishes) {
+    if (finish.surface !== 'floor' || !finish.product || !isBaseFinish(finish)) continue;
+    const part = Math.max(0, finish.share ?? 1);
+    const entry = parts.get(finish.roomId) ?? { tiled: 0, all: 0 };
+    entry.all += part;
+    if (TILE_CATEGORIES.has(finish.product.categorySlug ?? '')) entry.tiled += part;
+    parts.set(finish.roomId, entry);
+  }
+  return Object.fromEntries([...parts].filter(([, e]) => e.all > 0).map(([roomId, e]) => [roomId, e.tiled / e.all]));
 }
 
 export type SurfaceLabels = Record<'floor' | 'wall' | 'ceiling' | 'skirting' | 'cornice', string>;
@@ -414,7 +441,7 @@ export function priceScene(
   const outlets = new Set((scene.electrical ?? []).filter((p) => isLampOutlet(p, scene.items)).map((p) => p.id));
   const technical = technicalWork(plan, scene.electrical ?? [], full, phases, options.book, roomName, locale, have, productLabels, outlets);
   if (full && phases.length > 0) {
-    const { materials, workerCosts } = engineEstimate(plan, homeState, phases, technical.counts, options);
+    const { materials, workerCosts } = engineEstimate(plan, homeState, phases, technical.counts, options, options.floorLabourByRoomType ? null : tiledShares(scene.finishes));
     for (const m of materials) {
       raw.push({ section: 'materials', bucket: 'materials', key: m.key, tick: tickFor.material(m.key), name: m.labelKa, qty: m.qty, unit: m.unit, unitPrice: m.estimatedPriceGEL ?? 0, total: round2(m.qty * (m.estimatedPriceGEL ?? 0)), estimated: true });
     }
@@ -556,6 +583,10 @@ export function priceOpenings(plan: FloorPlan, full: boolean, phases: number[], 
   const seen = new Set<string>();
   const lines: BudgetLine[] = [];
   const byProduct = new Map<number, { product: SceneProduct; label: ProductLabelKey; qty: number; total: number; rooms: Set<string> }>();
+  // The flat has one front door (`frontDoor`, as `withOpeningProducts` buys it): a line is the
+  // entrance door when it holds that one, whichever of its doors comes first; any other door on an
+  // outside wall is a door.
+  const front = frontDoor(plan.rooms)?.opening.id ?? null;
   for (const room of plan.rooms) {
     // The two halves of an interior door are listed in the same order on both sides of the
     // wall, so the n-th door between rooms A and B is one door however its halves sit.
@@ -573,8 +604,9 @@ export function priceOpenings(plan: FloorPlan, full: boolean, phases: number[], 
       // A balcony's railing is not sold and not fitted: it stands in the price nowhere.
       if (opening.kind === 'railing') continue;
       if (opening.product && opening.kind !== 'archway') {
-        const label: ProductLabelKey = opening.kind === 'window' ? 'window' : opening.exterior ? 'entrance_door' : 'door';
+        const label: ProductLabelKey = opening.kind === 'window' ? 'window' : opening.id === front ? 'entrance_door' : 'door';
         const bought = byProduct.get(opening.product.productId) ?? { product: opening.product, label, qty: 0, total: 0, rooms: new Set<string>() };
+        if (label === 'entrance_door') bought.label = label;
         bought.qty += 1;
         bought.total = round2(bought.total + opening.product.pricePerUnit);
         bought.rooms.add(room.id);
@@ -799,12 +831,13 @@ export function renovationEstimate(plan: FloorPlan, electrical: ElectricalPoint[
   return { phases, ...engineEstimate(plan, homeState, phases, counts, options) };
 }
 
-function engineEstimate(plan: FloorPlan, homeState: HomeState, phases: number[], pointCounts: Pick<EstimateCounts, 'electricPoints' | 'plumbingPoints' | 'radiators'>, options: Pick<PriceOptions, 'book' | 'choices' | 'counts'>): { materials: MaterialItem[]; workerCosts: WorkerCost[] } {
+function engineEstimate(plan: FloorPlan, homeState: HomeState, phases: number[], pointCounts: Pick<EstimateCounts, 'electricPoints' | 'plumbingPoints' | 'radiators'>, options: Pick<PriceOptions, 'book' | 'choices' | 'counts'>, tiledShare: Record<string, number> | null = null): { materials: MaterialItem[]; workerCosts: WorkerCost[] } {
   const rooms: Room[] = planToCalculatorRooms(plan);
   const estimate: EstimateOptions = {
     phases,
     choices: options.choices ?? plan.technical?.choices ?? null,
     counts: { ...pointCounts, doors: countDoors(plan), ...partitionArea(plan), ...options.counts },
+    tiledShare,
   };
   return { materials: calculateMaterials(rooms, homeState, options.book, estimate), workerCosts: calculateWorkerCosts(rooms, homeState, options.book, estimate) };
 }

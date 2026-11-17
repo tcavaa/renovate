@@ -188,6 +188,15 @@ come from the plan (`planToCalculatorRooms`), their walls measured without the e
 separator (`wallPerimeterM`), and the partition walls a black frame builds are measured off the
 plan's walls, less the ones marked already built and never a room separator (`partitionArea`,
 [design-studio/plan-board.md](design-studio/plan-board.md#the-partition-walls-a-black-frame-builds-libdesignpartitionsts)).
+**A design's floor is laid as the design lays it**: the engine's tiling (phase 10) and laying
+(phase 11) labour follow each room's whole-floor products (`tiledShares` → `EstimateOptions.tiledShare`:
+a floor tile or a wall tile laid on the floor is tiled, anything else laid; a floor two products
+share by their shares; a room whose floor has no product by its type), so an open kitchen in the
+flat's laminate is laid as laminate. The calculation's own sheet (`calculationCost`,
+`PriceOptions.floorLabourByRoomType`) and the materials step (`renovationEstimate`) price the
+floor by the rooms' types as the calculator always has (`TILED_FLOOR_ROOM_TYPES`), to the tetri;
+so a calculation whose kitchen floor was picked in laminate charges tiling there, and the design
+made from it laying (see Known gaps). The demolition of what was there is by type in both.
 
 **A renovation's contingency is 15 % of its works** (`contingencyTotal`, `CONTINGENCY_PCT`):
 of the lines in the `materials` and `labour` sections still ticked, in `full` mode only — never
@@ -379,6 +388,12 @@ machine no bathroom had room for (`kitchenCornerFloor`,
 [design-studio/layout-and-matching.md](design-studio/layout-and-matching.md)).
 
 ## Known gaps
+
+- **The calculation's floor labour is by room type**: a kitchen or balcony floor picked in
+  laminate on the calculator's catalogue step is still charged tiling labour on its sheet
+  (`TILED_FLOOR_ROOM_TYPES`), while the design made from it charges laying — the two sheets part
+  by that line. Making the calculator's sheet follow its picks too is one option away
+  (`floorLabourByRoomType` off in `calculationCost`), but changes the calculator's estimate.
 
 - A summary's edits are ticks and quantities on the lines the sheet works out; a line cannot
   be *added* there, a price cannot be changed, and a folded line (a finish over every room it

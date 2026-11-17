@@ -3,9 +3,12 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { refreshRoom } from '@/lib/design/planGeometry';
 import { PAINT_COLORS, STYLE_IDS, getStyle, paintLook, type PaintName } from '@/lib/design/styles';
-import { defaultFinish, finishFromProduct, isStyleFinish, styleFinish, styleFinishProduct, withStyleFinishes } from '@/lib/design/surfaces';
+import { defaultFinish, finishFromProduct, generatedFinish, isStyleFinish, styleFinish, styleFinishProduct, withStyleFinishes } from '@/lib/design/surfaces';
+import { defaultFinishes } from '@/lib/design/generateScene';
+import { seededRng } from '@/lib/design/random';
+import { isBaseFinish } from '@/lib/design/zones';
 import type { CatalogProduct } from '@/lib/design/matcher';
-import type { PlanRoom, SurfaceFinish } from '@/lib/design/types';
+import type { FloorPlan, PlanRoom, SurfaceFinish } from '@/lib/design/types';
 
 /**
  * The style's own floors and walls are partner products: the product whose texture the style
@@ -172,5 +175,83 @@ describe('each kind of room in its own look', () => {
       expect(migration).toContain(`'/textures/paint-${name}-diffuse.webp'`);
     }
     for (const url of laid) expect(migration).toContain(`'${url}'`);
+  });
+});
+
+describe('a room the app tiles', () => {
+  /** A finish of a category, tagged for every style, with a texture no look names unless given one. */
+  const finish = (id: number, categorySlug: string, surfaces: Array<'floor' | 'wall'>, extra: { wet?: boolean; price?: number; textureUrl?: string } = {}): CatalogProduct =>
+    ({ ...surfaceProduct(id, extra.textureUrl ?? `/textures/f${id}.webp`, surfaces, { wet: extra.wet, price: extra.price, styleTags: ['modern', 'scandinavian', 'industrial', 'vintage'] }), categorySlug }) as CatalogProduct;
+  const plan = (rooms: PlanRoom[]): FloorPlan => ({ rooms, metresPerPixel: null, bounds: { width: 10, depth: 10 }, source: 'manual', wallThicknessM: 0.15 });
+  const living = room('liv', 'living_room', 5, 4);
+  const balcony = room('bal', 'balcony', 3, 1.2);
+  const closedKitchen = room('k', 'kitchen', 3, 3);
+  const openKitchen: PlanRoom = { ...closedKitchen, openings: [{ id: 'k-a', roomId: 'k', kind: 'archway', wallIndex: 1, t: 0.5, widthM: 1.2, heightM: 2.1, sillM: 0, exterior: false }] };
+  const floorOf = (finishes: SurfaceFinish[], r: PlanRoom) => finishes.find((f) => f.roomId === r.id && f.surface === 'floor' && isBaseFinish(f))?.product?.productId;
+
+  describe('falls back to a tile when the style’s own tile is not in the catalogue — never to the living room’s laminate', () => {
+    // Modern's general floor is a laminate the catalogue has; its tile look (the balcony's, the
+    // kitchen's, the bathroom's) is in nobody's catalogue.
+    const oak = finish(1, 'laminate', ['floor'], { textureUrl: getStyle('modern').surfaces.floor.textureUrl! });
+    const slate = finish(2, 'floor-tiles', ['floor'], { price: 58 });
+    const terrazzo = finish(3, 'floor-tiles', ['floor', 'wall'], { wet: true, price: 39 });
+    const paint = finish(4, 'paint', ['wall'], { textureUrl: getStyle('modern').surfaces.wall.textureUrl! });
+    const shop = [oak, slate, terrazzo, paint];
+
+    it('in the style’s finish', () => {
+      for (const r of [balcony, closedKitchen]) expect(styleFinishProduct(shop, r, 'floor', 'modern')?.categorySlug, r.id).toBe('floor-tiles');
+      expect(styleFinishProduct(shop, bathroom, 'floor', 'modern')?.id).toBe(terrazzo.id);
+      // A room that shares the flat's floor still falls back to the style's floor.
+      expect(styleFinishProduct(shop, bedroom, 'floor', 'modern')?.id).toBe(oak.id);
+      // The walls of a balcony are painted, as the style paints them.
+      expect(styleFinishProduct(shop, balcony, 'wall', 'modern')?.id).toBe(paint.id);
+    });
+
+    it('in a generated flat, every draw — and an open kitchen still wears the flat’s floor', () => {
+      for (let seed = 1; seed <= 60; seed++) {
+        const finishes = defaultFinishes(plan([living, balcony, openKitchen]), 'modern', shop, seededRng(seed));
+        expect(shop.find((p) => p.id === floorOf(finishes, balcony))?.categorySlug, `seed ${seed}`).toBe('floor-tiles');
+        expect(floorOf(finishes, openKitchen)).toBe(floorOf(finishes, living));
+        const closed = defaultFinishes(plan([living, closedKitchen]), 'modern', shop, seededRng(seed));
+        expect(shop.find((p) => p.id === floorOf(closed, closedKitchen))?.categorySlug, `seed ${seed}`).toBe('floor-tiles');
+      }
+    });
+  });
+
+  describe('lays the style’s own tile, whether or not it is made for a wet room too', () => {
+    const scandinavian = getStyle('scandinavian');
+    // Terracotta is the Scandinavian balcony's own, and flagged wet: it may go in a bathroom.
+    const terracotta = finish(10, 'floor-tiles', ['floor'], { wet: true, price: 26, textureUrl: scandinavian.rooms.balcony!.floor!.textureUrl! });
+    const slate = finish(11, 'floor-tiles', ['floor'], { price: 58 });
+    const microcement = finish(12, 'floor-tiles', ['floor', 'wall'], { price: 45 });
+    const oak = finish(13, 'laminate', ['floor'], { textureUrl: scandinavian.surfaces.floor.textureUrl! });
+    const shop = [terracotta, slate, microcement, oak];
+
+    it('on a balcony, most often of all the tiles', () => {
+      const drawn = new Map<number, number>();
+      for (let seed = 1; seed <= 200; seed++) {
+        const id = generatedFinish(balcony, 'floor', 'scandinavian', shop, seededRng(seed)).product!.productId;
+        drawn.set(id, (drawn.get(id) ?? 0) + 1);
+      }
+      expect(drawn.get(oak.id)).toBeUndefined();
+      expect(drawn.get(terracotta.id) ?? 0).toBeGreaterThan(Math.max(drawn.get(slate.id) ?? 0, drawn.get(microcement.id) ?? 0));
+      expect(styleFinishProduct(shop, balcony, 'floor', 'scandinavian')?.id).toBe(terracotta.id);
+    });
+
+    it('and the pass that keeps the style’s finishes keeps it there', () => {
+      for (let seed = 1; seed <= 20; seed++) {
+        const laid = generatedFinish(balcony, 'floor', 'scandinavian', shop, seededRng(seed));
+        expect(withStyleFinishes([laid], [balcony], 'scandinavian', shop)[0]).toBe(laid);
+      }
+    });
+
+    it('but a wet room takes only what is made for one, the style’s own included', () => {
+      // Industrial's bathroom floor is a slate made for dry rooms only.
+      const industrialSlate = finish(20, 'floor-tiles', ['floor'], { price: 58, textureUrl: getStyle('industrial').surfaces.wetFloor.textureUrl! });
+      const wetTile = finish(21, 'floor-tiles', ['floor'], { wet: true, price: 34 });
+      const tiles = [industrialSlate, wetTile];
+      expect(styleFinishProduct(tiles, bathroom, 'floor', 'industrial')?.id).toBe(wetTile.id);
+      for (let seed = 1; seed <= 40; seed++) expect(generatedFinish(bathroom, 'floor', 'industrial', tiles, seededRng(seed)).product?.productId).toBe(wetTile.id);
+    });
   });
 });

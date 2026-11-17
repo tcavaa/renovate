@@ -752,15 +752,24 @@ which product, and what the designer is offered.
   survived. The prompt says so for the floor, but for the walls it offers "the same wall finish, or
   tones of one family" — the tones are discarded. When the designer leaves the lead room to the
   style, the style's draw replaces its picks everywhere else.
-- [ ] **F2 (high) — Every Modern balcony and closed kitchen is floored in laminate** (150 of 150
+- [x] **F2 (high) — Every Modern balcony and closed kitchen is floored in laminate** (150 of 150
   balconies). Modern's tile look has no product in the catalogue — six of the seed products the
   looks name are gone — and the fallback is the style's general floor (`surfaces.ts:165`,
   `styles.ts:66`).
-- [ ] **F3 (high) — The wet flag keeps a style's own tile out of the rooms the style names it
+  *Fixed:* a floor the app tiles (`hasTiledFloor`: wet rooms, balconies, closed kitchens) falls back
+  to the best floor tile, never the style's general floor (`styleFinishProduct`): Modern balconies
+  are tiled in 150 of 150 flats (laminate 0, was 150), closed kitchens 6 of 6; an open kitchen still
+  wears the flat's floor.
+- [x] **F3 (high) — The wet flag keeps a style's own tile out of the rooms the style names it
   for.** The generated draw takes only finishes whose wet flag equals the room's
   (`surfaces.ts:207`); terrazzo, checkerboard and terracotta are flagged wet, so a Scandinavian or
   Vintage balcony or closed kitchen draws from the only two dry tiles, dark slate or grey
   microcement: the style's own look 0 times in 300.
+  *Fixed:* "wet" means a finish may go in a wet room (`mayLay`): a wet room takes only wet
+  finishes — the style's own look included (Industrial's dry slate is no longer laid in a bathroom
+  without a draw) — and any other room any finish of the category it draws from. The style's own
+  look on a balcony: Scandinavian 34 of 150, Vintage 22 of 150 (was 0 and 0); in a closed kitchen
+  3 of 6 and 2 of 6 (was 0).
 - [ ] **F4 (medium) — The designer's lists cannot give what its prompt asks.** A dry room's floor
   list is one pool for a living room, a kitchen and a balcony (`finishCandidates`,
   `aiProposal.ts:52`): 22 laminates, 31 carpets, 14 products of category wall-tiles, 2 tiles —
@@ -773,13 +782,23 @@ which product, and what the designer is offered.
   filed under wall-tiles — brick, concrete, wallpaper, cladding — enter only through rooms that then
   take the lead's paint (44); `defaultTrim` never has a product, so 68 m of skirting a flat is drawn
   and not bought.
-- [ ] **F6 (medium) — Labour is priced from another table than the one that lays.**
+- [x] **F6 (medium) — Labour is priced from another table than the one that lays.**
   `TILED_FLOOR_ROOM_TYPES` (kitchen, balcony — `lib/calculator/constants.ts:79`) decides the tiling
   labour whatever the design lays: an open kitchen wears the flat's laminate, a Modern balcony too.
   Laminate bought with tiling labour in 438 of 720 flats, 8.5 m² a flat.
-- [ ] **F7 (medium) — `keepChosen` keeps the first product of a floor two products share**
+  *Fixed:* in a design's budget the floor's tiling and laying labour follow each room's
+  whole-floor products (`tiledShares` → `EstimateOptions.tiledShare`, an optional figure the
+  calculator never passes); the calculation's own sheet passes `floorLabourByRoomType` and is
+  priced as before, to the tetri. 720 flats (white frame, after F2/F3): tiling labour off the
+  tiles laid outside the bathrooms in 600 flats, 9.9 m² of laminate a flat under tiling labour
+  (studios' kitchen halves counted) → 0. A calculation whose kitchen was picked in laminate still
+  charges tiling on its own sheet (budget.md, Known gaps).
+- [x] **F7 (medium) — `keepChosen` keeps the first product of a floor two products share**
   (`generateScene.ts:188`): a floor the calculation split 60/40 comes back with 40 % of it bare, on
   every plan edit and every generation.
+  *Fixed:* `keepChosen` keeps every chosen base finish of a surface: on the 30 plans × 4 styles with
+  every floor split 60/40, a generation and a plan edit keep 100 % of the floor (was 60 %; 0 of
+  1,480 rooms with part of it bare, was 1,480).
 - [ ] **F8 (medium) — A floor chosen by hand in the lead room is laid through the flat at the next
   generation** (`surfaces.ts:250` reads the lead's finish whoever chose it): a carpet picked for the
   living room reaches the open kitchen and the hall.
@@ -971,15 +990,47 @@ no table in 60 of the 416 runs of 10 m² or more; an island 0 of 96.
 
 ### M. Partitions, doors and windows, the calculator's picks
 
-- [ ] **Q1 (high) — A calculator pick takes its slot at the product's size with no fit test**
+- [x] **Q1 (high) — A calculator pick takes its slot at the product's size with no fit test**
   (`fromCalculator.ts:104-116`). Of 1,424 picks replacing a piece, 658 (46 %) end out of the room,
   in another piece or on a door's floor — the style's own piece in the same slots: 3 %. A pick with
   no slot is given a spot found for the archetype's box (`placeAdditional` is called without the
   product's size): 45 % do not fit, and 12 % vanish without a word (a shower: 40 of 40).
-- [ ] **Q2 (medium) — Three more things a pick does not do.** A picked kitchen is not made a
+  *Fixed:* a pick takes its slot through the matcher's own test (`placeFitting`, exported): stood
+  where the real product belongs, inside the room, clear of the pieces, the windows, a door's way
+  and the keep-clear floor; what was placed off the piece is measured again off it; where the slot
+  cannot take it, and for a pick with no slot, a free spot is found with the product's real size
+  (`placeAdditional` with it). Slot and spot are tried keeping a door's way and the keep-clear floor
+  clear first, then by the room and the pieces alone (the matcher's careful pass first). Never
+  another product. On the same 120 flats (fixtures): picks replacing a piece out of the room, in
+  another piece or on a door's floor 653 of 1,451 → 184 (45 % → 13 %; >20 cm 308 → 104; on a door's
+  floor 64 → 46); picks with no slot 372 of 845 placed → 101 of 894 (44 % → 11 %), dropped 126 → 77
+  (showers 40 → 5). Fits nowhere, so placed as before: 99 of 1,451 slot picks (into their slot at
+  their size) and 174 of 971 picks with no slot (97 at a spot found for the kind's typical size, 77
+  dropped) — counted before the careful-first order, which moves picks between slot and spot only.
+  Left open: a pick that moves to a free spot leaves the rug laid under it, the TV over it and the
+  joinery built for the piece it replaced at its old slot, and picks applied in the studio
+  (`applyPendingPicks`) keep no radiator strip, column or partition floor clear
+  ([project-flow.md](../project-flow.md#18-known-gaps)).
+- [x] **Q2 (medium) — Three more things a pick does not do.** A picked kitchen is not made a
   kitchen piece (no `asPlacedKitchen`: a 12,000 ₾ shop's unit stays "made to measure" at the slot's
   size); the TV is not re-seated when its unit is picked (its bottom below the unit's top in 265 of
   408); the quantity is dropped (`:45`: four chairs picked, one placed).
+  *Fixed:* a picked kitchen goes through `asPlacedKitchen` — a shop's unit is a unit at its own size,
+  its back on the run's wall, a maker's material makes the run in it: of 420 shop units picked for a
+  run (q2's draw), made to measure 420 → 234, those that fit nowhere. The unit is tested at its own size like any floor piece (the matcher
+  leaves a run out of `placeFitting` because the layout sizes one made to measure; `fitPick` tests a
+  shop's unit as the fridge is tested), and the wall cabinets over the run it took come down, as the
+  matcher hangs none over a shop's unit (`cabinetsOver`). Every shop unit picked for every run of the
+  fixtures (Modern, 2 seeds, 2,800 picks): out of the room 0, standing through wall cabinets 0, more
+  than 5 cm into a floor piece 0 (taking it at its own size with no test had made them 1,580, 1,856
+  and 1,614); 753 take the run, 467 a free spot elsewhere, and 1,580 fit nowhere — 1,473 of them
+  wider than their run — and stay in the run at the run's size, made to measure, as before. What hangs over a
+  picked piece (`placement.above`) is hung again (`rehung`): a TV inside a picked unit 269 of 432 →
+  50: 46 where the unit fitted only at a free spot elsewhere and the TV stayed on its wall (with the
+  careful pass first a few more units take a spot that keeps a door clear: 43 in all before it), 4
+  over the unit, 3 of them with the 148 cm unit. A pick sold by the piece is placed as often as its quantity: 117 chairs
+  picked in 35 flats, 37 → 117 placed. Whole-flat fixtures are stood in their slots by the same
+  test.
 - [x] **Q3 (high) — A screen kept from an earlier generation loses its free floor.** The loop skips
   a screen that already stands before recording its keep-clear floor (`autoPartitions.ts:203`):
   generating #386 again stands furniture through the screen in 30 of 36 flats. The old screen also
@@ -995,15 +1046,35 @@ no table in 60 of the 416 runs of 10 m² or more; an island 0 of 96.
   hall, or the studio is under 30 m², or the bedroom under 12 m²), so the stage is exercised only by
   its unit tests. On plans altered to qualify, a screen's joined end lands in a window or an archway
   in 10 of 58, and the matcher stands pieces in the lobby (53 of 348 flats).
-- [ ] **Q5 (medium) — Doors and windows never follow a change of style** (`openings.ts:584`: any
+- [x] **Q5 (medium) — Doors and windows never follow a change of style** (`openings.ts:584`: any
   product already on an opening is kept — a style's own choice is not told from a person's, as it is
   for finishes): of 1,219 that should have changed, none did.
+  *Fixed:* an opening keeps the id of the product the style laid on it (`Opening.styleProductId`,
+  added to `openingSchema` so a save keeps it); while its product is that one a generation or a
+  load in another style lays the new style's, and any other product (the studio's swap — which
+  clears the mark —, the calculation's, a plan saved before) is kept. Of 1,219 halves that should
+  change, 1,219 do (was 0); a door the person chose survives the other style in 100 of 100.
 - [ ] **Q6 (medium) — 11 of the 52 door and window products can ever be laid**: the cheapest with
   the style's tag, with no seed and no budget (`:585`) — doors 4 of 42, entrance doors 3 of 5,
   windows 4 of 5, the same on every seed.
-- [ ] **Q7 (medium) — A product's size is never compared with its opening** (the model is stretched
+- [x] **Q7 (medium) — A product's size is never compared with its opening** (the model is stretched
   to the hole, so it is never seen): a 144 cm entrance door in holes of 30–113 cm. And every outside
   door gets an entrance door — four on one plan, 18,000 ₾.
+  *Fixed:* the flat has one front door (`frontDoor`, from `isFrontDoor` — now the test
+  `entranceSightBands` reads too): the hall's, else the first; every other outside door, a
+  balcony's included, is bought as a door. Of the style's candidates the one nearest the hole's
+  width is taken (`styleOpeningProduct`). 120 flats: entrance doors bought 0/1/2/4 a flat in
+  44/60/12/4 → 44/76/0/0 (207,350 ₾ in all, was 271,250); products more than 20 cm off their hole —
+  doors 141 → 83 of 352, windows 407 → 346 of 560, outside doors 46 → 39 of 100: what is left is
+  what the style has (Scandinavian's one entrance door is 144 cm, its window 90 cm), Q6's. The
+  budget names a door line the entrance door only when it holds the front door.
+  *Left open* (Q7b below): a calculation's entrance-door pick still goes on every outside door.
+- [ ] **Q7b (medium) — A calculation's entrance-door pick goes on every outside door** (`dressBoard`,
+  `boardPicks.ts:62`, with no style mark, so `withOpeningProducts` keeps it as somebody's choice): a
+  flat made from a calculation with an entrance-door pick buys one for each outside door, a
+  balcony's included, as the calculation's sheet prices it; a door with no product on an outside
+  wall is estimated at the entrance door's price in both (`openingEstimate`). The fix changes the
+  calculator's sheet too ([technical-and-fittings.md](technical-and-fittings.md#known-gaps)).
 
 ### N. The generation job
 

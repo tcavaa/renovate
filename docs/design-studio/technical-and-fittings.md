@@ -624,15 +624,29 @@ are the quickest way to be sure of any change here.
 "Doors and windows as products"). `openingProductKind` maps an opening to the
 `model3dKind` a product carries — `door`, `entrance_door` (a door on an exterior wall),
 `window`; an archway buys nothing — and `withOpeningProducts` gives every door and window
-without one the catalogue's best (`openingCandidates`: its own kind first, the style's
-before the rest, the cheapest within that), the same product on both halves of an interior
-door. The store attaches them in `generate`, `addOpening` / `dropOpening` and
+nobody chose a product for the catalogue's best (`openingCandidates`: its own kind first, the
+style's before the rest, the cheapest within that; of the first rank, the one whose width is
+nearest the hole's — `styleOpeningProduct`, since the model is stretched to the hole and a size
+that does not match is never seen, only bought), the same product on both halves of an interior
+door. Only the flat's front door is bought as an entrance door (`frontDoor`: of the doors that
+are a way in — `isFrontDoor` in `rules.ts`, the test the entrance's sight bands use: on an outside
+wall, not a balcony's — the one in the hall, else the first); any other door on an outside wall is
+bought as a door. **Who chose it** is recorded the way a finish's `origin: 'style'` is: the opening
+keeps the id of the product the style laid on it (`Opening.styleProductId`, known to the save's
+schema). While the product is still that one, it is the style's, and a generation or a load in
+another style lays that style's (`isChosenOpeningProduct`); any other product — swapped in the
+studio (`setOpeningProduct` clears the mark), put on by the calculation (`applyBoardPicks`), or on
+a plan saved before the mark — is somebody's choice and stays through any style while it is of the
+opening's family (the swap list's: a person's glass door into a bathroom stays), the chosen half's
+product on both halves. (The calculation puts an entrance door it picked on every door on an outside
+wall, so a flat made from such a calculation still buys one for each — Known gaps.) The store attaches them in `generate`, `addOpening` / `dropOpening` and
 `updateOpening` (a change of kind drops the product and takes one of the new kind), the
 studio's `ensureOpeningProducts` fills in the rest once the catalogue is in (a saved design
 from before, a door dropped on the 2D board), and `setOpeningProduct` swaps one on both
-halves; `alignTwins` keeps twins agreeing on the product too. An opening keeps its product
-across `moveOpeningToWall`. The budget prices a bought door or window as a real line
-(`product-<id>`, a pair counted once, folded across openings) and the rest as estimates
+halves; `alignTwins` keeps twins agreeing on the product, and its mark, too. An opening keeps its
+product, and its mark, across `moveOpeningToWall`. The budget prices a bought door or window as a real line
+(`product-<id>`, a pair counted once, folded across openings), named the entrance door when it holds
+the flat's front door (`frontDoor`) and a door otherwise, and the rest as estimates
 (`openingEstimate`). The admin product form offers the three kinds (🚪) next to the
 archetypes; `OPENING_CATEGORY_SLUGS` (doors, windows) are part of the design catalogue;
 the furniture shelf leaves them out (`isOpeningProductKind`).
@@ -751,6 +765,16 @@ prices are refused), `e2e/design-studio.spec.ts` (going on through the checks). 
 have no tests of their own.
 
 ## Known gaps
+
+- **A calculation's entrance door goes on every door on an outside wall.** `dressBoard`
+  (`boardPicks.ts`) puts an entrance door picked for the whole flat on every door with `exterior`
+  set, a balcony's included, and no mark of the style's on it — so `withOpeningProducts` keeps it as
+  somebody's choice, and a flat made from a calculation with an entrance-door pick buys one for every
+  outside door, as the calculation's own sheet prices it. A door with no product on an outside wall
+  is estimated at the entrance door's price too (`openingEstimate`, `ENTRANCE_DOOR_GEL`), in both.
+  Putting the pick on the front door alone (`frontDoor`) and the door pick on the other outside doors
+  changes the calculator's sheet as well as the design's, so it is the calculator's change to make
+  with its own tests.
 
 - **A towel rail hung low still costs its floor.** The layout engine's obstacles are boxes on the
   floor (`LayoutOptions.obstacles`), so under a rail at the usual 60 cm — hung by the button in a

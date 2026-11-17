@@ -231,6 +231,8 @@ export function calculationCost(input: CalculationInput, options: { edited?: boo
     productLabels: input.productLabels,
     extraLines: ownLines(input.picks, dressed.placed, input.rooms, board, storeOf),
     counts: missingCounts(board, input.electrical ?? [], input.rooms),
+    // The calculation is priced as the calculator's engine prices it: the floor laid by the rooms' types.
+    floorLabourByRoomType: true,
   });
 }
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { addOpening, alignTwins, leafOnOtherSide, separateOverlaps, moveOpening, openingCandidates, openingWorldPoint, projectToEdge, removeOpening, setOpeningProduct, twinOf, updateOpening, withOpeningProducts, withOpeningTwins } from '@/lib/design/openings';
+import { planRoomSchema } from '@/lib/validations/design.schema';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import { deriveOpenings, refreshRoom, roomEdges } from '@/lib/design/planGeometry';
 import { ensureWalls, planWallThickness, rebuildRooms } from '@/lib/design/walls';
@@ -236,7 +237,49 @@ describe('dragging openings between walls', () => {
       const changed = updateOpening(rooms, window.roomId, window.id, { kind: 'door' });
       expect(changed.find((r) => r.id === window.roomId)!.openings.find((o) => o.id === window.id)!.product).toBeNull();
       const refilled = withOpeningProducts(changed, catalog, 'modern');
-      expect(refilled.find((r) => r.id === window.roomId)!.openings.find((o) => o.id === window.id)!.product?.productId).toBe(3);
+      // A door now, onto the outside from the bedroom: the hall has the flat's front door, so it is a door, not a second entrance door.
+      expect(refilled.find((r) => r.id === window.roomId)!.openings.find((o) => o.id === window.id)!.product?.productId).toBe(1);
+      expect(refilled.find((r) => r.id === 'hall')!.openings.find((o) => o.exterior && o.kind === 'door')!.product?.productId).toBe(3);
+    });
+
+    it('follow a change of style where the style chose them, and keep what a person chose — on either half', () => {
+      const door = (rooms: PlanRoom[]) => rooms.find((r) => r.id === 'bed')!.openings.find((o) => o.connectsToRoomId === 'hall')!;
+      const window = (rooms: PlanRoom[]) => rooms.flatMap((r) => r.openings).find((o) => o.kind === 'window')!;
+      const modern = withOpeningProducts(flat(), catalog, 'modern');
+      expect(door(modern).product?.productId).toBe(1);
+      const vintage = withOpeningProducts(modern, catalog, 'vintage');
+      expect(door(vintage).product?.productId).toBe(2);
+      expect(twinOf(vintage, door(vintage))!.opening.product?.productId).toBe(2);
+      // The person's door stays through any style, and so does the calculation's (put on with no mark).
+      const chosen = setOpeningProduct(modern, 'bed', door(modern).id, catalog[0]);
+      expect(door(withOpeningProducts(chosen, catalog, 'vintage')).product?.productId).toBe(1);
+      const calculated = modern.map((r) => ({ ...r, openings: r.openings.map((o) => (o.kind === 'window' ? { ...o, product: { ...o.product!, productId: 5 } } : o)) }));
+      const shop = [...catalog, product(5, 'window', 900)];
+      expect(window(withOpeningProducts(calculated, shop, 'vintage')).product?.productId).toBe(5);
+      // A product from a plan saved before the mark is the person's.
+      const unmarked = modern.map((r) => ({ ...r, openings: r.openings.map(({ styleProductId: _mark, ...o }) => o) }));
+      expect(door(withOpeningProducts(unmarked, catalog, 'vintage')).product?.productId).toBe(1);
+      // The mark survives a save.
+      const saved = planRoomSchema.parse(modern.find((r) => r.id === 'bed'));
+      expect(saved.openings.find((o) => o.id === door(modern).id)?.styleProductId).toBe(1);
+    });
+
+    it('buy one entrance door, for the flat’s front door, and the style’s door nearest each hole’s width', () => {
+      const sized = (id: number, kind: string, widthCm: number, price: number): CatalogProduct => ({ ...product(id, kind, price, ['modern']), widthCm });
+      const shop = [sized(10, 'door', 80, 500), sized(11, 'door', 96, 520), sized(12, 'door', 120, 300), sized(13, 'entrance_door', 100, 2500), product(14, 'door', 200, ['vintage'])];
+      const outside = (id: string, room: string, wallIndex: number, widthM: number): Opening => ({ id, roomId: room, kind: 'door', wallIndex, t: 0.5, widthM, heightM: 2.1, sillM: 0, exterior: true });
+      const hall = { ...rect('hall', 0, 0, 3, 2, 'hallway'), openings: [outside('front', 'hall', 3, 0.95)] };
+      const bedroom = { ...rect('bed', 3, 0, 4, 3, 'bedroom'), openings: [outside('bed-out', 'bed', 0, 0.8)] };
+      const balcony = { ...rect('bal', 3, 3, 4, 1.2, 'balcony'), openings: [outside('bal-out', 'bal', 2, 0.8)] };
+      const rooms = withOpeningProducts([hall, bedroom, balcony], shop, 'modern');
+      const productOf = (id: string) => rooms.flatMap((r) => r.openings).find((o) => o.id === id)?.product?.productId;
+      expect(productOf('front')).toBe(13);
+      // A door onto the outside from a bedroom, or a balcony's, is a door: the 80 cm one in an 80 cm hole.
+      expect(productOf('bed-out')).toBe(10);
+      expect(productOf('bal-out')).toBe(10);
+      // The cheapest of the style's doors only where it is also the nearest in width.
+      const wide = withOpeningProducts([hall, { ...bedroom, openings: [outside('bed-out', 'bed', 0, 1.15)] }], shop, 'modern');
+      expect(wide.flatMap((r) => r.openings).find((o) => o.id === 'bed-out')?.product?.productId).toBe(12);
     });
 
     it('aligns the twin\'s product with the primary\'s', () => {

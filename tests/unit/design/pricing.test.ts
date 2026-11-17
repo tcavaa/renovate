@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FREE_DELIVERY_THRESHOLD_GEL, priceScene } from '@/lib/design/pricing';
+import { FREE_DELIVERY_THRESHOLD_GEL, priceOpenings, priceScene } from '@/lib/design/pricing';
 import { tickFor } from '@/lib/design/ticks';
 import type { RateBook } from '@/lib/calculator/rates';
 import { HOME_STATE_VALUES } from '@/lib/calculator/types';
@@ -199,5 +199,43 @@ describe('priceScene — the floors and walls the flat is shown in', () => {
     const withFloors: FloorPlan = { ...plan, technical: { points: [], existing: ['floor'] } };
     const cost = priceScene(withFloors, { ...scene([], 'full'), finishes: [laminate, tiles] }, { homeState: 'old_renovation' });
     expect(finishLines(cost)).toEqual([[12, 21.6, 864]]);
+  });
+});
+
+describe('priceScene — the floor laid as the design lays it', () => {
+  // A living room (20 m²), a kitchen (12 m²) and a balcony (3 m²): the calculator's engine tiles the kitchen and the balcony by their type.
+  const flat: FloorPlan = { ...plan, rooms: [rect('living', 5, 4), rect('kitchen', 3, 4, 'kitchen'), rect('balcony', 3, 1, 'balcony'), rect('bath', 2, 2, 'bathroom')] };
+  const floor = (roomId: string, categorySlug: string, share?: number): SurfaceFinish => ({ roomId, surface: 'floor', colorHex: '#fff', textureUrl: '/t.jpg', textureScaleM: 1, product: { ...product(20, 30, storeA), categorySlug, unit: 'm2' }, origin: 'style', ...(share != null ? { share } : {}) });
+  const laying = (finishes: SurfaceFinish[], byType = false) => {
+    const cost = priceScene(flat, { ...scene([], 'full'), finishes }, { homeState: 'white_frame', ...(byType ? { floorLabourByRoomType: true } : {}) });
+    const qty = (key: string) => cost.lines.find((l) => l.section === 'labour' && l.key === key)?.qty ?? 0;
+    return { tiling: qty('kitchen_tiling'), laying: qty('laminate_laying') };
+  };
+
+  it('lays a kitchen floored in laminate as laminate and tiles the balcony it tiles', () => {
+    expect(laying([floor('living', 'laminate'), floor('kitchen', 'laminate'), floor('balcony', 'floor-tiles')])).toEqual({ tiling: 3, laying: 32 });
+  });
+
+  it('lays a floor two products share in each by its share, and a floor with no product by its room’s type', () => {
+    expect(laying([floor('living', 'laminate'), floor('kitchen', 'floor-tiles', 0.25), floor('kitchen', 'laminate', 0.75)])).toEqual({ tiling: 6, laying: 29 });
+  });
+
+  it('is laid by the rooms’ types on the calculation’s own sheet, as the calculator always prices it', () => {
+    expect(laying([floor('living', 'laminate'), floor('kitchen', 'laminate'), floor('balcony', 'floor-tiles')], true)).toEqual({ tiling: 15, laying: 20 });
+  });
+});
+
+describe('priceOpenings — the flat’s one entrance door', () => {
+  const door = (id: string, roomId: string, exterior: boolean, p: SceneProduct) => ({ id, kind: 'door' as const, wallIndex: 0, t: 0.5, widthM: 0.9, heightM: 2.1, sillM: 0, roomId, exterior, origin: 'user' as const, product: p });
+  it('names a line the entrance door only when it holds the flat’s front door, not every door on an outside wall', () => {
+    const interior = product(70, 300, null);
+    const entrance = product(71, 1500, null);
+    // The living room's hole on an outside wall is bought as a door — the same door as the room's own.
+    const living = { ...rect('living', 5, 4), openings: [door('lx', 'living', true, interior), door('li', 'living', false, interior)] };
+    const hall = { ...rect('hall', 2, 2, 'hallway'), openings: [door('hx', 'hall', true, entrance)] };
+    const flat: FloorPlan = { ...plan, rooms: [living, hall] };
+    const lines = priceOpenings(flat, false, [], new Map());
+    expect(lines.find((l) => l.key === 'product-70')?.item).toBe('შიდა კარი');
+    expect(lines.find((l) => l.key === 'product-71')?.item).toBe('შესასვლელი კარი');
   });
 });

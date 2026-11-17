@@ -115,7 +115,8 @@ flat and buys it as sold (`finishPurchase` → `finishPickQuantity`): m² plus a
 laminate and tiles, paint in whole litres, a moulding by the metre ([../budget.md](../budget.md)).
 A floor two products share — the calculator's split — is two base floor finishes, each with its
 `share` (`SurfaceFinish.share`, the larger first): each covers and buys its share of the floor,
-and the larger is the one drawn over it.
+and the larger is the one drawn over it. A new layout and a plan edit keep both (`keepChosen`
+keeps every chosen base finish of a surface, not only the first).
 
 **A partner or admin adds one in the product form** (`/admin/products/new`, or
 `/partner/products/new` for a store): a category under laminate, floor tiles, wall tiles or
@@ -170,8 +171,11 @@ chosen finishes; switching style resets them.
 living room or studio, else the largest room that shares) floor and wall product are laid in every
 room that shares them (`sharesFlatFinish`) — every room but a bathroom, a toilet, a balcony and a
 closed kitchen (`isClosedKitchen`: no separator along it, no archway out of it), whose own floor is
-the style's tiled one in the table above. A room someone finished by hand keeps its finish, and a
-product that does not suit the room (a dry product in a wet room) is not laid. `defaultFinishes`
+the style's tiled one in the table above (`hasTiledFloor`). A room someone finished by hand keeps
+its finish, and a product that may not be laid in the room is not (`mayLay`: a wet room takes only
+what is made for one; "wet" — `specs.wet` — says a tile may go in a bathroom, not that it may go
+nowhere else, so a terracotta or a terrazzo flagged wet floors the balcony or the kitchen its style
+names it for). `defaultFinishes`
 and `generateScene` both end with it, the AI designer's floors and walls included.
 
 **The style's own floors and walls are partner products, and the budget buys them.** The
@@ -180,9 +184,12 @@ are *wall-tile-textured-grey*, its bedroom floor *laminate-grey-10mm*, scandinav
 walls *paint-interior-sage*…), so `styleFinishProduct` finds, for each room and surface, the
 catalogue finish whose texture is the room's look (compared by path, whatever host or query
 the URL carries); a catalogue without it gives the style's plain floor or wall for any room (a
-database the room paints have not reached), then the best-ranked finish of the same wetness
-(`surfaceOptions` — never a laminate in a bathroom); one without any leaves the look alone,
-unpriced. A plain wall standing in for a room's paint is shown in its own colour, not the
+database the room paints have not reached), then the best-ranked finish that may be laid there
+(`surfaceOptions`, `mayLay` — never a laminate in a bathroom). A floor the app tiles (a bathroom,
+a toilet, a balcony, a closed kitchen) skips the style's plain floor and falls back to the best
+floor tile (`usualFinishCategory`; by style, then price): modern's tile look is in no catalogue
+now, and its balconies and closed kitchens were floored in the living room's laminate. One
+without any leaves the look alone, unpriced. A plain wall standing in for a room's paint is shown in its own colour, not the
 paint's. `styleFinish` lays that product over the whole surface as `origin: 'style'` — nobody
 chose it — in the style's colour when the product has none of its own (what shows until the
 texture loads). The flat was generated in the style's look with nothing behind it, so a person
@@ -191,8 +198,8 @@ Where the style's products are laid:
 - `generate` and `setStyle` (they have the catalogue): every room's floor and walls, through
   `defaultFinishes(plan, styleId, catalog)`. **Generating draws them** (`generatedFinish` with the
   generation's `Rng`): another finish of the same category as the style's own for the room (a
-  paint for a painted wall, a laminate for a laminate floor, a tile for a tiled kitchen), as wet
-  or dry as the room — the style's own three times as likely as one tagged for the style, those
+  paint for a painted wall, a laminate for a laminate floor, a tile for a tiled kitchen), in a wet
+  room only what is made for one (`mayLay`) — the style's own three times as likely as one tagged for the style, those
   ten times as likely as the rest — so the same plan generated twice is painted and floored
   differently, and any finish of the kind can turn up (before, 31 of the 610 finishes ever did;
   on test project #311's plan, 600 generations laid 211). The category is what keeps it in
@@ -209,7 +216,7 @@ Where the style's products are laid:
   change: a design generated before the style's finishes were products, a room drawn or split
   since, a room retyped (a bedroom made a bathroom is tiled), the empty start, a version brought
   back. A style's finish laid for the room's kind (`laidFor`) that still suits it — the surface's,
-  wet in a bathroom, dry elsewhere — is kept, so a generated flat's drawn finishes are not put back
+  and made for a wet room in a bathroom — is kept, so a generated flat's drawn finishes are not put back
   to the one look. What somebody chose is never touched; it is not a step of the history; a design saved
   before gets its products the next time any of its steps is opened.
 - Both modes buy them: a renovation whatever the home state, a design-only project as much —
@@ -374,8 +381,10 @@ off by a wall that stops short), and so does the brush's glow.
 (finishes; the style's bought in a renovation for every home state and in a design-only
 project, a line ticked off not),
 `visibleFinishes.test.ts` (what shows is what is bought, strips painted twice),
-`styleFinishes.test.ts` (the style's product, the fallbacks, `withStyleFinishes`; each kind of
-room in its own look, every look a file the app serves, every paint in migration 0023),
+`styleFinishes.test.ts` (the style's product, the fallbacks — a tiled floor to a tile —,
+`withStyleFinishes`; each kind of room in its own look, every look a file the app serves, every
+paint in migration 0023; a wet-flagged tile on the balcony its style names it for, never a dry one
+in a bathroom),
 `finishBrowser.test.ts` (a surface's finishes best first, the shelf's style and colour filters,
 the catalogue's categories, bathroom filter, price per m², sorts and stand-asides),
 `colors.test.ts` (colours read off pixels), `tests/unit/api/textureColors.test.ts` (off an image
@@ -393,8 +402,13 @@ own", re-measuring after a resize, `ensureFinishProducts`),
 - Surface finishes are per room: the tray offers every catalogue product with a `textureUrl`
   and `specs.surfaces` for the focused room's floor and walls (or all rooms at once), priced by
   what of it shows. A product without a texture never appears there, and a catalogue without
-  the style's own texture products gives the generated flat stand-ins of the same wetness (or
-  leaves the look unpriced). Ceilings stay the style's colour.
+  the style's own texture products gives the generated flat stand-ins (a floor tile on a tiled
+  floor, only a wet finish in a wet room) or leaves the look unpriced. Ceilings stay the style's colour.
+- **A style whose own tile is not flagged wet never lays it in a wet room**: Industrial's slate floor
+  is a dry product in the catalogue, so an Industrial bathroom draws from the wet tiles instead, and
+  an Industrial balcony, drawing from every tile of the category (a dry room takes any), shows its
+  own slate in 33 of 150 draws where it showed it in 106 when only the dry tiles were drawn from.
+  The slate's `specs.wet` is catalogue data (admin's).
 - **The product form takes a finish's colour map only**: no normal or roughness map (a partner's
   tile looks flat next to the stock ones, which have both), and the form cannot set `specs`
   maps by hand. Adding them means two more uploads and `productFileUrls` learning the maps, so

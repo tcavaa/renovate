@@ -84,6 +84,33 @@ export interface EstimateOptions {
   choices?: Partial<WorkChoices> | null;
   /** Counts that replace the room-type estimates, where the caller knows better. */
   counts?: Partial<EstimateCounts> | null;
+  /**
+   * Of each room's floor (by the room's id), the part laid in tiles — where the caller knows what
+   * is laid (the design's floors): the floor's laying labour follows it, tiling (phase 10) for that
+   * part and laying (phase 11) for the rest. A bathroom's floor is tiled with its walls (phase 9)
+   * whatever is listed, and a room not listed is laid by its type (`TILED_FLOOR_ROOM_TYPES`), as the
+   * calculator always prices it. Nothing else — the demolition of what was there — reads it.
+   */
+  tiledShare?: Readonly<Record<string, number>> | null;
+}
+
+/**
+ * The floor outside the bathrooms as it is laid: tiled, and laminate or parquet (`tiledShare`).
+ * Without one, the room types' split (`aggregateRoomTotals`), to the tetri.
+ */
+function floorLaying(rooms: Room[], totals: { tiledFloorM2: number; woodFloorM2: number }, tiledShare: EstimateOptions['tiledShare']): { tiledM2: number; woodM2: number } {
+  if (!tiledShare) return { tiledM2: totals.tiledFloorM2, woodM2: totals.woodFloorM2 };
+  let tiled = 0;
+  let wood = 0;
+  for (const room of expandStudios(rooms)) {
+    if (BATH_ROOM_TYPES.includes(room.type)) continue;
+    // A studio's part answers to the studio's own id.
+    const share = tiledShare[room.id.split('#')[0]];
+    const part = share != null ? room.floorM2 * Math.min(1, Math.max(0, share)) : TILED_FLOOR_ROOM_TYPES.includes(room.type) ? room.floorM2 : 0;
+    tiled += part;
+    wood += room.floorM2 - part;
+  }
+  return { tiledM2: round2(tiled), woodM2: round2(wood) };
 }
 
 /**
@@ -338,8 +365,9 @@ export function calculateWorkerCosts(
     addCost('bath_wall_prep', t.bathWallM2, 'm2');
   }
   if (on(9)) addCost('bath_tiling', t.bathFloorM2 + t.bathWallM2, 'm2');
-  if (on(10)) addCost('kitchen_tiling', t.tiledFloorM2, 'm2');
-  if (on(11)) addCost(choices.floor === 'parquet' ? 'parquet_laying' : 'laminate_laying', t.woodFloorM2, 'm2');
+  const laid = floorLaying(rooms, t, options.tiledShare);
+  if (on(10)) addCost('kitchen_tiling', laid.tiledM2, 'm2');
+  if (on(11)) addCost(choices.floor === 'parquet' ? 'parquet_laying' : 'laminate_laying', laid.woodM2, 'm2');
   if (on(12)) {
     if (choices.ceiling === 'barisol') addCost('ceiling_barisol', t.totalCeilingM2, 'm2');
     else {

@@ -208,7 +208,8 @@ rooms. So:
   whole flat (`<slug>_global`). One the board has a place for goes **on every one of its kind on
   the board** (`boardWithPicks` → `dressBoard`, `lib/design/boardPicks.ts`; what it goes on is
   `pickTarget`: the product's 3D kind, else its tab): a door on every interior door (an entrance
-  door on the front door), a window on every window, a radiator on every radiator — its
+  door on every door on an outside wall — every one, not only the flat's front door the design buys
+  one for: [technical-and-fittings.md](design-studio/technical-and-fittings.md#known-gaps)), a window on every window, a radiator on every radiator — its
   sections counted from its room — a socket, switch or light on every fitting of its kind, a
   skirting board or cornice round every room. It is bought for what it is on (`placedQuantity`):
   the bundled sample image's (`public/samples/plan-2br.png`, read the CV way) 3 doors and 8 windows, a radiator's sections over all six radiators, a
@@ -354,7 +355,9 @@ rubbish 5 ₾/m² (never with phase 0). Home states: `black_frame` 1–14; `whit
 (walls built and plastered, floor screeded); `green_frame` 6, 9–12, 14 (wired, plumbed, heated,
 doors hung); `old_renovation` 0, 2–13 (the walls stand; its own removal carries the rubbish).
 Where the team gave a range the middle is used. **"Bathroom" is `bathroom` + `toilet`**
-(`BATH_ROOM_TYPES`); the kitchen and balcony floors are tiled (`TILED_FLOOR_ROOM_TYPES`).
+(`BATH_ROOM_TYPES`); the kitchen and balcony floors are tiled (`TILED_FLOOR_ROOM_TYPES`) —
+in the calculator's own estimate; a design's budget passes what it lays instead
+(`EstimateOptions.tiledShare`, [budget.md](budget.md)).
 Laminate/parquet and plasterboard/stretch ceiling are `WorkChoices` — the calculator's store
 (`choices`, saved in `calculatorEdits.choices`) and the plan (`plan.technical.choices`), picked
 on the materials step and the technical step (`WorkChoicesPicker`). The counts the phases
