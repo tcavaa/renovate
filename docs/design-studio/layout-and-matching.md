@@ -322,8 +322,8 @@ had, and a flat whose own pieces all fit is the flat it was.
 
 A slot no product fits is dropped (`placeableOnly`) — and so is what the engine arranged off it
 (`withoutOrphans`): with no sofa there is no coffee table, armchair or TV unit, with no TV unit no
-TV, with no coffee table no rug under it; with no bed no nightstands and no rug under it; with no
-table no chairs. `generateScene` calls it wherever it drops pieces: after matching (against the
+TV, with neither a coffee table nor a sofa no rug; with no bed no nightstands and no rug under it;
+with no table no chairs. `generateScene` calls it wherever it drops pieces: after matching (against the
 engine's slots, so each piece is read as it was arranged), after the calculation's picks, and
 after the designer's check (`reviewedScene`: a TV goes with the unit the check removed).
 
@@ -335,7 +335,7 @@ engine applies them:
 | `relative` (off its `to`) | coffee table, TV unit, armchair (sofa) · nightstand (bed) · dining chair (table) · desk chair (desk) · bath mixer (bath) | goes — the engine lays it nowhere without it |
 | `wall-mounted` with `onlyAbove` | TV (TV unit) · tap (basin) · dryer (washing machine) | goes |
 | a bathroom's or a toilet's mirror | over the basin and nowhere else | goes |
-| `under` (its `to`) | rug (coffee table) · the bedroom's rug (bed) | goes; a rug the engine laid under the room's main piece because the room never had the other (an office's under the desk) is a rug of its own and stays |
+| `under` (its `to`, else the room's main piece) | rug (coffee table, else the piece the room is laid out round — `mainSlot`: the sofa, an office's desk) · the bedroom's rug (bed) | stays while either stands, goes with both — the engine lays a rug nowhere in a room with neither (never under whatever stands first: a wardrobe, a bookcase) |
 | `wall-mounted` with `above`, no `onlyAbove` | a print (bed, sofa) · a hall's mirror (console) · wall cabinets (run) | stays — without the piece the engine hangs it on a wall anyway |
 | `wall` with `beside` | fridge (run) | stays — without a run it stands on a wall |
 

@@ -23,6 +23,7 @@ import {
   ARCHETYPES,
   ROOM_PROGRAMS,
   getArchetype,
+  mainSlot,
   resolveVariant,
   type Archetype,
   type ProgramEntry,
@@ -1546,11 +1547,12 @@ function placeUnder(
   const rule = archetype.placement;
   if (rule.type !== 'under') return null;
 
-  // Fall back to the room's main piece: an office has no coffee table, but a rug under the
-  // desk is still the right idea.
-  const anchor =
-    [...placed].reverse().find((p) => p.slot === rule.to) ??
-    [...placed].find((p) => !ARCHETYPES[p.kind]?.ghost);
+  // Under its piece — or, in a room with none of it, under the piece the room is laid out round
+  // (`mainSlot`): an office has no coffee table, but a rug under the desk is still the right idea.
+  // Never under whatever happens to stand first: with no bed laid that was the wardrobe, with no
+  // sofa a bookcase. A room with neither has no rug.
+  const main = mainSlot(room.type);
+  const anchor = [...placed].reverse().find((p) => p.slot === rule.to) ?? (main ? placed.find((p) => p.slot === main) : undefined);
   if (!anchor) return null;
 
   const bounds = polygonBounds(room.polygon);

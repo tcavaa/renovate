@@ -44,9 +44,12 @@ describe('what a kind is arranged off', () => {
     expect(arrangedOff('tv')).toEqual({ slots: ['tv_unit'], only: true });
     expect(arrangedOff('tap')).toEqual({ slots: ['sink'], only: true });
     expect(arrangedOff('dryer')).toEqual({ slots: ['washer'], only: true });
-    // Under a piece — or, in a room without it, under the room's main piece.
-    expect(arrangedOff('rug')).toEqual({ slots: ['coffee_table'], only: false });
-    expect(arrangedOff('rug_bed')).toEqual({ slots: ['bed'], only: false });
+    // Under a piece — or, in a room without it, under the piece the room is laid out round — and
+    // nowhere without either.
+    expect(arrangedOff('rug', 'living_room')).toEqual({ slots: ['coffee_table', 'sofa'], only: true, either: true });
+    expect(arrangedOff('rug', 'office')).toEqual({ slots: ['coffee_table', 'desk'], only: true, either: true });
+    expect(arrangedOff('rug_bed', 'bedroom')).toEqual({ slots: ['bed'], only: true, either: true });
+    expect(arrangedOff('rug')).toEqual({ slots: ['coffee_table'], only: true, either: true });
   });
 
   it('leaves alone what takes a wall of its own when the other piece is not there', () => {
@@ -60,6 +63,20 @@ describe('what a kind is arranged off', () => {
     expect(arrangedOff('mirror', 'toilet')?.only).toBe(true);
     expect(arrangedOff('mirror', 'hallway')).toBeNull();
     expect(arrangedOff('mirror')).toBeNull();
+  });
+
+  it('lays a rug under its piece or the room\'s main piece — never under whatever stands first', () => {
+    // A bedroom too narrow for any bed gets its wardrobe, and no rug under it.
+    const narrow = rect('b', 'bedroom', 1.5, 6.4);
+    const laid = layoutRoom(narrow);
+    expect(laid.some((i) => i.slot === 'bed')).toBe(false);
+    expect(laid.some((i) => i.slot === 'wardrobe')).toBe(true);
+    expect(laid.some((i) => i.slot === 'rug')).toBe(false);
+    // An office has no coffee table: its rug lies under the desk it is laid out round.
+    const office = layoutRoom(rect('o', 'office', 3.6, 3.6));
+    const desk = office.find((i) => i.slot === 'desk')!;
+    const rug = office.find((i) => i.slot === 'rug')!;
+    expect(Math.hypot(rug.position.x - desk.position.x, rug.position.z - desk.position.z)).toBeLessThan(1.3);
   });
 
   it('says what the engine does: every such piece is laid nowhere in a room without the other', () => {
@@ -95,6 +112,15 @@ describe('a piece that is gone takes what was arranged off it', () => {
   it('no TV unit: no TV; no coffee table: no rug under it; everything else stays', () => {
     expect(without(living, ['unit'])).toEqual(['sofa', 'table', 'armchair', 'shelf', 'rug', 'lamp', 'print', 'plant']);
     expect(without(living, ['table'])).toEqual(['sofa', 'unit', 'tv', 'armchair', 'shelf', 'lamp', 'print', 'plant']);
+  });
+
+  it('keeps the rug of a room whose coffee table is gone and whose sofa stands — and takes it with both', () => {
+    const room = [rect('l', 'living_room', 5, 5)];
+    expect(without(living, ['table'], room)).toEqual(['sofa', 'unit', 'tv', 'armchair', 'shelf', 'rug', 'lamp', 'print', 'plant']);
+    expect(without(living, ['sofa'], room)).toEqual(['shelf', 'lamp', 'print', 'plant']);
+    // An office's rug lies under the desk: no desk, no rug.
+    const office = [piece('desk', 'desk', 'o', 1, 0.35), piece('chair', 'office_chair', 'o', 1, 0.9), piece('rug', 'rug', 'o', 1, 0.9)];
+    expect(without(office, ['desk'], [rect('o', 'office', 3, 3)])).toEqual([]);
   });
 
   it('leaves a flat with nothing gone as it is', () => {

@@ -76,10 +76,15 @@ describe('the whole-flat check', () => {
     // A fridge and wall cabinets in a kitchen with no run: a missing run.
     const kitchen = rect('k', 'kitchen', 4, 3);
     expect(orphans(kitchen, [piece('f', 'fridge', 'k', 0.4, [0.7, 0.7, 1.9]), piece('w', 'kitchen_wall', 'k', 2, [2, 0.35, 0.7], { elevationM: 1.45 })])).toEqual([]);
-    // A rug in a living room with no sofa and no coffee table lies under the room's main piece; a print hangs on a wall.
+    // A print hangs on a wall of a living room with no sofa; an office's rug lies under its desk.
     const living = rect('l', 'living_room', 5, 5);
     const rug = piece('rug', 'rug', 'l', 2.5, [2, 3, 0.02], { position: { x: 2.5, z: 2.5 } });
-    expect(orphans(living, [rug, piece('a', 'artwork', 'l', 2.5, [0.9, 0.05, 0.7], { elevationM: 1.2 })])).toEqual([]);
+    expect(orphans(living, [piece('a', 'artwork', 'l', 2.5, [0.9, 0.05, 0.7], { elevationM: 1.2 })])).toEqual([]);
+    expect(orphans(rect('o', 'office', 4, 4), [{ ...rug, roomId: 'o' }, piece('d', 'desk', 'o', 2, [1.4, 0.7, 0.75])])).toEqual([]);
+    // A rug in a living room with neither a coffee table nor a sofa lies under nothing it belongs to.
+    expect(orphans(living, [rug, piece('b', 'bookshelf', 'l', 2.5, [1, 0.35, 2])]).map((i) => i.key)).toEqual(['rug:no_coffee_table']);
+    // …and one under the coffee table's place of a room whose sofa stands is no orphan.
+    expect(orphans(living, [rug, piece('s', 'sofa', 'l', 2.5, [2.2, 0.9, 0.8])])).toEqual([]);
   });
 
   it('tells a TV unit on a wall from one on a room separator’s line and one standing free', () => {

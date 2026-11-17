@@ -270,12 +270,16 @@ Severity: **high** = seen by anyone who generates; **medium** = wrong in some ro
   goes with it (`withoutOrphans`, `lib/design/arrangedOff.ts`, read from the archetypes' rules),
   after matching, after the calculation's picks and after the designer's check. The whole-flat
   check reads the same rules, so it no longer counts what the engine stands on its own when the
-  other piece was never laid — a fridge in a kitchen with no run (a missing run), a rug laid under
-  a bookcase in a living half with no sofa (M4's, still there: 8 in 120 flats).
+  other piece was never laid — a fridge in a kitchen with no run (a missing run). A rug is arranged
+  off the piece it lies under or, in a room without it, the piece the room is laid out round
+  (`mainSlot`): it stays while either stands and goes with both.
 - [ ] **M4 (high) — Studios** (why, measured: RS1–RS5 in L). Each half is a room of its own (`layoutRoom`, `partRoom`), with the
   whole room's door zones and the open line as no wall. Two 40 m² studios never get a sofa; seven
   never get a TV. With no sofa the living half's rug is laid under whatever was placed first — a
-  bookcase (`placeUnder`'s fallback, `autoLayout.ts:1424-1426`).
+  bookcase (`placeUnder`'s fallback, `autoLayout.ts:1424-1426`). *Partly:* the rug is fixed — it is
+  laid under its own piece or, in a room with none, under the piece the room is laid out round (an
+  office's desk), and nowhere without either: no rug under a bookcase or a wardrobe. The rest is
+  RS1–RS5.
 - [ ] **M5 (medium) — Program entries that cannot be placed.** An armchair is placed off a sofa
   (`placeRelative`, `:929-930`): the balcony's is never laid (0 of 684) and the office's cannot be. An entry
   with no gate silently takes the archetype's (`:291`): a balcony's plants need 10 m² (92 % of
@@ -288,10 +292,9 @@ Severity: **high** = seen by anyone who generates; **medium** = wrong in some ro
   the bedroom's rug is given a rug — a kind with no product of its own takes another kind's where
   the matcher names the two as the same thing (`FILED_AS` in `matcher.ts`: `rug_bed` → `rug`, and
   nothing else: a blind takes no curtain, a single bed no double): 412 of 564 bedrooms have their
-  rug. *Left:* the hall's shoe cabinet has no product (264 slots in 360 flats stay empty until the
-  catalogue has one); and in a bedroom where no bed was laid the rug lies under the room's first
-  piece — the wardrobe — as a living room's does with no sofa (`placeUnder`'s fallback in
-  `autoLayout.ts`, M4): 40 of the 60 bedless bedrooms in 360 flats, counted by no metric.
+  rug, and a bedroom where no bed was laid has none (it lay under the wardrobe: `placeUnder`, M4).
+  *Left:* the hall's shoe cabinet has no product (264 slots in 360 flats stay empty until the
+  catalogue has one).
 - [ ] **M7 (medium) — No washing machine in 31 % of flats with a bathroom.** It needs a bathroom of
   4.5 m², else a hall, else a room typed kitchen (`WASHER_FALLBACK_ROOMS`, `autoLayout.ts:212-226`) —
   never a studio's kitchen half, never a flat with no room typed bathroom.

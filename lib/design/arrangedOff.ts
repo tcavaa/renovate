@@ -15,20 +15,20 @@
  */
 
 import type { RoomType } from '@/lib/calculator/types';
-import { getArchetype } from './catalog';
+import { getArchetype, mainSlot } from './catalog';
 import { WET_ROOM_TYPES } from './rules';
 import type { PlacedItem, PlanRoom, SlotKind } from './types';
 
 export interface ArrangedOff {
   /** The slots the piece is arranged off, in the order the engine looks for them: the first the room has. */
   slots: SlotKind[];
+  /** With none of them in the room the engine lays the piece nowhere: standing there without them, it is left over from a piece that is gone. */
+  only: true;
   /**
-   * With none of them in the room the engine lays the piece nowhere (true: a nightstand with no
-   * bed), or lays it on its own all the same (false: a rug under the room's main piece when it has
-   * no coffee table) — so only a piece of the first sort is, by standing in a room without them,
-   * left over from a piece that is gone.
+   * Any of them will do (a rug: under the coffee table, else under the piece the room is laid out
+   * round) — it stays while one of them stands. Absent: it goes with the one it was arranged off.
    */
-  only: boolean;
+  either?: true;
 }
 
 /**
@@ -41,7 +41,8 @@ export interface ArrangedOff {
  *   nightstands off the bed, the chairs off their table or desk, the bath's mixer off the bath —
  *   laid nowhere without it.
  * - `under` (its `to`): the rug under the coffee table, the bedroom's under the bed — and, in a
- *   room with neither, under the room's main piece (`placeUnder`), where it is a rug of its own.
+ *   room without that piece, under the one the room is laid out round (`mainSlot`: the sofa, the
+ *   office's desk); laid nowhere with neither (`placeUnder`).
  * - `wall-mounted` with `onlyAbove`: the TV over its unit, the tap over the basin, the dryer on the
  *   machine — laid nowhere without it. A bathroom's or a toilet's mirror likewise: it hangs over
  *   the basin and nowhere else.
@@ -51,7 +52,10 @@ export function arrangedOff(kind: string, roomType?: RoomType): ArrangedOff | nu
   const rule = archetype?.placement;
   if (!archetype || !rule) return null;
   if (rule.type === 'relative') return { slots: [rule.to], only: true };
-  if (rule.type === 'under') return { slots: [rule.to], only: false };
+  if (rule.type === 'under') {
+    const main = roomType ? mainSlot(roomType) : null;
+    return { slots: main && main !== rule.to ? [rule.to, main] : [rule.to], only: true, either: true };
+  }
   if (rule.type === 'wall-mounted' && rule.above) {
     const overBasinOnly = archetype.slot === 'mirror' && roomType != null && WET_ROOM_TYPES.includes(roomType);
     if (rule.onlyAbove || overBasinOnly) return { slots: Array.isArray(rule.above) ? rule.above : [rule.above], only: true };
@@ -59,17 +63,23 @@ export function arrangedOff(kind: string, roomType?: RoomType): ArrangedOff | nu
   return null;
 }
 
-/** The piece `item` was arranged off, among the pieces as they stood: the nearest of the first of its slots the room had. */
-function anchorOf(item: PlacedItem, laid: readonly PlacedItem[], roomType: RoomType | undefined): PlacedItem | null {
+/**
+ * The pieces `item` was arranged off, among the pieces as they stood: the nearest of the first of
+ * its slots the room had — or, where any of them will do (`either`), the nearest of each. None for
+ * a piece that stands on its own, and for one whose room never had the other.
+ */
+function anchorsOf(item: PlacedItem, laid: readonly PlacedItem[], roomType: RoomType | undefined): PlacedItem[] {
   const off = arrangedOff(item.kind, roomType);
-  if (!off) return null;
+  if (!off) return [];
+  const distance = (p: PlacedItem) => Math.hypot(p.position.x - item.position.x, p.position.z - item.position.z);
+  const found: PlacedItem[] = [];
   for (const slot of off.slots) {
     const anchors = laid.filter((p) => p.roomId === item.roomId && p.id !== item.id && p.slot === slot);
     if (anchors.length === 0) continue;
-    const distance = (p: PlacedItem) => Math.hypot(p.position.x - item.position.x, p.position.z - item.position.z);
-    return anchors.reduce((best, p) => (distance(p) < distance(best) ? p : best));
+    found.push(anchors.reduce((best, p) => (distance(p) < distance(best) ? p : best)));
+    if (!off.either) break;
   }
-  return null;
+  return found;
 }
 
 /**
@@ -85,17 +95,17 @@ function anchorOf(item: PlacedItem, laid: readonly PlacedItem[], roomType: RoomT
 export function withoutOrphans(laid: readonly PlacedItem[], kept: PlacedItem[], rooms: ReadonlyArray<Pick<PlanRoom, 'id' | 'type'>> = []): PlacedItem[] {
   const typeOf = new Map(rooms.map((room) => [room.id, room.type]));
   const asLaid = new Map(laid.map((item) => [item.id, item]));
-  const anchors = new Map<string, PlacedItem | null>();
+  const anchors = new Map<string, PlacedItem[]>();
   for (const item of kept) {
     const was = asLaid.get(item.id) ?? item;
-    anchors.set(item.id, anchorOf(was, laid, typeOf.get(was.roomId)));
+    anchors.set(item.id, anchorsOf(was, laid, typeOf.get(was.roomId)));
   }
   let standing = kept;
   for (;;) {
     const ids = new Set(standing.map((item) => item.id));
     const next = standing.filter((item) => {
-      const anchor = anchors.get(item.id);
-      return !anchor || ids.has(anchor.id);
+      const off = anchors.get(item.id) ?? [];
+      return off.length === 0 || off.some((anchor) => ids.has(anchor.id));
     });
     if (next.length === standing.length) return standing;
     standing = next;

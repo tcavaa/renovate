@@ -787,6 +787,15 @@ export const ROOM_PROGRAMS: Record<RoomType, ProgramEntry[]> = {
 ROOM_PROGRAMS.studio = [...ROOM_PROGRAMS.kitchen, ...ROOM_PROGRAMS.living_room.filter((e) => !ROOM_PROGRAMS.kitchen.some((k) => k.kind === e.kind))];
 
 /** Chooses the better variant when a program entry has a size-gated upgrade. */
+/**
+ * The piece a room is laid out round — the first of its program: the bed, the sofa, the desk. What a
+ * rug lies under in a room that has no piece of its own for it (an office has no coffee table).
+ */
+export function mainSlot(type: RoomType): SlotKind | null {
+  const first = ROOM_PROGRAMS[type]?.[0];
+  return first ? (getArchetype(first.kind)?.slot ?? null) : null;
+}
+
 export function resolveVariant(entry: ProgramEntry, roomAreaM2: number): string {
   if (entry.kind === 'sofa_3seat' && entry.preferAboveM2 && roomAreaM2 >= entry.preferAboveM2) {
     return 'sofa_corner';
