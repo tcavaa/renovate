@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { layoutRoom } from '@/lib/design/autoLayout';
 import { getArchetype } from '@/lib/design/catalog';
-import { blocksWindow } from '@/lib/design/manipulate';
-import { roomEdges } from '@/lib/design/planGeometry';
+import { blocksWindow, pieceWall } from '@/lib/design/manipulate';
+import { isOpenEdge, roomEdges } from '@/lib/design/planGeometry';
 import { seededRng } from '@/lib/design/random';
 import { effectiveSplit, lineCoordinate, partRoom, studioParts } from '@/lib/design/studio';
 import type { Opening, PlanRoom, Vec2 } from '@/lib/design/types';
@@ -94,10 +94,90 @@ describe('a studio laid out half by half', () => {
     }
   });
 
+  // The line is no wall to stand a piece against either: the TV unit stood on it, its back to the
+  // kitchen, on every one of these draws — the sofa under the windows, "3.7 m from the screen".
+  // The sofa takes the wall between the separator and the corner, its unit the wall across from it.
+  it('stands the TV unit against a wall of the living half, never on the line or the separator', () => {
+    const living = partRoom(studio, studioParts(studio)!.find((part) => part.type === 'living_room')!);
+    const units = layouts.flatMap((items) => items.filter((i) => i.kind === 'tv_unit'));
+    expect(units).toHaveLength(layouts.length);
+    for (const unit of units) {
+      const back = { x: unit.position.x - Math.sin(unit.rotation) * (unit.size.depth / 2), z: unit.position.z - Math.cos(unit.rotation) * (unit.size.depth / 2) };
+      expect(Math.abs(back.z - line), `unit at z ${unit.position.z}`).toBeGreaterThan(0.05);
+      const wall = pieceWall(unit, living);
+      expect(wall, `unit at (${unit.position.x}, ${unit.position.z})`).not.toBeNull();
+      expect(isOpenEdge(living, wall!.edge.index)).toBe(false);
+    }
+  });
+
   it('hangs the TV clear of the windows', () => {
     const tvs = layouts.flatMap((items) => items.filter((i) => i.kind === 'tv'));
     expect(tvs.length).toBeGreaterThan(0);
     // Measured against the whole room, its windows where they are on its own walls.
     for (const tv of tvs) expect(blocksWindow(tv, studio)).toBe(false);
+  });
+});
+
+describe('an opening that reaches across the line between the halves', () => {
+  // 6 × 4 m, the kitchen the low 35 % along x (the line at x 2.1). A window on the wall at z 0
+  // from x 1.7 to 3.3: its middle in the living half, 40 cm of it on the kitchen half's wall. A
+  // door fills the kitchen's long wall, so its run and fridge go on one of its two short walls —
+  // the fridge at the line's end of the wall, where the half was told of no window.
+  const across: PlanRoom = {
+    id: 'r1',
+    name: 'Studio',
+    type: 'studio',
+    areaM2: 24,
+    heightM: 2.8,
+    perimeterM: 20,
+    polygon: [P(0, 0), P(6, 0), P(6, 4), P(0, 4)],
+    openings: [opening('w', 'window', 0, 2.5 / 6, 1.6), opening('d', 'door', 3, 0.5, 0.9, { exterior: false })],
+  };
+  const [kitchen, living] = studioParts(across)!.map((part) => partRoom(across, part));
+  const cut = lineCoordinate(across, effectiveSplit(across));
+  const span = (room: PlanRoom, o: Opening) => {
+    const edge = roomEdges(room.polygon).find((e) => e.index === o.wallIndex)!;
+    const at = edge.a.x + (edge.b.x - edge.a.x) * o.t;
+    return [at - o.widthM / 2, at + o.widthM / 2];
+  };
+
+  it('gives the half its middle is in the whole of it, and the other half the stretch on its side', () => {
+    expect(cut).toBeCloseTo(2.1, 2);
+    const whole = living.openings.find((o) => o.id === 'w')!;
+    expect(whole.reachesIn).toBeUndefined();
+    expect(whole.widthM).toBe(1.6);
+    expect(span(living, whole)[0]).toBeCloseTo(1.7, 6);
+    const rest = kitchen.openings.filter((o) => o.id === 'w');
+    expect(rest).toHaveLength(1);
+    expect(rest[0].reachesIn).toBe(true);
+    expect(rest[0].kind).toBe('window');
+    expect(span(kitchen, rest[0])[0]).toBeCloseTo(1.7, 6);
+    expect(span(kitchen, rest[0])[1]).toBeCloseTo(cut, 2);
+    // The door is all the kitchen's: the living half hears nothing of it.
+    expect(living.openings.some((o) => o.id === 'd')).toBe(false);
+  });
+
+  it('is no opening to the other half where only a sliver of it is past the line', () => {
+    // The same window 38 cm further along: 2 cm of it on the kitchen half's wall (plan #392's
+    // studio). No piece stands across a window by reaching 2 cm onto it — the whole room's own
+    // test (`blocksWindow`) allows 5 cm — so the kitchen half has no window on that wall.
+    const sliver: PlanRoom = { ...across, openings: [opening('w', 'window', 0, 2.88 / 6, 1.6), across.openings[1]] };
+    const [kitchenHalf, livingHalf] = studioParts(sliver)!.map((part) => partRoom(sliver, part));
+    expect(kitchenHalf.openings.some((o) => o.id === 'w')).toBe(false);
+    expect(livingHalf.openings.find((o) => o.id === 'w')?.widthM).toBe(1.6);
+    // 10 cm of it past the line is a stretch of window there.
+    const more: PlanRoom = { ...across, openings: [opening('w', 'window', 0, 2.8 / 6, 1.6), across.openings[1]] };
+    const told = partRoom(more, studioParts(more)![0]).openings.filter((o) => o.id === 'w');
+    expect(told).toHaveLength(1);
+    expect(told[0].widthM).toBeCloseTo(0.1, 2);
+  });
+
+  it('stands and hangs nothing tall over the stretch on its side, and dresses the window once', () => {
+    for (let seed = 1; seed <= 30; seed++) {
+      const items = layoutRoom(across, { rng: seededRng(seed) });
+      for (const item of items) expect(blocksWindow(item, across), `${item.kind} (seed ${seed})`).toBe(false);
+      // One curtain or blind (both are the curtain's slot) on the window's wall: the window's own.
+      expect(items.filter((i) => i.slot === 'curtain' && Math.abs(i.position.z) < 0.2).length, `seed ${seed}`).toBe(1);
+    }
   });
 });

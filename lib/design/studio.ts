@@ -11,9 +11,9 @@
  */
 
 import type { RoomPart, RoomSplit, RoomType } from '@/lib/calculator/types';
-import { alongEdge, isOpenEdge, pointOnEdge, polygonAreaM2, polygonBounds, roomEdges, type PlanEdge } from './planGeometry';
+import { ON_LINE_M, ONTO_WINDOW_M, alongEdge, isOpenEdge, pointOnEdge, polygonAreaM2, polygonBounds, roomEdges, type PlanEdge } from './planGeometry';
 import { clipPolygon } from './zones';
-import type { PlanRoom, Vec2 } from './types';
+import type { Opening, PlanRoom, Vec2 } from './types';
 
 import { DEFAULT_FIRST_SHARE, DEFAULT_STUDIO_PARTS } from '@/lib/calculator/constants';
 
@@ -187,22 +187,29 @@ export function studioParts(room: Outline): [StudioPart, StudioPart] | null {
   return [part(0), part(1)];
 }
 
-/** How far off a line a point may lie and still be on it, metres. */
-const ON_LINE_M = 1e-3;
+/** How far `point` lies off the line `edge` is on, metres. */
+function offEdge(edge: PlanEdge, point: Vec2): number {
+  return Math.abs((point.x - edge.a.x) * edge.dir.z - (point.z - edge.a.z) * edge.dir.x);
+}
 
 /** Whether `point` lies on the segment of `edge` (its ends included). */
 function onEdge(edge: PlanEdge, point: Vec2): boolean {
   const along = alongEdge(edge, point);
-  const off = Math.abs((point.x - edge.a.x) * edge.dir.z - (point.z - edge.a.z) * edge.dir.x);
-  return off < ON_LINE_M && along > -ON_LINE_M && along < edge.length + ON_LINE_M;
+  return offEdge(edge, point) < ON_LINE_M && along > -ON_LINE_M && along < edge.length + ON_LINE_M;
 }
 
 /**
  * One part of a studio as a room of its own, for the engines that furnish and fit a room
  * (`autoLayout`, `autoTechnical`): the part's outline and type, the room's doors and windows
- * moved onto the part's own edges (each to the part its middle is in), and as open edges
- * (`PlanRoom.open`) the line between the parts and whatever lies on the room's own separators —
- * no wall there, so nothing stands against it, runs along it or hangs on it.
+ * moved onto the part's own edges, and as open edges (`PlanRoom.open`) the line between the parts
+ * and whatever lies on the room's own separators — no wall there, so nothing stands against it,
+ * runs along it or hangs on it.
+ *
+ * An opening is the part's its middle is in, whole. One that reaches across the line is known to
+ * the other part too, as the stretch of it on that part's wall (`Opening.reachesIn`): a window is
+ * still a window where it runs on past the line, and a piece stood over those 40 cm stands across
+ * it. A stretch of 5 cm or less (`ONTO_WINDOW_M`) is none: no piece is across a window for
+ * reaching that far onto it, and a wall is not a windowed wall for it.
  */
 export function partRoom(room: PlanRoom, part: StudioPart): PlanRoom {
   const roomSides = roomEdges(room.polygon);
@@ -214,13 +221,23 @@ export function partRoom(room: PlanRoom, part: StudioPart): PlanRoom {
   const open = partSides
     .filter((e) => (Math.abs(coord(e.a) - at) < ON_LINE_M && Math.abs(coord(e.b) - at) < ON_LINE_M) || separators.some((s) => onEdge(s, e.a) && onEdge(s, e.b)))
     .map((e) => e.index);
-  const openings = room.openings.flatMap((o) => {
+  const openings = room.openings.flatMap((o): Opening[] => {
     const side = roomSides.find((e) => e.index === o.wallIndex);
     if (!side) return [];
     const middle = pointOnEdge(side, o.t);
-    // A part's edge on the same line as the wall, the opening's middle on it.
-    const edge = partSides.find((e) => Math.abs(e.dir.x * side.dir.x + e.dir.z * side.dir.z) > 0.999 && onEdge(e, middle));
-    return edge ? [{ ...o, wallIndex: edge.index, t: alongEdge(edge, middle) / edge.length }] : [];
+    // The part's edges on the same line as the wall.
+    const inLine = partSides.filter((e) => Math.abs(e.dir.x * side.dir.x + e.dir.z * side.dir.z) > 0.999 && offEdge(side, e.a) < ON_LINE_M);
+    // The opening's middle on one of them: the opening is this part's, whole.
+    const edge = inLine.find((e) => onEdge(e, middle));
+    if (edge) return [{ ...o, wallIndex: edge.index, t: alongEdge(edge, middle) / edge.length }];
+    // Its middle in the other part: this part is told of the stretch that reaches onto its wall.
+    return inLine.flatMap((e) => {
+      const at = alongEdge(e, middle);
+      const from = Math.max(0, at - o.widthM / 2);
+      const to = Math.min(e.length, at + o.widthM / 2);
+      // A sliver is no opening: a piece that reaches no further onto a window is not across it.
+      return to - from > ONTO_WINDOW_M ? [{ ...o, wallIndex: e.index, t: (from + to) / 2 / e.length, widthM: to - from, reachesIn: true }] : [];
+    });
   });
   return { ...room, type: part.type, polygon: part.polygon, areaM2: part.areaM2, openings, open, split: undefined };
 }

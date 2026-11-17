@@ -73,6 +73,13 @@ export interface Opening {
   product?: SceneProduct | null;
   origin?: ElementOrigin;
   locked?: boolean;
+  /**
+   * Never stored — only on a studio's half as a room of its own (`partRoom`): the stretch of an
+   * opening whose middle is in the other half that reaches across the line onto this half's wall.
+   * In the way of what stands or hangs there; the opening itself is the other half's (dressed,
+   * counted and walked through there).
+   */
+  reachesIn?: boolean;
 }
 
 // ---------------------------------------------------------------------------

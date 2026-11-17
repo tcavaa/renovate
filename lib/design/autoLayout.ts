@@ -29,6 +29,8 @@ import {
   type Size3,
 } from './catalog';
 import {
+  ON_LINE_M,
+  alongEdge,
   boxInPolygon,
   isOpenEdge,
   isPassage,
@@ -36,11 +38,13 @@ import {
   polygonBounds,
   polygonCentroid,
   roomEdges,
+  wallRun,
   type PlanEdge,
 } from './planGeometry';
 import type { Opening, PlacedItem, PlanRoom, StyleId, Vec2 } from './types';
 import { isLargeSize, isTightPassage, longSideGaps } from './clearance';
-import { blocksWindow } from './manipulate';
+import { blocksWindow, pieceWall } from './manipulate';
+import { kitchenCornerFloor } from './kitchenCorner';
 import { anchorsFor, type TechnicalAnchor } from './technical';
 import { pickNearBest, weightedOrder, type Rng } from './random';
 import {
@@ -122,6 +126,12 @@ interface RuleContext {
    * WC across a narrow room left nobody room to pass (the owner's screenshot).
    */
   passages: Box[];
+  /**
+   * For the piece being laid, where the piece the program stands against a wall off it next would
+   * stand were it put at this pose — a sofa's TV unit (`layoutArea`'s dry run): the sofa's spot is
+   * chosen knowing whether its unit then has a wall. None for any other piece.
+   */
+  screenFor?: (pose: Pose) => Pose | null;
 }
 
 /** Decor a generated room may go without, and how likely each is to be laid out when it fits. */
@@ -208,18 +218,44 @@ const BED_SPREAD = 3;
 export function layoutPlan(rooms: PlanRoom[], options: LayoutOptions = {}): PlacedItem[] {
   const placed = rooms.flatMap((room) => layoutRoom(room, options));
   // The washing machine is the bathroom's; when no bathroom has room for it, the hall's (by the
-  // entrance, with the technical things), else the kitchen's.
+  // entrance, with the technical things), else the kitchen's — a studio's kitchen half is a
+  // kitchen for this, as it is for everything else that is laid out.
   if (!placed.some((p) => p.slot === 'washer') && rooms.some((r) => r.type === 'bathroom')) {
     for (const type of WASHER_FALLBACK_ROOMS) {
-      const room = rooms.filter((r) => r.type === type).sort((a, b) => b.areaM2 - a.areaM2)[0];
-      const washer = room ? placeAdditional(room, 'washer', placed, undefined, options.obstacles?.[room.id] ?? []) : null;
+      const area = areasOfType(rooms, type, options).sort((a, b) => b.room.areaM2 - a.room.areaM2)[0];
+      if (!area) continue;
+      // A kitchen whose run is short of a kitchen turns its corner once the flat is matched
+      // (`fitKitchenCorners`): the machine stands against a wall off the floor that corner would
+      // take, where the kitchen has such a wall — it stood 60 cm along the leg's wall and the
+      // kitchen had no corner. Where it has none, the machine stands as it would with no corner
+      // to keep (a flat keeps its washing machine).
+      const whole = rooms.find((r) => r.id === area.room.id);
+      const corner = whole ? kitchenCornerFloor(whole, placed) : [];
+      const washer =
+        (corner.length > 0 ? additionalPiece(area.room, 'washer', placed, undefined, [...area.obstacles, ...corner], false) : null) ??
+        placeAdditional(area.room, 'washer', placed, undefined, area.obstacles);
       if (washer) {
-        placed.push({ ...washer, id: `${room!.id}-washer-0` });
+        placed.push({ ...washer, id: `${area.room.id}-${area.idPrefix}washer-0` });
         break;
       }
     }
   }
   return placed;
+}
+
+/**
+ * The rooms of a type as the engine furnishes them: the rooms typed so, and the halves of studios
+ * that are — each half a room of its own (`partRoom`), with the whole studio's door approaches
+ * among what it may not stand on, as when the half is laid out (`layoutRoom`).
+ */
+function areasOfType(rooms: PlanRoom[], type: RoomType, options: LayoutOptions): Array<{ room: PlanRoom; obstacles: Box[]; idPrefix: string }> {
+  return rooms.flatMap((room) => {
+    const obstacles = options.obstacles?.[room.id] ?? [];
+    const parts = studioParts(room);
+    if (!parts) return room.type === type ? [{ room, obstacles, idPrefix: '' }] : [];
+    const keepouts = options.respectDoorSwing === false ? [] : doorKeepouts(room, roomEdges(room.polygon));
+    return parts.filter((part) => part.type === type).map((part) => ({ room: partRoom(room, part), obstacles: [...obstacles, ...keepouts], idPrefix: `p${part.index}-` }));
+  });
 }
 
 /** Where the washing machine goes when no bathroom has room for it, in this order. */
@@ -281,56 +317,103 @@ function layoutArea(room: PlanRoom, options: LayoutOptions, idPrefix: string, do
   const passages: Box[] = [];
   const wet = WET_ROOM_TYPES.includes(room.type);
 
-  for (const entry of program) {
+  /** The piece a program entry lays in this room, or null where the room gets none of it: too small, no window for a curtain. */
+  const pieceOf = (entry: ProgramEntry): { kind: string; archetype: Archetype } | null => {
     const kind = windowDressing(resolveVariant(entry, room.areaM2), room.type, options.styleId);
     const archetype = getArchetype(kind);
-    if (!archetype) continue;
+    if (!archetype) return null;
 
-    if (options.skipDecor && archetype.ghost && archetype.slot !== 'rug') continue;
+    if (options.skipDecor && archetype.ghost && archetype.slot !== 'rug') return null;
 
     const gate = entry.minAreaM2 ?? archetype.minRoomAreaM2 ?? 0;
-    if (room.areaM2 < gate) continue;
+    if (room.areaM2 < gate) return null;
     // A Scandinavian or Industrial bathroom is a shower first: a bath only where both fit.
-    if (archetype.slot === 'bathtub' && options.styleId && SHOWER_FIRST_STYLES.includes(options.styleId) && room.areaM2 < BATH_WITH_SHOWER_M2) continue;
+    if (archetype.slot === 'bathtub' && options.styleId && SHOWER_FIRST_STYLES.includes(options.styleId) && room.areaM2 < BATH_WITH_SHOWER_M2) return null;
     // A curtain or a blind needs a window: a room without one draws nothing for it.
-    if (archetype.placement.type === 'window' && !room.openings.some((o) => o.kind === 'window')) continue;
+    if (archetype.placement.type === 'window' && ownWindows(room).length === 0) return null;
+    return { kind, archetype };
+  };
+
+  /** Stands a piece: its slot, and the floor it takes and keeps clear of what is laid after it. */
+  const stand = (into: { placed: PlacedItem[]; occupied: Box[]; passages: Box[] }, archetype: Archetype, kind: string, pose: Pose, id: string) => {
+    into.placed.push({
+      id,
+      roomId: room.id,
+      slot: archetype.slot,
+      kind,
+      position: pose.position,
+      rotation: pose.rotation,
+      elevationM: pose.elevationM,
+      size: pose.size,
+      product: null,
+      // A shower's slot is its tray and glass; the product (a column) stands at its back.
+      ...(archetype.slot === 'shower' ? { areaM: { width: pose.size.width, depth: pose.size.depth } } : {}),
+    });
+
+    // A WC keeps its 40 cm either side of its centre (`WC_SIDE_M`): nothing placed after it stands there.
+    if (!archetype.ghost) into.occupied.push(boxFor(archetype.slot === 'toilet' ? { ...pose, size: { ...pose.size, width: Math.max(pose.size.width, 2 * WC_SIDE_M + 0.02) } } : pose));
+    // A fixture's free floor in a bathroom or a toilet: what comes after keeps out of it.
+    if (wet && WET_FIXTURES.has(archetype.slot)) into.passages.push(clearanceBox(pose, BATH_PASSAGE_MIN_M));
+    // The kitchen run's 1.2 m of working floor: the table and its chairs stand beyond it.
+    if (archetype.slot === 'kitchen_run') into.occupied.push(clearanceBox(pose, KITCHEN_CIRCULATION_M));
+    // An island's 1.2 m round it: nothing placed after it stands there (K-6).
+    if (archetype.slot === 'kitchen_island') into.occupied.push(inflate(boxFor(pose), ISLAND_CLEAR_M - 0.01));
+  };
+
+  /**
+   * For the piece of the program's entry `at`: where the piece stood against a wall off it next
+   * would stand were it put at a pose — a sofa's TV unit, back to the wall the sofa faces. A dry
+   * run of what the engine does next, by the pieces' own rules and tests: the coffee table off the
+   * sofa, then the unit (inside the room, on no taken floor, 60 cm clear of the table, the window
+   * rule). Undefined for a piece nothing is stood against a wall off, and when what is laid
+   * between the two is not laid off it as well — the dry run would not be what happens.
+   */
+  const screenAfter = (at: number, piece: { kind: string; archetype: Archetype }): RuleContext['screenFor'] => {
+    const next: Array<{ kind: string; archetype: Archetype }> = [];
+    for (const entry of program.slice(at + 1)) {
+      const follower = pieceOf(entry);
+      if (!follower) continue;
+      const rule = follower.archetype.placement;
+      if (rule.type !== 'relative' || rule.to !== piece.archetype.slot || entry.count !== 1 || follower.kind in OPTIONAL_DECOR) break;
+      next.push(follower);
+      if (rule.toWall) break;
+    }
+    const last = next[next.length - 1]?.archetype.placement;
+    if (last?.type !== 'relative' || !last.toWall) return undefined;
+    return (pose) => {
+      const dry = { placed: [...placed], occupied: [...occupied], passages: [...passages] };
+      stand(dry, piece.archetype, piece.kind, pose, 'dry-run');
+      let found: Pose | null = null;
+      for (const follower of next) {
+        const rules: RuleContext = { doorBands, entranceBands: options.entranceSight?.[room.id] ?? [], placed: dry.placed, passages: dry.passages };
+        found = resolvePose(follower.archetype, 0, room, edges, dry.placed, dry.occupied, { rules });
+        if (found) stand(dry, follower.archetype, follower.kind, found, 'dry-run');
+      }
+      return found;
+    };
+  };
+
+  for (const [at, entry] of program.entries()) {
+    const piece = pieceOf(entry);
+    if (!piece) continue;
+    const { kind, archetype } = piece;
     // A generated room varies its decor: a plant here, a print there, not every piece every time.
     if (options.rng && kind in OPTIONAL_DECOR && options.rng() > OPTIONAL_DECOR[kind]) continue;
 
     // A curtain or a blind at every window, not one a room (G-20).
     const count =
-      entry.count === 'fill' ? seatCountFor(archetype, placed) : archetype.placement.type === 'window' ? room.openings.filter((o) => o.kind === 'window').length : entry.count;
+      entry.count === 'fill' ? seatCountFor(archetype, placed) : archetype.placement.type === 'window' ? ownWindows(room).length : entry.count;
+    const screenFor = screenAfter(at, piece);
 
     for (let i = 0; i < count; i++) {
-      const rules: RuleContext = { doorBands, entranceBands: options.entranceSight?.[room.id] ?? [], placed, passages };
+      const rules: RuleContext = { doorBands, entranceBands: options.entranceSight?.[room.id] ?? [], placed, passages, screenFor };
       const pose = resolvePose(archetype, i, room, edges, placed, occupied, { anchors: anchorsFor(kind, anchors), rng: options.rng, rules });
       // A ring of seats keeps going past a slot that hits a wall; anything else stops at the
       // first failure, because its second copy has no better chance than its first.
       if (!pose && entry.count === 'fill') continue;
       if (!pose) break;
 
-      placed.push({
-        id: nextId(kind),
-        roomId: room.id,
-        slot: archetype.slot,
-        kind,
-        position: pose.position,
-        rotation: pose.rotation,
-        elevationM: pose.elevationM,
-        size: pose.size,
-        product: null,
-        // A shower's slot is its tray and glass; the product (a column) stands at its back.
-        ...(archetype.slot === 'shower' ? { areaM: { width: pose.size.width, depth: pose.size.depth } } : {}),
-      });
-
-      // A WC keeps its 40 cm either side of its centre (`WC_SIDE_M`): nothing placed after it stands there.
-      if (!archetype.ghost) occupied.push(boxFor(archetype.slot === 'toilet' ? { ...pose, size: { ...pose.size, width: Math.max(pose.size.width, 2 * WC_SIDE_M + 0.02) } } : pose));
-      // A fixture's free floor in a bathroom or a toilet: what comes after keeps out of it.
-      if (wet && WET_FIXTURES.has(archetype.slot)) passages.push(clearanceBox(pose, BATH_PASSAGE_MIN_M));
-      // The kitchen run's 1.2 m of working floor: the table and its chairs stand beyond it.
-      if (archetype.slot === 'kitchen_run') occupied.push(clearanceBox(pose, KITCHEN_CIRCULATION_M));
-      // An island's 1.2 m round it: nothing placed after it stands there (K-6).
-      if (archetype.slot === 'kitchen_island') occupied.push(inflate(boxFor(pose), ISLAND_CLEAR_M - 0.01));
+      stand({ placed, occupied, passages }, archetype, kind, pose, nextId(kind));
     }
   }
 
@@ -389,6 +472,11 @@ function alongLength(rotation: number, room: PlanRoom): number {
  * for a room whose program had no bed. Same rules, same keepouts; null when it will not fit.
  */
 export function placeAdditional(room: PlanRoom, kind: string, existing: PlacedItem[], size?: PlacedItem['size'], obstacles: Box[] = []): PlacedItem | null {
+  return additionalPiece(room, kind, existing, size, obstacles, true);
+}
+
+/** `placeAdditional`; with `anywhere` off, only a spot the piece's own rule gives it — never the last resort of any free floor. */
+function additionalPiece(room: PlanRoom, kind: string, existing: PlacedItem[], size: PlacedItem['size'] | undefined, obstacles: Box[], anywhere: boolean): PlacedItem | null {
   const registered = getArchetype(kind);
   if (!registered) return null;
   // The spot is found for the real product when its size is known, not for the archetype's
@@ -408,7 +496,7 @@ export function placeAdditional(room: PlanRoom, kind: string, existing: PlacedIt
       .map((i) => boxFor({ position: i.position, rotation: i.rotation, size: i.size, elevationM: i.elevationM })),
   ];
   const index = placed.filter((i) => i.kind === kind).length;
-  const pose = resolvePose(archetype, index, room, edges, placed, occupied, { exact }) ?? placeAnywhere(archetype, room, edges, occupied);
+  const pose = resolvePose(archetype, index, room, edges, placed, occupied, { exact }) ?? (anywhere ? placeAnywhere(archetype, room, edges, occupied) : null);
   if (!pose) return null;
   return {
     id: `${room.id}-${kind}-extra-${index}`,
@@ -593,7 +681,7 @@ function bestAlongWalls(
 ): Pose | null {
   const { width, depth, height } = size;
   const anchorPoints = anchors.map((a) => a.point);
-  const spots: Array<{ value: Pose; score: number; seen?: boolean; cramped?: boolean }> = [];
+  const spots: Array<{ value: Pose; score: number; seen?: boolean; cramped?: boolean; screen?: { ahead: number; wall: number | null } }> = [];
   const bounds = polygonBounds(room.polygon);
   // In a bathroom or a toilet each fixture keeps free floor in front of it, and out of the others'.
   const wetFixture = WET_ROOM_TYPES.includes(room.type) && WET_FIXTURES.has(archetype.slot);
@@ -603,7 +691,8 @@ function bestAlongWalls(
   const entrancePoints = openingPoints(room, edges, (o) => o.kind === 'door' && !!o.exterior);
 
   for (const edge of edges) {
-    if (edge.length < width + 0.25) continue;
+    // A piece that fits its wall may stand on it, corner to corner (`sampleAlong`).
+    if (edge.length < width) continue;
 
     // Don't stand a wardrobe in a doorway or across a window.
     const blocked = room.openings.filter((o) => o.wallIndex === edge.index);
@@ -697,31 +786,50 @@ function bestAlongWalls(
         else if (!facesWay(edge.facing, bed.rotation)) score += 6;
       }
       // The sofa 2.5–3.5 m from the screen on the wall it faces.
+      let screen: { ahead: number; wall: number | null } | undefined;
       if (archetype.slot === 'sofa') {
-        const ahead = rayToPolygon(centre, { x: Math.sin(edge.facing), z: Math.cos(edge.facing) }, room.polygon);
-        if (ahead != null) {
-          const screen = ahead - 0.05;
-          const off = screen < SOFA_TV_M.min ? SOFA_TV_M.min - screen : screen > SOFA_TV_M.max ? screen - SOFA_TV_M.max : 0;
-          score += off === 0 ? 10 : -off * 16;
+        const forward = { x: Math.sin(edge.facing), z: Math.cos(edge.facing) };
+        // What it faces is the first thing ahead, a wall or a room separator's open line; the wall
+        // its screen is on is the one its TV unit would stand against, when it would against one.
+        const outline = rayToPolygon(centre, forward, room.polygon);
+        const facing = (ahead: number): number => {
+          let worth = 0;
+          const off = ahead - 0.05 < SOFA_TV_M.min ? SOFA_TV_M.min - (ahead - 0.05) : ahead - 0.05 > SOFA_TV_M.max ? ahead - 0.05 - SOFA_TV_M.max : 0;
+          worth += off === 0 ? 10 : -off * 16;
           // It faces the TV, which hangs on the wall ahead: not a wall of windows.
-          const ahead2 = { x: Math.sin(edge.facing), z: Math.cos(edge.facing) };
-          const tvPose = { position: { x: centre.x + ahead2.x * (ahead - 0.25), z: centre.z + ahead2.z * (ahead - 0.25) }, rotation: edge.facing + Math.PI, size: { width: 1.6, depth: 0.4, height: TV_TOP_M }, elevationM: 0 };
-          if (blocksWindow({ ...tvPose, slot: 'tv_unit' }, room)) score -= 14;
+          const tvPose = { position: { x: centre.x + forward.x * (ahead - 0.25), z: centre.z + forward.z * (ahead - 0.25) }, rotation: edge.facing + Math.PI, size: { width: 1.6, depth: 0.4, height: TV_TOP_M }, elevationM: 0 };
+          if (blocksWindow({ ...tvPose, slot: 'tv_unit' }, room)) worth -= 14;
           // Nobody walks between the sofa and the TV to get through the room (the rulebook, L-5):
           // the floor between them stays off the way from one door to another.
           const view = viewingQuad(centre, edge.facing, width, depth, ahead);
-          if (passagePaths(doorPoints).some((path) => quadsOverlap(path, view))) score -= 25;
-        }
+          if (passagePaths(doorPoints).some((path) => quadsOverlap(path, view))) worth -= 25;
+          return worth;
+        };
+        const unit = rules?.screenFor?.(pose) ?? null;
+        const behind = unit ? standingWall(unit, room, edges) : null;
+        screen = {
+          ahead: outline != null ? facing(outline) : 0,
+          wall: unit && behind ? facing((unit.position.x - centre.x) * forward.x + (unit.position.z - centre.z) * forward.z + unit.size.depth / 2 + behind.gap) : null,
+        };
       }
 
       // A fixture wants its pipe: the toilet by the sewer, the sink by the water. Strong
       // enough to outweigh the wall preferences, which are about looks, not plumbing.
       if (anchorPoints.length > 0) score += Math.max(0, 40 - minDistance(centre, anchorPoints) * 12);
 
-      spots.push({ value: pose, score, seen, cramped });
+      spots.push({ value: pose, score, seen, cramped, screen });
     }
   }
 
+  // A sofa's TV unit stands on a wall: where some spot of the sofa gives it one, the sofa takes
+  // one of those, scored by its distance to that wall. Where none does — every wall ahead too
+  // near, or a separator's line — the room is laid as it always was, the screen whatever the sofa
+  // faces: what stands there instead is a rule of the room's still to be written.
+  if (spots.some((s) => s.screen)) {
+    const walled = spots.filter((s) => s.screen?.wall != null);
+    if (walled.length > 0) spots.splice(0, spots.length, ...walled);
+    for (const spot of spots) spot.score += walled.length > 0 ? spot.screen!.wall! : spot.screen?.ahead ?? 0;
+  }
   // A fixture that would leave no way past it goes only when nothing else fits.
   if (wetFixture && spots.some((s) => !s.cramped)) spots.splice(0, spots.length, ...spots.filter((s) => !s.cramped));
   // A WC is not what the door opens onto: the spots seen through a doorway go, unless no other fits.
@@ -1026,7 +1134,10 @@ function relativeSpots(
       ? [0, 0.45, -0.45, 0.9, -0.9]
       : [rule.lateral * preferredSide, -rule.lateral * preferredSide];
   if (rule.toWall) {
-    // The TV unit: back to the wall the sofa faces, when that wall is a sensible way off.
+    // The TV unit: back to the wall the sofa faces, when that wall is a sensible way off. The
+    // sofa was stood where this lands the unit on a wall, when its room has such a spot
+    // (`bestAlongWalls`); in a room with none, what it faces may be a room separator's open line,
+    // and the unit stands there as it always did — until the room has a rule of its own for it.
     const forward = { x: Math.sin(anchor.rotation), z: Math.cos(anchor.rotation) };
     const reach = rayToOutline(anchor.position, forward, room.polygon);
     if (reach != null) {
@@ -1047,6 +1158,20 @@ function relativeSpots(
   // exactly on that axis.
   for (const shrink of [1, 0.82, 0.66, 0.5, 0.38]) for (const lateral of laterals) out.push({ forward: rule.forward * shrink, lateral });
   return out;
+}
+
+/**
+ * The wall a piece stands on with the whole of its back: the wall it has its back to (`pieceWall`)
+ * — one of `walls`, never a room separator's open line — with its back inside that wall's length,
+ * the edges that run on from it in line counted as the same wall (`wallRun`). Null for a piece
+ * standing free, on a separator, or across the end of its wall.
+ */
+function standingWall(piece: Pick<PlacedItem, 'position' | 'rotation' | 'size'>, room: PlanRoom, walls: PlanEdge[]): { edge: PlanEdge; gap: number } | null {
+  const wall = pieceWall(piece, room);
+  if (!wall || !walls.some((e) => e.index === wall.edge.index)) return null;
+  const run = wallRun(wall.edge, walls);
+  if (wall.along - piece.size.width / 2 < run.from - ON_LINE_M || wall.along + piece.size.width / 2 > run.to + ON_LINE_M) return null;
+  return wall;
 }
 
 /** How far from `from`, along the unit direction `dir`, the ray first meets the outline; null if never. */
@@ -1371,7 +1496,9 @@ function placeAbove(
     return { position: { ...under.position }, rotation: under.rotation, size: { ...archetype.size, width: Math.min(archetype.size.width, under.size.width) }, elevationM: under.size.height };
   }
   const { edge, t: centre } = wall;
-  const blocked = room.openings.filter((o) => o.wallIndex === edge.index);
+  // The wall is that edge and the edges that run on from it in line: a unit across the joint of
+  // two of them has one wall behind it, and the windows and doors of each are in the way.
+  const run = wallRun(edge, edges);
   // A piece that goes nowhere else (`onlyAbove`: the TV) may also be smaller and slide along its
   // piece: a TV centred on a unit that runs past a window would cover the window.
   const own = Math.min(archetype.size.width, Math.max(under.size.width, 0.4));
@@ -1384,9 +1511,9 @@ function placeAbove(
     const slack = rule.stretch || rule.onlyAbove ? (under.size.width - width) / 2 : 0;
     for (const offset of [0, -slack, slack, -slack / 2, slack / 2]) {
       const t = centre + offset / edge.length;
-      if (t - width / 2 / edge.length < 0 || t + width / 2 / edge.length > 1) continue;
-      if (coversOpening(edge, t, width, middle + height / 2, blocked)) continue;
+      if (t - width / 2 / edge.length < run.from / edge.length || t + width / 2 / edge.length > run.to / edge.length) continue;
       const anchor = pointOnEdge(edge, t);
+      if (run.edges.some((part) => coversOpening(part, alongEdge(part, anchor) / part.length, width, middle + height / 2, room.openings.filter((o) => o.wallIndex === part.index)))) continue;
       const pose: Pose = {
         position: { x: anchor.x + edge.inward.x * (depth / 2 + 0.01), z: anchor.z + edge.inward.z * (depth / 2 + 0.01) },
         rotation: edge.facing,
@@ -1457,7 +1584,7 @@ function placeUnder(
 
 /** A door mat on the floor just inside the flat's front door, centred on it; null in a room it does not open into. */
 function placeAtEntrance(archetype: Archetype, room: PlanRoom, edges: PlanEdge[]): Pose | null {
-  const door = room.openings.find((o) => o.kind === 'door' && o.exterior);
+  const door = room.openings.find((o) => o.kind === 'door' && o.exterior && !o.reachesIn);
   const edge = door && edges.find((e) => e.index === door.wallIndex);
   if (!door || !edge) return null;
   const at = pointOnEdge(edge, door.t);
@@ -1473,7 +1600,7 @@ function placeAtWindow(
   room: PlanRoom,
   edges: PlanEdge[]
 ): Pose | null {
-  const windows = room.openings.filter((o) => o.kind === 'window');
+  const windows = ownWindows(room);
   const opening = windows[index];
   if (!opening) return null;
 
@@ -1658,12 +1785,22 @@ function coversOpening(
   });
 }
 
+/**
+ * The windows a room dresses and is laid out by: its own. In a studio's half the stretch of the
+ * other half's window that reaches across the line (`Opening.reachesIn`) is only in the way of
+ * what stands or hangs over it (`coversOpening`) — its curtain is the other half's to hang.
+ */
+function ownWindows(room: PlanRoom): Opening[] {
+  return room.openings.filter((o) => o.kind === 'window' && !o.reachesIn);
+}
+
+/** Where a room's own openings of a kind are, as points on its walls (not a stretch that reaches in from a studio's other half). */
 function openingPoints(
   room: PlanRoom,
   edges: PlanEdge[],
   filter: (o: Opening) => boolean
 ): Vec2[] {
-  return room.openings.filter(filter).flatMap((o) => {
+  return room.openings.filter((o) => !o.reachesIn && filter(o)).flatMap((o) => {
     const edge = edges.find((e) => e.index === o.wallIndex);
     return edge ? [pointOnEdge(edge, o.t)] : [];
   });

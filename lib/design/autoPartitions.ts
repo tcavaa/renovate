@@ -177,14 +177,65 @@ function ensuiteDoors(plan: FloorPlan): Array<{ room: PlanRoom; door: Opening }>
   return out;
 }
 
+/** The walls this module adds: an entrance screen's id, an en-suite's — and the pieces one is cut into at a junction (`<id>j<n>`, `splitAtJunctions`). */
+const ENTRY_ID = 'partition-entry-';
+const ENSUITE_ID = 'partition-ensuite-';
+const SCREEN_ID = /^(partition-(?:entry|ensuite)-.+?)(?:j\d+)?$/;
+
+/** The screens an earlier generation added and the plan still has, each whole from end to end, with the depth it was built at. */
+function standingScreens(walls: readonly Wall[]): Array<{ id: string; a: Vec2; b: Vec2; depth: number }> {
+  const pieces = new Map<string, Wall[]>();
+  for (const wall of walls) {
+    const id = SCREEN_ID.exec(wall.id)?.[1];
+    if (id) pieces.set(id, [...(pieces.get(id) ?? []), wall]);
+  }
+  return [...pieces].map(([id, parts]) => {
+    // Its pieces lie on one line: the screen runs between the two ends furthest apart.
+    const ends = parts.flatMap((w) => [w.a, w.b]);
+    let span = { a: ends[0], b: ends[1], length: 0 };
+    for (const a of ends) for (const b of ends) if (Math.hypot(b.x - a.x, b.z - a.z) > span.length) span = { a, b, length: Math.hypot(b.x - a.x, b.z - a.z) };
+    return { id, a: span.a, b: span.b, depth: id.startsWith(ENTRY_ID) ? ENTRY_DEPTH_M : ENSUITE_DEPTH_M };
+  });
+}
+
 /**
- * The plan with the app's partitions added, the rooms they stand in kept whole, and the floor
- * behind each kept free. A plan whose walls are not drawn (no `walls`), or with nothing to add,
- * comes back as it was. Run again on a plan that has them, it adds nothing more.
+ * The floor behind a screen that stands: between it and the wall whose door it was built in front
+ * of — the room's edge parallel to it, no further behind it than a screen is built, with a door
+ * within the screen's length. What `doorScreen` hands back for a new one, read off the wall as it
+ * is. Null for a screen whose door is gone: it is a wall like any other then.
  */
+function floorBehind(plan: FloorPlan, screen: { a: Vec2; b: Vec2; depth: number }): { roomId: string; box: Box } | null {
+  const middle = { x: (screen.a.x + screen.b.x) / 2, z: (screen.a.z + screen.b.z) / 2 };
+  let best: { roomId: string; edge: PlanEdge; from: number; to: number; off: number } | null = null;
+  for (const room of plan.rooms) {
+    for (const edge of roomEdges(room.polygon)) {
+      const alongOf = (p: Vec2) => (p.x - edge.a.x) * edge.dir.x + (p.z - edge.a.z) * edge.dir.z;
+      const offOf = (p: Vec2) => (p.x - edge.a.x) * edge.inward.x + (p.z - edge.a.z) * edge.inward.z;
+      if (Math.abs(offOf(screen.a) - offOf(screen.b)) > 0.01) continue;
+      const off = offOf(middle);
+      if (off <= PARTITION_THICKNESS_M || off > screen.depth + PARTITION_THICKNESS_M) continue;
+      const from = Math.min(alongOf(screen.a), alongOf(screen.b));
+      const to = Math.max(alongOf(screen.a), alongOf(screen.b));
+      const door = room.openings.some((o) => o.kind === 'door' && o.wallIndex === edge.index && o.t * edge.length > from && o.t * edge.length < to);
+      if (door && (!best || off < best.off)) best = { roomId: room.id, edge, from, to, off };
+    }
+  }
+  if (!best) return null;
+  const far = best.off + PARTITION_THICKNESS_M / 2;
+  const corners = [at(best.edge, best.from, 0), at(best.edge, best.to, 0), at(best.edge, best.to, far), at(best.edge, best.from, far)];
+  return { roomId: best.roomId, box: { minX: Math.min(...corners.map((c) => c.x)), maxX: Math.max(...corners.map((c) => c.x)), minZ: Math.min(...corners.map((c) => c.z)), maxZ: Math.max(...corners.map((c) => c.z)) } };
+}
+
 /** A studio smaller than this has no room for an entrance screen (L-13). */
 export const SMALL_STUDIO_M2 = 30;
 
+/**
+ * The plan with the app's partitions added, the rooms they stand in kept whole, and the floor
+ * behind each kept free. A plan whose walls are not drawn (no `walls`) comes back as it was. Run
+ * again on a plan that has them, it adds nothing more — and the floor behind every screen that
+ * stands is kept free again, whether or not today's rules would build that screen (another style,
+ * a rule that came later): furniture is not laid out through a wall that is there.
+ */
 export function withGeneratedPartitions(plan: FloorPlan, styleId?: StyleId | null): PartitionResult {
   const none: PartitionResult = { plan, keepouts: {}, added: [] };
   if (!plan.walls?.length) return none;
@@ -193,13 +244,19 @@ export function withGeneratedPartitions(plan: FloorPlan, styleId?: StyleId | nul
   // No entrance screen in an Industrial flat (its open plan is the point), nor in a studio short of
   // room (the rulebook, L-13).
   const screenEntrance = entrance && styleId !== 'industrial' && !(entrance.room.type === 'studio' && entrance.room.areaM2 < SMALL_STUDIO_M2);
-  if (entrance && screenEntrance) wanted.push({ ...entrance, depth: ENTRY_DEPTH_M, id: `partition-entry-${entrance.room.id}` });
-  for (const ensuite of ensuiteDoors(plan)) wanted.push({ ...ensuite, depth: ENSUITE_DEPTH_M, id: `partition-ensuite-${ensuite.room.id}-${ensuite.door.id}` });
+  if (entrance && screenEntrance) wanted.push({ ...entrance, depth: ENTRY_DEPTH_M, id: `${ENTRY_ID}${entrance.room.id}` });
+  for (const ensuite of ensuiteDoors(plan)) wanted.push({ ...ensuite, depth: ENSUITE_DEPTH_M, id: `${ENSUITE_ID}${ensuite.room.id}-${ensuite.door.id}` });
   const added: Wall[] = [];
   const keepouts: Record<string, Box[]> = {};
   const keep = new Set<string>();
+  // The screens that stand already keep their floor first.
+  const standing = standingScreens(plan.walls);
+  for (const screen of standing) {
+    const behind = floorBehind(plan, screen);
+    if (behind) (keepouts[behind.roomId] ??= []).push(behind.box);
+  }
   for (const want of wanted) {
-    // Laid out again: the screen stands already (cut at a junction its pieces are `<id>j<n>`).
+    // Laid out again: the screen stands already (cut at a junction its later pieces are `<id>j<n>`).
     if (plan.walls.some((w) => w.id === want.id || w.id.startsWith(`${want.id}j`))) continue;
     const screen = doorScreen(plan, want.room, want.door, want.depth, want.id);
     if (!screen) continue;
@@ -207,7 +264,7 @@ export function withGeneratedPartitions(plan: FloorPlan, styleId?: StyleId | nul
     (keepouts[want.room.id] ??= []).push(screen.keepout);
     keep.add(want.room.id);
   }
-  if (added.length === 0) return none;
+  if (added.length === 0) return { plan, keepouts, added };
   const rebuilt = rebuildRooms(plan, splitAtJunctions(addWalls(plan.walls, added)));
   // The rooms are the same rooms (a screen joins one wall at most): matched back by where they stand.
   const rooms = rebuilt.rooms.map((room) => {

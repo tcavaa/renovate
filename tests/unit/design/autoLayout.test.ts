@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { layoutRoom } from '@/lib/design/autoLayout';
 import { getArchetype } from '@/lib/design/catalog';
 import { footprintOf } from '@/lib/design/manipulate';
-import { boxInPolygon, pointInPolygon, roomEdges, wallsEnterBox } from '@/lib/design/planGeometry';
+import { boxInPolygon, pointInPolygon, roomEdges, wallRun, wallsEnterBox } from '@/lib/design/planGeometry';
 import { rebuildRooms } from '@/lib/design/walls';
 import type { FloorPlan, PlanRoom, Vec2, Wall } from '@/lib/design/types';
 
@@ -27,6 +27,26 @@ describe('a box inside a room (boxInPolygon)', () => {
     const left = [{ a: P(0, 0), b: P(0, 4) }];
     expect(wallsEnterBox(left, { minX: 0, maxX: 1, minZ: 1, maxZ: 2 })).toBe(false);
     expect(wallsEnterBox(left, { minX: -0.01, maxX: 1, minZ: 1, maxZ: 2 })).toBe(true);
+  });
+});
+
+describe('the wall an edge is part of (wallRun)', () => {
+  // The far side, z 3, is three edges in line: 0–2, 2–3.5 and 3.5–5 (indices 4, 3, 2).
+  const edges = roomEdges([P(0, 0), P(5, 0), P(5, 3), P(3.5, 3), P(2, 3), P(0, 3)]);
+  const far = (index: number) => edges.find((e) => e.index === index)!;
+
+  it('joins the edges that run on in line into one wall, measured along the edge asked about', () => {
+    const run = wallRun(far(3), edges);
+    expect(run.edges.map((e) => e.index)).toEqual([2, 3, 4]);
+    expect(run.from).toBeCloseTo(-1.5, 9);
+    expect(run.to).toBeCloseTo(3.5, 9);
+  });
+
+  it('stops at a corner, and at an edge left out — a room separator\'s open line', () => {
+    expect(wallRun(far(2), edges.filter((e) => e.index !== 3)).edges.map((e) => e.index)).toEqual([2]);
+    const near = wallRun(edges.find((e) => e.index === 0)!, edges);
+    expect(near.edges.map((e) => e.index)).toEqual([0]);
+    expect([near.from, near.to]).toEqual([0, 5]);
   });
 });
 

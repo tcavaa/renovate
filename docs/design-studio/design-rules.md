@@ -181,7 +181,7 @@ lobby in the bedroom 1.1 m deep the same way (the wardrobe can stand against its
 that would leave less than 90 cm to a wall runs on to that wall and joins it; the other end must
 leave a way through, or there is no screen. The screen joins one wall at most, so the room stays
 one room (`keepWhole`, no separator drawn on from it); the floor behind it is kept free of
-furniture. A screen is a 10 cm plasterboard wall, `origin: 'generated'`, priced like any partition.
+furniture — when the flat is laid out again too, behind every screen that still stands. A screen is a 10 cm plasterboard wall, `origin: 'generated'`, priced like any partition.
 
 ## The third round: the rulebook (Nini, 6 Nov 2026)
 
@@ -531,7 +531,8 @@ in English — `ruleProblem` into `reviewFindings`' PROBLEMS) and the foot of th
   `basin_height` (a bathroom basin's top more than 7 cm off 85 cm), `socket_in_splash` (a socket
   within 60 cm of a shower or a bath). Worded by `components/design/ruleText.ts`.
 - `radiatorKeepouts(plan)`: the strips (the radiator's length plus 5 cm each end, its depth plus
-  30 cm) as boxes per room, which `generateScene` adds to the layout engine's obstacles.
+  30 cm) as boxes per room, which `generateScene` adds to the layout engine's obstacles and hands
+  to the kitchen's corner pass (`fitKitchenCorners`) — read once, off the plan itself.
 
 On the sample flat (`samplePlan`), laid out with the engine's seeded generation, three pieces
 stood in front of radiators without the strips and none with them; over twenty seeds, with the

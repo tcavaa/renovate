@@ -101,7 +101,7 @@ export function generateScene(input: GenerateSceneInput): GeneratedScene {
   items = wardrobes.items;
   // A kitchen whose run is short of a kitchen turns the corner where the next wall is free (an
   // L-shaped kitchen): more of the same kitchen along the next wall, and its wall cabinets.
-  items = fitKitchenCorners(underCeilings, items, [...fitted.decor, ...hall.decor, ...wardrobes.decor], plan.technical?.points);
+  items = fitKitchenCorners(underCeilings, items, [...fitted.decor, ...hall.decor, ...wardrobes.decor], radiators);
   // Every floor and wall is the style's product for its room — tiles in the bathroom, laminate
   // and paint elsewhere — so the budget buys what the flat is shown in. Re-laying out the
   // furniture is not a reason to lose the tiles someone picked. The designer's floors and walls

@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { fitKitchenCorners, kitchenLeg, kitchenLegLength, kitchenLegOf, kitchenLegsOf, radiatorObstacles, runFromCorner, runIntoCorner, withoutOrphanLegs } from '@/lib/design/kitchenCorner';
+import { fitKitchenCorners, kitchenCornerFloor, kitchenLeg, kitchenLegLength, kitchenLegOf, kitchenLegsOf, radiatorObstacles, runFromCorner, runIntoCorner, withoutOrphanLegs } from '@/lib/design/kitchenCorner';
 import { isCustomKitchenItem, measureKitchenItem } from '@/lib/design/kitchen';
 import { settleFitted } from '@/lib/design/fitted';
 import { refreshRoom } from '@/lib/design/planGeometry';
-import type { Opening, PlacedItem, PlanRoom, Vec2 } from '@/lib/design/types';
+import { radiatorKeepouts } from '@/lib/design/ruleChecks';
+import { underCeiling } from '@/lib/design/rules';
+import type { FloorPlan, Opening, PlacedItem, PlanRoom, TechnicalPoint, Vec2 } from '@/lib/design/types';
 
 /**
  * A corner (L-shaped) kitchen (`lib/design/kitchenCorner`, the owner's notes of 13 Nov 2026): a
@@ -117,6 +119,8 @@ describe('a corner’s wall cabinets', () => {
 
 describe('the generation’s corner kitchens', () => {
   const room = kitchen();
+  /** A plan of one kitchen and its radiators, as the strips are read from (`radiatorKeepouts`). */
+  const planOf = (kitchenRoom: PlanRoom, points: TechnicalPoint[], ceilingDropM?: number): FloorPlan => ({ rooms: [kitchenRoom], metresPerPixel: null, bounds: { width: 3.6, depth: 3 }, source: 'manual', wallThicknessM: 0.12, technical: { points, ceilingDropM } });
 
   it('turns the corner for a run short of a kitchen, where the next wall and the floor before it are free', () => {
     const short = run(2.6, 2);
@@ -133,8 +137,66 @@ describe('the generation’s corner kitchens', () => {
     const short = run(2.6, 2);
     // A radiator on the next wall, 1.65 m from the corner: 60 cm of leg is all that is left before it.
     const radiator = { id: 'rad', kind: 'radiator' as const, roomId: 'k', position: P(3.52, 1.65), elevationM: 0.12, origin: 'user' as const };
-    expect(fitKitchenCorners([room], [short], [], [radiator])).toHaveLength(1);
+    expect(fitKitchenCorners([room], [short], [], radiatorKeepouts(planOf(room, [radiator])))).toHaveLength(1);
     expect(kitchenLegLength(kitchenLeg(short, room, 'right', [short, ...radiatorObstacles([radiator])], [])[0])).toBe(0.6);
+  });
+
+  it('keeps a leg off the floor a radiator keeps clear, wherever the radiator says it is', () => {
+    const short = run(2.6, 2);
+    // On the next wall 2.4 m from the corner, five sections — and naming a room the plan no longer
+    // has (test project 408's did): read by its stored room it was no obstacle at all, and the
+    // leg ran its 1.8 m to the radiator's middle.
+    const radiator = { id: 'rad', kind: 'radiator' as const, roomId: 'w2-18x76', position: P(3.52, 2.4), elevationM: 0.12, sections: 5, origin: 'user' as const };
+    // The strip the layout engine keeps free and the check warns of: the one definition.
+    const strips = radiatorKeepouts(planOf(room, [radiator]));
+    const [strip] = strips.k;
+    expect(strip.maxZ - strip.minZ).toBeCloseTo(0.5, 6);
+    const leg = kitchenLegOf('run', fitKitchenCorners([room], [short], [], strips));
+    expect(leg).not.toBeNull();
+    // From the run's front, 60 cm from the corner, to where the strip begins — not into it, and
+    // not stopped 45 cm short of the radiator's middle as the old 90 cm square would.
+    expect(leg!.position.z - leg!.size.width / 2).toBeCloseTo(0.6, 3);
+    expect(leg!.position.z + leg!.size.width / 2).toBeCloseTo(strip.minZ, 3);
+  });
+
+  it('keeps off the strips of the plan itself, not strips read again from the rooms under their ceilings', () => {
+    // A radiator nobody set the sections of is as long as its room asks, and a room asks by its
+    // height: under a ceiling lowered 30 cm this kitchen's is a section shorter. The corner is
+    // fitted in the rooms under their ceilings — and off the radiator as it hangs, the plan's.
+    const tall = kitchen([window(1, 0.8, 0.9)]);
+    const radiator = { id: 'rad', kind: 'radiator' as const, roomId: 'k', position: P(3.52, 2.4), elevationM: 0.12, origin: 'user' as const };
+    const plan = planOf(tall, [radiator], 0.3);
+    const lowered = underCeiling(tall, plan);
+    expect(lowered.heightM).toBeCloseTo(2.4, 6);
+    const [strip] = radiatorKeepouts(plan).k;
+    const [shorter] = radiatorKeepouts({ ...plan, rooms: [lowered] }).k;
+    expect(shorter.minZ).toBeGreaterThan(strip.minZ + 0.03);
+    const leg = kitchenLegOf('run', fitKitchenCorners([lowered], [run(2.6, 2)], [], radiatorKeepouts(plan)));
+    expect(leg).not.toBeNull();
+    expect(leg!.position.z + leg!.size.width / 2).toBeCloseTo(strip.minZ, 3);
+  });
+
+  it('says beforehand which floor its corner would take: the leg with its working floor, for a run not yet matched', () => {
+    // A run as the layout lays it — no product, nothing to say it is made to measure.
+    const laid: PlacedItem = { ...run(2.6, 2), product: null, custom: undefined, kitchenMaterial: undefined };
+    const floor = kitchenCornerFloor(room, [laid]);
+    // The run where it stands (it is in its corner), and along the east wall the 1.8 m of leg from
+    // the run's front, its 60 cm of depth and 90 cm of working floor before it.
+    expect(floor).toHaveLength(2);
+    expect(floor[0]).toMatchObject({ minX: 1.6, maxX: 3.6, minZ: 0, maxZ: 0.6 });
+    const [, leg] = floor;
+    expect(leg.minZ).toBeCloseTo(0.6, 6);
+    expect(leg.maxZ).toBeCloseTo(2.4, 6);
+    expect(leg.maxX).toBeCloseTo(3.6, 6);
+    expect(leg.minX).toBeCloseTo(3.6 - 0.6 - 0.9, 6);
+    // What the pass then builds stands inside it.
+    const built = kitchenLegOf('run', fitKitchenCorners([room], [run(2.6, 2)], []))!;
+    expect(built.position.z - built.size.width / 2).toBeGreaterThanOrEqual(leg.minZ - 1e-6);
+    expect(built.position.z + built.size.width / 2).toBeLessThanOrEqual(leg.maxZ + 1e-6);
+    // None for a kitchen long enough on one wall, a run in the middle of its wall, or one with its corner.
+    expect(kitchenCornerFloor(room, [{ ...laid, position: P(2.1, 0.3), size: { ...laid.size, width: 3 } }])).toEqual([]);
+    expect(kitchenCornerFloor(room, [{ ...laid, position: P(1.8, 0.3) }])).toEqual([]);
+    expect(kitchenCornerFloor(room, fitKitchenCorners([room], [run(2.6, 2)], []))).toEqual([]);
   });
 
   it('leaves a kitchen long enough on one wall, a shop’s unit and a run in the middle of its wall alone', () => {

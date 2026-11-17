@@ -55,6 +55,29 @@ describe('the entrance out of the living room\'s sight', () => {
     expect(withGeneratedPartitions(next).added).toHaveLength(0);
   });
 
+  it('keeps the floor behind a screen that stands already free when the flat is laid out again', () => {
+    const plan = withDoor(living, roomId, edgeAtZ(0.15), 0.6, { exterior: true });
+    const first = withGeneratedPartitions(plan);
+    const id = first.plan.rooms[0].id;
+    const [was] = first.keepouts[id];
+    // The second generation adds nothing — and used to hand back no floor to keep free either:
+    // the furniture was then stood through the screen.
+    for (const styleId of ['modern', 'industrial'] as const) {
+      const again = withGeneratedPartitions(first.plan, styleId);
+      expect(again.added).toHaveLength(0);
+      expect(again.plan).toBe(first.plan);
+      expect(again.keepouts[id]).toHaveLength(1);
+      const [now] = again.keepouts[id];
+      // The same floor: from the entrance wall to the screen's far face, along the screen — at
+      // the end joined to the west wall as far as that wall's middle, where the screen ends.
+      expect(now.minZ).toBeCloseTo(was.minZ, 3);
+      expect(now.maxZ).toBeCloseTo(was.maxZ, 3);
+      expect(now.maxX).toBeCloseTo(was.maxX, 3);
+      expect(now.minX).toBeLessThanOrEqual(was.minX + 1e-6);
+      expect(now.minX).toBeGreaterThanOrEqual(was.minX - 0.15 - 1e-6);
+    }
+  });
+
   it('adds no entrance screen in an Industrial flat (the rulebook, L-13)', () => {
     const plan = withDoor(living, roomId, edgeAtZ(0.15), 0.6, { exterior: true });
     expect(withGeneratedPartitions(plan, 'industrial').added).toHaveLength(0);
@@ -90,5 +113,35 @@ describe('an en-suite\'s lobby', () => {
     // Parallel to the partition between them, `ENSUITE_DEPTH_M` into the bedroom.
     expect(screen.a.x).toBeCloseTo(3.94 - ENSUITE_DEPTH_M - 0.05, 2);
     expect(next.rooms.filter((r) => r.type === 'bedroom')).toHaveLength(1);
+  });
+
+  it('keeps the lobby behind a screen that stands already free when the flat is laid out again', () => {
+    const walls = [wall('n', 0, 0, 6, 0), wall('e', 6, 0, 6, 5), wall('s', 6, 5, 0, 5), wall('w', 0, 5, 0, 0), wall('p', 4, 0, 4, 5, 0.12)];
+    // The door by the corner (the screen run on to the corner's wall) and in the middle of the wall (free at both ends).
+    for (const doorAt of [0.6, 2.5]) {
+      let plan = planOf(walls, (room) => (room.polygon.some((p) => p.x > 4.5) ? 'bathroom' : 'bedroom'));
+      const bedroom = plan.rooms.find((r) => r.type === 'bedroom')!;
+      const bath = plan.rooms.find((r) => r.type === 'bathroom')!;
+      plan = withDoor(plan, bedroom.id, edgeAtX(3.94), doorAt, { connectsToRoomId: bath.id });
+      plan = withDoor(plan, bath.id, edgeAtX(4.06), doorAt, { connectsToRoomId: bedroom.id });
+      const first = withGeneratedPartitions(plan);
+      expect(first.added).toHaveLength(1);
+      const id = first.plan.rooms.find((r) => r.type === 'bedroom')!.id;
+      const [was] = first.keepouts[id];
+      // Between the screen and the wall the en-suite's door is in, along the screen.
+      expect(was.maxX).toBeCloseTo(3.94, 2);
+      expect(was.maxX - was.minX).toBeGreaterThanOrEqual(ENSUITE_DEPTH_M);
+      const again = withGeneratedPartitions(first.plan);
+      expect(again.added).toHaveLength(0);
+      expect(again.plan).toBe(first.plan);
+      expect(again.keepouts[id], `door ${doorAt} m along`).toHaveLength(1);
+      const [now] = again.keepouts[id];
+      expect(now.minX).toBeCloseTo(was.minX, 3);
+      expect(now.maxX).toBeCloseTo(was.maxX, 3);
+      // Along the screen: the same, but for the end joined to a wall, read as far as that wall's middle.
+      expect(now.maxZ).toBeCloseTo(was.maxZ, 3);
+      expect(now.minZ).toBeLessThanOrEqual(was.minZ + 1e-6);
+      expect(now.minZ).toBeGreaterThanOrEqual(was.minZ - 0.15 - 1e-6);
+    }
   });
 });

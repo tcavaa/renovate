@@ -295,6 +295,25 @@ Severity: **high** = seen by anyone who generates; **medium** = wrong in some ro
 - [ ] **M7 (medium) — No washing machine in 31 % of flats with a bathroom.** It needs a bathroom of
   4.5 m², else a hall, else a room typed kitchen (`WASHER_FALLBACK_ROOMS`, `autoLayout.ts:212-226`) —
   never a studio's kitchen half, never a flat with no room typed bathroom.
+  *Partly:* a studio's kitchen half is a kitchen for the fallback (`areasOfType`): 96 → 24 of the
+  312 flats with a bathroom have none (the six studio flats have theirs: against a wall in five,
+  free on the kitchen half's floor in #384, where no wall has room — the fallback's last resort,
+  as in #412's hall). In a kitchen the machine keeps off the floor the kitchen's corner is then
+  built on (`kitchenCornerFloor`): it first stood 60 cm along the leg's wall, and #393's studio
+  lost its corner leg and the leg's wall cabinets on every flat that had them (19 of 24 over six
+  draws; 22 of 24 have them now — the two without had none before the machine either — and no
+  other plan's legs changed). The floor is the corner pass's own answer, asked before the flat is
+  matched (`turnableCorners`, every run taken as made to measure). Where a kitchen has no wall
+  for the machine off that floor it stands as it did and the kitchen has no corner: the flat
+  keeps its washing machine (no flat of the fixtures; `layoutRules.test.ts` has the case).
+  **Left:** the 24 are #394 —
+  a bathroom of 4.39 m² under the 4.5 m² gate, a hall of 1.5 m², a kitchen that is part of the
+  living room — and #353 — bedrooms and a 3 m² bathroom, no hall, no kitchen: where the machine
+  goes in such a flat (a smaller bathroom, the living room's kitchen side) is a rule to write, and
+  so is where it stands in a kitchen (in the run under the worktop, beside it, away from the
+  table: with the machine by the fridge #393's and #389's studios seat a chair fewer on some
+  draws — 99 → 91 and 29 → 26 chairs over 24 flats). A flat with no room typed bathroom still
+  gets none: that is the rule.
 - [ ] **M8 (medium) — Dining chairs disappear in the matcher.** (1) The 1.2 m minimum (K-10, L-6)
   is on the slot, not the product: 13 of the 31 dining tables are under 1.2 m (70 × 70, 80 × 80) and
   the draw only penalises products *wider* than the slot (`generationWeight`, `matcher.ts:123`) —
@@ -366,6 +385,20 @@ Severity: **high** = seen by anyone who generates; **medium** = wrong in some ro
   the unit stands in the opening, its back to the next room, and the TV, with no wall behind it,
   only if it is one on a stand. **208 of 364 living-room TV units** on these plans; 56 more stand
   free of every wall. The cause is upstream, in how the sofa's wall is scored (RL1).
+  *Partly:* the sofa now stands where its unit has a wall whenever its room has such a spot (RL1) —
+  at the layout stage 288 of 608 living-room units on a wall (108 before), 160 on a line (280).
+  Where no spot of the sofa gives the unit a wall the room is laid as before, and what should
+  stand there — a sofa with its back to the open side, the unit as a divider, no TV — is the
+  owner's rule to write: the unit on a separator's line in the living rooms of #381, #368, #361,
+  #359 and #358, free on the floor in #408 and #405 r2, on the studio's dividing line in #385 (one
+  draw in eight); no unit at all in #407, #394 r5, #373 r5 and the studios #393, #392, #386 and
+  #384 (RL2–RL5). The studio #399 had no such spot until a wall as long as its corner sofa could
+  be stood on (RB6) — and pays for the one it has: the 2.7 m sofa on the 2.72 m wall takes the
+  wall the bookcase stood on, so over six draws the studio has no bookcase (16 of 24 flats
+  before: its slot is laid 72 cm wide where it was 90, and the matcher finds no product for it),
+  no plant (16 before; no spot at the layout stage) and a floor lamp on 8 flats of 24 (24
+  before), and its TV is 4.2 m from the sofa. Whether a spot whose unit has a wall only beyond
+  3.5 m, at the cost of other pieces, is a good spot is the owner's to say (RL1).
 - [ ] **O6 (low)** — A pendant, a door mat, a rug and curtains are never fit-tested (`fitMatters`,
   `matcher.ts:353`): a 3.16 × 3.96 m pendant cluster in a bedroom, a 2.03 × 1.27 m door mat in a hall.
   *Partly:* a door mat and a hanging lamp take the first product that lies within the room
@@ -746,9 +779,14 @@ the open line 48, none 220; a sofa 208; a run 256; a fridge 224.
 - [ ] **RS3 (medium) — The run is never tried under 1.8 m on a short wall** (`autoLayout.ts:824`:
   the wall less 30 cm, 0.7 of it, half, 1.8 m), and its fallback takes the whole wall and leaves the
   fridge nowhere. Also trying 1.5 and 1.2 m: runs 256 → 288.
-- [ ] **RS4 (medium) — An opening that straddles the line is given to one half only**
+- [x] **RS4 (medium) — An opening that straddles the line is given to one half only**
   (`studio.ts:222`): the other half sees plain wall — 20 pieces stood over a window their half does
   not know of.
+  *Fixed:* `partRoom` gives the other half the stretch of the opening on its own wall
+  (`Opening.reachesIn`): in the way of what stands or hangs there, dressed and counted by the half
+  that has the opening — the 20 (a fridge in #393, a bookcase in #385) are gone at the layout stage.
+  A stretch of 5 cm or less is none (`ONTO_WINDOW_M`, the 5 cm `blocksWindow` allows a piece onto
+  a window): #392's kitchen half was told of 2 cm of window on a wall.
 - [ ] **RS5 (low)** — After the matcher 36 pieces stand across the line (it tests the whole
   studio's outline, `matcher.ts:390`). Minimum areas are judged per half: a 28 m² studio split 35/65
   passes neither the kitchen's 10 m² nor the living room's 26 m² for a table (none in four studios),
@@ -766,6 +804,18 @@ past a wall's end.
   changes nothing: the unit then stands free, 29 cm short of the line. Choosing the sofa's spot by
   where its unit can stand, the unit allowed on any wall in front: 448 units, all on walls, 352 at
   2.5–3.5 m.
+  *Partly:* for every spot of the sofa the engine dry-runs the coffee table and the TV unit, and
+  where any spot lands the unit with its whole back on a wall only those spots are drawn from, the
+  2.5–3.5 m measured to that wall (`layoutArea`, `bestAlongWalls`, `standingWall`) — the unit placed
+  as before, on the wall straight ahead only (RL4 is the owner's), its own ray still cast at the
+  whole outline. **Left:** a room with no such spot keeps the old scoring on purpose — its sofa is
+  still scored against an open line, and the unit stands on it or free on the floor (the 15 rooms
+  O7 lists). And a spot is good at any distance the unit's rule allows: the check
+  `sofa_tv_distance` now fires in the living rooms of #357, #365 and #397 and in #399's studio
+  (10 → 21 on the first draw), none of which has a spot whose unit is on a wall 2.5–3.5 m off —
+  their sofas were "2.96 m from the screen" when the screen stood in the opening, and are about
+  3.7 m (#357, #365), 4.8 m (#397) and 4.2 m (#399) from it on the only wall it can stand on.
+  Whether a wall out of range is better than the open line in range is the owner's rule.
 - [ ] **RL2 (high) — The 1.5 m minimum is really 1.62 m.** The wall ahead passes at 1.5 m clear
   (`:1035`), but the unit must keep 60 cm from a coffee table already standing 42 cm off the sofa
   (`:989`): 1.5–1.62 m always fails (#373 r5 has 1.60 m: no unit on 32 of 32). Without the 60 cm
@@ -781,8 +831,16 @@ past a wall's end.
 - [ ] **RL6 (medium)** — A corner sofa's viewing distance is measured from its centre (`:703`): it
   earns the bonus at 2.55–2.93 m where its unit needs 2.94 m. With the wall spots refused the unit
   is stood mid-floor (`:1048`): 72 units with a wall 0.2–2 m behind them.
-- [ ] **RL7 (low) — A unit across the end of a wall's edge gets no TV** (`placeAbove`, `:1387`):
+  *Partly:* a spot earns the bonus by the wall its unit would really stand on, so a corner sofa
+  too near for its unit no longer wins where another spot has a wall (RL1); the distance is still
+  from the sofa's middle, as the check measures it, and #408 and #405 r2 keep their unit mid-floor
+  (64 of 608 runs).
+- [x] **RL7 (low) — A unit across the end of a wall's edge gets no TV** (`placeAbove`, `:1387`):
   where one wall is two edges in line, the TV is refused — every "unit and no TV" case.
+  *Fixed:* the wall behind a piece is its edge and the edges that run on from it in line
+  (`wallRun`): the TV hangs across the joint, clear of the windows of both. The cases on these
+  plans (#360, #375 r2: the next edge bends away) went with RL1 — a unit across its wall's end is
+  not on a wall, and the sofa takes a spot where it is.
 
 **Bedrooms** — 47 bedrooms, 1,504 runs: no bed slot 160, a slot with no product 51, a double bed
 with fewer than two nightstands 135.
@@ -814,9 +872,16 @@ with fewer than two nightstands 135.
 - [ ] **RB6 (low) — Three plain bugs.** A wall must be 25 cm longer than the piece (`:606`): a
   1.84 m wall refuses a 1.6 m bed. One of a wall's two corner spots is always "outside the room"
   (the half-open point test, `planGeometry.ts:96`). A slot the matcher dropped still blocks what is
-  matched after it (`matcher.ts:282`). *Partly:* the third is fixed — a slot that got no product is
-  in nothing's way, and nothing is measured off it or hung clear of it; the first two are the
-  layout's.
+  matched after it (`matcher.ts:282`).
+  *Partly:* a piece that fits its wall stands on it (the 25 cm were no rule's): #388's bedroom has
+  its bed, and halls, short kitchen walls and #399's studio gain by it. The corner spots are as
+  they were: judging the engine's spots as the matcher's are (`footprintInRoom`) was measured and
+  not done — on the first draw of the 120 flats the newly allowed corners gain four showers and two
+  studio runs and cost #381 r8 its basin and mirror (the basin takes the corner by its pipe, the WC
+  then has no way past), #407's bathroom its mirror, five nightstands and three wardrobes. It
+  needs the rooms' ladders first (who gives way when a fixture's best spot shuts another out). The
+  third is fixed: a slot that got no product is in nothing's way, and nothing is measured off it or
+  hung clear of it.
 
 A ladder in the layout and any style in the matcher: a bed in 1,504 of 1,504 (today 1,293).
 
@@ -842,6 +907,12 @@ no table in 60 of the 416 runs of 10 m² or more; an island 0 of 96.
 - [ ] **RK5 (low)** — Nothing keeps the floor in front of the fridge (a table or chair there in 19
   finished kitchens). The corner pass reads a radiator by its stored room id
   (`kitchenCorner.ts:52`), the layout by position: a leg on a radiator's strip on every run of #408.
+  *Partly:* the generation's corner pass keeps its legs off the radiators' strips — the layout's own
+  (`radiatorKeepouts`, by position), the ones `generateScene` read off the plan and hands to both
+  (read again from the rooms under their ceilings a strip came out a section shorter): 12 of 102
+  legs stood on one (#408), now none, and none is lost. The floor in front of the fridge is as it
+  was, and the studio's own corner (the store's `setKitchenCorner`) still measures the 90 cm
+  squares (`radiatorObstacles`) — X7.
 
 ### M. Partitions, doors and windows, the calculator's picks
 
@@ -854,10 +925,17 @@ no table in 60 of the 416 runs of 10 m² or more; an island 0 of 96.
   kitchen piece (no `asPlacedKitchen`: a 12,000 ₾ shop's unit stays "made to measure" at the slot's
   size); the TV is not re-seated when its unit is picked (its bottom below the unit's top in 265 of
   408); the quantity is dropped (`:45`: four chairs picked, one placed).
-- [ ] **Q3 (high) — A screen kept from an earlier generation loses its free floor.** The loop skips
+- [x] **Q3 (high) — A screen kept from an earlier generation loses its free floor.** The loop skips
   a screen that already stands before recording its keep-clear floor (`autoPartitions.ts:203`):
   generating #386 again stands furniture through the screen in 30 of 36 flats. The old screen also
   stays where today's rules would add none.
+  *Fixed:* the floor behind every screen that stands is recorded first, read off the wall as it is
+  (`standingScreens`, `floorBehind`) — also behind one today's rules would not build, which still
+  stays: #386 has a piece through its screen in 0 of 36 flats (27, with one on the floor behind it
+  in 31); #385's layout stood clear of its screen already. With its lobby free #386's studio (29 m², no run) has its fridge further
+  along the entrance wall, off the screen, and no room left for the dining table it had in 36 of
+  36 while the fridge stood through the screen; which of the two gives way in a kitchen half that
+  small is the kitchen's rule to write (RK1–RK4).
 - [ ] **Q4 (medium) — No partition is added on any of the 30 plans** (the front door opens into a
   hall, or the studio is under 30 m², or the bedroom under 12 m²), so the stage is exercised only by
   its unit tests. On plans altered to qualify, a screen's joined end lands in a window or an archway
@@ -922,6 +1000,8 @@ them, **none has a test that would notice its fix**.
   column 55–64 cm inside the shower's tray (`bathroom.test.ts:170`); the TV unit on the studio's
   line on 30 of 30 seeds (`studioLayout.test.ts:89` looks at hung pieces only); a bed with one
   nightstand in `generateScene.test.ts`'s own flat.
+  *Partly:* `studioLayout.test.ts` now looks at the TV unit — against a wall of the living half,
+  never on the line or the separator, on 30 of 30 seeds (O7, RB6).
 - [ ] **V4 (medium) — Tests that cannot fail**: `housing.test.ts:306` (its flat has no joinery to
   settle — W1), `generationRandom.test.ts:167` and `:194` and `placementSettle.test.ts:668`
   (branches that never run — P1), and seven assertions that are always true.

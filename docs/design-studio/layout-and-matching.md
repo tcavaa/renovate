@@ -47,6 +47,15 @@ scene ──tightSpots──▶ amber warnings (not a rule)
   whatever lies on the room's own separators marked open (`PlanRoom.open`), so nothing stands
   against the line, runs along it or hangs on it. The halves were once handed no openings and the
   line as a wall: a gallery of prints hung on the line in mid-air, and the TV across a window.
+  **An opening that reaches across the line** is the half's its middle is in, whole, and the other
+  half is told of the stretch on its own wall (`Opening.reachesIn`, never stored): nothing tall
+  stands or hangs over it there (`coversOpening`), and a kitchen run counts that wall as one with a
+  window, but the window is dressed once, by the half that has it (`ownWindows`), and only a
+  half's own doors and windows are the points its pieces are scored by (`openingPoints`). A half
+  used to see plain wall there and stood a fridge or a bookcase across the window's end. A stretch
+  of 5 cm or less is none (`ONTO_WINDOW_M`, the 5 cm a piece may reach onto a window and not be
+  across it — `blocksWindow`): 2 cm of the next half's window on a wall (#392's studio) made it a
+  windowed wall to the layout and to the automatic technical placement.
 - **What is seen through the flat's front door** (`entranceSightBands`: the band from a door on an
   outside wall, carried on through a doorway straight ahead into the next room; passed by
   `generateScene` as `LayoutOptions.entranceSight`): the kitchen run is looked for out of it
@@ -59,6 +68,27 @@ scene ──tightSpots──▶ amber warnings (not a rule)
   what it takes from the room, so the basin or the washer placed after it keep their distance.
 - **The sofa 2.5–3.5 m from the screen** on the wall it faces: +10 in range, −16 a metre out of it.
   A big room with no pair of walls in range still gets its sofa against a wall (the check warns).
+- **The sofa stands where its TV unit then has a wall.** For every spot of the sofa the engine
+  runs what it will do next (`layoutArea`'s dry run, handed to `bestAlongWalls` as
+  `RuleContext.screenFor`): the coffee table off the sofa, then the TV unit by its own rule and
+  tests. A spot is good when the unit lands with the whole of its back on a wall (`standingWall`:
+  the wall `pieceWall` finds behind it, one of the room's walls — a room separator's line and a
+  studio's dividing line are none — and its back inside that wall's length, `wallRun`). Where any
+  spot is good, only the good ones are drawn from, and the 2.5–3.5 m are measured to the wall the
+  unit stands on. A spot is good at whatever distance the unit's own rule allows (up to 4.2 m of
+  clear floor): a room whose only walls for the unit are further than 3.5 m from every spot of the
+  sofa has its TV on a wall and out of range, and the check says so (`sofa_tv_distance`: the
+  living rooms of #357, #365 and #397 and the studio #399 on the fixtures, none of which has a
+  good spot in range). **Where no spot is good the room is laid exactly as before** — the screen is
+  whatever the sofa faces, a separator's line too, and the unit stands on that line or free on the
+  floor: what should stand there (a sofa with its back to the open side, the unit as a divider, no
+  TV) is a rule the room does not have yet. On the generation fixtures those are the living rooms
+  of #381, #368, #361, #359 and #358 (the unit on a separator's line), #408 and #405 r2 (the unit
+  free on the floor, the wall ahead over 4.2 m off) and the studio #385 (on the dividing line on
+  one draw in eight, else no unit); and the rooms that get no unit at all — #407,
+  #394 r5, #373 r5 and the studios #393, #392, #386 and #384 — are rooms with no good spot too
+  ([generation-audit.md](generation-audit.md), RL2–RL5). Only generating runs the dry run: a sofa a
+  person adds (`placeAdditional`) is placed as it was.
 - **An island 120 cm off the run** (`placeCentre` rejects a spot nearer, before shrinking).
 - **Sizes**: 60 cm free beside a double bed (`BEDSIDE_M`), a dining seat per 60 cm of table
   (`seatSlots`), the dining table 75 cm high, the coffee table 42 cm off the sofa, the TV's middle
@@ -99,7 +129,12 @@ scene ──tightSpots──▶ amber warnings (not a rule)
   (`ENTRY_DEPTH_M`), an en-suite's door a lobby 1.1 m deep in its bedroom (`ENSUITE_DEPTH_M`, a
   bedroom from 12 m²) — parallel to the door's wall, across the door and 30 cm past it, an end
   within 90 cm of a wall run on to it (`PASSAGE_M`), the other end leaving a way through. The room
-  stays one (`keepWhole`) and the floor behind the screen is an obstacle for the layout.
+  stays one (`keepWhole`) and the floor behind the screen is an obstacle for the layout. A flat laid
+  out again keeps its screens and adds none twice — and the floor behind every screen that stands
+  is kept free again, read off the wall as it is (`standingScreens`, `floorBehind`: between the
+  screen and the room's wall parallel to it with a door within the screen's length), whether or
+  not today's rules would build that screen (another style, a studio under 30 m²): nothing is laid
+  out through a wall that is there. A screen whose door is gone is a wall like any other.
 - **The rulebook's bathrooms** (6 Nov 2026, [design-rules.md](design-rules.md#the-third-round-the-rulebook-nini-6-nov-2026)):
   a Scandinavian or Industrial bathroom takes a bath only from 9 m² (the shower first); a 1.4 m
   walk-in shower from 7 m², along the room's length; the WC in the middle of its wall; a towel shelf
@@ -118,7 +153,20 @@ scene ──tightSpots──▶ amber warnings (not a rule)
   from 12 m², every window dressed, the sofa–TV floor off the ways between doors, no entrance screen in
   Industrial or a small studio.
 - **The washing machine** is the bathroom's (from 4.5 m²); when no bathroom has room for it, the
-  hall's, else the kitchen's (`layoutPlan`, `WASHER_FALLBACK_ROOMS`).
+  hall's, else the kitchen's (`layoutPlan`, `WASHER_FALLBACK_ROOMS`) — the largest of the type,
+  and a studio's half of that type counts as a room of it (`areasOfType`: the half as a room of
+  its own, the whole studio's door approaches kept clear), so a studio flat with a small bathroom
+  has its machine in the kitchen half. It is placed as a piece a person adds (`placeAdditional`):
+  against a wall where one has room, else on any free floor — in a hall or a kitchen half with no
+  free wall it stands free (#412's hall, the studio #384 on the fixtures). **In a kitchen it keeps
+  off the floor the kitchen's corner is then built on**: a run short of a kitchen turns its corner
+  only after the flat is matched (`fitKitchenCorners`), so the fallback first asks the corner pass's
+  own search which floor that would take as the furniture stands (`kitchenCornerFloor`: at each end
+  the run could turn, the run stretched into its corner and the leg with its 90 cm of working
+  floor) and looks for a wall off it; only where the kitchen has no such wall does the machine
+  stand as it would with no corner to keep — the flat keeps its washing machine, the kitchen loses
+  its leg. (It used to stand 60 cm along the leg's wall: #393's studio lost its corner on every
+  flat.) A flat with no room typed bathroom gets none.
 - **The kitchen run keeps 1.2 m of working floor** in front of it (`KITCHEN_CIRCULATION_M`, a
   keepout once the run stands): the table and its chairs go beyond it, the table as far from the
   run as the room allows — the short wall of a long kitchen (`placeCentre`). The run already takes
@@ -204,6 +252,12 @@ The seed is not stored: a generated flat is saved as what it is, not how it was 
   they were given, so a 2 m cabinet is not dropped into a 1.2 m gap beside a door.
 - A centred relative item (TV unit, coffee table) is nudged sideways in growing steps before
   giving up; the spot dead ahead of the sofa is usually a door keepout.
+- **A piece that fits its wall may stand on it** (`bestAlongWalls`): a wall as long as the piece
+  is wide is tried, corner to corner (`sampleAlong`). A wall used to have to be 25 cm longer than
+  the piece — a number no rule asks for — so a 1.84 m wall refused a 1.6 m bed (#388's bedroom had
+  none), and a hall, a short kitchen wall and a 2.72 m wall for a 2.7 m corner sofa were passed
+  over the same way. The same search finds the first spot of a piece a person adds
+  (`placeAdditional`), so that too may now be a wall exactly the piece's width.
 - A `fill` ring of dining chairs skips a seat that hits a wall instead of ending the ring. **Every
   chair stands a little under its table** — its seat `DINING_CHAIR_TUCK_M` (12 cm) under the
   edge, from the chair's own depth (`seatSlots`): a ring standing clear of the edge looked set out
@@ -396,7 +450,18 @@ own. The matcher re-measures every piece from the product it got, so the room st
 - **A short run turns the corner** (`fitKitchenCorners`, `lib/design/kitchenCorner.ts`, after the
   bathroom, hall and bedroom passes): a made-to-measure run under 2.6 m standing in a corner whose
   next wall is free gets a leg along it and wall cabinets over the leg, furniture copied from the run's — an L-shaped kitchen
-  ([../budget.md](../budget.md#a-corner-l-shaped-kitchen-libdesignkitchencornerts)).
+  ([../budget.md](../budget.md#a-corner-l-shaped-kitchen-libdesignkitchencornerts)). The leg and
+  the run stretched into its corner keep off the floor a radiator keeps clear — the very strips the
+  layout stood the run clear of: `generateScene` reads them off the plan once (`radiatorKeepouts`,
+  by where the radiator stands) and hands the same ones to the layout as obstacles and to the pass
+  (`fitKitchenCorners`' last argument; `radiatorFloor` in `kitchenCorner.ts`). The pass is fitted
+  in the rooms under their ceilings and must not read the strips again from those: a radiator
+  nobody set the sections of is as long as its room's height asks, so under a lowered ceiling the
+  strip came out a section shorter than the one the layout and the check use. The pass used to
+  read each radiator by the room id stored on it, as a 90 cm square: one whose id named a room the
+  plan no longer had was no obstacle, and #408's leg stood on its strip on every draw. A corner a
+  person makes by hand in the studio is still measured against the squares (`radiatorObstacles`,
+  the store's `setKitchenCorner`).
 - **A small kitchen goes on one wall**: the run, the fridge at its end, the wall cabinets over the
   run. The run tries first to start in one corner and leave the other end of the wall for the fridge
   (`leaveFor: 'fridge'` — the fridge's width and 8 cm, clear of openings and door swings), and only
@@ -409,6 +474,12 @@ own. The matcher re-measures every piece from the product it got, so the room st
   none where the room has no unit): laid out on the unit's wall, centred over it, its middle at
   1.05 m (seated eye level, the design rules' `TV_CENTRE_M`), as wide as a 65" TV and no wider than the unit — smaller (85 %, 70 %) and slid along the
   unit when that would cover a window beside it (a unit running past a window had no TV at all).
+  The wall is the edge behind the unit and the edges that run on from it in line (`wallRun`,
+  `lib/design/planGeometry.ts`): one wall drawn as two edges is one wall, the TV may hang across
+  the joint, and a window or a door in either edge is in its way — measured against the one edge
+  nearest the unit's middle, a TV over a unit that stood across the joint "ran past the wall's
+  end" and the unit was left without one. The same holds for whatever else is hung over a piece
+  (`placeAbove`: the wall cabinets, a mirror, a print).
   Over a unit standing free in the room (its back to no wall — a big room's sofa faces a wall too
   far off for the unit to stand against) the slot is on the unit's top, and only a TV on a stand
   fills it.
@@ -504,7 +575,14 @@ wardrobe or dresser. Laid out again with the nanometre, the local plans in the f
 changed 993 product choices, 911 of them on an east or south wall (mostly plants, then
 wardrobes, dressers, bookshelves and toilets), in 307 of 312 project-and-style runs; 15 slots
 that had been left empty got a product, and none lost one. The engine's own spots are unchanged:
-it keeps the exact test.
+it keeps the exact test — so of the two spots hard in the corners at a wall's ends, the engine
+never takes the one on an east or south wall. Giving `fitsInRoom` the nanometre was measured on
+the generation fixtures (16 Nov 2026, 120 flats) and not done: the layout is greedy, and the
+newly allowed corners gain four showers and two studio runs but cost a bathroom its basin and
+mirror (#381 r8: the basin takes the corner by its pipe and leaves the WC no way past), another
+its mirror (#407: a mirror as wide as a basin hard in the corner is "past the wall's end" by a
+rounding error), five nightstands and three wardrobes — it waits for the rooms' own rules of who
+gives way ([generation-audit.md](generation-audit.md), RB6).
 
 ## Tight passages (`lib/design/clearance.ts`)
 
@@ -526,7 +604,9 @@ rule: the layout is still saved as arranged.
 `tests/unit/design/showerGlass.test.ts` (the tray found from the piece, the glass off the walls
 and round the matched column, following the shower, resized with its wall side kept),
 `tests/unit/design/autoPartitions.test.ts` (the entrance screen run to the corner, a free one, none
-into a hall or a shallow room, an en-suite's lobby, nothing added twice),
+into a hall or a shallow room, an en-suite's lobby, nothing added twice and the floor behind a
+screen that stands — the entrance's and the en-suite's — kept free when the flat is laid out
+again),
 `tests/unit/design/styleRules.test.ts` (the flat's one floor and wall, an open kitchen and a
 floor chosen by hand; no black in a Scandinavian flat; a picture's height; blinds or curtains by
 style and room, a blind's size and height, sold one a window),
@@ -546,8 +626,15 @@ against a wall at their own seats, at a free one where theirs is not there or do
 piece that is gone and what stays, a generated room whose sofa or bed no product fits),
 `tests/unit/design/hallLiving.test.ts` (the hall's mirror over the console and the full-height one
 on a free wall or across from the built wardrobe),
-`tests/unit/design/autoLayout.test.ts` (`boxInPolygon` — the gap of a U, touching a wall — and
+`tests/unit/design/autoLayout.test.ts` (`boxInPolygon` — the gap of a U, touching a wall — `wallRun`
+— edges in line joined, a corner and a left-out edge ending the wall — and
 nothing of a layout standing through a wall, on project 219's corner),
+`tests/unit/design/layoutRules.test.ts` (the rules a room is laid out by, each on a small room: a
+living room open onto the next room has its TV unit on a wall with the whole of its back, on every
+draw, and one with no wall for it keeps its unit; a TV hangs across the joint of a wall drawn as
+two edges, clear of a window in the next edge; a 1.6 m bed on a 1.84 m wall; the washing machine in
+the hall, else in a studio's kitchen half, none in a flat with no bathroom — in a kitchen off the
+floor its corner is then built on, and kept where the kitchen has no other wall for it),
 `tests/unit/design/placementSettle.test.ts` (nightstands beside the bed's head, laid out and with a
 wider real bed; a shallower wardrobe kept on its wall; the bathroom mirror over the basin at eye level
 and only standing basins; a floor mirror standing; the desk chair under the desk; room to walk past a
@@ -555,7 +642,10 @@ double bed and one product for both nightstands; a small kitchen on one wall; a 
 unit), `tests/unit/design/clearance.test.ts` (a piece 6 cm off its wall is no passage),
 `tests/unit/design/studio.test.ts` (`layoutRoom` for studio
 parts), `tests/unit/design/studioLayout.test.ts` (project 26's studio: `partRoom`'s open line and
-moved openings; over 30 seeds nothing hung on the line, the TV clear of the windows), `tests/unit/design/manipulate.test.ts` (`placeAdditional` with real sizes; the engine's
+moved openings; over 30 seeds nothing hung on the line, the TV unit on a wall of its half and
+never on the line, the TV clear of the windows; a window
+across the line known to both halves, nothing tall over it in either, dressed once; a sliver
+of it past the line no opening), `tests/unit/design/manipulate.test.ts` (`placeAdditional` with real sizes; the engine's
 chair tucked under its table and its bed flush in a corner at −π/2, both let stand by the studio),
 `tests/unit/design/clearance.test.ts`, `tests/unit/design/shelfRooms.test.ts`,
 `tests/unit/design/generationRandom.test.ts` (the same seed the same flat, seeds apart different

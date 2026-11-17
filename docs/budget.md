@@ -373,7 +373,10 @@ then grows and shrinks from its corner (`runFromCorner`). A leg stays where it i
 with a run that is deleted or became a shop's unit (`withoutOrphanLegs`, in `settleFitted`).
 **Generation** turns the corner by itself for a made-to-measure run shorter than 2.6 m
 (`KITCHEN_L_UNDER_M`) that stands in (or within 60 cm of) a corner whose next wall is clear for
-90 cm of leg with 90 cm of working floor in front of it (`fitKitchenCorners`).
+90 cm of leg with 90 cm of working floor in front of it (`fitKitchenCorners`). The layout keeps
+that floor free of the one piece it stands in a kitchen after the kitchen is laid — the washing
+machine no bathroom had room for (`kitchenCornerFloor`,
+[design-studio/layout-and-matching.md](design-studio/layout-and-matching.md)).
 
 ## Known gaps
 

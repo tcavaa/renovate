@@ -23,10 +23,12 @@
 
 import { backWall } from './decor/housing';
 import { freeStretch } from './decor/joinery';
-import { footprintInRoom, footprintOf, footprintsOverlap } from './manipulate';
+import { footprintInRoom, footprintOf, footprintsOverlap, type Footprint } from './manipulate';
 import { getArchetype } from './catalog';
 import { isCustomKitchenItem, kitchenFacadeM2, LOWER_UNIT_HEIGHT_M } from './kitchen';
 import { roomEdges, type PlanEdge } from './planGeometry';
+import { RADIATOR_HEIGHT_M } from './ruleChecks';
+import { RADIATOR_FLOOR_GAP_M } from './rules';
 import type { DecorPiece, PlacedItem, PlanRoom, TechnicalPoint } from './types';
 
 export type KitchenCorner = 'left' | 'right';
@@ -45,12 +47,43 @@ const round3 = (n: number) => Math.round(n * 1000) / 1000;
 /**
  * The flat's radiators as things a leg (and a run stretched into its corner) may not be built over:
  * a block 90 cm square round each, off the floor. They hang on the plan, not among the furniture,
- * so the callers put these with the items they pass.
+ * so the callers put these with the items they pass. What a corner a person makes by hand is
+ * measured against (the store's `setKitchenCorner`, `setKitchenLegLength`); the generation keeps
+ * its legs off the radiators' strips instead (`radiatorFloor`).
  */
 export function radiatorObstacles(points: readonly TechnicalPoint[] | undefined): PlacedItem[] {
   return (points ?? [])
     .filter((p) => p.kind === 'radiator' && !!p.roomId)
     .map((p) => ({ id: `radiator:${p.id}`, roomId: p.roomId!, slot: 'wardrobe' as const, kind: 'wardrobe', position: p.position, rotation: 0, elevationM: p.elevationM ?? 0.12, size: { width: 0.9, depth: 0.9, height: 0.6 }, product: null, locked: true }));
+}
+
+/** The floor in front of the flat's radiators that stays clear, room by room: what `radiatorKeepouts` reads off the plan. */
+export type RadiatorStrips = Readonly<Record<string, ReadonlyArray<Footprint>>>;
+
+/**
+ * The floor the radiators keep clear in front of them, as things nothing is built on: the strips
+ * the layout engine keeps free and the check warns of (`radiatorKeepouts` — a radiator's length
+ * and 5 cm each end, its depth and 30 cm, each in the room the radiator stands in, whatever room
+ * id is stored on it). They are handed in as the caller read them off the plan itself, not read
+ * again here from the rooms the corner is fitted in: those are the rooms under their ceilings,
+ * and a radiator nobody set the sections of is as long as its room's height asks. From the floor
+ * to a radiator's top.
+ */
+function radiatorFloor(strips: RadiatorStrips): PlacedItem[] {
+  return Object.entries(strips).flatMap(([roomId, boxes]) =>
+    boxes.map((box, i) => ({
+      id: `radiator-floor:${roomId}:${i}`,
+      roomId,
+      slot: 'wardrobe' as const,
+      kind: 'wardrobe',
+      position: { x: (box.minX + box.maxX) / 2, z: (box.minZ + box.maxZ) / 2 },
+      rotation: 0,
+      elevationM: 0,
+      size: { width: box.maxX - box.minX, depth: box.maxZ - box.minZ, height: RADIATOR_FLOOR_GAP_M + RADIATOR_HEIGHT_M },
+      product: null,
+      locked: true,
+    }))
+  );
 }
 
 /** The corner leg of a kitchen run — its base units — when it has one. */
@@ -221,29 +254,78 @@ export function withoutOrphanLegs(items: PlacedItem[]): PlacedItem[] {
 }
 
 /**
+ * The corners a run could turn as the furniture stands: at each of its ends, the run stretched into
+ * that corner and the leg there (with its wall cabinets), the working floor in front of the leg
+ * free. Only a run that is all but in its corner — one stretched a metre is another kitchen — and
+ * a leg worth building.
+ */
+function turnableCorners(run: PlacedItem, room: PlanRoom, others: readonly PlacedItem[], decor: readonly DecorPiece[]): Array<{ run: PlacedItem; legs: PlacedItem[] }> {
+  const out: Array<{ run: PlacedItem; legs: PlacedItem[] }> = [];
+  for (const corner of ['left', 'right'] as const) {
+    const stretched = runIntoCorner(run, room, corner, others);
+    if (!stretched || stretched.size.width - run.size.width > 0.6) continue;
+    const legs = kitchenLeg(stretched, room, corner, others, decor, KITCHEN_LEG_M.initial, LEG_WORKING_FLOOR_M);
+    if (legs.length > 0 && kitchenLegLength(legs[0]) >= 0.9) out.push({ run: stretched, legs });
+  }
+  return out;
+}
+
+/** Whether the generation turns this run's corner: made to measure, short of a kitchen, no corner yet. */
+function turnsCorner(run: PlacedItem, items: readonly PlacedItem[]): boolean {
+  return run.slot === 'kitchen_run' && !run.legOf && isCustomKitchenItem(run) && run.size.width < KITCHEN_L_UNDER_M && !kitchenLegOf(run.id, items);
+}
+
+/**
  * The generation's corner kitchens: a made-to-measure run shorter than a kitchen needs
  * (`KITCHEN_L_UNDER_M`) turns the corner at the end with more clear wall, the working floor in
- * front of the leg free and no radiator under it — the run stretched into that corner first.
+ * front of the leg free and off the floor every radiator keeps clear (`strips`: the plan's
+ * `radiatorKeepouts`, the very strips the layout stood the run clear of) — the run stretched into
+ * that corner first.
  */
-export function fitKitchenCorners(rooms: readonly PlanRoom[], itemsIn: PlacedItem[], decor: readonly DecorPiece[], points: readonly TechnicalPoint[] = []): PlacedItem[] {
-  const radiators = radiatorObstacles(points);
+export function fitKitchenCorners(rooms: readonly PlanRoom[], itemsIn: PlacedItem[], decor: readonly DecorPiece[], strips: RadiatorStrips = {}): PlacedItem[] {
+  const radiators = radiatorFloor(strips);
   let items = itemsIn;
-  for (const run of itemsIn.filter((i) => i.slot === 'kitchen_run' && isCustomKitchenItem(i) && !i.legOf)) {
+  for (const run of itemsIn) {
     const room = rooms.find((r) => r.id === run.roomId);
-    if (!room || run.size.width >= KITCHEN_L_UNDER_M || kitchenLegOf(run.id, items)) continue;
+    if (!room || !turnsCorner(run, items)) continue;
+    // The radiators hang where they hang: no leg and no stretched run on the floor one keeps clear.
+    const others = [...items.filter((i) => i.id !== run.id), ...radiators];
     let best: { run: PlacedItem; legs: PlacedItem[] } | null = null;
-    for (const corner of ['left', 'right'] as const) {
-      // The radiators hang where they hang: no leg and no stretched run over one.
-      const others = [...items.filter((i) => i.id !== run.id), ...radiators];
-      const stretched = runIntoCorner(run, room, corner, others);
-      // Only a run that is all but in its corner: one stretched a metre is another kitchen.
-      if (!stretched || stretched.size.width - run.size.width > 0.6) continue;
-      const legs = kitchenLeg(stretched, room, corner, others, decor, KITCHEN_LEG_M.initial, LEG_WORKING_FLOOR_M);
-      if (legs.length > 0 && kitchenLegLength(legs[0]) >= 0.9 && (!best || kitchenLegLength(legs[0]) > kitchenLegLength(best.legs[0]))) best = { run: stretched, legs };
+    for (const turn of turnableCorners(run, room, others, decor)) {
+      if (!best || kitchenLegLength(turn.legs[0]) > kitchenLegLength(best.legs[0])) best = turn;
     }
     if (!best) continue;
     const { run: placed, legs } = best;
     items = [...items.map((i) => (i.id === run.id ? placed : i)), ...legs.map((leg) => ({ ...leg, pinned: false, origin: run.origin }))];
   }
   return items;
+}
+
+/**
+ * The floor the generation's corners would take in a room that is laid out and not yet matched:
+ * for each run short of a kitchen, at each end it could turn as the furniture stands
+ * (`turnableCorners`, the pass's own search), the run stretched into that corner, and the leg with
+ * its working floor. Every run is taken as made to measure — which it is, is the matcher's to
+ * say, later. What is stood in a kitchen after its program (the washing machine no bathroom had
+ * room for, `layoutPlan`) keeps off it where it can, so the kitchen has its corner still.
+ */
+export function kitchenCornerFloor(room: PlanRoom, items: readonly PlacedItem[]): Footprint[] {
+  const out: Footprint[] = [];
+  for (const piece of items) {
+    const run: PlacedItem = { ...piece, custom: true };
+    if (piece.roomId !== room.id || !turnsCorner(run, items)) continue;
+    for (const turn of turnableCorners(run, room, items.filter((i) => i.id !== piece.id), [])) {
+      const leg = turn.legs[0];
+      const forward = { x: Math.sin(leg.rotation), z: Math.cos(leg.rotation) };
+      out.push(footprintOf(turn.run.position, turn.run.size, turn.run.rotation));
+      out.push(
+        footprintOf(
+          { x: leg.position.x + (forward.x * LEG_WORKING_FLOOR_M) / 2, z: leg.position.z + (forward.z * LEG_WORKING_FLOOR_M) / 2 },
+          { width: leg.size.width, depth: leg.size.depth + LEG_WORKING_FLOOR_M },
+          leg.rotation
+        )
+      );
+    }
+  }
+  return out;
 }

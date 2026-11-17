@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { layoutPlan, layoutRoom } from '@/lib/design/autoLayout';
-import { refreshRoom } from '@/lib/design/planGeometry';
+import { fitKitchenCorners, kitchenLegOf } from '@/lib/design/kitchenCorner';
+import { pieceWall } from '@/lib/design/manipulate';
+import { isOpenEdge, refreshRoom } from '@/lib/design/planGeometry';
 import { seededRng } from '@/lib/design/random';
 import { footprintQuad, quadsOverlap } from '@/lib/design/rules';
 import type { Opening, PlacedItem, PlanRoom } from '@/lib/design/types';
@@ -71,6 +73,71 @@ describe('bathrooms', () => {
     const washer = items.find((i) => i.slot === 'washer');
     expect(washer?.roomId).toBe('h');
   });
+
+  it('puts it in a studio\'s kitchen half when the flat has no hall and no kitchen of its own', () => {
+    // A studio flat: the small bathroom, and one room that is the kitchen (its low 35 % along x,
+    // to about x 4.1) and the living room. The kitchen half is the flat's kitchen.
+    const bath = room('b', 'bathroom', 2, 2, [door(2, 0.5)]);
+    const studio = room('s', 'studio', 6, 4, [door(2, 0.1, true), window(0, 0.7)], 2);
+    for (const rng of [undefined, ...SEEDS.map((seed) => seededRng(seed))]) {
+      const items = layoutPlan([bath, studio], { rng });
+      const washer = items.filter((i) => i.slot === 'washer');
+      expect(washer).toHaveLength(1);
+      expect(washer[0].roomId).toBe('s');
+      expect(washer[0].position.x + washer[0].size.width / 2).toBeLessThan(4.11);
+      // On free floor: in nothing else that stands in the studio.
+      const others = items.filter((i) => i.roomId === 's' && i !== washer[0] && i.elevationM < 0.05 && i.slot !== 'rug');
+      for (const other of others) expect(quadsOverlap(footprintQuad(washer[0]), footprintQuad(other)), `in the ${other.kind}`).toBe(false);
+    }
+  });
+
+  /** The corner leg the generation builds once the flat is matched and the run is made to measure (`fitKitchenCorners`). */
+  const cornerLeg = (rooms: PlanRoom[], items: PlacedItem[]) => {
+    const made = items.map((i) => (i.slot === 'kitchen_run' ? { ...i, custom: true } : i));
+    const run = made.find((i) => i.slot === 'kitchen_run');
+    return run ? kitchenLegOf(run.id, fitKitchenCorners(rooms, made, [])) : null;
+  };
+
+  it('stands it in a kitchen off the floor the kitchen\'s corner is then built on', () => {
+    // A short run that turns its corner along the next wall: the washing machine stood 60 cm
+    // along that wall, and the kitchen had no corner (plan #393's studio, every flat).
+    const bath = room('b', 'bathroom', 2, 2, [door(2, 0.5)]);
+    for (const kitchen of [room('k', 'kitchen', 3.4, 3, [door(3, 0.5, true), window(0, 0.5)], 2.2), room('k', 'kitchen', 2.6, 3.4, [door(3, 0.5, true), window(0, 0.5)], 2.2)]) {
+      for (const rng of [undefined, ...SEEDS.map((seed) => seededRng(seed))]) {
+        const items = layoutPlan([bath, kitchen], { rng });
+        const washer = items.find((i) => i.slot === 'washer');
+        expect(washer?.roomId).toBe('k');
+        const without = cornerLeg([bath, kitchen], items.filter((i) => i !== washer));
+        expect(without).not.toBeNull();
+        expect(cornerLeg([bath, kitchen], items)?.size.width).toBe(without!.size.width);
+      }
+    }
+  });
+
+  it('keeps the machine where a kitchen has no wall for it off its corner', () => {
+    // A kitchen 2.8 m across with its table and chairs: on some draws the only wall with room for
+    // the machine is the one the corner's leg would take. The flat keeps its washing machine.
+    const bath = room('b', 'bathroom', 2, 2, [door(2, 0.5)]);
+    const kitchen = room('k', 'kitchen', 2.8, 3.6, [door(2, 0.5, true), window(0, 0.5)], 2.2);
+    let onCorner = 0;
+    for (const rng of [undefined, ...SEEDS.map((seed) => seededRng(seed))]) {
+      const items = layoutPlan([bath, kitchen], { rng });
+      const washer = items.find((i) => i.slot === 'washer');
+      expect(washer?.roomId).toBe('k');
+      const others = items.filter((i) => i.roomId === 'k' && i !== washer && i.elevationM < 0.05 && i.slot !== 'rug');
+      for (const other of others) expect(quadsOverlap(footprintQuad(washer!), footprintQuad(other)), `in the ${other.kind}`).toBe(false);
+      if (cornerLeg([bath, kitchen], items.filter((i) => i !== washer)) && !cornerLeg([bath, kitchen], items)) onCorner++;
+    }
+    expect(onCorner).toBeGreaterThan(0);
+  });
+
+  it('still prefers the hall, and leaves a flat with no bathroom without one', () => {
+    const bath = room('b', 'bathroom', 2, 2, [door(2, 0.5)]);
+    const hall = room('h', 'hallway', 2, 4, [door(0, 0.5, true)], -2.12);
+    const studio = room('s', 'studio', 6, 4, [door(2, 0.1, true), window(0, 0.7)], 2);
+    expect(layoutPlan([bath, hall, studio]).find((i) => i.slot === 'washer')?.roomId).toBe('h');
+    expect(layoutPlan([studio]).some((i) => i.slot === 'washer')).toBe(false);
+  });
 });
 
 describe('bedrooms', () => {
@@ -87,6 +154,18 @@ describe('bedrooms', () => {
       const facing = Math.abs(turn) < 0.1 && across < bed.size.width / 2 + wardrobe!.size.width / 2 - 0.2;
       expect(facing, `seed ${seed}`).toBe(false);
     }
+  });
+});
+
+describe('a piece that fits its wall', () => {
+  it('stands on it: a 1.6 m bed on a 1.84 m wall', () => {
+    // Test project 388's bedroom, 1.84 × 4.94 m: each short wall has 12 cm to spare either side
+    // of the bed, and was passed over for being less than 25 cm longer than it.
+    const items = layoutRoom(room('n', 'bedroom', 1.84, 4.94));
+    const bed = items.find((i) => i.slot === 'bed');
+    expect(bed?.kind).toBe('bed_double');
+    expect(bed!.position.x - bed!.size.width / 2).toBeGreaterThan(0);
+    expect(bed!.position.x + bed!.size.width / 2).toBeLessThan(1.84);
   });
 });
 
@@ -109,6 +188,112 @@ describe('living rooms', () => {
       if (!unit || !table) continue;
       const grow = (i: PlacedItem, by: number) => footprintQuad({ ...i, size: { ...i.size, width: i.size.width + 2 * by, depth: i.size.depth + 2 * by } });
       expect(quadsOverlap(grow(unit, 0.29), grow(table, 0.29)), `seed ${seed}`).toBe(false);
+    }
+  });
+});
+
+describe('a wall drawn as two edges in line', () => {
+  // 5 × 3.4 m; the far long wall has a corner in its middle (x 2.5) and runs straight on. The sofa
+  // stands in the middle of the near wall, its TV unit across from it — over the joint — and the
+  // TV, measured against the one edge its unit's middle is on, "ran past the wall's end".
+  const jointed: PlanRoom = refreshRoom({
+    id: 'j',
+    type: 'living_room',
+    name: 'j',
+    polygon: [{ x: 0, z: 0 }, { x: 5, z: 0 }, { x: 5, z: 3.4 }, { x: 2.5, z: 3.4 }, { x: 0, z: 3.4 }],
+    heightM: 2.7,
+    areaM2: 0,
+    perimeterM: 0,
+    openings: [],
+  });
+
+  it('hangs the TV over a unit that stands across the joint', () => {
+    const items = layoutRoom(jointed);
+    const unit = items.find((i) => i.slot === 'tv_unit')!;
+    const tv = items.find((i) => i.slot === 'tv');
+    expect(Math.abs(unit.position.x - 2.5)).toBeLessThan(0.5);
+    expect(tv).toBeDefined();
+    // On the wall over the unit, not standing on it: within the unit's width, its back on the wall.
+    expect(tv!.elevationM).toBeGreaterThan(unit.size.height);
+    expect(Math.abs(tv!.position.x - unit.position.x)).toBeLessThanOrEqual((unit.size.width - tv!.size.width) / 2 + 1e-6);
+    expect(3.4 - tv!.position.z - tv!.size.depth / 2).toBeLessThan(0.03);
+  });
+
+  it('keeps the TV off a window in the next edge of the same wall', () => {
+    // A window in the far wall's second edge, x 0.9–2.1, under the unit's left end: the TV is
+    // slid and shrunk along the unit until it is clear of it.
+    const windowed: PlanRoom = { ...jointed, openings: [{ id: 'j-w', roomId: 'j', kind: 'window', wallIndex: 3, t: 0.4, widthM: 1.2, heightM: 1.4, sillM: 0.9, exterior: true }] };
+    const items = layoutRoom(windowed);
+    const unit = items.find((i) => i.slot === 'tv_unit')!;
+    const tv = items.find((i) => i.slot === 'tv');
+    expect(unit.position.x - unit.size.width / 2).toBeLessThan(2.1);
+    expect(tv).toBeDefined();
+    expect(tv!.position.x - tv!.size.width / 2).toBeGreaterThan(2.1 - 1e-6);
+  });
+});
+
+describe('a living room open onto the next room', () => {
+  /** The wall the TV unit stands with its back to, and whether that is a room separator's line. */
+  const unitWall = (living: PlanRoom, items: PlacedItem[]) => {
+    const unit = items.find((i) => i.slot === 'tv_unit');
+    const wall = unit ? pieceWall(unit, living) : null;
+    return { unit, wall, open: !!wall && isOpenEdge(living, wall.edge.index) };
+  };
+
+  // 4.2 × 3.48 m, the long side at z 3.48 a room separator (the kitchen beyond). The sofa used to
+  // take the long wall across from it — "2.96 m from the screen", the screen being the open line —
+  // and its TV unit stood in the opening with its back to the kitchen.
+  const living: PlanRoom = { ...room('l', 'living_room', 4.2, 3.48, [window(3)]), open: [2] };
+
+  it('stands the TV unit on a wall, never on the separator, whatever the draw', () => {
+    for (const rng of [undefined, ...SEEDS.map((seed) => seededRng(seed))]) {
+      const items = layoutRoom(living, { rng });
+      const { unit, wall, open } = unitWall(living, items);
+      expect(unit).toBeDefined();
+      expect(wall).not.toBeNull();
+      expect(open).toBe(false);
+      // The whole of its back, not its middle alone.
+      expect(wall!.along - unit!.size.width / 2).toBeGreaterThan(-0.01);
+      expect(wall!.along + unit!.size.width / 2).toBeLessThan(wall!.edge.length + 0.01);
+      expect(items.some((i) => i.slot === 'tv')).toBe(true);
+    }
+  });
+
+  // 5 × 3.4 m; the far long side is wall for its first 2.2 m and open from there on (edge 2, in
+  // line with the wall). A sofa in the middle of the near wall put its unit half on the wall and
+  // half across the opening.
+  it('stands the whole of the unit\'s back on the wall, not half of it past the wall\'s end', () => {
+    const half: PlanRoom = refreshRoom({
+      id: 'h',
+      type: 'living_room',
+      name: 'h',
+      polygon: [{ x: 0, z: 0 }, { x: 5, z: 0 }, { x: 5, z: 3.4 }, { x: 2.2, z: 3.4 }, { x: 0, z: 3.4 }],
+      heightM: 2.7,
+      areaM2: 0,
+      perimeterM: 0,
+      openings: [],
+      open: [1, 2],
+    });
+    for (const rng of [undefined, ...SEEDS.map((seed) => seededRng(seed))]) {
+      const items = layoutRoom(half, { rng });
+      const { unit, wall, open } = unitWall(half, items);
+      expect(unit).toBeDefined();
+      expect(wall).not.toBeNull();
+      expect(open).toBe(false);
+      expect(wall!.along - unit!.size.width / 2).toBeGreaterThan(-0.01);
+      expect(wall!.along + unit!.size.width / 2).toBeLessThan(wall!.edge.length + 0.01);
+    }
+  });
+
+  // Every wall but the sofa's is open or too short for the unit: no spot of the sofa gives its
+  // unit a wall. The room keeps its TV as it always had it; what stands there is the owner's rule.
+  it('keeps the TV unit of a room where no sofa spot gives it a wall', () => {
+    const through: PlanRoom = { ...room('t', 'living_room', 3.4, 3.48), open: [1, 2, 3] };
+    for (const rng of [undefined, ...SEEDS.map((seed) => seededRng(seed))]) {
+      const items = layoutRoom(through, { rng });
+      expect(items.some((i) => i.slot === 'sofa')).toBe(true);
+      expect(items.some((i) => i.slot === 'tv_unit')).toBe(true);
+      expect(items.some((i) => i.slot === 'tv')).toBe(true);
     }
   });
 });

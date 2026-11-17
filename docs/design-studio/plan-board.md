@@ -246,7 +246,13 @@ them): the kitchen
 half's floor tiled, the living half's laid, points and radiators by each part's type, the
 doors and the partitions by the room. The layout furnishes each part with its own type's
 program (`layoutRoom`), the automatic technical points go on the walls of the part they serve,
-and the furniture shelf opens a studio as the half picked out. Not done: the 3D view draws
+and the furniture shelf opens a studio as the half picked out. Both take a part as a room of its
+own (`partRoom`): its outline, the line and the room's separators as open edges, and the room's
+doors and windows on its own edges — each whole to the part its middle is in, and one that
+reaches across the line to the other part as well, as the stretch on that part's wall
+(`Opening.reachesIn`: in the way there, dressed and counted by the part that has it; a stretch
+of 5 cm or less is no opening to that part — `ONTO_WINDOW_M`;
+[layout-and-matching.md](layout-and-matching.md)). Not done: the 3D view draws
 no line on the floor, and the kitchen half's default floor is the room's (as any kitchen's).
 `tests/unit/design/studio.test.ts`.
 

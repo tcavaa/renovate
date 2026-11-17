@@ -164,6 +164,48 @@ export function wallEdges(room: Pick<PlanRoom, 'polygon' | 'open'>): PlanEdge[] 
   return room.open?.length ? edges.filter((e) => !room.open!.includes(e.index)) : edges;
 }
 
+/** How far off a line a point may lie and still be on it, metres. */
+export const ON_LINE_M = 1e-3;
+
+/**
+ * How far onto a window a piece may reach and not stand across it, metres (`blocksWindow`) — and so
+ * the shortest stretch of an opening that is an opening at all to a room that has only that stretch
+ * of it (a studio's half, `partRoom`).
+ */
+export const ONTO_WINDOW_M = 0.05;
+
+/**
+ * The wall an edge is part of: with it, the edges among `edges` that run on from it in line, end
+ * to end. One wall may be drawn as two edges (a jog that was straightened, a corner of the next
+ * room meeting it) and is still one wall to stand or hang a piece on. `from`…`to` is the whole
+ * stretch in metres along `edge`'s own direction, 0 at its first corner. Hand it the walls only
+ * (`wallEdges`) and a room separator's open line never carries a wall on.
+ */
+export function wallRun(edge: PlanEdge, edges: readonly PlanEdge[]): { from: number; to: number; edges: PlanEdge[] } {
+  const at = (along: number): Vec2 => ({ x: edge.a.x + edge.dir.x * along, z: edge.a.z + edge.dir.z * along });
+  const joins = (p: Vec2, q: Vec2) => Math.hypot(p.x - q.x, p.z - q.z) < ON_LINE_M;
+  const inLine = (e: PlanEdge) => e.dir.x * edge.dir.x + e.dir.z * edge.dir.z > 0 && offLine(edge, e.a) < ON_LINE_M && offLine(edge, e.b) < ON_LINE_M;
+  const run = [edge];
+  let from = 0;
+  let to = edge.length;
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const e of edges) {
+      if (run.some((r) => r.index === e.index) || !inLine(e)) continue;
+      if (joins(e.a, at(to))) {
+        run.push(e);
+        to += e.length;
+        grew = true;
+      } else if (joins(e.b, at(from))) {
+        run.unshift(e);
+        from -= e.length;
+        grew = true;
+      }
+    }
+  }
+  return { from, to, edges: run };
+}
+
 /** An axis-aligned box in the ground plane: a piece's footprint, a layout slot. */
 export interface GroundBox {
   minX: number;

@@ -11,6 +11,7 @@
  */
 
 import {
+  ONTO_WINDOW_M,
   boxInPolygon,
   floorWalls,
   isPassage,
@@ -787,7 +788,7 @@ export function blocksWindow(item: Pick<PlacedItem, 'position' | 'rotation' | 's
     if (o.kind !== 'window' || o.wallIndex !== wall.edge.index) return false;
     if (top <= o.sillM + 0.05 || item.elevationM >= o.sillM + o.heightM) return false;
     const middle = o.t * wall.edge.length;
-    return wall.along + item.size.width / 2 > middle - o.widthM / 2 + 0.05 && wall.along - item.size.width / 2 < middle + o.widthM / 2 - 0.05;
+    return wall.along + item.size.width / 2 > middle - o.widthM / 2 + ONTO_WINDOW_M && wall.along - item.size.width / 2 < middle + o.widthM / 2 - ONTO_WINDOW_M;
   });
 }
 
