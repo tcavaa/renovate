@@ -197,7 +197,7 @@ describe('matchProducts with a chair the engine tucked under its table', () => {
   });
 
   it('seats the chairs round a bigger table as matched, never more than half under it', () => {
-    // A 1.18 m deep table where the slot was 0.9: the chairs follow it (`seatAtTable`) instead of
+    // A 1.18 m deep table where the slot was 0.9: the chairs follow it (`seatsAtTable`) instead of
     // turning it down — the chair stands at its place round the real table, its seat 12 cm under.
     for (const tuck of [0.03, -0.09]) {
       const [t, c] = match([table, chair(tuck)], [tableProduct(5, 118, 1200), tableProduct(1, 90, 3000), chairProduct(2, 50)]);

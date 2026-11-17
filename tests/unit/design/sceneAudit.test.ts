@@ -52,13 +52,34 @@ describe('the whole-flat check', () => {
     const living = rect('l', 'living_room', 5, 5);
     const table = piece('t', 'coffee_table', 'l', 2.5, [1, 0.6, 0.4], { position: { x: 2.5, z: 2.5 } });
     const rug = piece('rug', 'rug', 'l', 2.5, [2, 3, 0.02], { position: { x: 2.5, z: 2.5 } });
-    const orphans = auditScene({ plan: flat([living]), items: [table, rug] }).filter((i) => i.code === 'orphan').map(issueMetric);
-    expect(orphans).toEqual(['orphan:coffee_table:no_sofa', 'orphan:rug:no_sofa']);
+    const orphans = (plan: FloorPlan, items: PlacedItem[]) => auditScene({ plan, items }).filter((i) => i.code === 'orphan').map(issueMetric);
+    // The coffee table is left over from a sofa; the rug lies under the coffee table that is there.
+    expect(orphans(flat([living]), [table, rug])).toEqual(['orphan:coffee_table:no_sofa']);
     const sofa = piece('s', 'sofa', 'l', 2.5, [2.2, 0.9, 0.8]);
-    expect(auditScene({ plan: flat([living]), items: [sofa, table, rug] }).filter((i) => i.code === 'orphan')).toEqual([]);
-    // A rug with no sofa is nobody's orphan in a bedroom that has its bed.
+    expect(orphans(flat([living]), [sofa, table, rug])).toEqual([]);
+    // Once for the two nightstands of a bed that is gone; a TV with no unit; a unit with no TV.
     const bedroom = rect('r', 'bedroom', 4, 4);
-    expect(auditScene({ plan: flat([bedroom]), items: [piece('bed', 'bed', 'r', 2, [1.6, 2, 0.9]), { ...rug, roomId: 'r' }] }).filter((i) => i.code === 'orphan')).toEqual([]);
+    const nightstands = [piece('n1', 'nightstand', 'r', 0.5, [0.45, 0.4, 0.5]), piece('n2', 'nightstand', 'r', 3.5, [0.45, 0.4, 0.5])];
+    expect(orphans(flat([bedroom]), nightstands)).toEqual(['orphan:nightstand:no_bed']);
+    const unit = piece('u', 'tv_unit', 'l', 2.5, [1.8, 0.4, 0.5]);
+    const tv = piece('tv', 'tv', 'l', 2.5, [1.4, 0.08, 0.8], { elevationM: 0.65 });
+    expect(orphans(flat([living]), [sofa, tv])).toEqual(['orphan:tv:no_tv_unit']);
+    expect(orphans(flat([living]), [sofa, unit])).toEqual(['orphan:tv_unit:no_tv']);
+    // A bathroom's mirror hangs over its basin and nowhere else; a hall's takes any wall.
+    const mirror = (roomId: string) => piece('m', 'mirror', roomId, 1.5, [0.6, 0.05, 0.8], { elevationM: 1.1 });
+    expect(orphans(flat([rect('b', 'bathroom', 3, 2.5)]), [mirror('b')])).toEqual(['orphan:mirror:no_sink']);
+    expect(orphans(flat([rect('h', 'hallway', 3, 2.5)]), [mirror('h')])).toEqual([]);
+  });
+
+  it('does not take for an orphan what the engine stands on its own when the other piece was never laid', () => {
+    const orphans = (room: PlanRoom, items: PlacedItem[]) => auditScene({ plan: flat([room]), items }).filter((i) => i.code === 'orphan');
+    // A fridge and wall cabinets in a kitchen with no run: a missing run.
+    const kitchen = rect('k', 'kitchen', 4, 3);
+    expect(orphans(kitchen, [piece('f', 'fridge', 'k', 0.4, [0.7, 0.7, 1.9]), piece('w', 'kitchen_wall', 'k', 2, [2, 0.35, 0.7], { elevationM: 1.45 })])).toEqual([]);
+    // A rug in a living room with no sofa and no coffee table lies under the room's main piece; a print hangs on a wall.
+    const living = rect('l', 'living_room', 5, 5);
+    const rug = piece('rug', 'rug', 'l', 2.5, [2, 3, 0.02], { position: { x: 2.5, z: 2.5 } });
+    expect(orphans(living, [rug, piece('a', 'artwork', 'l', 2.5, [0.9, 0.05, 0.7], { elevationM: 1.2 })])).toEqual([]);
   });
 
   it('tells a TV unit on a wall from one on a room separator’s line and one standing free', () => {

@@ -368,7 +368,9 @@ the project opens furnished afterwards.
    with `jobToken` — an HMAC of the job id under `AUTH_SECRET`, `validJobToken`), which answers at
    once. A check that cannot be started leaves the flat as laid out (`REVIEW_NOT_STARTED`).
    What `generateScene` does with the proposal: the engine lays the flat out as always, with
-   the picks taken where they fit their slot (`MatchOptions.picks`), the designer's floors and walls
+   the picks taken where they fit their slot (`MatchOptions.picks` — a pick that fits only by standing
+   in a door's way or on keep-clear floor gives way to a product that keeps them clear, and takes
+   the slot only when none does), the designer's floors and walls
    over the style's draw (`withProposalFinishes`, a finish somebody chose stays), and the decor
    intents resolved against where the engine put the bed, the sofa or the TV unit
    (`proposalDecor`). A print or a mirror that would hang over built decor that covers its wall

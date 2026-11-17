@@ -8,6 +8,7 @@
  * Pure: it reads a scene and returns what it found.
  */
 
+import { arrangedOff } from './arrangedOff';
 import { getArchetype } from './catalog';
 import { decorFootprint } from './decor/joinery';
 import { blocksWindow, footprintInRoom, footprintOf, inDoorway, pieceWall, tucksUnder, type Footprint } from './manipulate';
@@ -101,19 +102,13 @@ export const ESSENTIALS: Partial<Record<PlanRoom['type'], SlotKind[][]>> = {
   office: [['desk'], ['office_chair']],
 };
 
-/** What is arranged off another piece: with that piece gone it is left round empty floor. */
-const ARRANGED_OFF: ReadonlyArray<{ needs: SlotKind; orphans: SlotKind[]; rooms?: Array<PlanRoom['type']> }> = [
-  { needs: 'sofa', orphans: ['coffee_table', 'tv_unit', 'tv', 'armchair', 'rug'], rooms: ['living_room', 'studio'] },
-  { needs: 'bed', orphans: ['nightstand', 'rug'], rooms: ['bedroom'] },
-  { needs: 'dining_table', orphans: ['dining_chair'] },
-  { needs: 'desk', orphans: ['office_chair'] },
-  { needs: 'tv_unit', orphans: ['tv'] },
-  { needs: 'tv', orphans: ['tv_unit'] },
-  { needs: 'kitchen_run', orphans: ['fridge', 'kitchen_wall'] },
-  { needs: 'sink', orphans: ['mirror', 'tap'], rooms: ['bathroom', 'toilet'] },
-  { needs: 'washer', orphans: ['dryer'] },
-  { needs: 'bathtub', orphans: ['bath_mixer'] },
-];
+/**
+ * What a piece is left without, besides the piece it was arranged off (`arrangedOff`, the
+ * archetypes' own rules: a coffee table with no sofa, a TV with no unit): a TV unit laid for a TV
+ * the room then does not get. Not arranged off the TV — the TV hangs over the unit — so nothing the
+ * generator drops; counted so that the layout's unit without a TV shows.
+ */
+const LAID_FOR: ReadonlyArray<{ needs: SlotKind; orphans: SlotKind[] }> = [{ needs: 'tv', orphans: ['tv_unit'] }];
 
 /** Rule checks that read the building as it was drawn — a narrow door, a boiler on an inside wall: not generation's doing. */
 const PLAN_RULES: ReadonlySet<RuleCode> = new Set<RuleCode>(['door_too_narrow', 'door_swing_clash', 'boiler_not_exterior', 'boiler_by_bath', 'radiator_under_sill']);
@@ -155,9 +150,19 @@ export function auditScene(scene: AuditedScene): SceneIssue[] {
       if (!has) say('missing', group.join('/'), undefined, `${room.type}:${group.join('/')}`);
     }
 
-    // --- pieces arranged off a piece that is not there
-    for (const rule of ARRANGED_OFF) {
-      if (slots.has(rule.needs) || (rule.rooms && !rule.rooms.includes(room.type))) continue;
+    // --- pieces arranged off a piece that is not there: by the rule the engine lays them by, such
+    // a piece stands nowhere in a room without the other (`only`), so there it is left over from one
+    // that is gone. What the engine lays on its own all the same — a rug under the room's main
+    // piece, a fridge on a wall of a kitchen with no run — is a missing piece, not an orphan.
+    const orphaned = new Set<SlotKind>();
+    for (const item of inRoom) {
+      const off = arrangedOff(item.kind, room.type);
+      if (!off?.only || orphaned.has(item.slot) || off.slots.some((slot) => slots.has(slot))) continue;
+      orphaned.add(item.slot);
+      say('orphan', `${item.slot} with no ${off.slots[0]}`, item.id, `${item.slot}:no_${off.slots[0]}`);
+    }
+    for (const rule of LAID_FOR) {
+      if (slots.has(rule.needs)) continue;
       for (const slot of rule.orphans) {
         if (!slots.has(slot)) continue;
         say('orphan', `${slot} with no ${rule.needs}`, inRoom.find((i) => i.slot === slot)?.id, `${slot}:no_${rule.needs}`);

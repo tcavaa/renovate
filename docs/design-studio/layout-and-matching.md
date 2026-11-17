@@ -18,6 +18,7 @@ as products).
 | `lib/design/catalog.ts` | `ARCHETYPES` (every placeable kind: real size, category, placement rule, labels in three languages), `ROOM_PROGRAMS` (which slots each room type gets), `SHELF_ROOMS` / `kindsForRoom` / `unroomedKinds` (which kinds belong in which room — the studio rooms' starting point; the shelf itself is admin's, [../categories.md](../categories.md)) |
 | `lib/design/autoLayout.ts` | `layoutPlan` / `layoutRoom` (rule-based placement, collision-checked; a studio half by half — `partRoom`; `LayoutOptions.anchors` from technical points, `obstacles` for columns and the strip in front of every radiator — `radiatorKeepouts`, [design-rules.md](design-rules.md)), `placeAdditional` (a free spot for one more piece), `FURNISHABLE_ROOM_TYPES` |
 | `lib/design/matcher.ts` | `matchProducts` (client-side; drops products without `model3dUrl`, scores style tag + budget tier, checks the fit), `candidatesFor` (the swap list), `toSceneProduct`, `applySwap` |
+| `lib/design/arrangedOff.ts` | `arrangedOff` (which piece a kind is arranged off, read from the archetypes' rules), `withoutOrphans` (a piece that is gone takes what was arranged off it) |
 | `lib/design/random.ts` | seeded randomness for generating (`seededRng`, `randomSeed`, `weightedPick`, `weightedOrder`, `pickNearBest`) |
 | `lib/design/clearance.ts` | `tightSpots`, `tightSpotsByItem` |
 | `lib/design/footprintMasks.ts` | a model's real footprint when it is not its box (filled by `lib/design3d/modelLoader.ts`) |
@@ -175,9 +176,9 @@ deterministic, so a person who swaps one product does not have the rest of the f
   `lib/design/styleGuide.ts`), a price that suits the budget level up to half again
   as likely, one much wider than its slot a seventh, one already placed in another room a third.
   None is ever zero in the draw (`pnpm audit:studio-products` lists, per kind, how many there are
-  and which rooms generate them) — but what is filtered out before it never appears: the style's
-  own only for the big pieces, what a slot can hold (`slotPool`), a kind no program lays out, a
-  product too big for any slot. About 160 of the 934 furniture products did not appear in 1,080
+  and which rooms generate them) — but what is filtered out before it never appears: another
+  style's big piece while one of the style's own fits (below), what a slot can hold (`slotPool`), a
+  kind no program lays out, a product too big for any slot. About 160 of the 934 furniture products did not appear in 1,080
   generated flats ([generation-audit.md](generation-audit.md#c-products-that-can-never-appear)). A
   product that does not fit gives way to another draw (`weightedOrder`). Still one product per
   kind per room.
@@ -224,14 +225,110 @@ product already used three times less likely — so a flat with five pendants ha
 different lamps. The swap panel lists every candidate for the slot,
 matching style first, each with its photo.
 
+## The big pieces in the flat's style, with a way out (`matcher.ts` → `slotSteps`)
+
+A flat's kitchen, sofas, beds, bath, wardrobes and dining table are its style's own
+(`STRICT_STYLE_KINDS`, the rulebook's K-15 and Y-7): where the catalogue has any product of the
+kind tagged with the style, the slot is drawn from those alone (`kindPool`). When **none of them
+fits the slot** — Vintage's one corner sofa is 4.17 × 3.47 m; a style's doubles may all be wider
+than the wardrobe beside the bed's slot allows — the slot is not left empty with the room arranged
+round it (the owner's decision of 16 Nov 2026). It is offered, in this order, and the first product
+that fits takes it:
+
+1. the style's own products of the slot's kind, as drawn (the pick, the draw, the next that fits);
+2. for a corner sofa, the style's own **three-seat sofas** (`SMALLER_KIND`);
+3. the other styles' products of the slot's kind, **the nearest style first** (`styleAffinity` 1 —
+   a kindred tag — before 0);
+4. for a corner sofa, the other styles' three-seats.
+
+A double bed takes steps 1 and 3 only — never a single bed (the catalogue's "single beds" are day
+beds and a bunk). What a slot can hold (`slotPool`) and what the style keeps out of a flat
+(`styleRejects`: nothing black in a Scandinavian one) hold at every step. **A product of another
+kind makes the piece that kind**: a three-seat in a corner sofa's slot is a `sofa_3seat` in the
+`sofa` slot — its label, its swap list and its box are a three-seat's — standing with its back on
+the wall the slot's back was on, and the coffee table is measured off it as off any real sofa
+(`settledPosition`). The TV unit stays on the wall the engine found for the slot, so behind a
+three-seat the screen is the corner sofa's depth further off (the rule check may say so).
+
+**A kind the catalogue has no product of takes another kind's only where the two are the same
+thing** — a short table of facts in the matcher (`FILED_AS`), today one line: the bedroom's rug is
+laid as `rug_bed` — under the bed — and the catalogue's rugs are all `rug`, so it is given a rug,
+and is a `rug` from then on (at the size and place it was laid; its swap list is the rugs). Filling
+the same slot (`kindsOfSlot` in `catalog.ts`, what the shelf groups a room's kinds by) does not
+make two kinds the same: a blind's slot never takes a curtain (it would be squeezed to the blind's
+size), a single bed's never a double, an open shelf's never a bookcase — with no product of its own
+kind such a slot stays empty, as does the hall's `shoe_cabinet`, which has no product at all. Where
+the kind has products of its own it keeps to them.
+
+Generating, a way out is drawn like the slot's own (`weightedOrder`), but with a draw of its own
+begun from the flat's last number: the pieces matched after it get the products they would have
+had, and a flat whose own pieces all fit is the flat it was.
+
+## A piece that is gone takes what was arranged off it (`lib/design/arrangedOff.ts`)
+
+A slot no product fits is dropped (`placeableOnly`) — and so is what the engine arranged off it
+(`withoutOrphans`): with no sofa there is no coffee table, armchair or TV unit, with no TV unit no
+TV, with no coffee table no rug under it; with no bed no nightstands and no rug under it; with no
+table no chairs. `generateScene` calls it wherever it drops pieces: after matching (against the
+engine's slots, so each piece is read as it was arranged), after the calculation's picks, and
+after the designer's check (`reviewedScene`: a TV goes with the unit the check removed).
+
+Which piece is arranged off which is read from the archetypes' own rules (`arrangedOff`), as the
+engine applies them:
+
+| Rule | Pieces | With the other piece gone |
+|---|---|---|
+| `relative` (off its `to`) | coffee table, TV unit, armchair (sofa) · nightstand (bed) · dining chair (table) · desk chair (desk) · bath mixer (bath) | goes — the engine lays it nowhere without it |
+| `wall-mounted` with `onlyAbove` | TV (TV unit) · tap (basin) · dryer (washing machine) | goes |
+| a bathroom's or a toilet's mirror | over the basin and nowhere else | goes |
+| `under` (its `to`) | rug (coffee table) · the bedroom's rug (bed) | goes; a rug the engine laid under the room's main piece because the room never had the other (an office's under the desk) is a rug of its own and stays |
+| `wall-mounted` with `above`, no `onlyAbove` | a print (bed, sofa) · a hall's mirror (console) · wall cabinets (run) | stays — without the piece the engine hangs it on a wall anyway |
+| `wall` with `beside` | fridge (run) | stays — without a run it stands on a wall |
+
+Only what was arranged off a piece that **stood and is gone** goes (the nearest of that slot in the
+room as laid): a fridge in a kitchen where no run was ever laid is a missing run, not an orphan.
+The whole-flat check (`lib/design/sceneAudit.ts`) reads the same function: a piece of the first
+three rows standing in a room without the other is counted as an `orphan`.
+
 ## The product has to fit the slot (`matcher.ts` → `placeFitting`)
 
 The layout engine sizes a slot from the archetype; the product that fills it has its own
 size, often bigger. `matchProducts` now takes the rooms and, for every floor-standing slot,
 checks the preferred product's real footprint at the slot — nudged inside the room when it
 only just pokes out — against the polygon and the other pieces. A product that does not fit
-gives way to the next-best that does; when nothing fits the slot stays empty. Before this a
-3.2 m sofa in a 2.4 m room sat through the window.
+gives way to the next-best that does; when nothing fits — of the slot's own products, then of its
+ways out (above) — the slot stays empty. Before this a 3.2 m sofa in a 2.4 m room sat through the
+window.
+
+**A product keeps clear what the layout kept clear, wherever one can** (the slot's second test,
+tried first): a door's way (`inDoorway`: 90 cm into the room, the opening's width), the floor the
+layout was told to keep clear (`MatchOptions.keepClear`, which `generateScene` fills with the
+layout's own `obstacles` — the strip before each radiator, the columns, the floor behind a
+partition) and, for anything but the kitchen's own furniture (the run, the wall cabinets, the
+island, the fridge), the working floor in front of a kitchen run (`KITCHEN_CIRCULATION_M`,
+`workingFloor`). The engine keeps all of that free of its slots, but a product is rarely its slot's
+size — a third of the double beds placed are over a quarter wider — and the fit test knew only the
+room, the windows and the pieces. So each slot is gone through twice: first only a product that
+also keeps those clear, through every step of the slot's order (above: another style's bed that
+keeps out of a door's way before the style's own that stands in it); and when none does, by the
+room, the windows and the pieces alone, so that no room loses a piece for it. **The AI designer's
+pick is held to the same** (`MatchOptions.picks`): a pick that fits its slot only by standing in a
+door's way, on keep-clear floor or on a run's working floor gives way to a product that keeps them
+clear — the room's other candidates, then the slot's ways out — and takes the slot only when no
+product does. The rugs and the
+curtains are sized to the room by the layout and take any product. **A door mat and a hanging
+lamp** are in no piece's way either, but have a size of their own (`liesWithinRoom`): the mat
+takes the first product that lies inside its room — its edge by the door, eased in like any piece
+— and the lamp the first that hangs within the room where it is hung; with none that does, the
+one drawn. (The catalogue files five of six door mats 2.03 × 1.27 m and a cluster of lamps
+3.16 × 3.96 m.) The mat is not tested for the door's way: the layout lays it inside the front door. On the fixture flats this took the floor pieces within 90 cm of a door from 146 to 25
+in 360 flats (the 25: kitchen runs and their legs, and chairs seated round a table, which have no
+other place to stand).
+
+**The other pieces are the ones that stand**: those already matched at the size they got, those
+still to be matched at their archetype's. A slot that got no product is not there — it is in no
+later piece's way, nothing is measured off it and nothing hangs clear of it (`settled` holds the
+matched pieces only; a chair's turn at its table is counted off every slot gone through, `seen`).
 
 **Two pieces may touch by 2 cm, and a chair the engine tucked under its table may stand under
 it by half its depth** (`tuckedChair`, with the studio's pair rule `tucksUnder`). A seat the
@@ -341,11 +438,20 @@ own. The matcher re-measures every piece from the product it got, so the room st
   with its back to the window's wall, taller than the sill by 5 cm, across its width): the matcher
   passes over one (a wardrobe for a dresser slot under a window), and a shop's kitchen unit with
   wall cabinets is not taken for a run under a window.
-- **Dining chairs sit round the table as matched** (`seatAtTable`): the n-th chair of the room takes
-  the n-th seat of `seatSlots` with the real table, and a chair the table has no seat for goes — six
-  chairs used to stand round a 0.8 m round table. A seat is 56 cm of table edge. Chairs still to be
-  seated are in neither the table's nor one another's way, and a re-seated chair counts as tucked in
-  (its seat 12 cm under the edge). A bigger table no longer gives way to the chairs round its slot.
+- **Dining chairs sit round the table as matched** (`seatsAtTable`, on `seatSlots` with the real
+  table): each chair at **its own seat** — the one that answers to the seat the engine gave it
+  round the table as laid: on the same side of the table, the nearest along it (`seatingAt`,
+  `seatPlace`; of two as near, the one nearer the middle, so two chairs laid before a 1.2 m table
+  take the middle two seats of a 2.4 m one). The engine seats no chair where a wall or a piece is
+  behind the seat, so the chairs it laid say which sides of the table can be sat at; the n-th chair
+  taking the n-th seat sent every other chair of a table against a wall to the wall's side, where
+  it did not fit, and the room lost it. A chair whose own seat is not there (a real table too
+  shallow for a seat at its ends, or with fewer along a side) or does not fit tries the seats that
+  are no chair's, in the table's order, and sits at the first where it fits; a chair with no seat
+  left to try goes — six chairs used to stand round a 0.8 m round table. A seat is 60 cm of table
+  edge (`DINING_SEAT_M`). Chairs still to be seated are in neither the table's nor one another's
+  way, and a re-seated chair counts as tucked in (its seat 12 cm under the edge). A bigger table no
+  longer gives way to the chairs round its slot.
 - **Tidied once everything stands** (`designStore.generate`, after the decor is fitted; again
   after the AI check — `lib/design/aiProposal.ts`): every piece the engine stands against a wall
   back against it (`settleToWalls`, with what stands in front of it — the desk chair, the coffee
@@ -355,7 +461,13 @@ own. The matcher re-measures every piece from the product it got, so the room st
 - **What a slot can hold** (`slotPool`, before the draw): a basin that stands on the floor (60 cm or
   taller — a countertop basin needs a counter the flat has not got; the library also files taps and
   mixer panels under the kind), and in a bathroom or toilet a mirror that hangs flat and is no taller
-  than 1.2 m. The swap list still offers the rest.
+  than 1.2 m. **A hall's mirror** is the full-height one (`isFullHeightMirror`: 1.4 m or taller, flat,
+  no wider than 90 cm) only where the wall under its slot is free from the floor up; over the
+  console, or anything else standing there (`standingBelow`), it is one that hangs clear of the
+  piece's top and under the ceiling (`settledElevation` says where each would hang) — and when the
+  catalogue has none that does, the mirror it would have had. The hall pass hangs the full-height
+  mirror across from the wardrobe it builds ([design-rules.md](design-rules.md), E-8). The swap list
+  still offers the rest.
 
 ## Nothing stands through a wall
 
@@ -422,6 +534,18 @@ style and room, a blind's size and height, sold one a window),
 fit with rooms, not through the end of a partial wall, the model filter, a product flush in each
 corner of a room, a chair tucked under its table — both get products, no table over more than
 half the chair, a chair seated clear still in the table's way),
+`tests/unit/design/matcherStyle.test.ts` (a slot none of the style's own fits: a three-seat of the
+style in a corner sofa's slot, then the nearest other style's, a double bed never a single, no
+black in a Scandinavian flat's way out, the same product for the same seed where an own one fits; a
+kind with no product takes its slot's other kinds'),
+`tests/unit/design/matcherFit.test.ts` (a slot that got no product in nothing's way; a door's
+way, the keep-clear floor and a run's working floor kept clear wherever a product does, and the
+piece kept where none does; a door mat and a hanging lamp within the room; the chairs of a table
+against a wall at their own seats, at a free one where theirs is not there or does not fit),
+`tests/unit/design/arrangedOff.test.ts` (which piece each kind is arranged off, what goes with a
+piece that is gone and what stays, a generated room whose sofa or bed no product fits),
+`tests/unit/design/hallLiving.test.ts` (the hall's mirror over the console and the full-height one
+on a free wall or across from the built wardrobe),
 `tests/unit/design/autoLayout.test.ts` (`boxInPolygon` — the gap of a U, touching a wall — and
 nothing of a layout standing through a wall, on project 219's corner),
 `tests/unit/design/placementSettle.test.ts` (nightstands beside the bed's head, laid out and with a
@@ -445,7 +569,9 @@ whole. `lib/design/matcher.ts` is in the coverage gate.
 
 - **The generation audit of 16 Nov 2026** ([generation-audit.md](generation-audit.md)) lists what
   the engine and the matcher leave out, where they clash and what they can never place, measured on
-  1,080 generated flats; none of it is fixed yet.
+  1,080 generated flats. Its ticked items are fixed (the matcher's: a way out of the strict style,
+  what goes with a dropped piece, a kind with no product, what the layout kept clear, the hall's
+  mirror, the door mat and the hanging lamp, the chairs' own seats); the rest is open.
 - **Only TVs of the home electronics are placed.** The library files a few appliances under
   kinds that do not fit them — coffee machines, a built-in oven and range cookers as
   `kitchen_run` — and there is no kind for a soundbar, speakers or a microwave; a kitchen's

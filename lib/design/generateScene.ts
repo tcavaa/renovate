@@ -8,6 +8,7 @@
  * Isomorphic: no React, no `window`, no clock but the `at` it is handed.
  */
 
+import { withoutOrphans } from './arrangedOff';
 import { settleFitted } from './fitted';
 import { fitKitchenCorners } from './kitchenCorner';
 import { applyReviewFixes, clearOfDecor, proposalDecor, proposalNotes, proposalPicks, settleToWalls, underCeilingDecor, withoutArtOverDecor, withProposalFinishes, type AiProposal } from './aiProposal';
@@ -81,10 +82,11 @@ export function generateScene(input: GenerateSceneInput): GeneratedScene {
   // Laid out under the ceiling: a pendant hangs from a new ceiling, a curtain runs from just under it.
   const underCeilings = plan.rooms.map((r) => underCeiling(r, plan));
   const placed = layoutPlan(underCeilings, { anchors: technicalAnchors(plan), obstacles, rng, entranceSight, styleId });
-  // A slot no partner product can fill is dropped rather than shown as a stand-in. The AI
-  // designer's product picks go in where they fit their slot (`MatchOptions.picks`).
-  const matchOptions = { styleId, budgetGel, rooms: underCeilings, rng, picks: proposalPicks(proposal) };
-  let items = placeableOnly(matchProducts(placed, catalog, matchOptions));
+  // A slot no partner product can fill is dropped rather than shown as a stand-in — and with it
+  // what the engine arranged off it (`withoutOrphans`: no coffee table before a sofa that is not
+  // there). The AI designer's product picks go in where they fit their slot (`MatchOptions.picks`).
+  const matchOptions = { styleId, budgetGel, rooms: underCeilings, rng, picks: proposalPicks(proposal), keepClear: obstacles };
+  let items = withoutOrphans(placed, placeableOnly(matchProducts(placed, catalog, matchOptions)), underCeilings);
   // The bathrooms finished as a joiner and a plumber would (the rulebook): a vanity made to measure
   // under the basin, a tap on it, the washer's column (a dryer on the machine at the top budget), the
   // bath boxed or enclosed and its mixer at its head.
@@ -106,7 +108,7 @@ export function generateScene(input: GenerateSceneInput): GeneratedScene {
   // replace the style's own draw.
   let finishes = withFlatFinish(withProposalFinishes(keepChosen(defaultFinishes(plan, styleId, catalog, rng), input.finishes), plan, proposal, styleId, catalog), plan.rooms, catalog);
   if (calculatorPicks) {
-    items = placeableOnly(applyFurniturePicks(items, plan, calculatorPicks, catalog));
+    items = withoutOrphans(items, placeableOnly(applyFurniturePicks(items, plan, calculatorPicks, catalog)), plan.rooms);
     finishes = applyFinishPicks(finishes, plan, calculatorPicks, catalog);
   }
   // The wiring follows the furniture; a room the person wired by hand — on this board or on the
@@ -148,15 +150,21 @@ export function reviewedScene(
   catalog: CatalogProduct[]
 ): { items: PlacedItem[]; decor: DecorPiece[]; generation: GenerationRecord } {
   const reviewed = applyReviewFixes(scene.items, scene.decor, review, scene.plan, catalog);
-  // What was built for a piece the check moved or took away goes with it (`lib/design/fitted`).
-  const fixed = settleFitted(reviewed.decor, reviewed.items, scene.plan.rooms);
+  // What was arranged off a piece the check took away goes with it (the TV with its unit), and so
+  // does what was built for a piece it moved or took away (`lib/design/fitted`).
+  const standing = withoutOrphans(scene.items, placeableOnly(reviewed.items), scene.plan.rooms);
+  const fixed = settleFitted(reviewed.decor, standing, scene.plan.rooms);
   // The room's note after the check says how it reads now; the designer's first note stays before it.
   const notes = { ...(scene.generation.notes ?? {}) };
   for (const [roomId, note] of Object.entries(review.notes)) notes[roomId] = (notes[roomId] ? `${notes[roomId]} ${note}` : note).slice(0, 1200);
   return { items: placeableOnly(fixed.items), decor: fixed.decor, generation: { ...scene.generation, notes, reviewed: review.fixes.length } };
 }
 
-/** Keeps only the items that ended up with a real partner model behind them. */
+/**
+ * Keeps only the items that ended up with a real partner model behind them. What was arranged off
+ * one that did not goes too: `withoutOrphans` (`lib/design/arrangedOff`), wherever generation drops
+ * pieces — after matching, after the calculation's picks, after the designer's check.
+ */
 export function placeableOnly(items: PlacedItem[]): PlacedItem[] {
   return items.filter((item) => !!item.product?.model3dUrl);
 }

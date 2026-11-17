@@ -290,7 +290,12 @@ How stage 3 built it — **the entrance and the living room**:
   cabinet of its own (`cabinet: null`). A narrower hall keeps the coat rack (`prefer:
   'near-entrance'`) and the shoe cabinet.
 - **Mirror** (E-8): the hall's mirror is a tall flat one when the catalogue has any (140 cm or taller,
-  `slotPool`), moved to the wall across from the wardrobe, standing just off the floor.
+  `isFullHeightMirror`) **on a wall free from the floor up**: across from the wardrobe, where the
+  hall pass hangs it on the facing wall's free stretch just off the floor (`fitHall` takes the
+  catalogue's full-height mirror there), or where the engine laid the mirror's slot on a bare wall
+  (`slotPool`). Over the console — or anything else standing under the slot — it is a mirror that
+  hangs clear of the piece and under the ceiling: a 1.8 m mirror used to hang 30 cm off the floor
+  behind the console.
 - **Door mat** (E-9): in the hallway's program, on the floor inside the front door (`placeAtEntrance`).
 - **TV out of the way** (L-5): a sofa spot whose floor between it and the TV wall crosses the way
   between two of the room's doors (a 70 cm strip, `passagePaths`, `viewingQuad`) scores 25 less.

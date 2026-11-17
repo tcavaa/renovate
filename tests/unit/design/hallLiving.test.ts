@@ -3,8 +3,9 @@ import { layoutRoom } from '@/lib/design/autoLayout';
 import { suggestTechnical } from '@/lib/design/autoTechnical';
 import { sectionSpans } from '@/lib/design/decor/joinery';
 import { fitHall, housedBoilerSpot } from '@/lib/design/hall';
-import type { CatalogProduct } from '@/lib/design/matcher';
+import { matchProducts, type CatalogProduct } from '@/lib/design/matcher';
 import { refreshRoom, roomEdges } from '@/lib/design/planGeometry';
+import { seededRng } from '@/lib/design/random';
 import { footprintQuad, quadsOverlap } from '@/lib/design/rules';
 import type { FloorPlan, Opening, PlacedItem, PlanRoom } from '@/lib/design/types';
 import type { RoomType } from '@/lib/calculator/types';
@@ -54,6 +55,70 @@ describe('the entrance hall', () => {
     expect(mat).toBeDefined();
     expect(mat!.position.x).toBeLessThan(0.5);
     expect(layoutRoom(room('x', 'hallway', 3, 1.6, [door(3, 0.5)]), {}).some((i) => i.slot === 'door_mat')).toBe(false);
+  });
+});
+
+describe('the hall\'s mirror', () => {
+  const furniture = (id: number, kind: string, w: number, d: number, h: number): CatalogProduct =>
+    ({ id, nameKa: `p${id}`, slug: `p${id}`, brand: null, categorySlug: kind, pricePerUnit: 500, unit: 'piece', imageUrl: null, colorHex: null, textureUrl: null, model3dKind: kind, model3dUrl: `/models/p${id}.glb`, widthCm: w, depthCm: d, heightCm: h, styleTags: ['modern'], tags: [], isFeatured: false, specs: null, coveragePerUnit: null, store: null }) as CatalogProduct;
+  const consoleTable = furniture(60, 'console_table', 100, 35, 80);
+  /** As tall as a person, flat on the wall: the hall's full-height mirror (E-8). */
+  const fullHeight = furniture(61, 'mirror', 70, 10, 180);
+  const wallMirror = furniture(62, 'mirror', 60, 3, 80);
+  const plainHall = room('p', 'hallway', 4, 1.8);
+  // As the engine lays them: the console against the north wall, the mirror's slot over it.
+  const consoleSlot: PlacedItem = { id: 'console', roomId: 'p', kind: 'console_table', slot: 'console', position: { x: 2, z: 0.175 }, rotation: 0, elevationM: 0, size: { width: 1, depth: 0.35, height: 0.8 }, product: null };
+  const mirrorSlot: PlacedItem = { id: 'mirror', roomId: 'p', kind: 'mirror', slot: 'mirror', position: { x: 2, z: 0.035 }, rotation: 0, elevationM: 1, size: { width: 0.7, depth: 0.05, height: 1.1 }, product: null };
+  const intoWhatStandsBelow = (mirror: PlacedItem, items: PlacedItem[]) =>
+    items.some((p) => p.id !== mirror.id && p.roomId === mirror.roomId && p.elevationM < 0.05 && p.size.height > mirror.elevationM + 0.005 && quadsOverlap(footprintQuad({ ...mirror, size: { ...mirror.size, depth: Math.max(mirror.size.depth, 0.05) } }), footprintQuad(p)));
+
+  it('over the console is one that hangs clear of it, under the ceiling — not the full-height one behind it', () => {
+    for (const seed of [undefined, 1, 2, 3]) {
+      const matched = matchProducts([consoleSlot, mirrorSlot], [consoleTable, fullHeight, wallMirror], { styleId: 'modern', rooms: [plainHall], ...(seed == null ? {} : { rng: seededRng(seed) }) });
+      const mirror = matched.find((i) => i.slot === 'mirror')!;
+      expect(mirror.product?.productId).toBe(62);
+      expect(mirror.elevationM).toBeGreaterThanOrEqual(0.8 + 0.12 - 1e-9);
+      expect(mirror.elevationM + mirror.size.height).toBeLessThanOrEqual(2.7);
+      expect(intoWhatStandsBelow(mirror, matched)).toBe(false);
+    }
+  });
+
+  it('on a wall free from the floor up is the full-height one', () => {
+    const [mirror] = matchProducts([mirrorSlot], [consoleTable, fullHeight, wallMirror], { styleId: 'modern', rooms: [plainHall] });
+    expect(mirror.product?.productId).toBe(61);
+    expect(mirror.elevationM).toBeCloseTo(0.3);
+  });
+
+  it('is kept where the catalogue has none that fits over the console', () => {
+    const matched = matchProducts([consoleSlot, mirrorSlot], [consoleTable, fullHeight], { styleId: 'modern', rooms: [plainHall] });
+    expect(matched.find((i) => i.slot === 'mirror')!.product?.productId).toBe(61);
+  });
+
+  it('across from the built wardrobe is the full-height one, on a stretch of wall free from the floor up', () => {
+    // A hall 5 × 1.8 m, the front door in its west wall; the console and the mirror over it at
+    // the far end of the south wall, which leaves the wardrobe a long wall and the mirror a
+    // stretch of the wall across from it.
+    const hall = room('h', 'hallway', 5, 1.8, [door(3, 0.5, true), door(1, 0.5)]);
+    const catalog = [material, consoleTable, fullHeight, wallMirror];
+    const south = { roomId: 'h', rotation: Math.PI };
+    const laid = [{ ...consoleSlot, ...south, position: { x: 4, z: 1.8 - 0.175 } }, { ...mirrorSlot, ...south, position: { x: 4, z: 1.8 - 0.035 } }];
+    const matched = matchProducts(laid, catalog, { styleId: 'modern', rooms: [hall] });
+    const before = matched.find((i) => i.slot === 'mirror')!;
+    // Laid over the console, it is the one that fits over it.
+    expect(before.product?.productId).toBe(62);
+    const { items, decor } = fitHall({ rooms: [hall], items: matched, catalog, styleId: 'modern' });
+    expect(decor.some((d) => d.id === 'decor-h-hall-wardrobe')).toBe(true);
+    const mirror = items.find((i) => i.slot === 'mirror')!;
+    // Moved across from the wardrobe: the full-height mirror, its top at door height, nothing under it.
+    expect(mirror.position).not.toEqual(before.position);
+    expect(mirror.product?.productId).toBe(61);
+    expect(mirror.size).toEqual({ width: 0.7, depth: 0.1, height: 1.8 });
+    expect(mirror.elevationM + mirror.size.height).toBeCloseTo(2.0);
+    expect(intoWhatStandsBelow(mirror, items)).toBe(false);
+    // With no full-height mirror to hang there, the one it has, at eye level.
+    const plain = fitHall({ rooms: [hall], items: matched, catalog: [material, consoleTable, wallMirror], styleId: 'modern' }).items.find((i) => i.slot === 'mirror')!;
+    expect(plain.product?.productId).toBe(62);
+    expect(plain.elevationM + plain.size.height / 2).toBeCloseTo(1.5);
   });
 });
 

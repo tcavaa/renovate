@@ -651,6 +651,16 @@ export function getArchetype(kind: string): Archetype | null {
   return ARCHETYPES[kind] ?? null;
 }
 
+/**
+ * The kinds that fill a slot (the double and the single bed, the rug and the bedroom's rug): what
+ * a room's shelf lists together (`kindsForRoom`). Filling the same slot does not make two kinds the
+ * same thing — a slot with no product of its kind takes another kind's only where the matcher
+ * names it (`FILED_AS` in `lib/design/matcher`).
+ */
+export function kindsOfSlot(slot: SlotKind): string[] {
+  return Object.keys(ARCHETYPES).filter((kind) => ARCHETYPES[kind].slot === slot);
+}
+
 // ---------------------------------------------------------------------------
 // Room programs
 // ---------------------------------------------------------------------------
@@ -860,7 +870,7 @@ export function kindsForRoom(type: RoomType): string[] {
     const slot = ARCHETYPES[entry.kind]?.slot;
     if (!slot) continue;
     // The program's own kind first, then the others that fill the same slot.
-    for (const kind of [entry.kind, ...Object.keys(ARCHETYPES).filter((k) => ARCHETYPES[k].slot === slot)]) {
+    for (const kind of [entry.kind, ...kindsOfSlot(slot)]) {
       if (!out.includes(kind)) out.push(kind);
     }
   }

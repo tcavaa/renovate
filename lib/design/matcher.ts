@@ -11,14 +11,15 @@
  */
 
 import { isBuiltInBath, isRectangularBath, isShowerDoor } from './productRoles';
-import { blockingItems, blocksWindow, clampInsideRoom, footprintInRoom, footprintOf, footprintsOverlap, isPlacementValid, PIECE_TOUCH_M, TUCKS_UNDER, tucksUnder } from './manipulate';
+import { blockingItems, blocksWindow, clampInsideRoom, footprintInRoom, footprintOf, footprintsOverlap, inDoorway, isPlacementValid, PIECE_TOUCH_M, TUCKS_UNDER, tucksUnder, type Footprint } from './manipulate';
 import { getArchetype, isKitchenMaterial, type Archetype } from './catalog';
 import { roomEdges } from './planGeometry';
 import { seatSlots } from './autoLayout';
-import { asPlacedKitchen, kitchenMaterialCandidates } from './kitchen';
+import { asPlacedKitchen, CUSTOM_KITCHEN_SLOTS, kitchenMaterialCandidates } from './kitchen';
+import { KITCHEN_CIRCULATION_M } from './rules';
 import { styleAffinity } from './styles';
 import { guideFit, styleRejects } from './styleGuide';
-import { weightedOrder, weightedPick, type Rng } from './random';
+import { seededRng, weightedOrder, weightedPick, type Rng } from './random';
 import type { PlacedItem, PlanRoom, SceneProduct, StyleId, Vec2 } from './types';
 
 /** A catalogue row as the client receives it. */
@@ -66,9 +67,18 @@ export interface MatchOptions {
   /** The rooms the items stand in; with them, a product that does not fit its slot is not placed at that size. */
   rooms?: PlanRoom[];
   /**
+   * The floor the layout was told to keep clear, per room (`LayoutOptions.obstacles`: the strip
+   * before each radiator, the columns, the floor behind a partition): a slot takes a product that
+   * keeps it clear — and a door's way, and a kitchen run's working floor — wherever one does.
+   */
+  keepClear?: Record<string, Footprint[]>;
+  /**
    * A designer's choices (`lib/design/aiProposal`): `${kind}|${roomId}` → product id. A pick that is
    * a candidate of the kind is taken for the room in place of the draw — and, like any choice,
-   * only where it fits the slot; otherwise the matcher's own next-best takes it.
+   * only where it fits the slot; otherwise the matcher's own next-best takes it. A pick is held to
+   * what the draw is held to: one that fits only by standing in a door's way, on `keepClear` floor
+   * or on a kitchen run's working floor gives way to a product that keeps them clear (the room's
+   * other candidates, then the slot's ways out), and takes the slot only when no product does.
    */
   picks?: Record<string, number>;
   styleId: StyleId;
@@ -87,8 +97,25 @@ export interface MatchOptions {
 /** How often a generated kitchen run is a shop's kitchen unit (that fits the wall) rather than made to measure. */
 const STORE_KITCHEN_SHARE = 0.35;
 
-/** The kinds a flat takes only in its own style when the catalogue has any (K-15, Y-7). */
+/**
+ * The kinds a flat takes in its own style when the catalogue has any (K-15, Y-7) — and, when none of
+ * the style's own fits the slot, in the nearest other style's that does (`slotSteps`).
+ */
 const STRICT_STYLE_KINDS = new Set(['kitchen_run', 'kitchen_wall', 'kitchen_island', 'sofa_3seat', 'sofa_corner', 'bed_double', 'bed_single', 'bathtub', 'wardrobe', 'dining_table']);
+
+/**
+ * The smaller piece a slot takes when none of its own kind fits it: a three-seat sofa where the
+ * corner sofa was laid. A double bed has none — the catalogue's single beds are day beds and a bunk.
+ */
+const SMALLER_KIND: Readonly<Record<string, string>> = { sofa_corner: 'sofa_3seat' };
+/**
+ * A kind that is another kind's product laid in a place of its own: the bedroom's rug is laid as
+ * `rug_bed` — the rug under the bed — and the catalogue's rugs are all `rug`. With no product of
+ * its own, its slot takes the other kind's (`slotSteps`). Named one by one: what merely fills the
+ * same slot is not the same thing — a curtain would be squeezed to a blind's size, a double bed
+ * stand where the single was laid, an open shelf for a bookcase.
+ */
+const FILED_AS: Readonly<Record<string, string>> = { rug_bed: 'rug' };
 
 /**
  * A shop's kitchen run that comes with its sink and its hob (its name says so): a kitchen is never
@@ -137,27 +164,26 @@ export function matchProducts(
   options: MatchOptions
 ): PlacedItem[] {
   const level = options.level ?? inferLevel(items, catalog, options);
-  const byKind = new Map<string, CatalogProduct[]>();
+  const pools = new Map<string, KindPool>();
+  const poolOf = (kind: string): KindPool => {
+    let pool = pools.get(kind);
+    if (!pool) {
+      pool = kindPool(kind, catalog, options.styleId);
+      pools.set(kind, pool);
+    }
+    return pool;
+  };
   const roomsById = new Map((options.rooms ?? []).map((r) => [r.id, r]));
   // Sizes settle as items are matched: earlier items count with the size they got, later
-  // ones with the archetype's until their turn.
+  // ones with the archetype's until their turn. A slot that got no product is not there: it is in
+  // nothing's way, nothing is measured off it and nothing hangs clear of it.
   const settled: PlacedItem[] = [];
   // Where every piece stood as laid out, before a product took its slot: which chairs the
-  // engine tucked under their table is read off these (`tuckedChair`).
+  // engine tucked under their table is read off these (`tuckedChair`), and which seat it gave
+  // each chair (`seatingAt`).
   const slots = new Map(items.map((item) => [item.id, item]));
-
-  for (const item of items) {
-    if (byKind.has(item.kind)) continue;
-    // What the style keeps out of a flat it lays out (Scandinavian: nothing black) — unless that
-    // would leave the kind with nothing at all.
-    const all = candidatesFor(item.kind, catalog, options.styleId);
-    const kept = all.filter((p) => !styleRejects(p, options.styleId));
-    const pool = kept.length > 0 ? kept : all;
-    // The big pieces are strictly the style's own when the catalogue has any (the rulebook, K-15 and
-    // Y-7: a Scandinavian flat's kitchen, sofa and bed are Scandinavian).
-    const own = STRICT_STYLE_KINDS.has(item.kind) ? pool.filter((p) => styleAffinity(options.styleId, p.styleTags, p.tags) === 2) : [];
-    byKind.set(item.kind, own.length > 0 ? own : pool);
-  }
+  // Each matched table's seats, which is which chair's and which are taken, by the table's id.
+  const seatings = new Map<string, Seating>();
 
   // Same kind in the same room → the same product (six matching dining chairs). Same kind in
   // another room → the next-best product of the same style tier, so a flat with five
@@ -166,22 +192,26 @@ export function matchProducts(
   const rotation = new Map<string, number>();
   // Generating: the products of each kind already placed, drawn less often in the next room.
   const usedByKind = new Map<string, Set<number>>();
+  // The flat's draw, its last number kept: what a slot's way out is drawn from (below).
+  let lastDraw = 0;
+  const rng: Rng | undefined = options.rng && (() => (lastDraw = options.rng!()));
   // The rooms whose set of dining chairs has its first chair.
   const setStarted = new Set<string>();
 
   const matched = items.map((slotItem, index) => {
     const finish = (matched: PlacedItem) => {
-      settled.push(matched);
+      if (matched.product) settled.push(matched);
       return matched;
     };
     if (slotItem.pinned && slotItem.product) return finish(slotItem);
     // A dining chair sits round the table as matched, not the archetype's: as many as the real
-    // table seats, each at its place — six chairs used to stand round a 0.8 m round table.
-    const seat = seatAtTable(slotItem, settled);
-    if (seat === 'none') return finish({ ...slotItem, product: null });
-    const item = seat ?? slotItem;
+    // table seats, each at its place — six chairs used to stand round a 0.8 m round table. Its
+    // own seat first, then the seats that are no chair's (`seatsAtTable`).
+    const seating = seatsAtTable(slotItem, items, settled, slots, seatings);
+    if (seating && seating.seats.length === 0) return finish({ ...slotItem, product: null });
+    const item = seating ? { ...slotItem, position: seating.seats[0].position, rotation: seating.seats[0].rotation } : slotItem;
 
-    const candidates = [...(byKind.get(item.kind) ?? [])];
+    const candidates = poolOf(item.kind).first;
 
     // A kitchen run along its wall is made to measure ("ავეჯის დამზადება"): stretched to the
     // run the engine laid, in one of the kitchen maker's materials (the style's, or drawn), bought
@@ -197,7 +227,6 @@ export function matchProducts(
       const materials = styleMaterials(kitchenMaterialCandidates(catalog, options.styleId, item.slot).filter((m) => m.model3dKind === item.slot), options.styleId);
       if (materials.length > 0) {
         const runFinish = run?.kitchenMaterial?.slug?.split('-').pop();
-        const rng = options.rng;
         const material = materials.find((m) => runFinish && m.slug.endsWith(`-${runFinish}`)) ?? (rng ? weightedPick(materials, (m) => STYLE_WEIGHT[styleAffinity(options.styleId, m.styleTags, m.tags)] ?? 1, rng) : null) ?? materials[0];
         return finish(asPlacedKitchen({ ...item, product: toSceneProduct(material, quantityFor(item)), origin: 'style' as const }, material));
       }
@@ -212,7 +241,6 @@ export function matchProducts(
       // A run is at least 1.8 m long, a cabinet's depth (55–72 cm) and worktop-high: a range cooker
       // filed under kitchen units (166 × 67 × 80 cm) was taken for the whole kitchen.
       const units = candidates.filter((p) => !!p.widthCm && !!p.depthCm && !!p.heightCm && p.widthCm / 100 <= item.size.width + 0.01 && p.widthCm / 100 >= item.size.width * 0.9 && hasSinkAndHob(p) && p.heightCm >= 85 && p.depthCm >= 55 && p.depthCm <= 72 && p.widthCm >= 180 && !(runRoom && blocksWindow({ ...item, size: sizeFromProduct(p, item) }, runRoom)));
-      const rng = options.rng;
       if (materials.length > 0 && !(rng && units.length > 0 && rng() < STORE_KITCHEN_SHARE)) {
         const material = rng ? (weightedPick(materials, (m) => STYLE_WEIGHT[styleAffinity(options.styleId, m.styleTags, m.tags)] ?? 1, rng) ?? materials[0]) : materials[0];
         return finish(asPlacedKitchen({ ...item, product: toSceneProduct(material, quantityFor(item)), origin: 'style' as const }, material));
@@ -225,83 +253,195 @@ export function matchProducts(
         return finish(asPlacedKitchen({ ...item, product: toSceneProduct(unit, quantityFor(item)), size, position, origin: 'style' as const }, unit));
       }
     }
-    if (candidates.length === 0) return finish({ ...item, product: null });
-
     const room = roomsById.get(item.roomId);
-    // What the slot can hold as laid out: a basin that stands on the floor (pedestal or vanity —
-    // a countertop basin needs a counter the flat has not got), a mirror over a basin that hangs
-    // flat and no taller than 1.2 m. The swap list still offers the rest.
-    const fitting = slotPool(item, candidates, room, settled, options.styleId, level);
-    // No TV is better than one across the window beside its unit.
-    if ((item.slot === 'tv' || item.slot === 'towel_rack' || item.slot === 'kitchen_island') && fitting.length === 0) return finish({ ...item, product: null });
-    if (fitting.length > 0 && fitting.length < candidates.length) {
-      candidates.splice(0, candidates.length, ...fitting);
-    }
     const others = [...settled, ...items.slice(index + 1)];
-    const scored = candidates
-      .map((product) => ({ product, score: scoreProduct(product, options.styleId, level, item) }))
-      .sort((a, b) => b.score - a.score);
-
-    const roomKey = `${item.kind}|${item.roomId}`;
-    let chosen = chosenByRoom.get(roomKey);
-    const rng = options.rng;
-    const used = usedByKind.get(item.kind) ?? new Set<number>();
-    const weigh = (product: CatalogProduct) => generationWeight(product, options.styleId, level, item, used.has(product.id));
-    if (!chosen && options.picks?.[roomKey] != null) {
-      const picked = candidates.find((p) => p.id === options.picks![roomKey]);
-      if (picked) {
-        chosen = picked;
-        chosenByRoom.set(roomKey, chosen);
+    // The slot's own products first, as drawn; then, where none of them fits it, what else may
+    // take it (`slotSteps`: a smaller piece of the style, the nearest other style's) — the first
+    // that fits. A product of another kind makes the piece that kind: a three-seat in a corner
+    // sofa's slot is a three-seat, in the sofa's slot.
+    // A way out is drawn with a draw of its own, begun from the flat's last: the pieces matched
+    // after it get the products they would have had.
+    let wayOut: Rng | undefined;
+    const steps = slotSteps(item.kind, poolOf);
+    // What each step offers the slot — drawn once, when it is first come to.
+    const offers = new Map<number, SlotOffer | null>();
+    const offerAt = (step: number): SlotOffer | null => {
+      const drawn = offers.get(step);
+      if (drawn !== undefined) return drawn;
+      const { kind, pool } = steps[step];
+      const piece = kind === item.kind ? item : { ...item, kind };
+      const candidates = [...pool];
+      // What the slot can hold as laid out: a basin that stands on the floor (pedestal or vanity —
+      // a countertop basin needs a counter the flat has not got), a mirror over a basin that hangs
+      // flat and no taller than 1.2 m. The swap list still offers the rest.
+      const fitting = candidates.length > 0 ? slotPool(piece, candidates, room, settled, options.styleId, level) : [];
+      // No TV is better than one across the window beside its unit.
+      if (candidates.length === 0 || ((piece.slot === 'tv' || piece.slot === 'towel_rack' || piece.slot === 'kitchen_island') && fitting.length === 0)) {
+        offers.set(step, null);
+        return null;
       }
-    }
-    if (!chosen && rng) {
-      chosen = weightedPick(candidates, weigh, rng) ?? scored[0].product;
-      chosenByRoom.set(roomKey, chosen);
-    }
-    if (!chosen) {
-      const topAffinity = styleAffinity(options.styleId, scored[0].product.styleTags, scored[0].product.tags);
-      const tier = scored.filter(
-        (s) => styleAffinity(options.styleId, s.product.styleTags, s.product.tags) === topAffinity
-      );
-      const turn = rotation.get(item.kind) ?? 0;
-      chosen = tier[turn % tier.length].product;
-      rotation.set(item.kind, turn + 1);
-      chosenByRoom.set(roomKey, chosen);
-    }
+      if (fitting.length > 0 && fitting.length < candidates.length) {
+        candidates.splice(0, candidates.length, ...fitting);
+      }
+      const scored = candidates
+        .map((product) => ({ product, score: scoreProduct(product, options.styleId, level, piece) }))
+        .sort((a, b) => b.score - a.score);
+
+      const roomKey = `${piece.kind}|${piece.roomId}`;
+      const used = usedByKind.get(piece.kind) ?? new Set<number>();
+      const weigh = (product: CatalogProduct) => generationWeight(product, options.styleId, level, piece, used.has(product.id));
+      let chosen: CatalogProduct | undefined;
+      let ranked: CatalogProduct[];
+      if (step === 0) {
+        chosen = chosenByRoom.get(roomKey);
+        if (!chosen && options.picks?.[roomKey] != null) {
+          const picked = candidates.find((p) => p.id === options.picks![roomKey]);
+          if (picked) {
+            chosen = picked;
+            chosenByRoom.set(roomKey, chosen);
+          }
+        }
+        if (!chosen && rng) {
+          chosen = weightedPick(candidates, weigh, rng) ?? scored[0].product;
+          chosenByRoom.set(roomKey, chosen);
+        }
+        if (!chosen) {
+          const topAffinity = styleAffinity(options.styleId, scored[0].product.styleTags, scored[0].product.tags);
+          const tier = scored.filter(
+            (s) => styleAffinity(options.styleId, s.product.styleTags, s.product.tags) === topAffinity
+          );
+          const turn = rotation.get(piece.kind) ?? 0;
+          chosen = tier[turn % tier.length].product;
+          rotation.set(piece.kind, turn + 1);
+          chosenByRoom.set(roomKey, chosen);
+        }
+        // The next to try when the chosen does not fit: the best first, or — generating — another draw.
+        // The chairs round a table are one set: once the room has one, a seat its chair does not fit is
+        // left empty rather than given another chair — a step stool stood among six dining chairs.
+        const inSet = piece.slot === 'dining_chair' && setStarted.has(roomKey);
+        ranked = inSet ? [] : rng ? weightedOrder(candidates, weigh, rng) : scored.map((s) => s.product);
+      } else {
+        // A way out is drawn like the slot's own: the best first, or — generating — a draw.
+        if (rng) wayOut ??= seededRng(lastDraw * 2 ** 32);
+        ranked = wayOut ? weightedOrder(candidates, weigh, wayOut) : scored.map((s) => s.product);
+        chosen = ranked[0];
+      }
+      const offer = { piece, chosen, ranked, roomKey, used };
+      offers.set(step, offer);
+      return offer;
+    };
 
     // The product's real size has to fit where the slot is. A sofa wider than the wall it was
     // laid against, or a cabinet that would stand in the doorway, is not placed at that size:
-    // the next-best product that fits takes the slot, and when nothing fits the slot stays
-    // empty rather than poke through the wall.
-    // The next to try when the chosen does not fit: the best first, or — generating — another draw.
-    // The chairs round a table are one set: once the room has one, a seat its chair does not fit is
-    // left empty rather than given another chair — a step stool stood among six dining chairs.
-    const inSet = item.slot === 'dining_chair' && setStarted.has(roomKey);
-    const ranked = inSet ? [] : rng ? weightedOrder(candidates, weigh, rng) : scored.map((s) => s.product);
-    const placed = room ? placeFitting(item, chosen, ranked, room, others, slots, settled) : { product: chosen, position: item.position };
-    if (!placed) return finish({ ...item, product: null });
-    if (item.slot === 'dining_chair') {
-      setStarted.add(roomKey);
-      chosenByRoom.set(roomKey, placed.product);
+    // the next-best product that fits takes the slot, and when nothing fits — of the slot's own
+    // products, then of its ways out — the slot stays empty rather than poke through the wall.
+    // Twice over: first only a product that also keeps clear what the layout kept clear — a
+    // door's way, the floor before a radiator, a column, the working floor of a kitchen run
+    // (`keepsClear`) — through every step; and when none does, by the room, the windows and the
+    // other pieces alone, so the room keeps the piece it would have had.
+    const keepClear = room ? (options.keepClear?.[room.id] ?? []) : [];
+    // A dining chair goes through all of that at each seat it may take in turn — its own, and only
+    // when it does not fit there the ones that are no chair's; anything else, where it was laid.
+    const spots = seating && room ? seating.seats : [null];
+    for (const spot of spots) {
+      for (const careful of [true, false]) for (let step = 0; step < steps.length; step++) {
+        const offer = offerAt(step);
+        if (!offer) continue;
+        const { chosen, ranked, roomKey, used } = offer;
+        const piece = spot ? { ...offer.piece, position: spot.position, rotation: spot.rotation } : offer.piece;
+        const placed = room ? placeFitting(piece, chosen, ranked, room, others, slots, settled, careful ? keepClear : null) : { product: chosen, position: piece.position };
+        if (!placed) continue;
+        if (spot) seating!.taken.add(spot.index);
+        if (piece.slot === 'dining_chair') setStarted.add(roomKey);
+        // The room's next piece of the kind tries the one that fitted: a set of chairs, two wardrobes alike.
+        if (piece.slot === 'dining_chair' || step > 0) chosenByRoom.set(roomKey, placed.product);
+        used.add(placed.product.id);
+        usedByKind.set(piece.kind, used);
+        const size = sizeFromProduct(placed.product, piece);
+        const elevationM = settledElevation(piece, size, placed.product, settled);
+        return finish({
+          ...piece,
+          position: hungPosition(piece, size, elevationM, settled) ?? placed.position,
+          product: toSceneProduct(placed.product, quantityFor(piece)),
+          // A product with real dimensions overrides the archetype's defaults, so the room
+          // reflects the thing you would actually receive.
+          size,
+          elevationM,
+          origin: 'style' as const,
+          // A run with no kitchen maker's material in the catalogue is still made to measure — the joiner's estimate.
+          ...(piece.slot === 'kitchen_run' ? { custom: true, size: piece.size } : {}),
+        });
+      }
     }
-    used.add(placed.product.id);
-    usedByKind.set(item.kind, used);
-    const size = sizeFromProduct(placed.product, item);
-    const elevationM = settledElevation(item, size, placed.product, settled);
-    return finish({
-      ...item,
-      position: hungPosition(item, size, elevationM, settled) ?? placed.position,
-      product: toSceneProduct(placed.product, quantityFor(item)),
-      // A product with real dimensions overrides the archetype's defaults, so the room
-      // reflects the thing you would actually receive.
-      size,
-      elevationM,
-      origin: 'style' as const,
-      // A run with no kitchen maker's material in the catalogue is still made to measure — the joiner's estimate.
-      ...(item.slot === 'kitchen_run' ? { custom: true, size: item.size } : {}),
-    });
+    return finish({ ...item, product: null });
   });
   return pairsAlike(matched, catalog, roomsById);
+}
+
+/** What one step of `slotSteps` offers a slot: the piece as it would be, the product drawn for it and the order the others are tried in. */
+interface SlotOffer {
+  piece: PlacedItem;
+  chosen: CatalogProduct;
+  ranked: CatalogProduct[];
+  roomKey: string;
+  used: Set<number>;
+}
+
+/** A kind's products for a flat of a style: what its slot is drawn from, and what else may take it. */
+interface KindPool {
+  /**
+   * What the slot is drawn from: for a kind the flat takes in its own style (`STRICT_STYLE_KINDS`)
+   * the style's own products when the catalogue has any, else every product of the kind.
+   */
+  first: CatalogProduct[];
+  /** The style's own, when the slot is drawn from them alone. */
+  own: CatalogProduct[];
+  /** The other styles' products, the nearest style first (`styleAffinity` 1, then 0). */
+  others: CatalogProduct[][];
+}
+
+/**
+ * The products of a kind a flat of this style may be given: every one with a model, less what the
+ * style keeps out of a flat it lays out (Scandinavian: nothing black) — unless that would leave the
+ * kind with nothing at all.
+ */
+function kindPool(kind: string, catalog: CatalogProduct[], styleId: StyleId): KindPool {
+  const all = candidatesFor(kind, catalog, styleId);
+  const kept = all.filter((p) => !styleRejects(p, styleId));
+  const pool = kept.length > 0 ? kept : all;
+  const tier = (affinity: number) => pool.filter((p) => styleAffinity(styleId, p.styleTags, p.tags) === affinity);
+  // The big pieces are strictly the style's own when the catalogue has any (the rulebook, K-15 and
+  // Y-7: a Scandinavian flat's kitchen, sofa and bed are Scandinavian).
+  const own = STRICT_STYLE_KINDS.has(kind) ? tier(2) : [];
+  return { first: own.length > 0 ? own : pool, own, others: [tier(1), tier(0)] };
+}
+
+/**
+ * What a slot is offered, in order — the first product that fits it takes it (the owner's decision
+ * of 16 Nov 2026: strict style has a way out, never an empty slot with the room arranged round it):
+ * the slot's own products (the style's own for the big pieces); a smaller piece of the style where
+ * the kind has one (`SMALLER_KIND`: a three-seat for a corner sofa); the other styles' products of
+ * the slot's kind, the nearest style first; the other styles' smaller pieces.
+ *
+ * A kind the catalogue has no product of at all, and which is another kind's product laid in a
+ * place of its own (`FILED_AS`: the bedroom's rug, laid as `rug_bed`, is a `rug`), takes that
+ * kind's. Any other kind with no product stays empty, whatever else fills its slot: a blind's slot
+ * takes no curtain, a single bed's no double, the hall's shoe cabinet nothing.
+ */
+function slotSteps(kind: string, poolOf: (kind: string) => KindPool): Array<{ kind: string; pool: CatalogProduct[] }> {
+  const main = poolOf(kind);
+  const smallerKind = SMALLER_KIND[kind];
+  const smaller = smallerKind ? poolOf(smallerKind) : null;
+  const filedAs = main.first.length === 0 ? FILED_AS[kind] : undefined;
+  const filed = filedAs ? poolOf(filedAs) : null;
+  return [
+    { kind, pool: main.first },
+    ...(smaller ? [{ kind: smallerKind, pool: smaller.own }] : []),
+    // Drawn from the style's own alone: the others have not been tried yet.
+    ...(main.own.length > 0 ? main.others.map((pool) => ({ kind, pool })) : []),
+    ...(smaller ? smaller.others.map((pool) => ({ kind: smallerKind, pool })) : []),
+    ...(filed && filedAs ? [{ kind: filedAs, pool: filed.first }, ...(filed.own.length > 0 ? filed.others.map((pool) => ({ kind: filedAs, pool })) : [])] : []),
+  ];
 }
 
 /** Slots placed as a pair either side of a piece, which must match: two nightstands, not one of each. */
@@ -357,8 +497,35 @@ function fitMatters(item: PlacedItem): boolean {
 }
 
 /**
+ * What is in no piece's way and no piece in its (`fitMatters`), but has a size of its own that must
+ * be in the room all the same: the door mat on the floor, a lamp hanging from the ceiling. (A rug
+ * and a curtain are sized to the room by the layout.)
+ */
+function liesWithinRoom(item: PlacedItem): boolean {
+  return item.slot === 'door_mat' || getArchetype(item.kind)?.placement.type === 'ceiling';
+}
+
+/** The kitchen's own pieces: the run, what hangs over it and what stands at its end or before it. */
+function isKitchenFurniture(item: Pick<PlacedItem, 'slot'>): boolean {
+  return item.slot === 'fridge' || (CUSTOM_KITCHEN_SLOTS as readonly string[]).includes(item.slot);
+}
+
+/** The working floor in front of a kitchen run: as wide as the run, `KITCHEN_CIRCULATION_M` deep (the layout's `clearanceBox`). */
+function workingFloor(run: Pick<PlacedItem, 'position' | 'rotation' | 'size'>): Footprint {
+  const { forward } = axes(run.rotation);
+  const ahead = run.size.depth / 2 + KITCHEN_CIRCULATION_M / 2;
+  return footprintOf({ x: run.position.x + forward.x * ahead, z: run.position.z + forward.z * ahead }, { width: run.size.width, depth: KITCHEN_CIRCULATION_M }, run.rotation);
+}
+
+/**
  * The preferred product when it fits at the slot (nudged inside the room if it only just
  * pokes out), otherwise the best-scoring candidate that does; null when none does.
+ *
+ * Given `keepClear` — the floor the layout was told to keep clear in this room (the strip before a
+ * radiator, a column, a partition's floor) — a product fits only where it also keeps clear what
+ * the layout engine kept clear for the slot: that floor, a door's way (`inDoorway`), and, for what
+ * is not the kitchen's own furniture, the working floor in front of a kitchen run. With null, the
+ * room, the windows and the other pieces alone.
  */
 function placeFitting(
   item: PlacedItem,
@@ -367,12 +534,25 @@ function placeFitting(
   room: PlanRoom,
   others: PlacedItem[],
   slots: ReadonlyMap<string, PlacedItem>,
-  settled: PlacedItem[] = []
+  settled: PlacedItem[] = [],
+  keepClear: readonly Footprint[] | null = null
 ): { product: CatalogProduct; position: Vec2 } | null {
-  if (!fitMatters(item)) return { product: preferred, position: item.position };
+  if (!fitMatters(item)) {
+    if (!liesWithinRoom(item)) return { product: preferred, position: item.position };
+    // A door mat lies inside its room — its edge by the door, eased in like any piece — and a
+    // hanging lamp hangs within it, where it was hung: the first product that does takes the slot.
+    // With none that does, the one drawn, as before.
+    for (const product of [preferred, ...ranked.filter((other) => other.id !== preferred.id)]) {
+      const size = sizeFromProduct(product, item);
+      const position = item.elevationM < 0.05 ? clampInsideRoom(room, settledPosition(item, size, room, settled), size, item.rotation) : item.position;
+      if (footprintInRoom(footprintOf(position, size, item.rotation), room.polygon)) return { product, position };
+    }
+    return { product: preferred, position: item.position };
+  }
+  const clear = keepClear && [...keepClear, ...(isKitchenFurniture(item) ? [] : others.filter((other) => other.roomId === room.id && other.slot === 'kitchen_run').map(workingFloor))];
   // Pieces still to be matched that are placed off this one (the nightstands off the bed) move to
   // it once it is matched: they do not stand in its way.
-  // The chairs round a table are seated again round the table as matched (`seatAtTable`): the
+  // The chairs round a table are seated again round the table as matched (`seatsAtTable`): the
   // ones still to come are in neither the table's way nor one another's.
   const followers = (other: PlacedItem) => {
     if (settled.includes(other)) return false;
@@ -396,6 +576,7 @@ function placeFitting(
       const depth = chair === item ? size.depth : chair === other ? other.size.depth : 0;
       if (footprintsOverlap(footprint, box, Math.max(PIECE_TOUCH_M, depth / 2))) return false;
     }
+    if (clear && (inDoorway({ position, rotation: item.rotation, size, elevationM: item.elevationM }, room) || clear.some((box) => footprintsOverlap(footprint, box)))) return false;
     return true;
   };
   const tryProduct = (product: CatalogProduct): Vec2 | null => {
@@ -433,7 +614,7 @@ function tuckedChair(a: PlacedItem, b: PlacedItem, slots: ReadonlyMap<string, Pl
   if (!tucksUnder(a, b)) return null;
   const slot = getArchetype(a.kind)?.slot;
   const chair = slot != null && TUCKS_UNDER[slot] ? a : b;
-  // A chair seated round the table as matched (`seatAtTable`) is tucked in by its seat ring.
+  // A chair seated round the table as matched (`seatsAtTable`) is tucked in by its seat ring.
   const seated = slots.get(chair.id);
   if (seated && (seated.position.x !== chair.position.x || seated.position.z !== chair.position.z)) return chair;
   const p = slots.get(a.id);
@@ -443,18 +624,82 @@ function tuckedChair(a: PlacedItem, b: PlacedItem, slots: ReadonlyMap<string, Pl
 }
 
 /**
- * A dining chair's place round the table as matched (`seatSlots` with its real size): the n-th
- * chair of the room takes the n-th seat; 'none' when the table seats fewer; null when there is no
- * matched table to sit at (the slot stays as laid out).
+ * Where a seat is round its table: the side it is on — read off the way it faces, a quarter turn a
+ * side — and how far along that side, from −1 at one end of the table to 1 at the other.
  */
-function seatAtTable(item: PlacedItem, settled: PlacedItem[]): PlacedItem | 'none' | null {
+function seatPlace(seat: Pick<PlacedItem, 'position' | 'rotation'>, table: Pick<PlacedItem, 'position' | 'rotation' | 'size'>): { side: number; along: number } {
+  const { right } = axes(table.rotation);
+  const turn = seat.rotation - table.rotation;
+  const side = ((Math.round(Math.atan2(Math.sin(turn), Math.cos(turn)) / (Math.PI / 2)) % 4) + 4) % 4;
+  const across = (seat.position.x - table.position.x) * right.x + (seat.position.z - table.position.z) * right.z;
+  return { side, along: across / (table.size.width / 2) };
+}
+
+/** A matched table's seats (`seatSlots` with its real size), which is which chair's own, and which are taken. */
+interface Seating {
+  seats: Array<{ position: Vec2; rotation: number }>;
+  /** A chair's id → its own seat's index; a chair the table has no seat for on its side has none. */
+  own: Map<string, number>;
+  taken: Set<number>;
+}
+
+/**
+ * Which seat of the table as matched answers to the seat the engine gave each chair of its room
+ * round the table as laid (`slots`): on the same side of the table, the nearest along it that is
+ * no earlier chair's (of two as near, the one nearer the middle).
+ */
+function seatingAt(table: PlacedItem, chairDepth: number, items: PlacedItem[], slots: ReadonlyMap<string, PlacedItem>): Seating {
+  const laid = slots.get(table.id) ?? table;
+  const seats = seatSlots(table, chairDepth);
+  const places = seats.map((seat) => seatPlace(seat, table));
+  const own = new Map<string, number>();
+  const held = new Set<number>();
+  for (const chair of items) {
+    if (chair.roomId !== table.roomId || chair.slot !== 'dining_chair' || (chair.pinned && chair.product)) continue;
+    const given = seatPlace(chair, laid);
+    let best = -1;
+    let bestOff = Infinity;
+    for (const [index, place] of places.entries()) {
+      if (held.has(index) || place.side !== given.side) continue;
+      const off = Math.abs(place.along - given.along);
+      if (off < bestOff - 1e-6 || (off < bestOff + 1e-6 && Math.abs(place.along) < Math.abs(places[best].along))) {
+        best = index;
+        bestOff = off;
+      }
+    }
+    if (best < 0) continue;
+    own.set(chair.id, best);
+    held.add(best);
+  }
+  return { seats, own, taken: new Set() };
+}
+
+/**
+ * The seats a dining chair may take round the table as matched, in the order it tries them: its
+ * own — the one that answers to the seat the engine gave it (`seatingAt`) — then the seats that
+ * are no chair's, in the table's order. The engine seats no chair where a wall or a piece is
+ * behind the seat, and the n-th chair used to take the n-th seat whatever the engine had skipped:
+ * a table against a wall sent every other chair to the wall's side, where it did not fit, and the
+ * room lost it. A chair whose own seat is not there (a real table with no seat at its ends, or
+ * fewer along a side) or does not fit sits at a seat that is free where it fits. No seat to try:
+ * the table seats fewer. Null when there is no matched table to sit at (the slot stays as laid out).
+ */
+function seatsAtTable(
+  item: PlacedItem,
+  items: PlacedItem[],
+  settled: PlacedItem[],
+  slots: ReadonlyMap<string, PlacedItem>,
+  seatings: Map<string, Seating>
+): { seats: Array<{ index: number; position: Vec2; rotation: number }>; taken: Set<number> } | null {
   if (item.slot !== 'dining_chair') return null;
   const table = [...settled].reverse().find((p) => p.roomId === item.roomId && p.slot === 'dining_table' && p.product);
   if (!table) return null;
-  const index = settled.filter((p) => p.roomId === item.roomId && p.slot === 'dining_chair').length;
-  const seats = seatSlots(table, item.size.depth);
-  if (index >= seats.length) return 'none';
-  return { ...item, position: seats[index].position, rotation: seats[index].rotation };
+  const seating = seatings.get(table.id) ?? seatingAt(table, item.size.depth, items, slots);
+  seatings.set(table.id, seating);
+  const own = seating.own.get(item.id);
+  const someones = new Set(seating.own.values());
+  const order = [...(own != null ? [own] : []), ...seating.seats.map((_, index) => index).filter((index) => !someones.has(index))];
+  return { seats: order.filter((index) => !seating.taken.has(index)).map((index) => ({ index, ...seating.seats[index] })), taken: seating.taken };
 }
 
 /** The lowest a hanging lamp may come: 1.45 m over a table or an island, else 1.9 m. */
@@ -514,9 +759,22 @@ export function slotPool(item: PlacedItem, candidates: CatalogProduct[], room: P
     const drop = item.elevationM + item.size.height - lowestPendant(item, settled);
     return candidates.filter((p) => (p.heightCm ?? 0) > 0 && (p.heightCm ?? 0) / 100 <= drop);
   }
-  // A hall's mirror is full height, across from its wardrobe (the rulebook, E-8): a tall flat one when there is any.
+  // A hall's mirror is full height (the rulebook, E-8) on a wall free from the floor up: a tall flat
+  // one when there is any. Over the console, or anything else standing under the slot, one that
+  // hangs clear of it and under the ceiling (`settledElevation`) — a hung piece never runs into
+  // what stands below it; the hall pass hangs the full-height one across from the wardrobe it
+  // builds (`fitHall`). With none that fits over the piece, the mirror it would have had.
   if (item.slot === 'mirror' && room?.type === 'hallway') {
-    const tall = candidates.filter((p) => (p.heightCm ?? 0) >= 140 && (p.depthCm ?? 0) <= 12 && (p.widthCm ?? 0) <= 90);
+    const below = standingBelow(item, item.size, settled);
+    if (below.length > 0) {
+      const over = candidates.filter((p) => {
+        const size = sizeFromProduct(p, item);
+        const bottom = settledElevation(item, size, p, settled);
+        return below.every((piece) => bottom >= piece.size.height) && bottom + size.height <= room.heightM;
+      });
+      if (over.length > 0) return over;
+    }
+    const tall = candidates.filter(isFullHeightMirror);
     if (tall.length > 0) return tall;
   }
   if (item.slot === 'mirror' && (room?.type === 'bathroom' || room?.type === 'toilet')) {
@@ -651,12 +909,22 @@ export function settledElevation(item: PlacedItem, size: PlacedItem['size'], pro
   // A TV on its stand stands on the TV unit under it; a flat one hangs on the wall over it.
   const unit = onStand(product) ? tvUnitUnder(item, settled) : undefined;
   if (unit) return round2(unit.size.height);
-  const box = footprintOf(item.position, { ...size, depth: Math.max(size.depth, 0.05) }, item.rotation);
-  const below = settled.filter((p) => p.roomId === item.roomId && p.elevationM < 0.05 && p.id !== item.id && !getArchetype(p.kind)?.ghost && footprintsOverlap(box, footprintOf(p.position, p.size, p.rotation), 0));
+  const below = standingBelow(item, size, settled);
   const middle = item.slot === 'mirror' ? 1.5 : below.length > 0 ? (rule.aboveHeightM ?? rule.heightM) : rule.heightM;
   let elevation = middle - size.height / 2;
   for (const piece of below) elevation = Math.max(elevation, piece.size.height + (rule.aboveGapM ?? 0.12));
   return round2(Math.max(0.05, elevation));
+}
+
+/** What stands on the floor under a piece hung on a wall, at the size it would have there. */
+function standingBelow(item: PlacedItem, size: PlacedItem['size'], settled: PlacedItem[]): PlacedItem[] {
+  const box = footprintOf(item.position, { ...size, depth: Math.max(size.depth, 0.05) }, item.rotation);
+  return settled.filter((p) => p.roomId === item.roomId && p.elevationM < 0.05 && p.id !== item.id && !getArchetype(p.kind)?.ghost && footprintsOverlap(box, footprintOf(p.position, p.size, p.rotation), 0));
+}
+
+/** A mirror as tall as a person, flat on the wall and no wider than a door: the hall's full-height mirror (E-8). */
+export function isFullHeightMirror(product: Pick<CatalogProduct, 'widthCm' | 'depthCm' | 'heightCm'>): boolean {
+  return (product.heightCm ?? 0) >= 140 && (product.depthCm ?? 0) <= 12 && (product.widthCm ?? 0) <= 90;
 }
 
 /** A TV on its own stand (deeper than 12 cm), made to stand on furniture rather than hang. */

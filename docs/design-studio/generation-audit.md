@@ -255,15 +255,23 @@ Severity: **high** = seen by anyone who generates; **medium** = wrong in some ro
     laid across the end of a narrow bathroom.
   - *The mirror* hangs "over the basin only" (`:478`), and the basin's spot is chosen without
     looking at the wall above it: beside a door or under a window there is no mirror.
-- [ ] **M2 (high) — Strict style has no fallback when nothing of the style fits.**
+- [x] **M2 (high) — Strict style has no fallback when nothing of the style fits.**
   `STRICT_STYLE_KINDS` narrows sofas, beds, baths, wardrobes, dining tables and kitchens to the
   style's own products whenever the style has *any* (`matcher.ts:91`, `:156-159`) — not whenever one
   *fits*. Vintage's only corner sofa is 417 × 347 cm: 60 of 60 Vintage rooms with a corner-sofa slot
-  got no sofa. Beds: 38 slots with no product (Industrial 22, Modern 14).
-- [ ] **M3 (high) — When a piece is dropped, what was arranged off it stays.** `placeableOnly`
+  got no sofa. Beds: 38 slots with no product (Industrial 22, Modern 14). *Fixed:* a slot none of
+  the style's own fits takes a three-seat of the style (a corner sofa's slot), then the nearest
+  other style's product of its kind that fits, then another style's three-seat (`slotSteps`); in
+  360 flats no sofa, bed or wardrobe slot is left without a product (30, 19 and 8 before).
+- [x] **M3 (high) — When a piece is dropped, what was arranged off it stays.** `placeableOnly`
   (`generateScene.ts:160`) removes a slot with no product and nothing else. In 720 flats: a coffee
   table with no sofa 60 times, a rug 87, an armchair 53, a TV unit 41, a TV 40; nightstands with no
-  bed 34; a fridge or wall cabinets with no run 24.
+  bed 34; a fridge or wall cabinets with no run 24. *Fixed:* what the engine arranged off a piece
+  goes with it (`withoutOrphans`, `lib/design/arrangedOff.ts`, read from the archetypes' rules),
+  after matching, after the calculation's picks and after the designer's check. The whole-flat
+  check reads the same rules, so it no longer counts what the engine stands on its own when the
+  other piece was never laid — a fridge in a kitchen with no run (a missing run), a rug laid under
+  a bookcase in a living half with no sofa (M4's, still there: 8 in 120 flats).
 - [ ] **M4 (high) — Studios** (why, measured: RS1–RS5 in L). Each half is a room of its own (`layoutRoom`, `partRoom`), with the
   whole room's door zones and the open line as no wall. Two 40 m² studios never get a sofa; seven
   never get a TV. With no sofa the living half's rug is laid under whatever was placed first — a
@@ -276,7 +284,14 @@ Severity: **high** = seen by anyone who generates; **medium** = wrong in some ro
 - [ ] **M6 (medium) — Slots no product can fill.** Products are matched by exact kind
   (`candidatesFor`, `matcher.ts:698`). The bedroom's rug is kind `rug_bed`, which has **no product**
   (the 15 rugs are `rug`): the rug is laid in 77 % of bedrooms and dropped in all of them. The hall's
-  `shoe_cabinet` has none either. The shelf, by contrast, groups by slot (`kindsForRoom`).
+  `shoe_cabinet` has none either. The shelf, by contrast, groups by slot (`kindsForRoom`). *Partly:*
+  the bedroom's rug is given a rug — a kind with no product of its own takes another kind's where
+  the matcher names the two as the same thing (`FILED_AS` in `matcher.ts`: `rug_bed` → `rug`, and
+  nothing else: a blind takes no curtain, a single bed no double): 412 of 564 bedrooms have their
+  rug. *Left:* the hall's shoe cabinet has no product (264 slots in 360 flats stay empty until the
+  catalogue has one); and in a bedroom where no bed was laid the rug lies under the room's first
+  piece — the wardrobe — as a living room's does with no sofa (`placeUnder`'s fallback in
+  `autoLayout.ts`, M4): 40 of the 60 bedless bedrooms in 360 flats, counted by no metric.
 - [ ] **M7 (medium) — No washing machine in 31 % of flats with a bathroom.** It needs a bathroom of
   4.5 m², else a hall, else a room typed kitchen (`WASHER_FALLBACK_ROOMS`, `autoLayout.ts:212-226`) —
   never a studio's kitchen half, never a flat with no room typed bathroom.
@@ -288,6 +303,12 @@ Severity: **high** = seen by anyone who generates; **medium** = wrong in some ro
   had skipped a seat (a wall behind it) every one lost chairs and 78 ended with one or none;
   skipping the same seats in the matcher kept 216 chairs where 171 are kept today. (3) `seatSlots`
   takes the width for the long side (`autoLayout.ts:1115-1160`); seven tables are filed 100 × 240.
+  *Partly:* the second is fixed — each chair sits at the seat of the real table that answers to
+  the one the engine gave it (the same side, the nearest along it), and only a chair whose own seat
+  is not there or does not fit tries the seats that are no chair's (`seatsAtTable`, `seatingAt`):
+  at the 52 tables in 360 flats where the engine had skipped a seat, 87 of the 132 chairs laid are
+  kept (67 with the n-th seat) and 24 tables end with one chair or none (37); no table has fewer
+  chairs than the n-th seat gave it. The first and the third are as they were.
 - [ ] **M9 (low) — The kitchen island is never placed** (0 of 432): 1.2 m clear on every side, after
   the table and chairs, from 17 m² (`placeCentre`, `:893-896`).
 - [ ] **M10 (low)** — A door mat only where the hall has the front door (43 % of halls); none when
@@ -301,7 +322,13 @@ Severity: **high** = seen by anyone who generates; **medium** = wrong in some ro
   island's ring. And the product is rarely the slot's size: of double beds placed 32 % were over
   25 % wider than the slot, of bookcases 31 %; of wardrobes 83 % were over 25 % narrower, of dining
   tables 54 %, of TV units 54 %. `inDoorway` exists (`manipulate.ts:795`) and only the AI check's
-  moves use it.
+  moves use it. *Partly:* a slot now takes a product that keeps a door's way, the layout's
+  keep-clear floor (radiator strips, columns, a partition's floor) and a run's working floor clear
+  wherever one does, and only else the one it would have had (`placeFitting`, two passes): pieces
+  in a door's way 146 → 23 in 360 flats (12 of them the made-to-measure run, which is the
+  layout's), on keep-clear floor 37 → 18, `door_swing_blocked` 77 → 19. Still not known to the
+  matcher: a WC's 80 cm, an island's ring, a shower's tray (O2); and a chair seated round a table
+  stands at its own seat where it fits there at all, in a door's way or not (M8).
 - [ ] **O2 (high) — The shower's floor.** `PlacedItem.areaM` (the tray and its glass) is read by the
   layout's slot, `wallClear.ts:61` and one check (`ruleChecks.ts:284`). Everything else measures the
   50 cm column: `freeStretch` (`decor/joinery.ts:208-212`, so the vanity, the washer's column, the
@@ -321,7 +348,10 @@ Severity: **high** = seen by anyone who generates; **medium** = wrong in some ro
   keeps the slot "over the console" and is hung 30 cm off the floor (`matcher.ts:650`, which
   returns before the lift over what stands below): 418 run into the console, 156 of them in halls
   that did get the wardrobe. A pendant hangs in the middle of the room whatever stands under it but
-  a table.
+  a table. *Partly:* the hall's mirror is fixed — over the console it is one that hangs clear of it
+  (`slotPool`), and the full-height one hangs where the wall is free from the floor up: across from
+  the wardrobe (`fitHall`) or on a bare wall; no mirror runs into a console in 360 flats (143
+  before). The bathroom mirror into the tap and the pendant are as they were.
 - [ ] **O5 (low) — Two main lights at one spot.** The program's `pendant` (an item with a product)
   and the wiring's ceiling light (a point with a product) are both put in the middle of the room —
   `electrical.ts` never reads the pendant: 59 % of bedroom pendants, 53 % of living-room ones and
@@ -338,6 +368,12 @@ Severity: **high** = seen by anyone who generates; **medium** = wrong in some ro
   free of every wall. The cause is upstream, in how the sofa's wall is scored (RL1).
 - [ ] **O6 (low)** — A pendant, a door mat, a rug and curtains are never fit-tested (`fitMatters`,
   `matcher.ts:353`): a 3.16 × 3.96 m pendant cluster in a bedroom, a 2.03 × 1.27 m door mat in a hall.
+  *Partly:* a door mat and a hanging lamp take the first product that lies within the room
+  (`liesWithinRoom`), and only with none the one drawn (a rug and a curtain are sized to the room
+  by the layout): door mats through a wall 103 → 21 in 360 flats, hanging lamps 5 → 0. *Left:* 21
+  door mats still lie through a wall — Scandinavian halls, which keep the one mat that fits out as
+  black — and the mat that lies inside most halls (87 of them) does so only because it is filed
+  15 × 11 cm; the other five are filed 2.03 × 1.27 m (the catalogue's sizes, K2).
 
 ### C. Products that can never appear
 
@@ -756,11 +792,15 @@ with fewer than two nightstands 135.
   bed with its side on a wall 160; a double side-on 96; a single head-on 128; a double under a
   window 64; a 1.2 m double 64; a 1.4 m double 32; a door zone 0.6 m deep 64 (0.7 m: none — it
   misses by 1–2 cm).
-- [ ] **RB2 (high) — A slot with no product: the wardrobe's slot refuses the bed.** The engine lays
+- [x] **RB2 (high) — A slot with no product: the wardrobe's slot refuses the bed.** The engine lays
   the wardrobe 5 cm off the 1.6 m bed slot, and a slot not matched yet blocks at its archetype's
   size (`matcher.ts:383`): any bed over 1.74 m is refused — Modern's start at 1.81 m, Industrial's
   at 1.77 m. The room ends with two nightstands, a wall of wardrobe and no bed (41 runs). Any style
-  when none of the style's own fits: +51 beds, nothing lost.
+  when none of the style's own fits: +51 beds, nothing lost. *Fixed:* the bed's slot then takes the
+  nearest other style's double that fits (M2). The wardrobe is still laid 5 cm off the bed's slot:
+  the bed such a room now has, or the wardrobe it now has beside its bed, leaves a side of the bed
+  under 60 cm (`bed_side_tight` on 7 more beds in 120 flats, each in a room that had no bed or no
+  wardrobe).
 - [ ] **RB3 (high) — Nightstands are dropped beside beds over 2 m wide** (`matcher.ts:568`):
   re-measured from the real bed they move 0.2–0.85 m outward, onto the lamp's, the wardrobe's or
   the plant's unmatched slot: 71 rooms lose one or both.
@@ -774,7 +814,9 @@ with fewer than two nightstands 135.
 - [ ] **RB6 (low) — Three plain bugs.** A wall must be 25 cm longer than the piece (`:606`): a
   1.84 m wall refuses a 1.6 m bed. One of a wall's two corner spots is always "outside the room"
   (the half-open point test, `planGeometry.ts:96`). A slot the matcher dropped still blocks what is
-  matched after it (`matcher.ts:282`).
+  matched after it (`matcher.ts:282`). *Partly:* the third is fixed — a slot that got no product is
+  in nothing's way, and nothing is measured off it or hung clear of it; the first two are the
+  layout's.
 
 A ladder in the layout and any style in the matcher: a bed in 1,504 of 1,504 (today 1,293).
 

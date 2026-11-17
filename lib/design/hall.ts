@@ -14,9 +14,10 @@
  * Pure: `generateScene` runs it after the bathroom pass.
  */
 
-import type { CatalogProduct } from './matcher';
+import { candidatesFor, isFullHeightMirror, quantityFor, toSceneProduct, type CatalogProduct } from './matcher';
 import { pointOnEdge, wallEdges, type PlanEdge } from './planGeometry';
 import { BOILER_HALL_MIN_WIDTH_M, SHALLOW_WARDROBE_DEPTH_M, WARDROBE_DEPTH_M } from './rules';
+import { styleRejects } from './styleGuide';
 import type { CabinetSection, DecorPiece, PlacedItem, PlanRoom, StyleId, Vec2 } from './types';
 import { JOINERY_SLIVER_M, cabinetPiece, freeStretch, joineryFace, joineryMaterial, sectionSpans } from './decor/joinery';
 import { freeSpans } from './decor/layout';
@@ -95,13 +96,18 @@ export function fitHall(input: HallInput): { items: PlacedItem[]; decor: DecorPi
   decor.push(cabinetPiece(`decor-${hall.id}-hall-wardrobe`, hall, best.edge, from, ordered, face));
   items = items.filter((i) => !replaced.includes(i.id));
 
-  // The mirror across from it: tall, flat on the facing wall's free stretch (E-8).
-  const mirror = items.find((i) => i.roomId === hall.id && i.slot === 'mirror');
+  // The mirror across from it: tall, flat on the facing wall's free stretch (E-8). The hall's
+  // mirror as matched hangs over the console and is one that fits over it (`slotPool`); the stretch
+  // is free from the floor up, so there it is the full-height one — the catalogue's, when the
+  // hall's own is not.
+  const hung = items.find((i) => i.roomId === hall.id && i.slot === 'mirror');
   const across = facingWall(hall, best.edge);
-  if (mirror && across) {
-    const stretch = freeStretch(hall, across, across.length / 2, items, [mirror.id], 0.2);
+  if (hung && across) {
+    const stretch = freeStretch(hall, across, across.length / 2, items, [hung.id], 0.2);
     if (stretch && stretch[1] - stretch[0] >= HALL_MIRROR_WIDTH_M) {
       const at = pointOnEdge(across, (stretch[0] + stretch[1]) / 2 / across.length);
+      const full = hung.size.height >= 1.4 ? null : fullHeightMirror(catalog, styleId);
+      const mirror = full && full.widthCm && full.depthCm && full.heightCm ? { ...hung, product: toSceneProduct(full, quantityFor(hung)), size: { width: full.widthCm / 100, depth: full.depthCm / 100, height: full.heightCm / 100 } } : hung;
       const tall = mirror.size.height >= 1.4;
       const off = mirror.size.depth / 2 + 0.005;
       items = items.map((i) =>
@@ -110,6 +116,12 @@ export function fitHall(input: HallInput): { items: PlacedItem[]; decor: DecorPi
     }
   }
   return { items, decor };
+}
+
+/** The catalogue's full-height mirror for a flat of this style: the style's own first, none the style keeps out. */
+function fullHeightMirror(catalog: CatalogProduct[], styleId: StyleId): CatalogProduct | null {
+  const all = candidatesFor('mirror', catalog, styleId).filter(isFullHeightMirror);
+  return all.find((p) => !styleRejects(p, styleId)) ?? all[0] ?? null;
 }
 
 /**

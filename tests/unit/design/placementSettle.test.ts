@@ -543,9 +543,11 @@ describe('a small kitchen on one wall', () => {
 
   it('keeps a real fridge of another width against the end of the run', () => {
     const r = kitchen(3, 2.6);
-    const items = matchProducts(layoutRoom(r), [product(3, 'fridge', 60, 65, 185)], { styleId: 'scandinavian', rooms: [r] });
+    // The run has its product too: a fridge is measured off a run that stands, not off a slot left empty.
+    const items = matchProducts(layoutRoom(r), [product(3, 'fridge', 60, 65, 185), product(4, 'kitchen_run', 300, 62, 92)], { styleId: 'scandinavian', rooms: [r] });
     const run = items.find((i) => i.slot === 'kitchen_run')!;
     const fridge = items.find((i) => i.slot === 'fridge')!;
+    expect(run.product?.productId).toBe(4);
     expect(fridge.product?.productId).toBe(3);
     const off = { x: fridge.position.x - run.position.x, z: fridge.position.z - run.position.z };
     expect(Math.abs(dot(off, right(run))) - run.size.width / 2 - fridge.size.width / 2).toBeCloseTo(0.02, 5);
