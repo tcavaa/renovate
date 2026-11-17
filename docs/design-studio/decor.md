@@ -118,6 +118,10 @@ The reference library's rules, as code:
   2026): `params.sections`, left to right along the wall, each `{ kind, widthMm, heightMm,
   depthMm, dryer?, itemId? }` — `basin` (a vanity), `washer` (a column open in front round the machine, a
   shelf for a dryer on it), `boiler` (louvred doors), `coats`, `shoes`, `doors`, `open` (shelves).
+  No section is narrower than 10 cm (`MIN_SECTION_MM`, the save route's floor too): `cabinetPiece`
+  folds a narrower filler into the section beside it (`withoutSlivers` — the vanity before a
+  machine's column), so a vanity left 7 cm short of the washer's column runs on to it instead of
+  getting a 7 cm cupboard that kept the whole flat from being saved.
   Resized by hand it is resized section by section (`cabinetAtExtent`, below). Slot:
   face, in the kitchen maker's materials (`kitchen-custom`, kind `joinery` — `decorMaterialKind`),
   the flat's kitchen run's own when it has one (`joineryMaterial`), so the joinery is one design.

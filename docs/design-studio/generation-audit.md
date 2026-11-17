@@ -858,6 +858,14 @@ outputs were read, not re-run.
   door or a window in 240 flats). A light cove is dropped in any room with more than four corners
   (30 % of bedrooms, 53 % of living rooms and halls); a niche is built on 25–48 % of the walls
   asked and a panel on 37–74 % (each needs 1.2 m clear) — the designer cannot know which.
+- [x] **W11 (high) — A generated flat that cannot be saved** *(found after the audit)*: where the
+  washer's column stands at the wall's end beside a vanity, the gap between them became a `doors`
+  section of whatever width was left — 5–10 cm in 4 of 360 flats — and the save route refuses a
+  section under 10 cm, so the whole design could not be saved. *Fixed:* `cabinetPiece` folds a
+  section narrower than `MIN_SECTION_MM` into the one beside it (`withoutSlivers`), and the gap is
+  always the vanity's, so the column stays round the machine moved there. The whole-flat check
+  counts what the save route would refuse (`unsaveable`), and `generationInvariants.test.ts` runs
+  every generated flat through the save schema.
 - [ ] **W10 — D3 in numbers**: the studio's builder makes the washer's column 0.9 m lower than
   generation's wherever a dryer is stacked (41 of 63 compared), on another wall in 16, and the
   bath's box smaller in Vintage (no surround); its boxes have no tiles (generation's: plasterboard

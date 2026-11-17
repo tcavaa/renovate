@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { compareWithBaseline, measureGeneration, sortedCounts, type GenerationBaseline } from '../../helpers/generationAudit';
+import { designSceneSchema, floorPlanSchema } from '@/lib/validations/design.schema';
+import { compareWithBaseline, measureGeneration, runName, sortedCounts, type GenerationBaseline } from '../../helpers/generationAudit';
 import { fixtureCatalog, fixturePlans, GENERATION_FIXTURES_DIR } from '../../helpers/generationFixtures';
 
 /**
@@ -13,8 +14,18 @@ import { fixtureCatalog, fixturePlans, GENERATION_FIXTURES_DIR } from '../../hel
  */
 describe('generating whole flats', () => {
   const baseline = JSON.parse(readFileSync(path.join(GENERATION_FIXTURES_DIR, 'baseline.json'), 'utf8')) as GenerationBaseline;
-  const measure = measureGeneration(fixturePlans(), fixtureCatalog(), baseline.seeds);
+  // What the save route would refuse (`saveDesignSchema`): a generated flat that cannot be saved is lost.
+  const unsaveable: string[] = [];
+  const measure = measureGeneration(fixturePlans(), fixtureCatalog(), baseline.seeds, (run, scene) => {
+    const plan = floorPlanSchema.safeParse(scene.plan);
+    const parsed = designSceneSchema.safeParse({ styleId: run.styleId, mode: 'full', budgetGel: null, items: scene.items, finishes: scene.finishes, decor: scene.decor, electrical: scene.electrical, generation: scene.generation });
+    for (const issue of [...(plan.success ? [] : plan.error.issues), ...(parsed.success ? [] : parsed.error.issues)]) unsaveable.push(`${runName(run)}: ${issue.path.join('.')} ${issue.message}`);
+  });
   const moved = compareWithBaseline(measure.counts, baseline.counts);
+
+  it('generates flats that can be saved', () => {
+    expect(unsaveable).toEqual([]);
+  });
 
   it('generates every fixture plan in every style', () => {
     expect(measure.flats).toBe(baseline.flats);

@@ -146,7 +146,9 @@ export function fitBathrooms(input: BathroomInput): { items: PlacedItem[]; decor
             const fillTo = side === 'right' ? colFrom : v.from;
             const vanityH = mm(v.height);
             const basin: CabinetSection = { kind: 'basin', widthMm: mm(v.to - v.from), heightMm: vanityH, depthMm: mm(VANITY_DEPTH_M), itemId: sinkId };
-            const fill: CabinetSection[] = fillTo - fillFrom > 0.05 ? [{ kind: 'doors', widthMm: mm(fillTo - fillFrom), heightMm: vanityH, depthMm: mm(VANITY_DEPTH_M) }] : [];
+            // The gap between: a cupboard of its own, or — narrower than one — the vanity's (`cabinetPiece`
+            // folds it in), so the column stays at the stretch's end, round the machine moved there.
+            const fill: CabinetSection[] = fillTo - fillFrom > 0.0005 ? [{ kind: 'doors', widthMm: mm(fillTo - fillFrom), heightMm: vanityH, depthMm: mm(VANITY_DEPTH_M) }] : [];
             const sections = side === 'right' ? [basin, ...fill, column] : [column, ...fill, basin];
             const start = side === 'right' ? v.from : colFrom;
             const mid = colFrom + columnW / 2;

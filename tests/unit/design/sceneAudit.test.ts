@@ -163,6 +163,14 @@ describe('the whole-flat check', () => {
     expect(auditScene({ plan: flat([hall]), items: [pendant], electrical: [bare] }).map((i) => i.code)).toContain('two_main_lights');
   });
 
+  it('finds a piece the save route would refuse, which would keep the whole flat from being saved', () => {
+    const bath = rect('b', 'bathroom', 3, 2.5);
+    const sliver: DecorPiece = { ...cabinet('decor-b-joinery', 'b', 0.4, 900, 'sink'), params: { sections: [{ kind: 'basin', widthMm: 900, heightMm: 850, depthMm: 500, itemId: 'sink' }, { kind: 'doors', widthMm: 70, heightMm: 850, depthMm: 500 }] } };
+    const keys = (decor: DecorPiece[]) => auditScene({ plan: flat([bath]), items: [], decor }).filter((i) => i.code === 'unsaveable').map(issueMetric);
+    expect(keys([sliver])).toEqual(['unsaveable:decor']);
+    expect(keys([cabinet('decor-b-joinery', 'b', 0.4, 900, 'sink')])).toEqual([]);
+  });
+
   it('finds a socket inside a radiator’s body', () => {
     const room = rect('r', 'bedroom', 4, 4);
     const radiator: TechnicalPoint = { id: 'rad', kind: 'radiator', roomId: 'r', position: { x: 2, z: 0.05 }, sections: 10, origin: 'user' };

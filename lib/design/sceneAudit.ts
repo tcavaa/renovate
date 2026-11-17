@@ -20,6 +20,7 @@ import { footprintQuad, quadsOverlap, RADIATOR_FLOOR_GAP_M, rayToPolygon, TOWEL_
 import { showerArea } from './shower';
 import type { DecorPiece, ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, SlotKind, Vec2 } from './types';
 import { columnFootprints } from './walls';
+import { decorPieceSchema, electricalPointSchema, floorPlanSchema, placedItemSchema } from '../validations/design.schema';
 
 export type SceneIssueCode =
   /** A piece arranged off a piece the room does not have: a coffee table with no sofa, nightstands with no bed. */
@@ -63,7 +64,9 @@ export type SceneIssueCode =
   /** What the room ends without. A measure, not a defect in itself: which rooms must have what is the owner's to say. */
   | 'missing'
   /** One of the app's own rule checks (`ruleViolations`) the generated flat fails. */
-  | 'rule';
+  | 'rule'
+  /** A piece the save route refuses (`lib/validations/design.schema`): a flat holding it cannot be saved at all. */
+  | 'unsaveable';
 
 export interface SceneIssue {
   code: SceneIssueCode;
@@ -313,6 +316,23 @@ export function auditScene(scene: AuditedScene): SceneIssue[] {
   // --- a washing machine somewhere in a flat that has a bathroom
   if (plan.rooms.some((r) => r.type === 'bathroom') && !items.some((i) => i.slot === 'washer')) {
     issues.push({ code: 'missing', key: 'flat:washer', roomId: null, roomType: null, what: 'washer' });
+  }
+
+  // --- what the save route would refuse: one such piece and the whole flat is not saved
+  const refused = (key: string, what: string, itemId?: string) => issues.push({ code: 'unsaveable', key, roomId: null, roomType: null, itemId, what });
+  const planCheck = floorPlanSchema.safeParse(plan);
+  if (!planCheck.success) refused('plan', planCheck.error.issues.map((i) => i.path.join('.')).join(', '));
+  for (const item of items) {
+    const check = placedItemSchema.safeParse(item);
+    if (!check.success) refused('items', `${item.kind}: ${check.error.issues.map((i) => `${i.path.join('.')} ${i.message}`).join('; ')}`, item.id);
+  }
+  for (const piece of decor) {
+    const check = decorPieceSchema.safeParse(piece);
+    if (!check.success) refused('decor', `${piece.family}: ${check.error.issues.map((i) => `${i.path.join('.')} ${i.message}`).join('; ')}`, piece.id);
+  }
+  for (const point of electrical) {
+    const check = electricalPointSchema.safeParse(point);
+    if (!check.success) refused('electrical', `${point.kind}: ${check.error.issues.map((i) => `${i.path.join('.')} ${i.message}`).join('; ')}`, point.id);
   }
 
   // --- the app's own rule checks, on the flat the app made

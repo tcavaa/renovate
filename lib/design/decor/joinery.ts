@@ -55,8 +55,42 @@ export function sectionsWidth(sections: readonly CabinetSection[]): number {
   return sections.reduce((s, x) => s + x.widthMm, 0) / 1000;
 }
 
-/** A cabinet piece on `edge` from `from` metres along it, its sections left to right. */
-export function cabinetPiece(id: string, room: PlanRoom, edge: PlanEdge, from: number, sections: CabinetSection[], face: Partial<Record<'face', DecorMaterial>>): DecorPiece {
+/**
+ * The narrowest section a cabinet is made of: a filler of a few centimetres is no cupboard — and
+ * the save route refuses one (`decorPieceSchema`'s sections, `widthMm`), so a flat holding it could
+ * not be saved at all.
+ */
+export const MIN_SECTION_MM = 100;
+
+/** Sections as wide as what stands in them, whatever is left over: a machine's column. */
+const MACHINE_SECTIONS: ReadonlySet<CabinetSection['kind']> = new Set(['washer', 'boiler', 'kitchen']);
+
+/**
+ * The sections with each one narrower than `MIN_SECTION_MM` folded into the section beside it —
+ * the one before it, or after, that is not a machine's column, else the one before — so the
+ * cabinet keeps its width and every section is one a joiner can make. A section something stands
+ * in (`itemId`) is never folded away.
+ */
+export function withoutSlivers(sections: readonly CabinetSection[]): CabinetSection[] {
+  const out = sections.map((s) => ({ ...s }));
+  const sliver = (s: CabinetSection) => s.widthMm < MIN_SECTION_MM && !s.itemId;
+  for (let i = 0; i < out.length && out.length > 1; ) {
+    if (!sliver(out[i])) {
+      i++;
+      continue;
+    }
+    const takes = (j: number) => j >= 0 && j < out.length && !MACHINE_SECTIONS.has(out[j].kind);
+    const into = takes(i - 1) ? i - 1 : takes(i + 1) ? i + 1 : i > 0 ? i - 1 : i + 1;
+    out[into] = { ...out[into], widthMm: out[into].widthMm + out[i].widthMm };
+    out.splice(i, 1);
+    i = Math.max(0, Math.min(i, into));
+  }
+  return out;
+}
+
+/** A cabinet piece on `edge` from `from` metres along it, its sections left to right (none narrower than a cupboard: `withoutSlivers`). */
+export function cabinetPiece(id: string, room: PlanRoom, edge: PlanEdge, from: number, made: CabinetSection[], face: Partial<Record<'face', DecorMaterial>>): DecorPiece {
+  const sections = withoutSlivers(made);
   const width = sectionsWidth(sections);
   const top = Math.max(...sections.map((s) => s.heightMm)) / 1000;
   return {
