@@ -337,7 +337,9 @@ describe('checking the designer\'s answer', () => {
 describe('every generation is offered a fresh draw', () => {
   const living = refreshRoom({ id: 'r1', type: 'living_room', name: 'Living', polygon: [{ x: 0, z: 0 }, { x: 5, z: 0 }, { x: 5, z: 4 }, { x: 0, z: 4 }], heightM: 2.8, areaM2: 0, perimeterM: 0, openings: [] });
   const plan = { rooms: [living] } as FloorPlan;
-  const sofas = Array.from({ length: 40 }, (_, i) => ({ ...material(1000 + i, 'wood', 'piece', 1500 + i * 10), categorySlug: 'sofas', model3dKind: 'sofa_3seat', model3dUrl: `/s${i}.glb`, widthCm: 220, depthCm: 95, heightCm: 80, styleTags: i % 3 === 0 ? ['scandinavian'] : ['modern'] }));
+  // 40 Scandinavian sofas — a sofa is the style's own whenever the catalogue has any (the matcher's
+  // strict style) — and 20 Modern ones a Scandinavian flat is never given, so never offered.
+  const sofas = Array.from({ length: 60 }, (_, i) => ({ ...material(1000 + i, 'wood', 'piece', 1500 + i * 10), categorySlug: 'sofas', model3dKind: 'sofa_3seat', model3dUrl: `/s${i}.glb`, widthCm: 220, depthCm: 95, heightCm: 80, styleTags: i < 40 ? ['scandinavian'] : ['modern'] }));
   const huge = { ...sofas[0], id: 2000, widthCm: 900, depthCm: 400 };
   const catalog = [...sofas, huge, ...CATALOG];
   const offered = (seed: number, previous?: number[]) => [...(buildBrief({ plan, styleId: 'scandinavian', locale: 'ka', catalog, seed, previous: previous ? { productIds: previous, decorFamilies: [] } : null }).offer.furniture.get('r1')?.get('sofa_3seat') ?? [])];
@@ -353,6 +355,10 @@ describe('every generation is offered a fresh draw', () => {
 
   it('never offers a piece the room cannot hold', () => {
     for (let seed = 1; seed < 30; seed++) expect(offered(seed)).not.toContain(2000);
+  });
+
+  it('never offers what the matcher would not take: another style’s sofa where the style has its own', () => {
+    for (let seed = 1; seed < 30; seed++) for (const id of offered(seed)) expect(id).toBeLessThan(1040);
   });
 
   it('rarely offers again what the last design used', () => {

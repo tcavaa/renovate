@@ -459,7 +459,7 @@ the flat out with it; a second call (`reviewWithClaude`) is shown every piece wi
 PROBLEMS and five alternatives, and may answer six actions. It never decides a position, which
 pieces a room has, the kitchen, the joinery, taps, lamps on the wiring, radiators or doors.
 
-- [ ] **A1 (high) — It is offered what the engine will refuse.** The offer is every product of the
+- [x] **A1 (high) — It is offered what the engine will refuse.** The offer is every product of the
   kind that fits the room's box, less the style's rejects (`buildBrief`, `aiDesign.ts:205-212`). The
   matcher then applies strict style and `slotPool` and silently ignores a pick outside them
   (`matcher.ts:250-256`): with every offered id tried as a pick (six plans, four styles), 5,421 of
@@ -473,39 +473,83 @@ pieces a room has, the kitchen, the joinery, taps, lamps on the wiring, radiator
   | AI check's alternatives (`aiReview.ts:259-264`) | **no** | **no** | yes, no level | the room's box |
   | bathroom pass (`bathroom.ts:62-68`) | yes | — | name tests | — |
 
-- [ ] **A2 (high) — It is asked about pieces the room will not have** (27 % of kinds offered).
+  *Fixed:* the designer's offer and the check's alternatives are one pool, `pickPool` (`aiDesign.ts`),
+  built with the matcher's own functions — `kindPool` (strict style, the style's rejects) and
+  `slotPool` (with the budget level the matcher infers) — on the slot as it stands for the check, and
+  for the brief, which has no layout yet (A3), on the archetypes laid against the room's longest
+  wall under the room's real ceiling. The stand-in designer of the audit (six plans, four styles, one
+  pick per offered kind): picks the engine had the kind for and did not take 1,009 of 3,465 → 494 of
+  3,479 — what is left is fit and the hall's mirror the hall pass hangs (the bathroom pass's own pool
+  is the joinery lane's). `decor.test.ts`'s "rarely offers again" (V2) now has a pool of the style's
+  own to draw from.
+
+- [x] **A2 (high) — It is asked about pieces the room will not have** (27 % of kinds offered).
   `programKinds` (`aiDesign.ts:153-163`) re-implements the engine's gate without the archetype's
   minimum area, the bath-by-style rule, the window test, the optional-decor draw or a studio's
   halves (it offers a corner sofa for the whole studio while the half gets a three-seat), and knows
   nothing of the passes that replace pieces (the wardrobe by a wall of wardrobe in 34 % of bedrooms,
   the coat rack by the hall wardrobe in 46 % of halls). Its room note can describe a piece that is
   not there.
+  *Fixed:* `programKinds` asks the engine's own gate — `programPiece`, lifted out of `layoutArea` and
+  exported (the room's or the part's area against the entry's and the archetype's minimum, the bath
+  by style, a window for a curtain) — on each half of a studio (`partRoom`). On the fixture flats
+  (one draw, four styles) kinds offered 4,704 → 4,425 and kinds the engine flat then lacks 1,259
+  (27 %) → 934 (21 %). Left — they need the layout first (A3) — the draw and the passes: the optional decor
+  (`OPTIONAL_DECOR`), the coat rack the hall wardrobe replaces, the wardrobe a wall of wardrobe
+  replaces, and pieces with no room left (a balcony's armchair, a shower).
 - [ ] **A3 (high) — It designs before the layout exists.** The layout does not depend on its answer
   and takes 40 ms; run first, the brief could name the real slots (size, wall, what stands beside),
   the matcher's own pool per slot, and the walls that are really free for decor. Today a decor
   intent on "wall 2" is chosen blind and dropped when the engine put the wardrobe there.
-- [ ] **A4 (high) — The check is shown the engine's own work as PROBLEMS.** `reviewFindings` reports
+- [x] **A4 (high) — The check is shown the engine's own work as PROBLEMS.** `reviewFindings` reports
   a WC in front of its box as "stands 21 cm off the wall behind it" (559 times in 720 flats), a washer
   in its column and a bath in its box as "stands in the cabinet decor" (337 times)
   (`aiReview.ts:121-130`, `:143-146`). A `to_wall` on the WC is accepted and does nothing.
-- [ ] **A5 (high) — The check's actions ignore what belongs together.** Verified through
+  *Fixed:* a piece is no problem for standing in or in front of what was built for it (`builtFor`:
+  the link, a box from before it, the piece's tap, dryer or mixer), a WC's distance off its wall is
+  measured from its box's face — and a `to_wall` is kept only for a piece measured off its wall
+  (`offWall`; a WC on its box's face: refused, 112 of 112 on 120 fixture flats), putting it on the
+  face — and the brief names what each piece stands in (on 360 fixture flats: 279 + 202 such
+  findings → 0; what is left on fitted pieces is the rule checks' — a WC the door opens onto, a
+  basin's height, a radiator).
+- [x] **A5 (high) — The check's actions ignore what belongs together.** Verified through
   `validateReview` and `reviewedScene`: `move_to_wall` on the kitchen run is accepted (the prompt
   suggests it) and leaves the wall cabinets and the fridge on the old wall; on the sofa it leaves the
   coffee table, TV unit, TV, armchair and rug round empty floor; `remove` on the TV unit leaves the TV
   on the wall; `remove` on a blind and on a pendant is accepted, against "every window dressed" and
   "one main light". Only three relations are hand-listed (`PLACED_OFF`, `IN_FRONT`,
   `aiProposal.ts:113`, `:196`). Its moves test doors and windows but not radiators or columns.
-- [ ] **A6 (medium) — The wiring is not redone after the check.** `finishFlat`
+  *Fixed:* a removal takes what was laid out off the piece with it (`withoutOrphans`, now tested
+  through `reviewedScene`) and a curtain, a blind or the ceiling lamp is never removed; a move takes
+  along what rides and stands on the piece (`carryCompanions`, `carryRiders`) and is tested against
+  the matcher's keep-clear floor (`keptClear`: columns, radiator strips, a partition's floor, the
+  run's working floor); `move_to_wall` is refused for a piece anything else is laid out off, one
+  laid out off another, and one made to its place (`heldByMove`, every relation the placement rules
+  name) or placed off the walls (`movable`: at a window, from the ceiling, under a piece, free in
+  the room), and the brief marks those "stays on its wall" or "stays where it is" — on 60 fixture
+  flats the sofa (46 of 52), the run (61 of 67), the bed (80 of 86) and the TV unit (36 of 36) stay;
+  `to_wall` is kept only for a piece measured off its wall (`offWall`: no lamp, rug, curtain, blind
+  or kitchen cabinets pushed alone onto a wall — 0 of 704 on 60 flats); a curtain and the ceiling
+  lamp, which may not be removed, are offered alternatives; and a move is kept only where the piece
+  stands well once what was built for it is settled behind it (`standsAfterMove`: 59 of 345 WC moves
+  dropped — the box rebuilt into a shower, bath, basin or washer, or the WC pushed into a doorway).
+- [x] **A6 (medium) — The wiring is not redone after the check.** `finishFlat`
   (`lib/api/designJob.ts:289-290`) writes the items and decor the check changed and keeps
   `scene.electrical` as laid: bedside sockets stay where the bed was.
+  *Fixed:* `reviewedScene` re-wires every room whose furniture or decor the check changed, as
+  `generateScene` wires (a room wired by hand kept, the calculation's choices applied), leaves the
+  other rooms' fittings as they were and changes none when the check changed nothing; `finishFlat`
+  writes the fittings it returns.
 - [ ] **A7 (medium) — The rules are restated in two prompts**, numbers and all (85 cm basin, 80 × 80
   shower, 60 cm wardrobe, 1.2 m in front of the run, decor heights; `aiDesign.ts:266-289`,
   `aiReview.ts:291-315`) — a third copy to keep in step. "At most one decor piece in a hall, kitchen
   or bathroom" is in the prompt only: the code allows three (`aiDesign.ts:446`).
 - [ ] **A8 (medium) — What the engine draws ignores the designer's palette**: the kitchen's
   material, the joinery's, the taps, the lamps on the wiring.
-- [ ] **A9 (low)** — The brief calls every room that is not four-cornered "L-shaped"
-  (`aiDesign.ts:184`).
+- [x] **A9 (low)** — The brief calls every room that is not four-cornered "L-shaped"
+  (`aiDesign.ts:184`). *Fixed:* the brief says what the outline is (`outlineText`): rectangular,
+  L-shaped (six square corners), so many corners (and "not square" when it is not; a wall drawn as
+  two edges is one wall), and the box it fits in.
 
 ### E. Rules that contradict each other
 
@@ -695,12 +739,17 @@ flats fed hand-written intents for every family and anchor. W1–W3 and O7 were 
 document; the rest is from a side review that was stopped before it reported — its scripts and
 outputs were read, not re-run.
 
-- [ ] **W1 (high) — After the AI check the built pieces are settled again by other formulas.**
+- [x] **W1 (high) — After the AI check the built pieces are settled again by other formulas.**
   `reviewedScene` runs `settleFitted` (`generateScene.ts:152`), which uses the studio's builders
   (`decor/housing.ts`), not the ones generation built with (`bathroom.ts`, `decor/wcBox.ts`). With
   **no fixes at all** 108 of 360 flats change: WC boxes slide or change width (108), 76 boxes built
   flush to the wall's end now leave a 2 cm sliver, and in 7 flats the WC itself is moved 18 cm —
   into the washer (5) or the basin (2).
+  *Fixed:* `reviewedScene` hands `settleFitted` the pieces the check changed, and only what was built
+  for those (or for a piece now gone) is settled again; the check's own tidy-up (`reanchorDecor`,
+  `settleToWalls`, `clearOfDecor`) touches only what the check changed. A check with no fixes now
+  changes 0 of 360 fixture flats (was 122), one that takes out a lamp or a print changes nothing
+  else, and `aiCheck.test.ts` holds it on a bathroom with a WC box built to the wall's end (V4).
 - [ ] **W2 (high) — A basin lifted for a vanity that is never built.** The matcher lifts a
   countertop basin to washing height (`matcher.ts:642`) before the bathroom pass tries the vanity;
   when the pass finds no stretch for one (`bathroom.ts:79-97`: the basin beside a door or window,
@@ -709,11 +758,22 @@ outputs were read, not re-run.
 - [ ] **W3 (high) — A wall of wardrobe is built without looking in front of it.** `fitWardrobes`
   asks only for a free stretch as deep as the wardrobe (`bedroom.ts:41`). Of 402 built, 217 have
   something within 60 cm of their doors and 129 within 30 cm — the bed (97) or a nightstand (31).
-- [ ] **W4 (medium) — The designer's decor is fitted without the engine's joinery.**
+- [x] **W4 (medium) — The designer's decor is fitted without the engine's joinery.**
   `proposalDecor(laid, proposal, items, catalog)` is given the furniture only
   (`generateScene.ts:122`), after the passes have swapped the shop's wardrobe for a built one: slats,
   slabs, panels and cladding are fitted on the stretch the hall wardrobe, the wall of wardrobe or the
   vanity then covers — about 13 % of the decor's cost in that run was behind joinery.
+  *Fixed:* the WC boxes are built before the designer's decor and `proposalDecor` is handed every
+  piece of joinery and every box; decor covering its wall that would stand behind one is fitted
+  again beside it (`clearOfBuilt`, the joinery's stretch an opening), or left out where nothing
+  beside is clear — and so is a decor piece the check moves (`decor_to_wall`). Fed an intent of each
+  covering family on three walls of every room of 60 fixture flats: 79 slat, slab and cladding pieces
+  and 43 niches behind joinery → 0; 16 of 1,012 found no clear stretch beside it. Beside, not above:
+  joinery is kept off as a fixture hung at the decor's height is (`fixturesOnWall` — a slab goes
+  beside the bathroom mirror, floor to ceiling), so the wall over a low box is not covered; fitting
+  decor over joinery instead would change the height the designer asked for — the owner's choice.
+  *Open:* the re-fit opens the joinery's stretch for every intent of the room, so a second intent on
+  that wall that cleared the joinery (hung above it) is fitted beside it too.
 - [ ] **W5 (medium) — Decor behind the bed is dropped in most bedrooms.** A bed 1.2 m tall or more
   takes none (`aiProposal.ts:91-94`, the rulebook's B-6), and two thirds of the beds placed are
   that tall (322 of 485): of the intents anchored on the bed 57 % are dropped for it and 14 % for
@@ -1122,6 +1182,8 @@ them, **none has a test that would notice its fix**.
   an 80 cm table (`placementSettle.test.ts:230`, `:334`); the brief "rarely offers again" what the
   last design used, which holds only because the offer is wider than the matcher's pool
   (`decor.test.ts:363`); the mirror's 1.5 m (`placementSettle.test.ts:124`, `:370`).
+  *Partly:* `decor.test.ts`'s "rarely offers again" draws from 40 sofas of the flat's style (the
+  matcher's pool), with 20 of another style that are never offered (A1).
 - [ ] **V3 (high) — Defects stand inside the tests' own scenes and pass**: the washer and its
   column 55–64 cm inside the shower's tray (`bathroom.test.ts:170`); the TV unit on the studio's
   line on 30 of 30 seeds (`studioLayout.test.ts:89` looks at hung pieces only); a bed with one
@@ -1131,6 +1193,9 @@ them, **none has a test that would notice its fix**.
 - [ ] **V4 (medium) — Tests that cannot fail**: `housing.test.ts:306` (its flat has no joinery to
   settle — W1), `generationRandom.test.ts:167` and `:194` and `placementSettle.test.ts:668`
   (branches that never run — P1), and seven assertions that are always true.
+  *Partly:* the check's settling has a test that can fail (`aiCheck.test.ts`, W1: a bathroom whose WC
+  box the studio's builder would slide); `housing.test.ts:306` itself is unchanged, and on the real
+  plans the studio's own `settleFitted` (no changed pieces given) still changes 69 of 360 untouched flats.
 - [ ] **V5 (medium) — Fixtures.** Each file types a few products at the slot's own size and one
   style: 89 % are within 10 % of the slot's width, against 39 % in the real catalogue; 27 of 42
   kinds have a product in some test. Of 58 rooms laid out, 54 are rectangles and 42 have no window;

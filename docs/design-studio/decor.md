@@ -277,8 +277,10 @@ surround are one thing to the person and two records here — a `PlacedItem` wit
   joinery (`joineryObstacles`, `withJoinery` in `Viewer3D`): each section is a block of its own
   height, and the piece a housing was built for may stand in it.
 
-A generated flat is left exactly as it is by this pass (a test holds it to that): the studio runs it
-on every move of any piece, so a pass that shifted anything would shift it on the first drag.
+The studio runs this pass on every move of any piece, so whatever it shifts in a generated flat
+shifts on the first drag: the test's flat is left as it is, but on the fixture plans the pass still
+moves 69 of 360 untouched generated flats' WC boxes and WCs (its builders are not generation's —
+see Known gaps). The designer's check hands it the pieces it changed, and only their housings move.
 
 **By style.** The AI designer's decor is cut to the families its style takes
 (`STYLE_DECOR_FAMILIES`): Modern all of them; Scandinavian slats, niches, tiles and the WC's box
@@ -328,14 +330,23 @@ the project opens furnished afterwards.
    It answers 202 at once; everything after runs in `after()` (`afterResponse`).
 3. **The design stage** (`runDesignStage`, after the start's answer, in its function's 300 s):
    the brief is built from the row's plan (`ensureWalls`, as the browser opens it) and the cached
-   design catalogue (`buildBrief`): per room its walls by index (side of the plan, length, doors,
-   windows with sills and heads, clear stretches), the engine's pieces for the room program with 12
-   products per kind, 10 floor and 10 wall finishes for the room, every decor material, and the
+   design catalogue (`buildBrief`): per room its outline in words (`outlineText`: rectangular,
+   L-shaped — six square corners — or so many corners, a wall drawn as two edges counted as one,
+   and the box it fits in), its walls by index (side of the plan, length, doors,
+   windows with sills and heads, clear stretches), the pieces the engine lays out there with 12
+   products per kind — decided by the engine's own gate (`programPiece` in `autoLayout.ts`, run on
+   each half of a studio as the engine furnishes it: the room's size, a bath only where the style
+   takes one, a curtain or a blind only at a window; `programKinds`), 10 floor and 10 wall finishes for the room, every decor material, and the
    reference library's entries for the style and the room types.
    **Every generation is offered a fresh draw** (the job's seed, logged): the products are drawn
-   at random from every product of the kind that fits the room (`fitsRoom`, `candidatesFor`) —
-   the style's own and the well-priced more likely (`generationWeight`, weighted sampling without
-   replacement), any of them possible — and so are the finishes; the decor materials and each
+   at random from what the matcher would take as a pick for the piece (`pickPool`: the kind's pool
+   for the style — the style's own for the big pieces, nothing the style keeps out, `kindPool` —
+   held to what the slot can hold, `slotPool`: a countertop basin on a bathroom's vanity, a flat
+   mirror over the basin, a pendant that clears a head, the bath of the style; measured on the
+   archetypes laid against the room's longest wall, the lamp over the table, as there is no layout
+   yet) that fits the room (`fitsRoom`) — the style's own and the well-priced more likely
+   (`generationWeight`, weighted sampling without replacement), any of them possible — and so are
+   the finishes; the decor materials and each
    reference's concepts come in a random order; and the run gets a **direction**, a palette and
    mood within the style drawn from `DIRECTIONS` (six per style). The brief also carries the
    owner's **style guide** (`lib/design/styleGuide.ts`: the style's look, palette, materials,
@@ -378,7 +389,12 @@ the project opens furnished afterwards.
    out (`withoutArtOverDecor`): the decor is the picture there. The other way round, such decor keeps
    off what hangs on a wall for use at its height — the mirror over a bathroom's or toilet's basin,
    the kitchen's wall cabinets (`fixturesOnWall` in `resolve.ts`; a backsplash runs under the
-   cabinets): a niche goes beside the mirror, or not at all. **A niche wall is built out about
+   cabinets): a niche goes beside the mirror, or not at all. **It keeps off the engine's joinery and
+   boxes the same way** (`clearOfBuilt`): the hall's wardrobe, a wall of wardrobe, a vanity, a
+   washing machine's column, a bath's box and the WC's box are built first and handed to
+   `proposalDecor`, and decor that covers its wall and would stand behind one at its height is fitted
+   beside it — or left out where no stretch beside is clear (a check's `decor_to_wall` likewise).
+   **A niche wall is built out about
    30 cm, so it keeps off everything standing against its wall** (`floorPiecesOnWall`): one used to
    run the whole bathroom wall behind the bath and the washing machine. Thinner decor stays, and what
    stands in front of it is moved off it by its depth (`clearOfDecor`, `decorDepth`). **Tiles in a
@@ -401,14 +417,20 @@ the project opens furnished afterwards.
    knows, and the decor. The brief describes each room as built — its walls with doors and windows, every piece
    with its product, real size and where it stands (back to which wall, how far along, hung how
    high, or free-standing) — and what **measuring the room found wrong** (`reviewFindings`): pieces
-   in each other or through a wall, a piece standing off the wall it backs onto, one deeper than wide
+   in each other or through a wall, a piece standing off the wall it backs onto (a WC in front of its
+   installation box measured from the box's face), one deeper than wide
    where that kind never is (a model turned sideways or the wrong product), a piece hung into what
    stands under it, a mirror not over the basin, a standing floor mirror in a bathroom, a nightstand
    away from the bed's head, a passage too tight (`tightSpotsByItem`), and what the owner's design
    rules say about a piece (`ruleViolations` worded by `ruleProblem`: a WC the door opens onto, a
    kitchen facing the entrance, a squeezed bed or WC, the TV too near or too far, a blocked
-   radiator, a small shower, a basin's height). The brief names the style's look, palette and materials. Each piece is offered five
-   alternatives of its kind that fit the room, the style's own likelier and — when the piece is in
+   radiator, a small shower, a basin's height). A piece standing in or in front of what was built
+   for it — the washing machine in its column, the bath and its mixer in their box, the WC in front
+   of its box — is no problem (`builtFor`: the link `housedIds`, or where it stands for a piece from
+   before the link, `adoptHoused`, and what rides on the piece, `companionsOf`), and the brief says
+   which pieces stand in what was built for them. The brief names the style's look, palette and materials. Each piece is offered five
+   alternatives from the same pool as the designer's offer (`pickPool`, for its slot as it stands)
+   that fit the room, the style's own likelier and — when the piece is in
    trouble — the ones no bigger than it six times likelier. One call (same model and settings as the
    proposal, `REVIEW_SCHEMA`, let go after `REVIEW_DEADLINE_MS` — 200 s) answers per room a note and fixes: `replace` with one of that piece's
    alternatives, or `remove`. `validateReview` keeps an item of that room, a replacement it was
@@ -418,7 +440,11 @@ the project opens furnished afterwards.
    goes where the old piece stood, its back on the same wall (`fitSwapped`), a hung one at the height
    it should hang (`settledElevation`), only if it fits; the nightstands, coffee table or desk chair
    of a replaced bed, sofa or desk move to the new one (`settledPosition`), one with no room beside it
-   goes. The room's note gets the check's sentence; `generation.reviewed` counts the fixes. The flat
+   goes. In every room the check changed, the fittings follow the furniture again as at generation
+   (`suggestElectrical`, `withFixtureProducts`, the calculation's choices, `underCeilingDecor`; a
+   room wired by hand is kept): the bedside sockets go where the bed now stands. Rooms the check did
+   not touch keep their fittings as they were, and a check that changed nothing changes no fitting.
+   The room's note gets the check's sentence; `generation.reviewed` counts the fixes. The flat
    is then written laid out (`progress` generated, step 5, `at` 5 — the studio is where the project
    opens) over the design stage's revision, and the job is `done` with the review on it
    (`finishFlat`). A check that fails or times out writes the flat as laid out, unchecked, the job
@@ -426,15 +452,44 @@ the project opens furnished afterwards.
    The style step's flow guard holds while the page waits (`DesignFlowGuard` `hold`). Rate rule
    `aiGenerate` (8 starts an hour) covers both calls; the stages log `ai-generate` and `ai-review` with
    the job id, tokens, cost and the number of fixes. **Besides replacing and removing, the check
-   moves**: `to_wall` (back against the wall behind a piece, or the nearest), `move_to_wall` (against
-   wall N, as near its middle as it stands well — clear of windows if tall, `blocksWindow`, and of
-   doorways, `inDoorway`), `remove_decor` and `decor_to_wall` (a decor piece fitted again on wall N).
+   moves**: `to_wall` (back against the wall behind a piece), `move_to_wall` (against
+   wall N, as near its middle as it stands well — clear of windows if tall, `blocksWindow`, of
+   doorways, `inDoorway`, and of the floor the layout kept clear: the strip before a radiator, a
+   column, a partition's floor, a kitchen run's working floor — `keptClear`, as the matcher keeps
+   its products), `remove_decor` and `decor_to_wall` (a decor piece fitted again on wall N).
+   **An action is kept only when it leaves the room whole.** A removal takes what was laid out off
+   the piece with it (`withoutOrphans` in `reviewedScene`: no TV over a unit that is gone), and a
+   window's curtain or blind and the ceiling lamp are never removed. A move takes along what rides
+   on the piece and what stands on it (`carryCompanions`, `carryRiders` — the TV over its unit) and
+   the nightstands, coffee table or desk chair placed off it (stood by it again after the fixes);
+   `to_wall` is kept only for a piece the measuring found standing off the wall behind it (the
+   brief's `offWall`: a piece the engine stands against a wall, more than 8 cm off it — a WC from its
+   box's face), so never for a WC on its box, the ceiling lamp, a rug, a curtain or a blind, the
+   kitchen's run or cabinets. `move_to_wall` is kept only for a piece that leaves nothing else
+   behind and is laid out off nothing in the room (`heldByMove`: not the sofa with its TV unit and
+   rug, not the run with its wall cabinets and fridge, not a TV unit away from its sofa) and stands
+   against a wall at all (`movable`: not made to its place — the kitchen's cabinets, a rug — nor
+   placed at a window, from the ceiling, under a piece, free in the room or inside the front door,
+   as its archetype's placement says). The brief marks such pieces "stays on its wall" or "stays
+   where it is". A curtain, a blind and the ceiling lamp are offered alternatives instead
+   (`pickPool`; a curtain keeps the size it was made to its window). **A move is kept only where the
+   piece stands well once it is settled** — after the tidy-up and `settleFitted` have built what was
+   built for it on its new wall (`standsAfterMove` in `reviewedScene`, the same test as the move's,
+   out of the joinery, and with its own box out of every other piece): otherwise the move is dropped
+   and the piece stays where generation put it (on 120 fixture flats, 59 of 345 WC moves: the box
+   built behind it into a shower, a bath, a basin or a washer, or the WC pushed into a doorway).
    The brief lists every decor piece with its id, wall, size and depth, and the findings now include a
    tall piece in front of a window, a piece standing in decor, decor something stands in, and a
    kitchen backsplash away from the run; a piece's back against its own wall is no passage. After the
    fixes: the pieces placed off a replaced or moved bed, sofa or desk stand by it again, the chairs
    round a replaced table are seated round it (`reseatChairs` — a chair stood 1.3 m from a new bistro
-   table), decor follows its piece, and the room is tidied (`settleToWalls`, `clearOfDecor`).
+   table), decor follows its piece, and the room is tidied (`settleToWalls`, `clearOfDecor`) — only
+   what the check changed: the pieces it moved, swapped or seated again, the decor whose piece it
+   moved, and what stands in decor it moved. **What the engine built stays as it built it**: of the
+   joinery and boxes only what was built for a piece the check moved, replaced or took out is settled
+   again (`settleFitted` with the changed pieces) — the studio's builders (`housing.ts`) would redo
+   the rest by other formulas (a WC's box slid off the wall's end, a WC moved into the washer). A
+   check that changed nothing leaves the flat exactly as it was.
 
 **Two invocations, because of the 300 s.** Work in `after()` counts towards the function that
 answered, from the request's start; the designer (one to two minutes, longer for a big flat or a
@@ -464,6 +519,15 @@ passes on every plan), and with the account's own plan otherwise.
 the next run). The route logs every run's tokens, cost and seed (`ai-generate`).
 
 ## Known gaps
+
+- `settleFitted` run with no changed pieces — what the studio runs after every move — re-settles a
+  generated flat's boxes and joinery with the studio's builders (`housing.ts`), not generation's
+  (`bathroom.ts`, `decor/wcBox.ts`): on the fixture plans 69 of 360 untouched flats change (a WC's
+  box slid off the wall's end, the WC 1 cm out) on the first drag of any piece.
+- The designer's offer is held to what the matcher takes for each piece (`pickPool`) on the
+  archetypes laid against the room's longest wall, as there is no layout when it is asked (A3 of the
+  generation audit): a TV slot the layout narrows, a hall mirror the hall pass hangs elsewhere, or a
+  piece that does not fit its real slot can still turn a pick down.
 
 - A decorative piece (slats, a panel, mouldings…) cannot be added by hand in the studio — it is
   moved, resized, re-materialled or removed; with no key there is none at all. Joinery and boxes are

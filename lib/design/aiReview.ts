@@ -14,15 +14,17 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { ARCHETYPES, getArchetype } from './catalog';
-import { candidatesFor, generationWeight, slotPool, type CatalogProduct } from './matcher';
-import { fitsRoom, productLine, side, DESIGN_MODEL, PRICE_PER_MTOK } from './aiDesign';
+import { generationWeight, type CatalogProduct } from './matcher';
+import { fitsRoom, pickPool, productLine, side, DESIGN_MODEL, PRICE_PER_MTOK } from './aiDesign';
 import { blocksWindow, footprintInRoom, footprintOf, footprintsOverlap, pieceWall, PIECE_TOUCH_M, tucksUnder } from './manipulate';
 import { decorDepth } from './decor/layout';
+import { adoptHoused, companionsOf, housedIds } from './decor/housing';
 import { roomEdges, wallEdges, type PlanEdge } from './planGeometry';
 import { tightSpotsByItem } from './clearance';
 import { randomSeed, seededRng, weightedOrder } from './random';
 import type { DecorPiece, FloorPlan, PlacedItem, PlanRoom, StyleId } from './types';
 import { MissingApiKeyError } from './aiPlan';
+import { heldByMove } from './aiProposal';
 import { ruleProblem, ruleViolations } from './ruleChecks';
 import { STYLE_GUIDES } from './styleGuide';
 
@@ -63,8 +65,22 @@ export interface AiReviewRequest {
 
 /** The pieces a room is for: replaced when wrong, never taken out. */
 const KEEP_KINDS = new Set(['bed_double', 'bed_single', 'sofa_3seat', 'sofa_corner', 'toilet', 'sink', 'kitchen_run', 'desk', 'dining_table']);
-/** Kinds made to measure or sized to the room: nothing to swap them for here. */
-const NOT_REVIEWED = new Set(['kitchen_run', 'kitchen_wall', 'kitchen_island', 'rug', 'rug_bed', 'curtain', 'pendant', 'tap', 'bath_mixer', 'dryer', 'door_mat']);
+/** What dresses every window and the room's main light (the rulebook: every window dressed, one main light): replaced, never taken out. */
+const NEVER_REMOVED_SLOTS = new Set(['curtain', 'pendant']);
+/** Kinds made to measure or sized to the room: nothing to swap them for here, and not moved. */
+const NOT_REVIEWED = new Set(['kitchen_run', 'kitchen_wall', 'kitchen_island', 'rug', 'rug_bed', 'tap', 'bath_mixer', 'dryer', 'door_mat']);
+/**
+ * Placements that put a piece somewhere other than against a wall (catalog.ts): at a window, from
+ * the ceiling, under another piece, free in the room, inside the front door. Moved to a wall, the
+ * window is left bare, the room without its light, the table out of its ring of chairs.
+ */
+const NOT_ON_A_WALL = new Set(['window', 'ceiling', 'under', 'center', 'entrance']);
+
+/** Whether the check may stand a piece against another wall at all: not made to its place, not placed off the walls. */
+function movable(item: PlacedItem): boolean {
+  const type = getArchetype(item.kind)?.placement.type;
+  return !NOT_REVIEWED.has(item.kind) && !(type && NOT_ON_A_WALL.has(type));
+}
 /**
  * Pieces the engine fitted into its joinery or onto another piece (the rulebook's bathroom and hall
  * passes): a basin on its vanity, the washer and dryer in their column, the taps, the bath's mixer,
@@ -112,6 +128,9 @@ export function reviewFindings(plan: FloorPlan, items: PlacedItem[], decor: Deco
   const out = new Map<string, string[]>();
   const say = (id: string, text: string) => out.set(id, [...(out.get(id) ?? []), text]);
   const tight = tightSpotsByItem(plan.rooms, items);
+  // A piece standing in or in front of what was built for it is no problem: the washer in its
+  // column, the bath and its mixer in its box, the WC in front of its box (`builtFor`).
+  const own = builtFor(items, decor, plan.rooms);
   for (const room of plan.rooms) {
     const inRoom = items.filter((i) => i.roomId === room.id && i.product);
     const floor = inRoom.filter((i) => i.elevationM < 0.05 && !ARCHETYPES[i.kind]?.ghost);
@@ -119,7 +138,7 @@ export function reviewFindings(plan: FloorPlan, items: PlacedItem[], decor: Deco
     for (const piece of roomDecor) {
       // What stands in decor on its wall (deeper than the gap it was left), and tiles away from the run.
       for (const item of floor) {
-        if (item.slot === 'rug' || item.slot === 'curtain') continue;
+        if (item.slot === 'rug' || item.slot === 'curtain' || own.get(item.id)?.some((d) => d.id === piece.id)) continue;
         const wall = pieceWall(item, room, 0.5);
         if (!wall || wall.edge.index !== piece.wallIndex) continue;
         if (wall.along + item.size.width / 2 <= piece.span.from + 0.02 || wall.along - item.size.width / 2 >= piece.span.to - 0.02) continue;
@@ -140,10 +159,8 @@ export function reviewFindings(plan: FloorPlan, items: PlacedItem[], decor: Deco
       const footprint = footprintOf(item.position, item.size, item.rotation);
       if (item.elevationM < 0.05 && !ARCHETYPES[item.kind]?.ghost && !footprintInRoom(footprint, room.polygon)) say(item.id, 'stands through a wall');
       if (WIDE_KINDS.has(item.kind) && item.size.depth > item.size.width * 1.1) say(item.id, `is deeper (${cm(item.size.depth)} cm) than wide (${cm(item.size.width)} cm) — turned sideways or not this kind of piece`);
-      if ((rule?.type === 'wall' || rule?.type === 'wall-run') && item.elevationM < 0.05) {
-        const wall = wallBehind(item, room);
-        if (wall && wall.gap > 0.08) say(item.id, `stands ${cm(wall.gap)} cm off the wall behind it`);
-      }
+      const off = offItsWall(item, room, own);
+      if (off != null) say(item.id, `stands ${cm(off)} cm off the wall behind it`);
       if (item.elevationM >= 0.05 && rule?.type === 'wall-mounted') {
         for (const below of floor) {
           if (below.size.height <= item.elevationM) continue;
@@ -191,6 +208,38 @@ export function reviewFindings(plan: FloorPlan, items: PlacedItem[], decor: Deco
   return out;
 }
 
+/**
+ * How far a piece the engine stands against a wall (its rule `wall` or `wall-run`) stands off the
+ * wall behind it, in metres — from its box's face for a WC in front of its box (`own`: `builtFor`)
+ * — when that is more than 8 cm; null for a piece on its wall, hung or not stood against a wall.
+ */
+function offItsWall(item: PlacedItem, room: PlanRoom, own: Map<string, DecorPiece[]>): number | null {
+  const rule = getArchetype(item.kind)?.placement;
+  if ((rule?.type !== 'wall' && rule?.type !== 'wall-run') || item.elevationM >= 0.05) return null;
+  const wall = wallBehind(item, room);
+  if (!wall) return null;
+  // A WC stands with its back on its box's face: how far off the wall it stands is measured from there.
+  const face = Math.max(0, ...(own.get(item.id) ?? []).filter((d) => d.family === 'box' && d.wallIndex === wall.edge.index && wall.gap >= decorDepth(d) - 0.01).map(decorDepth));
+  return wall.gap - face > 0.08 ? wall.gap - face : null;
+}
+
+/**
+ * What was built for each piece, by its id: the joinery or the box that houses it (`housedIds` —
+ * linked by id, or by where it stands for a piece from before the link, `adoptHoused`), and the
+ * same for what rides on it (its tap, its dryer, the bath's mixer: `companionsOf`).
+ */
+export function builtFor(items: PlacedItem[], decor: DecorPiece[], rooms: readonly PlanRoom[]): Map<string, DecorPiece[]> {
+  const out = new Map<string, DecorPiece[]>();
+  const add = (id: string, piece: DecorPiece) => out.set(id, [...(out.get(id) ?? []), piece]);
+  for (const piece of adoptHoused(decor, items, rooms)) {
+    for (const id of housedIds(piece)) {
+      add(id, piece);
+      for (const companion of companionsOf(id, items)) add(companion.id, piece);
+    }
+  }
+  return out;
+}
+
 /** How a piece stands, in words: against which wall and where, or free in the room; at what height if hung. */
 function whereItStands(item: PlacedItem, room: PlanRoom): string {
   const wall = wallBehind(item, room, 0.35);
@@ -207,6 +256,8 @@ export interface ReviewOffer {
   itemsById: Map<string, PlacedItem>;
   /** The decor pieces shown, by id → their room. */
   decorIds?: Map<string, string>;
+  /** The pieces measured standing off their wall (`offItsWall`): the only ones `to_wall` may push back. */
+  offWall?: Set<string>;
 }
 
 /** The furnished flat as the reviewer reads it, and what each piece may be replaced with. */
@@ -216,9 +267,11 @@ export function buildReviewBrief(request: AiReviewRequest): { text: string; offe
   const rng = seededRng(seed);
   const byId = new Map(catalog.map((p) => [p.id, p]));
   const findings = reviewFindings(plan, items, request.decor ?? []);
+  const built = builtFor(items, request.decor ?? [], plan.rooms);
   const alternatives = new Map<string, Set<number>>();
   const itemsById = new Map(items.map((i) => [i.id, i]));
   const decorIds = new Map<string, string>();
+  const offWall = new Set<string>();
   const lines: string[] = [];
   const offered = new Map<number, CatalogProduct>();
   const roomName = new Map(plan.rooms.map((r) => [r.id, r.name]));
@@ -249,17 +302,20 @@ export function buildReviewBrief(request: AiReviewRequest): { text: string; offe
       lines.push(head);
       for (const item of set) {
         const problems = findings.get(item.id) ?? [];
-        lines.push(`  · ${item.id}: ${whereItStands(item, room)}${problems.length ? ` — PROBLEMS: ${problems.join('; ')}` : ''}`);
+        const housing = built.get(item.id) ?? [];
+        const held = movable(item) ? heldByMove(item, items, plan.rooms) : [];
+        const stays = !movable(item) ? ', stays where it is (made to its place)' : held.length ? `, stays on its wall (laid out with ${held.map((i) => i.id).join(', ')})` : '';
+        if (movable(item) && offItsWall(item, room, built) != null) offWall.add(item.id);
+        lines.push(`  · ${item.id}: ${whereItStands(item, room)}${housing.length ? `, in what was built for it (${housing.map((d) => d.id).join(', ')})` : ''}${stays}${problems.length ? ` — PROBLEMS: ${problems.join('; ')}` : ''}`);
       }
       if (NOT_REVIEWED.has(kind)) continue;
       const troubled = set.some((i) => (findings.get(i.id) ?? []).length > 0);
       const current = first.product!.productId;
-      // Another product of the kind that fits the room: the style's own likelier; when the piece is in
-      // trouble, the ones no bigger than it far likelier — the fix for a piece that does not fit.
-      const fitting = candidatesFor(kind, catalog, styleId).filter((p) => p.id !== current && fitsRoom(p, room));
-      // What the slot can hold as laid out (a standing basin, a flat bathroom mirror, a pendant that clears a head).
-      const held = slotPool(first, fitting, room, items, styleId);
-      const pool = held.length > 0 ? held : fitting;
+      // Another product the matcher would take for the slot as laid out (`pickPool`: the style's own for
+      // the big pieces, a countertop basin on a vanity, a flat bathroom mirror, a pendant that clears a
+      // head) that fits the room: the style's own likelier; when the piece is in trouble, the ones no
+      // bigger than it far likelier — the fix for a piece that does not fit.
+      const pool = pickPool(first, room, catalog, styleId, items.filter((i) => i.id !== first.id)).filter((p) => p.id !== current && fitsRoom(p, room));
       const smaller = (p: CatalogProduct) => !!p.widthCm && !!p.depthCm && p.widthCm / 100 <= first.size.width + 0.02 && p.depthCm / 100 <= first.size.depth + 0.02;
       const picks = weightedOrder(pool, (p) => generationWeight(p, styleId, 'balanced', first, false) * (troubled && smaller(p) ? 6 : 1), rng).slice(0, ALTERNATIVES);
       if (picks.length === 0) continue;
@@ -285,7 +341,7 @@ export function buildReviewBrief(request: AiReviewRequest): { text: string; offe
     `\n# The furnished flat${lines.join('\n')}`,
     `\n# Alternative products (id | name | width×depth×height | price | style tags | colour)\n${[...offered.values()].map(productLine).join('\n')}`,
   ].join('\n');
-  return { text, offer: { alternatives, itemsById, decorIds }, seed };
+  return { text, offer: { alternatives, itemsById, decorIds, offWall }, seed };
 }
 
 const SYSTEM_PROMPT = `You are the interior designer of a Georgian home renovation platform, checking a flat the layout engine has just furnished from real shop products. You see each room as built: its walls with doors and windows, every piece with its product, real size and where it stands, the built-in decor with its wall, size and depth, and what measuring the room found wrong (PROBLEMS).
@@ -293,18 +349,18 @@ const SYSTEM_PROMPT = `You are the interior designer of a Georgian home renovati
 Walk through every room as a designer would and fix what is wrong:
 - a product that is not the piece it stands for (a room divider hung as curtains, a toy or a wall hook as the bedroom's art, a step stool as a dining chair, a floor mirror over a basin);
 - a piece too big for its place, in another's way, in front of a window, in decor, or standing off its wall — the PROBLEMS say which;
-- a piece on the wrong wall (a kitchen across a window, a wardrobe blocking a passage) — move it to a better wall;
+- a piece on the wrong wall (a wardrobe blocking a passage) — move it to a better wall, unless it "stays on its wall";
 - a piece that clashes with the style or the room's other pieces, or a set that does not belong together;
 - a piece the room is better without (a second storage piece blocking a passage, a plant crowding a small bathroom);
-- what breaks the owner's design rules — the PROBLEMS name the rule (a WC the door opens onto, a kitchen facing the entrance, a squeezed bed, the TV too near or too far): move the piece to a better wall or swap it for one that fits;
+- what breaks the owner's design rules — the PROBLEMS name the rule (a WC the door opens onto, a kitchen facing the entrance, a squeezed bed, the TV too near or too far): move the piece to a better wall where it may move, or swap it for one that fits;
 - built-in decor in the wrong place: a niche wall behind a bath or a washing machine, a backsplash away from the kitchen run, decor a piece stands in — move it to another wall or take it out;
 - the owner's layout rules: in a bathroom every fixture keeps free floor in front of it (never a basin facing the WC across a narrow room), the basin is what the door opens onto and the mirror hangs over the basin only; a wardrobe stands beside the bed, never facing it from its foot; the sofa faces the TV, not a window; a bookcase stands beside or behind the sofa, not on the TV's wall; the kitchen's fridge stands at the end of the run and 1.2 m in front of the run stays clear of the table and chairs.
 
 Actions (one per fix; "target" is the piece's or the decor's id as listed):
 - "replace": the piece with one of its own alternatives (product = that id). Pieces of one kind in a room are a set (two nightstands): replacing one replaces them all.
-- "remove": take a piece out — only decor pieces and extras, never the bed, the sofa, the desk, the dining table, the toilet, the basin or the kitchen.
-- "to_wall": push the piece back against the wall behind it (or the nearest wall) — for a piece standing off its wall.
-- "move_to_wall": stand the piece against wall "wall" (a wall number of its room), as near the middle as it fits, clear of windows and doors.
+- "remove": take a piece out — only decor pieces and extras, never the bed, the sofa, the desk, the dining table, the toilet, the basin, the kitchen, a window's curtains or blind or the ceiling lamp. What is laid out off a piece goes with it (the TV with its unit).
+- "to_wall": push the piece back against the wall behind it — only for a piece whose PROBLEMS say it stands off the wall behind it.
+- "move_to_wall": stand the piece against wall "wall" (a wall number of its room), as near the middle as it fits, clear of windows, doors and radiators — never a piece that "stays on its wall" (others are laid out with it) or "stays where it is" (curtains, blinds, the ceiling lamp, a rug, the dining table).
 - "remove_decor": take a built-in decor piece out.
 - "decor_to_wall": fit a built-in decor piece on wall "wall" instead.
 product is 0 and wall is -1 where an action does not use them.
@@ -357,7 +413,13 @@ interface RawReview {
 /**
  * Keeps what the answer may do: a piece or a decor piece of that room; a replacement from that
  * piece's own alternatives (applied to every piece of its set); a removal only of what a room can
- * do without; a wall that is one of the room's; at most six fixes a room. Anything else is dropped.
+ * do without (never the bed, the sofa…, nor a window's curtain or blind or the ceiling lamp); a
+ * push back to its wall only of a piece measured standing off it (`offWall` — not a WC on its box's
+ * face, not a lamp, a rug or a curtain, which no wall holds); a move to another wall only of a piece
+ * that leaves nothing behind (`heldByMove`) and stands against a wall at all (`movable`: not made
+ * to measure or sized to its place — the kitchen's cabinets, a rug — nor hung at a window or from
+ * the ceiling, nor standing free); a wall that is one of the room's; at most six fixes a room.
+ * Anything else is dropped.
  */
 export function validateReview(raw: RawReview, plan: FloorPlan, offer: ReviewOffer, model: string): AiReview {
   const fixes: AiReviewFix[] = [];
@@ -395,11 +457,11 @@ export function validateReview(raw: RawReview, plan: FloorPlan, offer: ReviewOff
         }
         count++;
       } else if (fix.action === 'remove') {
-        if (KEEP_KINDS.has(item.kind)) continue;
+        if (KEEP_KINDS.has(item.kind) || NEVER_REMOVED_SLOTS.has(item.slot)) continue;
         seen.add(item.id);
         fixes.push({ target: item.id, action: 'remove', productId: null, wallIndex: null, reason });
         count++;
-      } else if (fix.action === 'to_wall' || (fix.action === 'move_to_wall' && wall != null)) {
+      } else if ((fix.action === 'to_wall' && movable(item) && !!offer.offWall?.has(item.id)) || (fix.action === 'move_to_wall' && wall != null && movable(item) && heldByMove(item, [...offer.itemsById.values()], plan.rooms).length === 0)) {
         seen.add(item.id);
         fixes.push({ target: item.id, action: fix.action, productId: null, wallIndex: fix.action === 'move_to_wall' ? wall : null, reason });
         count++;

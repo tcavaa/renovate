@@ -242,7 +242,7 @@ describe('generating a room whose sofa or bed no product fits', () => {
     const scene = generate([...around, ...fitting], 1);
     const unit = scene.items.find((i) => i.slot === 'tv_unit')!;
     const review = { model: 'claude-test', notes: {}, fixes: [{ target: unit.id, action: 'remove' as const, productId: null, wallIndex: null, reason: 'in the way' }] };
-    const reviewed = reviewedScene(scene, review, [...around, ...fitting]);
+    const reviewed = reviewedScene({ ...scene, styleId: 'modern' }, review, [...around, ...fitting]);
     expect(reviewed.items.some((i) => i.id === unit.id)).toBe(false);
     expect(reviewed.items.some((i) => i.slot === 'tv')).toBe(false);
     expect(reviewed.items.some((i) => i.slot === 'sofa')).toBe(true);

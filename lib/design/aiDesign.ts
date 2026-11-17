@@ -13,22 +13,24 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import referenceLibrary from './decor/reference-library.json';
-import { ROOM_PROGRAMS, resolveVariant } from './catalog';
-import { candidatesFor, generationWeight, type CatalogProduct } from './matcher';
+import { ROOM_PROGRAMS, getArchetype } from './catalog';
+import { programPiece } from './autoLayout';
+import { partRoom, studioParts } from './studio';
+import { budgetLevel, generationWeight, kindPool, slotPool, type BudgetLevel, type CatalogProduct } from './matcher';
 import { randomSeed, seededRng, weightedOrder } from './random';
 import { styleAffinity } from './styles';
 import { isWetRoom } from './surfaces';
 import { finishCandidates, type AiProposal, type AiRoomProposal } from './aiProposal';
-import { wallEdges, type PlanEdge } from './planGeometry';
+import { polygonCentroid, roomEdges, wallEdges, type PlanEdge } from './planGeometry';
 import { freeSpans } from './decor/layout';
 import { AI_DECOR_FAMILIES, DECOR_FAMILIES, STYLE_DECOR_FAMILIES, decorSlots, slotTakes, styleTakesLed } from './decor/families';
 import { DECOR_ANCHORS, type DecorIntent } from './decor/resolve';
 import { decorMaterialKind, decorSpecs, isDecorMaterial } from './decor/materials';
-import type { DecorFamily, DecorParams, DecorSlot, FloorPlan, PlanRoom, StyleId, StyleProfile } from './types';
+import type { DecorFamily, DecorParams, DecorSlot, FloorPlan, PlacedItem, PlanRoom, StyleId, StyleProfile } from './types';
 import type { RoomType } from '@/lib/calculator/types';
 import { MissingApiKeyError } from './aiPlan';
-import { styleGuideText, styleRejects, subStyleFor } from './styleGuide';
-import { windowDressing } from './rules';
+import { styleGuideText, subStyleFor } from './styleGuide';
+import { underCeiling } from './rules';
 
 /** The model: the same one that reads plans. A constant, chosen by evaluation, never a guess in code. */
 export const DESIGN_MODEL = 'claude-opus-5-5';
@@ -149,17 +151,99 @@ export function side(edge: PlanEdge): string {
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
-/** The kinds the engine lays out in a room of this type and size (the room program), its windows dressed for the style. */
-export function programKinds(room: PlanRoom, styleId?: StyleId): string[] {
-  const types: RoomType[] = room.type === 'studio' ? ['kitchen', 'living_room'] : [room.type];
+/** The rooms the engine furnishes a room as: itself, or a studio's two halves, each a room of its own (`partRoom`). */
+function furnishedAs(room: PlanRoom): PlanRoom[] {
+  const parts = studioParts(room);
+  return parts ? parts.map((part) => partRoom(room, part)) : [room];
+}
+
+/**
+ * The kinds the engine lays out in a room — or in each half of a studio — by its program, as the
+ * engine's own gate decides (`programPiece`: the room's size, a bath only where the style takes one,
+ * a curtain only at a window), its windows dressed for the style; the kitchen's own pieces included.
+ */
+function laidKinds(room: PlanRoom, styleId?: StyleId): string[] {
   const kinds = new Set<string>();
-  for (const type of types) {
-    for (const entry of ROOM_PROGRAMS[type] ?? []) {
-      if (entry.minAreaM2 && room.areaM2 < entry.minAreaM2) continue;
-      kinds.add(windowDressing(resolveVariant(entry, room.areaM2), type, styleId));
+  for (const area of furnishedAs(room)) {
+    for (const entry of ROOM_PROGRAMS[area.type] ?? []) {
+      const piece = programPiece(entry, area, { styleId });
+      if (piece) kinds.add(piece.kind);
     }
   }
-  return [...kinds].filter((k) => !KINDS_FURNISHED_BY_ENGINE.has(k));
+  return [...kinds];
+}
+
+/** The kinds the designer is asked to choose a product for: what the engine lays out in the room, but the kitchen it makes itself. */
+export function programKinds(room: PlanRoom, styleId?: StyleId): string[] {
+  return laidKinds(room, styleId).filter((k) => !KINDS_FURNISHED_BY_ENGINE.has(k));
+}
+
+/**
+ * The products the matcher takes as a designer's pick for `slot` in `room` (`MatchOptions.picks`):
+ * the kind's own pool for the style (`kindPool` — the style's own for the big pieces, nothing the
+ * style keeps out), held to what the slot can hold as laid out (`slotPool`: a countertop basin on a
+ * bathroom's vanity, a flat bathroom mirror, a pendant that clears a head, the bath of the style) —
+ * and, as the matcher does, none at all for a TV, a towel shelf or an island the slot cannot hold.
+ * A pick outside it is never taken, so the designer is offered from it, and so is the check (its
+ * alternatives). `settled`: the room's other pieces as they stand.
+ */
+export function pickPool(slot: PlacedItem, room: PlanRoom, catalog: CatalogProduct[], styleId: StyleId, settled: PlacedItem[] = [], level?: BudgetLevel): CatalogProduct[] {
+  const pool = kindPool(slot.kind, catalog, styleId).first;
+  if (pool.length === 0) return [];
+  const fitting = slotPool(slot, pool, room, settled, styleId, level);
+  if (fitting.length === 0 && (slot.slot === 'tv' || slot.slot === 'towel_rack' || slot.slot === 'kitchen_island')) return [];
+  return fitting.length > 0 ? fitting : pool;
+}
+
+/**
+ * The room's pieces as the engine's archetypes lay them out, before there is a layout — what
+ * `pickPool` holds the offer to: each with its back on the room's longest wall at its middle (a TV
+ * over its unit there, a hall's mirror over its console), a hanging lamp from the ceiling over the
+ * table when there is one, else over the middle of the room (`placeOnCeiling`).
+ */
+function standInSlots(room: PlanRoom, kinds: string[]): PlacedItem[] {
+  const wall = [...wallEdges(room)].sort((a, b) => b.length - a.length)[0];
+  const slots: PlacedItem[] = [];
+  for (const kind of kinds) {
+    const archetype = getArchetype(kind);
+    if (!archetype) continue;
+    const { size, placement } = archetype;
+    const base = { id: `stand-in-${room.id}-${kind}`, roomId: room.id, kind, slot: archetype.slot, size: { ...size }, product: null };
+    if (placement.type === 'ceiling') continue;
+    const at = wall ? { x: wall.a.x + wall.dir.x * (wall.length / 2) + wall.inward.x * (size.depth / 2), z: wall.a.z + wall.dir.z * (wall.length / 2) + wall.inward.z * (size.depth / 2) } : polygonCentroid(room.polygon);
+    const elevationM = placement.type === 'wall-mounted' ? Math.max(0.05, placement.heightM - size.height / 2) : 0;
+    slots.push({ ...base, position: at, rotation: wall?.facing ?? 0, elevationM });
+  }
+  for (const kind of kinds) {
+    const archetype = getArchetype(kind);
+    if (archetype?.placement.type !== 'ceiling') continue;
+    const table = slots.find((p) => p.slot === 'dining_table' || p.slot === 'kitchen_island');
+    slots.push({ id: `stand-in-${room.id}-${kind}`, roomId: room.id, kind, slot: archetype.slot, size: { ...archetype.size }, product: null, position: table ? table.position : polygonCentroid(room.polygon), rotation: 0, elevationM: room.heightM - archetype.size.height });
+  }
+  return slots;
+}
+
+/**
+ * A room's outline in words: rectangular, L-shaped (six square corners) or so many corners, and the
+ * box it fits in — "rectangular, 4.2 × 3.1 m", "L-shaped, 6 corners, within 5.2 × 4 m", "8 corners,
+ * within 6 × 5 m", "4 corners, not square, within 3.9 × 3 m".
+ */
+export function outlineText(room: Pick<PlanRoom, 'polygon'>): string {
+  const xs = room.polygon.map((v) => v.x);
+  const zs = room.polygon.map((v) => v.z);
+  const box = `${r2(Math.max(...xs) - Math.min(...xs))} × ${r2(Math.max(...zs) - Math.min(...zs))} m`;
+  // A wall drawn as two edges runs straight on through the point between them: that is no corner.
+  const all = roomEdges(room.polygon);
+  const straightOn = (a: PlanEdge, b: PlanEdge) => Math.abs(a.dir.x * b.dir.z - a.dir.z * b.dir.x) < 0.02 && a.dir.x * b.dir.x + a.dir.z * b.dir.z > 0;
+  const edges = all.filter((e, i) => !straightOn(all[(i - 1 + all.length) % all.length], e));
+  const square = edges.length > 0 && edges.every((e, i) => {
+    const next = edges[(i + 1) % edges.length];
+    return Math.abs(e.dir.x * next.dir.x + e.dir.z * next.dir.z) < 0.02;
+  });
+  const corners = edges.length;
+  if (corners === 4 && square) return `rectangular, ${box}`;
+  if (corners === 6 && square) return `L-shaped, 6 corners, within ${box}`;
+  return `${corners} corners${square ? '' : ', not square'}, within ${box}`;
 }
 
 export function productLine(p: CatalogProduct): string {
@@ -174,6 +258,9 @@ export function buildBrief(request: AiDesignRequest): { text: string; offer: Off
   const seed = request.seed ?? randomSeed();
   const rng = seededRng(seed);
   const used = new Set(request.previous?.productIds ?? []);
+  // The flat's budget level, as the matcher infers it from the pieces laid out (a towel shelf only at the top one).
+  const standIns = new Map(plan.rooms.map((room) => [room.id, furnishedAs(underCeiling(room, plan)).flatMap((area) => standInSlots(area, laidKinds(area, styleId)))]));
+  const level = budgetLevel([...standIns.values()].flat(), catalog, { styleId, budgetGel: request.budgetGel ?? null });
   const fresh = (p: CatalogProduct) => (used.has(p.id) ? PREVIOUS_WEIGHT : 1);
   const offer: Offer = { furniture: new Map(), floors: new Map(), walls: new Map(), decorMaterials: new Map(), referenceIds: new Set() };
   const products = new Map<number, CatalogProduct>();
@@ -181,7 +268,7 @@ export function buildBrief(request: AiDesignRequest): { text: string; offer: Off
   const roomName = new Map(plan.rooms.map((r) => [r.id, r.name]));
 
   for (const room of plan.rooms) {
-    lines.push(`\n## Room ${room.id} — "${room.name}" (${room.type}), ${r2(room.areaM2)} m², ceiling ${r2(room.heightM)} m${room.polygon.length === 4 ? ', rectangular' : ', L-shaped'}`);
+    lines.push(`\n## Room ${room.id} — "${room.name}" (${room.type}), ${r2(room.areaM2)} m², ceiling ${r2(room.heightM)} m, ${outlineText(room)}`);
     for (const edge of wallEdges(room)) {
       const openings = room.openings
         .filter((o) => o.wallIndex === edge.index)
@@ -199,13 +286,13 @@ export function buildBrief(request: AiDesignRequest): { text: string; offer: Off
     // The pieces the engine will lay out here, with the products that may fill each.
     const kinds = programKinds(room, styleId);
     const byKind = new Map<string, Set<number>>();
+    const slots = standIns.get(room.id) ?? [];
     for (const kind of kinds) {
-      // A fresh draw from every product of the kind that fits the room: the style's own and the
-      // well-priced more likely (`generationWeight`), any of them possible, the last design's rarely.
-      const fitting = candidatesFor(kind, catalog, styleId).filter((p) => fitsRoom(p, room));
-      // The style's rejects (Scandinavian: nothing black) are not offered, while anything else is.
-      const kept = fitting.filter((p) => !styleRejects(p, styleId));
-      const pool = kept.length > 0 ? kept : fitting;
+      // A fresh draw from what the matcher would take as a pick here (`pickPool`) that fits the room:
+      // the style's own and the well-priced more likely (`generationWeight`), any of them possible,
+      // the last design's rarely.
+      const slot = slots.find((p) => p.kind === kind);
+      const pool = slot ? pickPool(slot, underCeiling(room, plan), catalog, styleId, slots.filter((p) => p !== slot), level).filter((p) => fitsRoom(p, room)) : [];
       const ranked = weightedOrder(pool, (p) => generationWeight(p, styleId, 'balanced', undefined, false) * fresh(p), rng).slice(0, CANDIDATES_PER_KIND);
       if (ranked.length === 0) continue;
       byKind.set(kind, new Set(ranked.map((p) => p.id)));

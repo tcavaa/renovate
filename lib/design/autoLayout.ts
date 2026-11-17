@@ -284,6 +284,27 @@ export function layoutRoom(room: PlanRoom, options: LayoutOptions = {}): PlacedI
   return layoutArea(room, options, '', roomSightBands(room).map((b) => b.quad));
 }
 
+/**
+ * The piece a program entry lays in this room (a studio's half is a room of its own, `partRoom`), or
+ * null where the room gets none of it: too small, a bath where the style showers, no window for a
+ * curtain. What the AI designer is asked about is gated here too (`programKinds`).
+ */
+export function programPiece(entry: ProgramEntry, room: PlanRoom, options: Pick<LayoutOptions, 'styleId' | 'skipDecor'> = {}): { kind: string; archetype: Archetype } | null {
+  const kind = windowDressing(resolveVariant(entry, room.areaM2), room.type, options.styleId);
+  const archetype = getArchetype(kind);
+  if (!archetype) return null;
+
+  if (options.skipDecor && archetype.ghost && archetype.slot !== 'rug') return null;
+
+  const gate = entry.minAreaM2 ?? archetype.minRoomAreaM2 ?? 0;
+  if (room.areaM2 < gate) return null;
+  // A Scandinavian or Industrial bathroom is a shower first: a bath only where both fit.
+  if (archetype.slot === 'bathtub' && options.styleId && SHOWER_FIRST_STYLES.includes(options.styleId) && room.areaM2 < BATH_WITH_SHOWER_M2) return null;
+  // A curtain or a blind needs a window: a room without one draws nothing for it.
+  if (archetype.placement.type === 'window' && ownWindows(room).length === 0) return null;
+  return { kind, archetype };
+}
+
 function layoutArea(room: PlanRoom, options: LayoutOptions, idPrefix: string, doorBands: Quad[] = [], order?: ProgramEntry[]): PlacedItem[] {
   // A bathroom's or a toilet's fixtures are laid out in whichever of a few orders gives the best
   // room: the WC, then the most fixtures, each with a way past it. No one order serves every room —
@@ -318,22 +339,7 @@ function layoutArea(room: PlanRoom, options: LayoutOptions, idPrefix: string, do
   const passages: Box[] = [];
   const wet = WET_ROOM_TYPES.includes(room.type);
 
-  /** The piece a program entry lays in this room, or null where the room gets none of it: too small, no window for a curtain. */
-  const pieceOf = (entry: ProgramEntry): { kind: string; archetype: Archetype } | null => {
-    const kind = windowDressing(resolveVariant(entry, room.areaM2), room.type, options.styleId);
-    const archetype = getArchetype(kind);
-    if (!archetype) return null;
-
-    if (options.skipDecor && archetype.ghost && archetype.slot !== 'rug') return null;
-
-    const gate = entry.minAreaM2 ?? archetype.minRoomAreaM2 ?? 0;
-    if (room.areaM2 < gate) return null;
-    // A Scandinavian or Industrial bathroom is a shower first: a bath only where both fit.
-    if (archetype.slot === 'bathtub' && options.styleId && SHOWER_FIRST_STYLES.includes(options.styleId) && room.areaM2 < BATH_WITH_SHOWER_M2) return null;
-    // A curtain or a blind needs a window: a room without one draws nothing for it.
-    if (archetype.placement.type === 'window' && ownWindows(room).length === 0) return null;
-    return { kind, archetype };
-  };
+  const pieceOf = (entry: ProgramEntry) => programPiece(entry, room, options);
 
   /** Stands a piece: its slot, and the floor it takes and keeps clear of what is laid after it. */
   const stand = (into: { placed: PlacedItem[]; occupied: Box[]; passages: Box[] }, archetype: Archetype, kind: string, pose: Pose, id: string) => {

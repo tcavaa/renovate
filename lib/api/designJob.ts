@@ -286,7 +286,7 @@ async function finishFlat(jobId: number, review: AiReview | null, error: string 
   const saved = project.scene as DesignScene;
   const now = new Date();
   if (project.designRev !== job.baseRev + 1) return endJob(job.id, { stage: 'done', review, error: 'PROJECT_CHANGED' });
-  const fixed = review && saved.generation ? reviewedScene({ plan, items: saved.items, decor: saved.decor ?? [], generation: saved.generation }, review, (await getDesignCatalog()).products) : null;
+  const fixed = review && saved.generation ? reviewedScene({ plan, items: saved.items, decor: saved.decor ?? [], electrical: saved.electrical ?? [], generation: saved.generation, styleId: saved.styleId, calculatorPicks: calculatorPicksOf(project, saved) }, review, (await getDesignCatalog()).products) : null;
   const scene: DesignScene = { ...saved, ...(fixed ?? {}), progress: laidOutProgress(saved.progress) };
   const written = await writeFlat(job, project, plan, scene, { expectRev: job.baseRev + 1, stage: 'review', jobUpdate: { stage: 'done', review, error, stageAt: now, finishedAt: now } });
   if (!written.ok) {

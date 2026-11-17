@@ -11,7 +11,7 @@
 import { withoutOrphans } from './arrangedOff';
 import { settleFitted } from './fitted';
 import { fitKitchenCorners } from './kitchenCorner';
-import { applyReviewFixes, clearOfDecor, proposalDecor, proposalNotes, proposalPicks, settleToWalls, underCeilingDecor, withoutArtOverDecor, withProposalFinishes, type AiProposal } from './aiProposal';
+import { applyReviewFixes, clearOfDecor, proposalDecor, proposalNotes, proposalPicks, settleToWalls, standsAfterMove, underCeilingDecor, withoutArtOverDecor, withProposalFinishes, type AiProposal } from './aiProposal';
 import type { AiReview } from './aiReview';
 import { layoutPlan } from './autoLayout';
 import { suggestElectrical, withFixtureProducts } from './electrical';
@@ -29,6 +29,7 @@ import { columnFootprints } from './walls';
 import { withGeneratedPartitions } from './autoPartitions';
 import { radiatorKeepouts } from './ruleChecks';
 import { entranceSightBands, underCeiling, type Quad } from './rules';
+import type { Footprint } from './manipulate';
 import { isBaseFinish } from './zones';
 import type { DecorPiece, ElectricalPoint, FloorPlan, GenerationRecord, PlacedItem, StyleId, SurfaceFinish } from './types';
 import { wcBoxes } from './decor/wcBox';
@@ -118,11 +119,12 @@ export function generateScene(input: GenerateSceneInput): GeneratedScene {
   const known = input.electrical.filter((p) => p.origin === 'user' || p.origin === 'generated');
   const rooms = withOpeningProducts(plan.rooms, catalog, styleId);
   const laid = rooms !== plan.rooms ? { ...plan, rooms } : plan;
-  // The designer's wall decor, measured against where the engine put the bed, the sofa, the TV
-  // unit (`proposalDecor`). An engine generation has none.
   // A box behind every WC for its concealed cistern (the design rules), whoever designed the rest.
-  const designed = proposalDecor(laid, proposal, items, catalog);
-  const decor = [...designed, ...fitted.decor, ...hall.decor, ...wardrobes.decor, ...wcBoxes(laid.rooms, items, catalog, designed)];
+  const boxes = wcBoxes(laid.rooms, items, catalog);
+  // The designer's wall decor, measured against where the engine put the bed, the sofa, the TV
+  // unit, and kept off the joinery and the boxes it built (`proposalDecor`). An engine generation has none.
+  const designed = proposalDecor(laid, proposal, items, catalog, [...fitted.decor, ...hall.decor, ...wardrobes.decor, ...boxes]);
+  const decor = [...designed, ...fitted.decor, ...hall.decor, ...wardrobes.decor, ...boxes];
   // Wired once the joinery and the decor stand, so no switch or general socket lands behind a
   // wardrobe (`standardFor`).
   const wired = withFixtureProducts(suggestElectrical(plan, items, known, styleId, decor), catalog, styleId, plan.rooms, items);
@@ -142,22 +144,103 @@ export function generateScene(input: GenerateSceneInput): GeneratedScene {
 /**
  * The designer's check applied to the flat it furnished (`lib/design/aiReview`): its
  * replacements, removals and moves where they fit (`applyReviewFixes`), and each room's note
- * after the check said after the first.
+ * after the check said after the first. In a room the check changed, the fittings follow the
+ * furniture again as they do when the flat is laid out (`suggestElectrical`, `withFixtureProducts`,
+ * the calculation's choices, `underCeilingDecor`) — a room wired by hand is kept — and every other
+ * room keeps its fittings as they were.
  */
 export function reviewedScene(
-  scene: { plan: FloorPlan; items: PlacedItem[]; decor: DecorPiece[]; generation: GenerationRecord },
+  scene: { plan: FloorPlan; items: PlacedItem[]; decor: DecorPiece[]; electrical: ElectricalPoint[]; generation: GenerationRecord; styleId: StyleId; calculatorPicks?: CalculatorPicks | null },
   review: AiReview,
   catalog: CatalogProduct[]
-): { items: PlacedItem[]; decor: DecorPiece[]; generation: GenerationRecord } {
-  const reviewed = applyReviewFixes(scene.items, scene.decor, review, scene.plan, catalog);
-  // What was arranged off a piece the check took away goes with it (the TV with its unit), and so
-  // does what was built for a piece it moved or took away (`lib/design/fitted`).
-  const standing = withoutOrphans(scene.items, placeableOnly(reviewed.items), scene.plan.rooms);
-  const fixed = settleFitted(reviewed.decor, standing, scene.plan.rooms);
+): { items: PlacedItem[]; decor: DecorPiece[]; electrical: ElectricalPoint[]; generation: GenerationRecord } {
+  // A piece the check moves keeps off the floor the layout kept clear, as the matcher's products do.
+  const clear = keptClear(scene.plan, scene.styleId);
+  const checked = (fixes: AiReview['fixes']) => {
+    const reviewed = applyReviewFixes(scene.items, scene.decor, { ...review, fixes }, scene.plan, catalog, clear);
+    // What was arranged off a piece the check took away goes with it (the TV with its unit), and so
+    // does what was built for a piece it moved or took away (`lib/design/fitted`).
+    const standing = withoutOrphans(scene.items, placeableOnly(reviewed.items), scene.plan.rooms);
+    // Only what was built for a piece the check moved, replaced or took out is settled again: the
+    // rest stays as generation built it (the studio's builders would redo it by other formulas).
+    return settleFitted(reviewed.decor, standing, scene.plan.rooms, changedPieces(scene.items, standing));
+  };
+  // A move is kept only where the piece stands well once what was built for it is settled behind
+  // it (a WC pushed off its new wall by its box into the basin): a move that does not is dropped.
+  let fixes = review.fixes;
+  let fixed = checked(fixes);
+  for (;;) {
+    const now = fixed;
+    const before = new Map(scene.items.map((i) => [i.id, i]));
+    const badly = fixes.filter((fix) => {
+      if (fix.action !== 'to_wall' && fix.action !== 'move_to_wall') return false;
+      const was = before.get(fix.target);
+      const is = now.items.find((i) => i.id === fix.target);
+      if (!was || !is || JSON.stringify(is) === JSON.stringify(was)) return false;
+      return !standsAfterMove(is, now.items, now.decor, scene.plan, clear[is.roomId]);
+    });
+    if (badly.length === 0) break;
+    fixes = fixes.filter((fix) => !badly.includes(fix));
+    fixed = checked(fixes);
+  }
+  let items = placeableOnly(fixed.items);
+  let electrical = scene.electrical;
+  const rewire = changedRooms(scene, { items, decor: fixed.decor });
+  if (rewire.size > 0) {
+    const wired = withFixtureProducts(suggestElectrical(scene.plan, items, scene.electrical, scene.styleId, fixed.decor), catalog, scene.styleId, scene.plan.rooms, items);
+    const dressed = scene.calculatorPicks ? applyBoardPicks(scene.plan, wired, scene.calculatorPicks, catalog).electrical : wired;
+    const points = [...scene.electrical.filter((p) => !rewire.has(p.roomId)), ...dressed.filter((p) => rewire.has(p.roomId))];
+    const ceiled = underCeilingDecor(items, points, fixed.decor, scene.plan);
+    items = ceiled.items;
+    electrical = ceiled.electrical;
+  }
   // The room's note after the check says how it reads now; the designer's first note stays before it.
   const notes = { ...(scene.generation.notes ?? {}) };
   for (const [roomId, note] of Object.entries(review.notes)) notes[roomId] = (notes[roomId] ? `${notes[roomId]} ${note}` : note).slice(0, 1200);
-  return { items: placeableOnly(fixed.items), decor: fixed.decor, generation: { ...scene.generation, notes, reviewed: review.fixes.length } };
+  return { items, decor: fixed.decor, electrical, generation: { ...scene.generation, notes, reviewed: review.fixes.length } };
+}
+
+/** The ids of the pieces not as they were: moved, swapped, gone or new. */
+function changedPieces(before: readonly PlacedItem[], after: readonly PlacedItem[]): Set<string> {
+  const now = new Map(after.map((i) => [i.id, i]));
+  const ids = new Set(before.map((i) => i.id));
+  const changed = new Set<string>();
+  for (const was of before) {
+    const is = now.get(was.id);
+    if (!is || (is !== was && JSON.stringify(is) !== JSON.stringify(was))) changed.add(was.id);
+  }
+  for (const is of after) if (!ids.has(is.id)) changed.add(is.id);
+  return changed;
+}
+
+/** The rooms whose furniture or decor is not as it was: a piece added, gone, moved, swapped or rebuilt. */
+function changedRooms(before: { items: PlacedItem[]; decor: DecorPiece[] }, after: { items: PlacedItem[]; decor: DecorPiece[] }): Set<string> {
+  const rooms = new Set<string>();
+  const compare = (was: ReadonlyArray<{ id: string; roomId: string }>, now: ReadonlyArray<{ id: string; roomId: string }>) => {
+    const nowById = new Map(now.map((x) => [x.id, x]));
+    const wasIds = new Set(was.map((x) => x.id));
+    for (const x of was) {
+      const y = nowById.get(x.id);
+      if (!y) rooms.add(x.roomId);
+      else if (y !== x && JSON.stringify(y) !== JSON.stringify(x)) rooms.add(x.roomId).add(y.roomId);
+    }
+    for (const y of now) if (!wasIds.has(y.id)) rooms.add(y.roomId);
+  };
+  compare(before.items, after.items);
+  compare(before.decor, after.decor);
+  return rooms;
+}
+
+/**
+ * The floor a flat's layout keeps clear, per room: its columns, the strip before each radiator and
+ * the floor behind a partition screen that stands (`withGeneratedPartitions` on a plan that has its
+ * screens adds none and keeps their floor) — what `generateScene` hands the layout and the matcher.
+ */
+function keptClear(plan: FloorPlan, styleId: StyleId | null): Record<string, Footprint[]> {
+  const radiators = radiatorKeepouts(plan);
+  const partitions = withGeneratedPartitions(plan, styleId);
+  const behind = partitions.added.length === 0 ? partitions.keepouts : {};
+  return Object.fromEntries(plan.rooms.map((r) => [r.id, [...columnFootprints(plan, r.id), ...(radiators[r.id] ?? []), ...(behind[r.id] ?? [])]]));
 }
 
 /**

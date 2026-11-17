@@ -9,15 +9,18 @@
  * actually put the bed, the sofa or the TV unit (`lib/design/decor/resolve`).
  */
 
-import { applySwap, PAIRED_SLOTS, rehung, settledPosition, type CatalogProduct } from './matcher';
+import { applySwap, isKitchenFurniture, PAIRED_SLOTS, rehung, settledPosition, workingFloor, type CatalogProduct } from './matcher';
+import { arrangedOff } from './arrangedOff';
 import { getArchetype } from './catalog';
+import { carryCompanions, carryRiders, companionsOf, housedIds } from './decor/housing';
 import { seatSlots } from './autoLayout';
 import { decorDepth, fitLight, paramsOf } from './decor/layout';
-import { blocksWindow, fitSwapped, footprintInRoom, footprintOf, footprintsOverlap, inDoorway, isPlacementValid, pieceWall } from './manipulate';
+import { blocksWindow, fitSwapped, footprintInRoom, footprintOf, footprintsOverlap, inDoorway, isPlacementValid, pieceWall, type Footprint } from './manipulate';
 import { roomEdges, type PlanEdge } from './planGeometry';
 import type { AiReview } from './aiReview';
 import { finishFromProduct, isWetRoom, surfaceOptions, surfaceSpecs } from './surfaces';
-import type { DecorPiece, DecorSlot, ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, StyleId, SurfaceFinish, Vec2 } from './types';
+import type { DecorPiece, DecorSlot, ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, SlotKind, StyleId, SurfaceFinish, Vec2 } from './types';
+import type { RoomType } from '@/lib/calculator/types';
 import { COVERS_WALL, overlaps, reanchorDecor, resolveDecor, resolveRoomDecor, type DecorIntent } from './decor/resolve';
 import { underCeiling } from './rules';
 
@@ -82,8 +85,13 @@ export function withProposalFinishes(finishes: SurfaceFinish[], plan: FloorPlan,
   return next;
 }
 
-/** Every room's decor intents measured against the flat as the engine laid it out. */
-export function proposalDecor(plan: FloorPlan, proposal: AiProposal | null | undefined, items: PlacedItem[], catalog: CatalogProduct[]): DecorPiece[] {
+/**
+ * Every room's decor intents measured against the flat as the engine laid it out — its furniture
+ * and, `built`, the joinery and boxes it made (the hall's wardrobe, a wall of wardrobe, a vanity, a
+ * column, a bath's box): decor that covers its wall keeps off those as it keeps off what hangs there
+ * for use (`clearOfBuilt`).
+ */
+export function proposalDecor(plan: FloorPlan, proposal: AiProposal | null | undefined, items: PlacedItem[], catalog: CatalogProduct[], built: readonly DecorPiece[] = []): DecorPiece[] {
   if (!proposal) return [];
   return plan.rooms.flatMap((room) => {
     const asked = proposal.rooms.find((r) => r.roomId === room.id);
@@ -92,8 +100,37 @@ export function proposalDecor(plan: FloorPlan, proposal: AiProposal | null | und
     const bed = items.find((i) => i.roomId === room.id && i.slot === 'bed');
     const ownHeadboard = !!bed && bed.size.height >= TALL_HEADBOARD_M;
     const wanted = ownHeadboard ? asked.decor.filter((d) => d.anchor !== 'bed') : asked.decor;
-    return resolveRoomDecor(wanted, underCeiling(room, plan), items, catalog);
+    return clearOfBuilt((r) => resolveRoomDecor(wanted, r, items, catalog), underCeiling(room, plan), built);
   });
+}
+
+/** Joinery and boxes the engine built on a wall: what decor covering the wall cannot stand behind. */
+function isBuilt(piece: DecorPiece): boolean {
+  return (piece.family === 'cabinet' || piece.family === 'box') && piece.wallIndex != null;
+}
+
+/**
+ * Decor `resolve`d in a room, kept off the engine's joinery and boxes there: decor that covers its
+ * wall (`COVERS_WALL`: slats, a slab, panels, cladding, a mural, tiles, a niche) and would stand
+ * behind one at its height is fitted again with that joinery's stretch as an opening, beside it —
+ * and left out where it still would. Decor that does not cover its wall (mouldings, a light line)
+ * and decor clear of the joinery are fitted as they were. Pure.
+ */
+function clearOfBuilt(resolve: (room: PlanRoom) => DecorPiece[], room: PlanRoom, built: readonly DecorPiece[]): DecorPiece[] {
+  const joinery = built.filter((d) => d.roomId === room.id && isBuilt(d));
+  const behind = (piece: DecorPiece, of: readonly DecorPiece[]) => COVERS_WALL.has(piece.family) && of.some((d) => overlaps(piece, d));
+  const first = resolve(room);
+  const clash = joinery.filter((d) => first.some((piece) => behind(piece, [d])));
+  if (clash.length === 0) return first;
+  const edges = roomEdges(room.polygon);
+  const openings = clash.flatMap((d) => {
+    const edge = edges.find((e) => e.index === d.wallIndex);
+    if (!edge) return [];
+    const from = Math.min(d.span.from, d.span.to);
+    const to = Math.max(d.span.from, d.span.to);
+    return [{ id: `built-${d.id}`, roomId: room.id, kind: 'window' as const, wallIndex: edge.index, t: (from + to) / 2 / edge.length, widthM: to - from, heightM: d.height.to, sillM: 0, exterior: false }];
+  });
+  return resolve({ ...room, openings: [...room.openings, ...openings] }).filter((piece) => !behind(piece, joinery));
 }
 
 /** A bed this tall has a headboard that is its own wall panel (B-6). */
@@ -122,9 +159,69 @@ function wallPiece(item: PlacedItem): boolean {
   return rule?.type === 'wall' || rule?.type === 'wall-run' || rule?.type === 'corner' || (rule?.type === 'relative' && (rule.beside != null || !!rule.toWall));
 }
 
-/** Whether a piece may stand where it is now, among `others`: inside the floor, clear of them, of the windows (if tall) and of the doorways. */
-function standsWell(room: PlanRoom, item: PlacedItem, others: PlacedItem[], rooms: readonly PlanRoom[]): boolean {
-  return isPlacementValid(room, item, others, rooms) && !blocksWindow(item, room) && !inDoorway(item, room);
+/**
+ * Whether a piece may stand where it is now, among `others`: inside the floor, clear of them, of
+ * the windows (if tall) and of the doorways — and, given the floor the layout kept clear (`keepClear`:
+ * the strip before a radiator, a column, a partition's floor), of that and of a kitchen run's
+ * working floor, as the matcher keeps a product (`MatchOptions.keepClear`).
+ */
+function standsWell(room: PlanRoom, item: PlacedItem, others: PlacedItem[], rooms: readonly PlanRoom[], keepClear: readonly Footprint[] | null = null): boolean {
+  if (!isPlacementValid(room, item, others, rooms) || blocksWindow(item, room) || inDoorway(item, room)) return false;
+  if (!keepClear) return true;
+  const clear = [...keepClear, ...(isKitchenFurniture(item) ? [] : others.filter((o) => o.roomId === room.id && o.slot === 'kitchen_run').map(workingFloor))];
+  const footprint = footprintOf(item.position, item.size, item.rotation);
+  return !clear.some((box) => footprintsOverlap(footprint, box));
+}
+
+/**
+ * The slots a kind is laid out off by its placement rule — every one the rule names: the TV unit
+ * off the sofa, the rug under the coffee table (or the sofa), the wall cabinets over the run, the
+ * fridge at its end, a print over the bed — not only those it cannot stand without (`arrangedOff`).
+ */
+function laidOffSlots(kind: string, roomType?: RoomType): SlotKind[] {
+  const rule = getArchetype(kind)?.placement;
+  const slots = new Set<SlotKind>(arrangedOff(kind, roomType)?.slots ?? []);
+  if (rule?.type === 'relative' || rule?.type === 'under') slots.add(rule.to);
+  if (rule?.type === 'wall-mounted' && rule.above) for (const slot of [rule.above].flat()) slots.add(slot);
+  if (rule?.type === 'wall' && rule.beside) slots.add(rule.beside);
+  return [...slots];
+}
+
+/** The nearest piece of a slot in `item`'s room, other than itself. */
+function nearestOf(item: PlacedItem, slot: SlotKind, items: readonly PlacedItem[]): PlacedItem | undefined {
+  const distance = (p: PlacedItem) => Math.hypot(p.position.x - item.position.x, p.position.z - item.position.z);
+  return items.filter((p) => p.roomId === item.roomId && p.id !== item.id && p.slot === slot).sort((a, b) => distance(a) - distance(b))[0];
+}
+
+/**
+ * What a move of `item` takes along (the studio's own movers): what rides on it — its tap, its
+ * dryer, its mixer (`carryCompanions`), what stands on its top or hangs over it as a TV over its
+ * unit (`carryRiders`) — and the pieces placed off it that the check stands by it again after the
+ * fixes (`PLACED_OFF`: the nightstands, the coffee table, the desk chair).
+ */
+function takenAlong(item: PlacedItem, items: readonly PlacedItem[]): Set<string> {
+  const probe = items.map((i) => (i.id === item.id ? { ...i, position: { x: i.position.x + 1, z: i.position.z } } : i));
+  const riders = carryRiders(probe, item).filter((i, k) => i !== probe[k] && i.id !== item.id);
+  return new Set([...companionsOf(item.id, items), ...riders, ...items.filter((i) => i.roomId === item.roomId && PLACED_OFF[i.kind] === item.slot)].map((i) => i.id));
+}
+
+/**
+ * Why a piece may not be moved to another wall by the check: the pieces it would leave standing
+ * where it was — those laid out off it that a move does not take along (the sofa's TV unit and rug,
+ * the run's wall cabinets and fridge, the bed's print) — or, for a piece laid out off another that
+ * stands in the room (a TV unit off the sofa, a nightstand off the bed), that piece, which it would
+ * leave. Empty for a piece the check may move. Pure.
+ */
+export function heldByMove(item: PlacedItem, items: readonly PlacedItem[], rooms: ReadonlyArray<Pick<PlanRoom, 'id' | 'type'>>): PlacedItem[] {
+  const type = rooms.find((r) => r.id === item.roomId)?.type;
+  const along = takenAlong(item, items);
+  const left = items.filter((other) => {
+    if (other.roomId !== item.roomId || other.id === item.id || along.has(other.id)) return false;
+    return laidOffSlots(other.kind, type).some((slot) => slot === item.slot && nearestOf(other, slot, items)?.id === item.id);
+  });
+  const off = arrangedOff(item.kind, type);
+  const anchor = off ? off.slots.map((slot) => nearestOf(item, slot, items)).find((p) => !!p) : undefined;
+  return anchor ? [anchor, ...left] : left;
 }
 
 /**
@@ -132,7 +229,7 @@ function standsWell(room: PlanRoom, item: PlacedItem, others: PlacedItem[], room
  * face the room — the first spot nearest `along` (in 10 cm steps either way) where it stands well,
  * or null.
  */
-function againstWall(item: PlacedItem, room: PlanRoom, edge: PlanEdge, along: number, others: PlacedItem[], rooms: readonly PlanRoom[]): PlacedItem | null {
+function againstWall(item: PlacedItem, room: PlanRoom, edge: PlanEdge, along: number, others: PlacedItem[], rooms: readonly PlanRoom[], keepClear: readonly Footprint[] | null = null): PlacedItem | null {
   const half = item.size.width / 2;
   const steps = [0];
   for (let d = 0.1; d <= edge.length; d += 0.1) steps.push(d, -d);
@@ -141,13 +238,13 @@ function againstWall(item: PlacedItem, room: PlanRoom, edge: PlanEdge, along: nu
     if (t - half < 0.02 || t + half > edge.length - 0.02) continue;
     const foot = { x: edge.a.x + edge.dir.x * t, z: edge.a.z + edge.dir.z * t };
     const moved = { ...item, rotation: edge.facing, position: { x: foot.x + edge.inward.x * (item.size.depth / 2 + 0.02), z: foot.z + edge.inward.z * (item.size.depth / 2 + 0.02) } };
-    if (standsWell(room, moved, others, rooms)) return moved;
+    if (standsWell(room, moved, others, rooms, keepClear)) return moved;
   }
   return null;
 }
 
 /** Back against the wall behind it (or the nearest wall, turned to face the room), as near where it stood as it stands well. */
-function backToWall(item: PlacedItem, room: PlanRoom, others: PlacedItem[], rooms: readonly PlanRoom[]): PlacedItem | null {
+function backToWall(item: PlacedItem, room: PlanRoom, others: PlacedItem[], rooms: readonly PlanRoom[], keepClear: readonly Footprint[] | null = null): PlacedItem | null {
   const behind = pieceWall(item, room, 1.5);
   const centre = item.position;
   const edges = behind
@@ -155,7 +252,7 @@ function backToWall(item: PlacedItem, room: PlanRoom, others: PlacedItem[], room
     : [...roomEdges(room.polygon)].sort((a, b) => distanceToEdge(centre, a) - distanceToEdge(centre, b)).slice(0, 2);
   for (const edge of edges) {
     const along = (centre.x - edge.a.x) * edge.dir.x + (centre.z - edge.a.z) * edge.dir.z;
-    const moved = againstWall(item, room, edge, along, others, rooms);
+    const moved = againstWall(item, room, edge, along, others, rooms, keepClear);
     if (moved) return moved;
   }
   return null;
@@ -214,12 +311,13 @@ function shiftWithFront(item: PlacedItem, step: number, out: PlacedItem[], room:
 /**
  * Every piece the engine stands against a wall back against it where it has come to stand off it —
  * a swap, a fit or a check nudged it (a chest of drawers 48 cm off its wall) — if it stands well
- * there. A locked piece is left. Pure.
+ * there; given `only`, only the pieces it picks (and what stands in front of them). A locked piece
+ * is left. Pure.
  */
-export function settleToWalls(items: PlacedItem[], plan: FloorPlan): PlacedItem[] {
+export function settleToWalls(items: PlacedItem[], plan: FloorPlan, only?: (item: PlacedItem) => boolean): PlacedItem[] {
   const out = [...items];
   out.forEach((item) => {
-    if (item.locked || !wallPiece(item)) return;
+    if (item.locked || !wallPiece(item) || (only && !only(item))) return;
     const room = plan.rooms.find((r) => r.id === item.roomId);
     const wall = room && pieceWall(item, room, 0.7);
     if (!room || !wall || wall.gap <= 0.03) return;
@@ -233,16 +331,16 @@ export function settleToWalls(items: PlacedItem[], plan: FloorPlan): PlacedItem[
 /**
  * What stands in front of decor on its wall moved off it by the decor's depth (`decorDepth`) — a
  * bed in front of a headboard panel, a sideboard in front of slats — where it still stands well;
- * otherwise left, for the check to see. A niche wall is kept off furniture when it is fitted
- * (`resolveDecor`). Pure.
+ * otherwise left, for the check to see; given `only`, only the pieces it picks. A niche wall is
+ * kept off furniture when it is fitted (`resolveDecor`). Pure.
  */
-export function clearOfDecor(items: PlacedItem[], decor: DecorPiece[], plan: FloorPlan): PlacedItem[] {
+export function clearOfDecor(items: PlacedItem[], decor: DecorPiece[], plan: FloorPlan, only?: (item: PlacedItem) => boolean): PlacedItem[] {
   if (decor.length === 0) return items;
   const out = [...items];
   out.forEach((item, index) => {
     // A TV on the wall is hung on the slab behind it, not inside it; other hung pieces keep off decor when it is fitted.
     const hung = item.elevationM >= 0.05;
-    if (item.locked || (hung && item.slot !== 'tv') || item.slot === 'rug' || item.slot === 'curtain') return;
+    if (item.locked || (hung && item.slot !== 'tv') || item.slot === 'rug' || item.slot === 'curtain' || (only && !only(item))) return;
     const room = plan.rooms.find((r) => r.id === item.roomId);
     const wall = room && pieceWall(out[index], room, 0.3);
     if (!room || !wall) return;
@@ -303,20 +401,26 @@ export function underCeilingDecor(items: PlacedItem[], electrical: ElectricalPoi
  *   on the same wall, a hung one at the height it should hang (`settledElevation`) — if it fits;
  *   both of a pair (`PAIRED_SLOTS`: the nightstands) are replaced, each beside the bed, or neither;
  * - `to_wall`: back against the wall behind it, or the nearest; `move_to_wall`: against wall N,
- *   as near its middle as it stands well (clear of windows if tall, and of doorways);
+ *   as near its middle as it stands well (clear of windows if tall, of doorways and — given
+ *   `keepClear`, per room — of the floor the layout kept clear and a kitchen run's working floor),
+ *   what rides on it and what stands on it carried along (`carryCompanions`, `carryRiders`);
  * - `remove_decor`: the decor piece goes; `decor_to_wall`: fitted again on wall N.
  * Then the pieces placed off a replaced or moved bed, sofa or desk stand by it again, the chairs
  * round a replaced table are seated round it, every wall piece is back on its wall, and nothing
  * stands in the decor. A locked piece is left. Pure.
  */
-export function applyReviewFixes(items: PlacedItem[], decor: DecorPiece[], review: AiReview, plan: FloorPlan, catalog: CatalogProduct[]): { items: PlacedItem[]; decor: DecorPiece[] } {
+export function applyReviewFixes(items: PlacedItem[], decor: DecorPiece[], review: AiReview, plan: FloorPlan, catalog: CatalogProduct[], keepClear: Record<string, Footprint[]> = {}): { items: PlacedItem[]; decor: DecorPiece[] } {
   const byId = new Map(catalog.map((p) => [p.id, p]));
   const rooms = new Map(plan.rooms.map((r) => [r.id, underCeiling(r, plan)]));
   let out = [...items];
   let pieces = [...decor];
   const changed = new Set<string>();
+  // The rooms whose decor the check moved or took out: what stands there is cleared of it again.
+  const decorRooms = new Set<string>();
   for (const fix of review.fixes) {
     if (fix.action === 'remove_decor') {
+      const gone = pieces.find((d) => d.id === fix.target);
+      if (gone) decorRooms.add(gone.roomId);
       pieces = pieces.filter((d) => d.id !== fix.target);
       continue;
     }
@@ -324,26 +428,25 @@ export function applyReviewFixes(items: PlacedItem[], decor: DecorPiece[], revie
       const piece = pieces.find((d) => d.id === fix.target);
       const room = piece && rooms.get(piece.roomId);
       if (!piece || !room || fix.wallIndex == null) continue;
-      const moved = resolveDecor(
-        {
-          family: piece.family,
-          anchor: 'wall',
-          wallIndex: fix.wallIndex,
-          widthM: piece.span.to - piece.span.from > 0 ? piece.span.to - piece.span.from : null,
-          heightFromM: piece.height.from,
-          heightToM: piece.height.to,
-          params: piece.params,
-          materials: Object.entries(piece.materials).map(([slot, m]) => ({ slot: slot as DecorSlot, productId: m?.product?.productId ?? null, colorHex: m?.colorHex ?? null })),
-          referenceId: piece.reference?.entryId ?? null,
-          concept: piece.reference?.concept ?? null,
-          note: piece.note ?? null,
-        },
-        room,
-        out,
-        catalog,
-        piece.id
-      );
-      if (moved && !pieces.some((d) => d.id !== piece.id && overlaps(d, moved))) pieces = pieces.map((d) => (d.id === piece.id ? moved : d));
+      const intent: DecorIntent = {
+        family: piece.family,
+        anchor: 'wall',
+        wallIndex: fix.wallIndex,
+        widthM: piece.span.to - piece.span.from > 0 ? piece.span.to - piece.span.from : null,
+        heightFromM: piece.height.from,
+        heightToM: piece.height.to,
+        params: piece.params,
+        materials: Object.entries(piece.materials).map(([slot, m]) => ({ slot: slot as DecorSlot, productId: m?.product?.productId ?? null, colorHex: m?.colorHex ?? null })),
+        referenceId: piece.reference?.entryId ?? null,
+        concept: piece.reference?.concept ?? null,
+        note: piece.note ?? null,
+      };
+      // Kept off the engine's joinery on that wall, as the designer's decor is when it is first fitted.
+      const moved = clearOfBuilt((r) => [resolveDecor(intent, r, out, catalog, piece.id)].filter((d): d is DecorPiece => !!d), room, pieces)[0];
+      if (moved && !pieces.some((d) => d.id !== piece.id && overlaps(d, moved))) {
+        pieces = pieces.map((d) => (d.id === piece.id ? moved : d));
+        decorRooms.add(piece.roomId);
+      }
       continue;
     }
     const index = out.findIndex((i) => i.id === fix.target);
@@ -390,17 +493,20 @@ export function applyReviewFixes(items: PlacedItem[], decor: DecorPiece[], revie
       const onVanity = item.slot === 'sink' && item.elevationM > 0.3;
       const hung = onVanity ? { ...swapped, elevationM: item.elevationM, position: item.position } : rehung(item, swapped, product, others);
       placed = hung.elevationM >= 0.05 ? hung : fitSwapped(room, { ...hung, position: settledPosition(item, hung.size, room, others) }, others, plan.rooms);
-    } else if (fix.action === 'to_wall') {
-      placed = backToWall(item, room, others, plan.rooms);
-    } else if (fix.action === 'move_to_wall') {
-      const edge = roomEdges(room.polygon).find((e) => e.index === fix.wallIndex);
-      placed = edge ? againstWall(item, room, edge, edge.length / 2, others, plan.rooms) : null;
+    } else if (fix.action === 'to_wall' || fix.action === 'move_to_wall') {
+      // What it takes along is in nothing's way of it; the rest of the room is, and so is the floor kept clear.
+      const along = takenAlong(item, out);
+      const rest = others.filter((i) => !along.has(i.id));
+      const clear = keepClear[item.roomId] ?? [];
+      const edge = fix.action === 'move_to_wall' ? roomEdges(room.polygon).find((e) => e.index === fix.wallIndex) : undefined;
+      placed = fix.action === 'to_wall' ? backToWall(item, room, rest, plan.rooms, clear) : edge ? againstWall(item, room, edge, edge.length / 2, rest, plan.rooms, clear) : null;
     }
     if (!placed) continue;
     // Nothing the check moves or swaps in lands in the engine's joinery or a box (a WC moved
     // against the washer's column): such a fix is dropped.
     if (placed.elevationM < 0.05 && inEngineDecor(placed, pieces, room)) continue;
     out[index] = placed;
+    if (fix.action === 'to_wall' || fix.action === 'move_to_wall') out = carryRiders(carryCompanions(out, item), item);
     changed.add(`${item.roomId}|${item.slot}`);
   }
   // A nightstand stands by the bed the room has now, not where the old bed's side was; one with no
@@ -418,9 +524,40 @@ export function applyReviewFixes(items: PlacedItem[], decor: DecorPiece[], revie
   const reseat = [...changed].filter((k) => k.endsWith('|dining_table') || k.endsWith('|dining_chair')).map((k) => k.split('|')[0]);
   out = reseatChairs(out, new Set(reseat), plan.rooms);
   // Decor centred on a piece the check moved goes with it first; then nothing stands in it.
-  pieces = reanchorDecor(pieces, out, plan.rooms);
-  out = clearOfDecor(settleToWalls(out, plan), pieces, plan);
+  // Only what the check changed is tidied: decor whose piece it moved or swapped follows it (a piece
+  // that would follow the furniture as it stood stays as it was), the pieces it moved, swapped or
+  // seated again go back on their walls, and nothing stands in decor it moved. The rest of the flat
+  // stays as generation left it.
+  const asLaid = new Map(reanchorDecor(pieces, items, plan.rooms).map((d) => [d.id, JSON.stringify(d)]));
+  const followed = new Map(reanchorDecor(pieces, out, plan.rooms).map((d) => [d.id, d]));
+  pieces = pieces.flatMap((d) => {
+    const now = followed.get(d.id);
+    if ((now ? JSON.stringify(now) : undefined) === asLaid.get(d.id)) return [d];
+    return now ? [now] : [];
+  });
+  const touched = (i: PlacedItem) => changed.has(`${i.roomId}|${i.slot}`) || changed.has(`${i.roomId}|${PLACED_OFF[i.kind]}`) || (i.slot === 'dining_chair' && changed.has(`${i.roomId}|dining_table`));
+  out = clearOfDecor(settleToWalls(out, plan, touched), pieces, plan, (i) => touched(i) || decorRooms.has(i.roomId));
   return { items: out, decor: pieces };
+}
+
+/**
+ * Whether a piece the check moved stands well where it has come to stand once what was built for it
+ * is settled again (`settleFitted`: a WC pushed off its new wall by the box built behind it), by the
+ * test its move was given (`standsWell` among the room's other pieces, clear of the floor kept clear),
+ * out of the engine's joinery and boxes — and with what was built for it out of every other piece.
+ * Pure.
+ */
+export function standsAfterMove(item: PlacedItem, items: readonly PlacedItem[], decor: readonly DecorPiece[], plan: FloorPlan, keepClear: readonly Footprint[] = []): boolean {
+  const planRoom = plan.rooms.find((r) => r.id === item.roomId);
+  if (!planRoom) return false;
+  const room = underCeiling(planRoom, plan);
+  const along = takenAlong(item, items);
+  const others = items.filter((i) => i.id !== item.id && !along.has(i.id));
+  if (!standsWell(room, item, others, plan.rooms, keepClear)) return false;
+  const pieces = [...decor];
+  if (item.elevationM < 0.05 && inEngineDecor(item, pieces, room)) return false;
+  const own = pieces.filter((d) => housedIds(d).includes(item.id));
+  return !others.some((o) => o.roomId === item.roomId && o.elevationM < 0.05 && inEngineDecor(o, own, room));
 }
 
 /** Whether a floor piece's footprint runs into a made-to-measure cabinet or a box on one of its room's walls. */

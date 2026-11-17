@@ -7,7 +7,7 @@
  * Pure: no React, no three.js.
  */
 
-import { houseItem, housingOf, followHoused, HOUSING_OF_SLOT } from './decor/housing';
+import { adoptHoused, companionsOf, houseItem, housedIds, housingOf, followHoused, HOUSING_OF_SLOT } from './decor/housing';
 import { withoutOrphanLegs } from './kitchenCorner';
 import { isBuiltInBath } from './productRoles';
 import { WET_ROOM_TYPES } from './rules';
@@ -19,12 +19,35 @@ export interface Fitted {
   decor: DecorPiece[];
 }
 
-/** After the furniture changed: every housing where its piece stands, and no corner leg left of a kitchen run that is gone. */
-export function settleFitted(decor: DecorPiece[], items: PlacedItem[], rooms: readonly PlanRoom[]): Fitted {
+/**
+ * After the furniture changed: every housing where its piece stands, and no corner leg left of a
+ * kitchen run that is gone. Given `changed` — the ids of the pieces that were moved, replaced or
+ * taken out — only what was built for those (or for a piece no longer there) is settled again, and
+ * every other housing and its piece stay exactly as they were: the generation built them with its
+ * own builders (`lib/design/bathroom`, `decor/wcBox`), which the studio's (`decor/housing`) would
+ * redo by other formulas. An empty set changes nothing.
+ */
+export function settleFitted(decor: DecorPiece[], items: PlacedItem[], rooms: readonly PlanRoom[], changed?: ReadonlySet<string>): Fitted {
   const housed = followHoused(decor, items, rooms);
   // A corner leg was joinery once; it is kitchen furniture now, and such a piece is not kept.
   const kept = housed.decor.some((d) => d.params.corner) ? housed.decor.filter((d) => !d.params.corner) : housed.decor;
-  return { items: withoutOrphanLegs(housed.items), decor: kept };
+  const settled = { items: withoutOrphanLegs(housed.items), decor: kept };
+  if (!changed) return settled;
+  const present = new Set(items.map((i) => i.id));
+  const touched = (piece: DecorPiece) => housedIds(piece).some((id) => changed.has(id) || !present.has(id));
+  const ids = new Set(decor.map((d) => d.id));
+  const linked = adoptHoused(decor, items, rooms);
+  const resettled = new Set(linked.filter(touched).map((d) => d.id));
+  const byId = new Map(settled.decor.map((d) => [d.id, d]));
+  // What was built for a changed piece as it is now — gone with its piece, split off as a piece of its own — and the rest as it was.
+  const nextDecor = [
+    ...linked.flatMap((d) => (resettled.has(d.id) ? (byId.has(d.id) ? [byId.get(d.id)!] : []) : [decor.find((o) => o.id === d.id)!])),
+    ...settled.decor.filter((d) => !ids.has(d.id) && touched(d)),
+  ];
+  const moves = new Set([...changed].flatMap((id) => [id, ...companionsOf(id, items).map((c) => c.id)]));
+  const nowById = new Map(settled.items.map((i) => [i.id, i]));
+  const nextItems = items.flatMap((i) => (!nowById.has(i.id) ? [] : moves.has(i.id) ? [nowById.get(i.id)!] : [i]));
+  return { items: nextItems, decor: nextDecor };
 }
 
 /**

@@ -100,7 +100,7 @@ describe('reviewedScene', () => {
     const laid = generateLike(7, generationProposal());
     const nightstand = laid.items.find((i) => i.kind === 'nightstand')!;
     const checked = reviewedScene(
-      { plan: laid.plan, items: laid.items, decor: laid.decor, generation: laid.generation },
+      { plan: laid.plan, items: laid.items, decor: laid.decor, electrical: laid.electrical, generation: laid.generation, styleId: 'modern' },
       { model: 'claude-test', fixes: [{ target: nightstand.id, action: 'remove', productId: null, wallIndex: null, reason: 'In the way.' }], notes: { bed: 'Checked.' } },
       GENERATION_CATALOG
     );

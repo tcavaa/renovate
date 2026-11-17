@@ -26,6 +26,9 @@ at runtime yet; the last one was seen on the sample plan.
   recovers. Being fixed in batches, the plain bugs first (`pnpm audit:generation` measures each
   fix; ticked items are done); which piece gives way to which waits for the owner's per-room rules
   — [design-studio/generation-audit.md](design-studio/generation-audit.md#how-it-is-being-fixed).
+- **The studio re-settles a generated flat's joinery on the first drag of any piece** — `settleFitted` with the
+  studio's builders moves 69 of 360 untouched fixture flats' WC boxes and WCs
+  ([design-studio/decor.md](design-studio/decor.md#known-gaps)).
 - Windows with no product render as an empty hole (the fixtures manifest lost its window role;
   re-run `pnpm models:fixtures`) — [3d-assets.md](3d-assets.md#known-gaps).
 - Brigade orders are missing from the revenue report and the CSV —

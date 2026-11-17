@@ -388,7 +388,7 @@ interface SlotOffer {
 }
 
 /** A kind's products for a flat of a style: what its slot is drawn from, and what else may take it. */
-interface KindPool {
+export interface KindPool {
   /**
    * What the slot is drawn from: for a kind the flat takes in its own style (`STRICT_STYLE_KINDS`)
    * the style's own products when the catalogue has any, else every product of the kind.
@@ -405,7 +405,7 @@ interface KindPool {
  * style keeps out of a flat it lays out (Scandinavian: nothing black) — unless that would leave the
  * kind with nothing at all.
  */
-function kindPool(kind: string, catalog: CatalogProduct[], styleId: StyleId): KindPool {
+export function kindPool(kind: string, catalog: CatalogProduct[], styleId: StyleId): KindPool {
   const all = candidatesFor(kind, catalog, styleId);
   const kept = all.filter((p) => !styleRejects(p, styleId));
   const pool = kept.length > 0 ? kept : all;
@@ -506,12 +506,12 @@ function liesWithinRoom(item: PlacedItem): boolean {
 }
 
 /** The kitchen's own pieces: the run, what hangs over it and what stands at its end or before it. */
-function isKitchenFurniture(item: Pick<PlacedItem, 'slot'>): boolean {
+export function isKitchenFurniture(item: Pick<PlacedItem, 'slot'>): boolean {
   return item.slot === 'fridge' || (CUSTOM_KITCHEN_SLOTS as readonly string[]).includes(item.slot);
 }
 
 /** The working floor in front of a kitchen run: as wide as the run, `KITCHEN_CIRCULATION_M` deep (the layout's `clearanceBox`). */
-function workingFloor(run: Pick<PlacedItem, 'position' | 'rotation' | 'size'>): Footprint {
+export function workingFloor(run: Pick<PlacedItem, 'position' | 'rotation' | 'size'>): Footprint {
   const { forward } = axes(run.rotation);
   const ahead = run.size.depth / 2 + KITCHEN_CIRCULATION_M / 2;
   return footprintOf({ x: run.position.x + forward.x * ahead, z: run.position.z + forward.z * ahead }, { width: run.size.width, depth: KITCHEN_CIRCULATION_M }, run.rotation);
