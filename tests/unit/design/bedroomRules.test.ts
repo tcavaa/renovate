@@ -39,6 +39,21 @@ describe('a bedroom\'s wall of wardrobe', () => {
     expect(items).toEqual([wardrobe]);
   });
 
+  it('builds it only where the floor before its doors is as clear as the engine keeps it before a wardrobe, else keeps the shop\'s wardrobe', () => {
+    const bedroom = room('f', 'bedroom', 4, 3.6, [door(2, 0.85)]);
+    const wardrobe = item('w', 'f', 'wardrobe', 3.7, 0.9, -Math.PI / 2, 1.5, 0.6);
+    // A nightstand 50 cm in front of where the wall of wardrobe's doors would be: in their way.
+    const nightstand = item('n', 'f', 'nightstand', 4 - 0.6 - 0.5 - 0.2, 2.9, Math.PI / 2, 0.45, 0.4, 0.5);
+    const blocked = fitWardrobes({ rooms: [bedroom], items: [wardrobe, nightstand], catalog: [material], styleId: 'modern' });
+    expect(blocked.decor).toHaveLength(0);
+    expect(blocked.items).toEqual([wardrobe, nightstand]);
+    // 80 cm in front, past the wardrobe's 75 cm: the wall is built. A rug in front is in nobody's way.
+    const away = { ...nightstand, position: { x: 4 - 0.6 - 0.8 - 0.2, z: 2.9 } };
+    const rug = { ...item('r', 'f', 'rug', 2.8, 1.8, 0, 2, 1.6, 0.01), slot: 'rug' as const };
+    const built = fitWardrobes({ rooms: [bedroom], items: [wardrobe, away, rug], catalog: [material], styleId: 'modern' });
+    expect(built.decor).toHaveLength(1);
+  });
+
   it('lays a stool out in a bedroom with room for one', () => {
     expect(layoutRoom(room('s', 'bedroom', 4.5, 4, [door(2, 0.8)]), {}).some((i) => i.slot === 'stool')).toBe(true);
   });

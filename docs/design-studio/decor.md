@@ -271,9 +271,25 @@ surround are one thing to the person and two records here — a `PlacedItem` wit
   behind the piece or no room, it says so.
 - **Joinery never runs into anything** (`freeExtent`, `freeStretch`): built, moved or resized, a
   cabinet stays inside the stretch of its wall clear of the doors and windows, the furniture (but
-  what it houses) and the other joinery and boxes (`decorFootprint`), and keeps off a corner whose
-  other wall has a door or a window it would stand in front of (`cornerClearance`). Only a side
-  that was dragged is held back. The other way round, a piece of furniture being moved keeps out of
+  what it houses) — each piece as the floor it takes (`floorTaken`, `lib/design/shower.ts`: a
+  shower's tray and glass, not the 50 cm column at its back; a cabin larger than its tray its own
+  size; a WC with its back on the wall where it will stand in front of its box, its 40 cm side room
+  met but not entered) — and the other joinery and boxes (`decorFootprint`); a window stops it
+  unless its sill is over the joinery's top (`StretchOptions.top`: the vanity and its basin); a
+  radiator or a towel rail stops it the same way, on its wall or round the corner, unless it hangs
+  over the joinery's top (`StretchOptions.radiators`, `radiatorBodies`: generation's bathroom, hall
+  and bedroom passes read them; the studio's builder does not yet); and it keeps off a corner whose
+  other wall has a door or a window it would stand in front of (`cornerClearance`). Generation's
+  joinery (`StretchOptions.strict`, which the bathroom, hall and bedroom passes pass) keeps 90 cm off
+  a door or an archway it would reach into by any of its width (the way `inDoorway` keeps clear)
+  and 40 cm off a window it would stand in front of by more than the 5 cm a piece may stand onto
+  one (`ONTO_WINDOW_M`), whatever stands in that corner, and keeps out of every door's way (the
+  door's width, 90 cm into the room) across the room too. The studio's own builder (`freeExtent`,
+  `houseItem`: a person dragging, resizing or fitting joinery, and `settleFitted`) keeps the older
+  corner — 90 cm off a door, 40 cm off any other opening, only where it would stand in front of
+  25 cm or more of it, and not at all for a piece that stands in that corner — and reads no door
+  across the room; so does the kitchen's corner leg (`kitchenCorner.ts`).
+  Only a side that was dragged is held back. The other way round, a piece of furniture being moved keeps out of
   joinery (`joineryObstacles`, `withJoinery` in `Viewer3D`): each section is a block of its own
   height, and the piece a housing was built for may stand in it.
 
@@ -536,6 +552,18 @@ the next run). The route logs every run's tokens, cost and seed (`ai-generate`).
   decor nor keeps furniture out of joinery.
 - A cabinet's sections cannot be added, removed or re-ordered on its card (they are resized with
   the piece).
+- The studio's own joinery builder (`housing.ts`: `houseItem`, `freeExtent`, and `settleFitted`
+  after the AI check) is given no radiators (it has no `FloorPlan` in hand: `radiatorBodies(plan)`
+  would have to come from the store or `Viewer3D`), so joinery built or dragged by hand can cover a
+  radiator, and it keeps the older corner (25 cm of an opening lived with, waived for a piece in the
+  corner) and no door across the room — generation's stricter rules (`StretchOptions.strict`) are
+  the owner's to extend to the studio.
+- Still reading a shower by its column instead of its tray (`floorTaken`): the matcher's blockers,
+  `tightSpots`, the studio's drag test, `reviewFindings` and the boiler's clearance.
+- Rules still to be decided (bathroom pass): what a basin too tall for the lowest vanity (70 cm)
+  becomes — it stays on the vanity with its rim over a basin's height (`rule:basin_height`); and
+  whether a mirror goes over a tall wall tap (the 43 cm panel mixer) — it is raised clear of it,
+  its middle up to about 2 m ([generation-audit.md](generation-audit.md), O4 and W2).
 - No labour line for fitting decor: the materials are bought, the installation is not priced.
 - A cove needs a rectangular room; niches and fields do not check a socket or a radiator on their
   wall (the rules module of [ai-layout-plan.md](ai-layout-plan.md) is not written).

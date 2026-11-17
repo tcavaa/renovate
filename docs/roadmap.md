@@ -29,6 +29,9 @@ at runtime yet; the last one was seen on the sample plan.
 - **The studio re-settles a generated flat's joinery on the first drag of any piece** — `settleFitted` with the
   studio's builders moves 69 of 360 untouched fixture flats' WC boxes and WCs
   ([design-studio/decor.md](design-studio/decor.md#known-gaps)).
+- The studio's joinery builder reads no radiators and keeps the older corner rule; other code still
+  reads a shower by its column, not its tray; a basin too tall for any vanity and a mirror over a
+  tall wall tap wait for the owner's rule — [design-studio/decor.md](design-studio/decor.md#known-gaps).
 - Windows with no product render as an empty hole (the fixtures manifest lost its window role;
   re-run `pnpm models:fixtures`) — [3d-assets.md](3d-assets.md#known-gaps).
 - Brigade orders are missing from the revenue report and the CSV —

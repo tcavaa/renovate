@@ -357,12 +357,27 @@ Severity: **high** = seen by anyone who generates; **medium** = wrong in some ro
   bath's box, the hall wardrobe and the kitchen leg), the matcher's blockers once the shower is
   matched, `tightSpots`, the studio's drag test, `reviewFindings`, the splash zone
   (`ruleChecks.ts:304`) and the boiler's clearance (`ruleChecks.ts:153`).
-- [ ] **O3 (medium) — The passes after the matcher test for themselves, partly.** The bathroom pass
+  *Partly:* one function answers "the floor this piece takes" (`floorTaken`, `shower.ts`: a
+  shower's tray and glass, a cabin larger than its tray its own size, anything else its box) and
+  `freeStretch` reads it — so the vanity, the washer's column and where the washer is moved to, the
+  bath's box, the hall wardrobe and the kitchen leg stop at the tray: `joinery_in_tray` 34 → 0 and
+  `in_shower_tray` 15 → 0 in 360 flats, nothing lost. Still reading the column: the matcher's
+  blockers, `tightSpots`, the studio's drag test, `reviewFindings` and the boiler's clearance.
+- [x] **O3 (medium) — The passes after the matcher test for themselves, partly.** The bathroom pass
   moves the washer beside the vanity (`bathroom.ts:116-146`) and stands a floor mixer in front of the
   bath with no test at all (`:268-271`). `fitHall` reads the hall's width off its bounding box
   (`narrowSide`, `hall.ts:138`): in an L-shaped hall a 60 cm wardrobe left 68 cm. The joinery may
   stand in front of 25 cm of a door's width (`CORNER_OVERLAP_M`), which the engine's own door zone
   would refuse: a bedroom's wall of wardrobe does, by 10–25 cm, 61 times in 720 flats.
+  *Fixed:* what the bathroom pass moves or adds on the floor is tested where it is put
+  (`standsClear`: `isPlacementValid` with a shower as its tray, the joinery built, `inDoorway`,
+  the keep-clear floor `generateScene` now hands the pass): the washer goes into a column beside
+  the vanity only where it then stands clear, else its column is built where it stands; a floor
+  mixer goes to the bath's other end, else a wall mixer — `on_keep_clear` 15 → 8 and
+  `rule:radiator_blocked` 18 → 11 in 360 flats (washers moved onto a radiator's strip). The hall's
+  wardrobe is as deep as the hall's clear width in front of its wall's free span (`widthInFront`),
+  and generation's joinery keeps out of every door's way, across the room too (`freeStretch` with
+  `strict`) — `joinery_tight` 3 → 0 in 360 flats; generation's corner no longer allows 25 cm (W7).
 - [ ] **O4 (medium) — Hung pieces.** The bathroom mirror's middle is set at 1.5 m whatever is under
   it but a floor piece (`settledElevation`, `matcher.ts:641-660`); the tap is added later at the rim
   plus 12 cm (`bathroom.ts:219`) — about 1.02 m, under a mirror that starts at 1.12 m: 421 in each
@@ -373,7 +388,14 @@ Severity: **high** = seen by anyone who generates; **medium** = wrong in some ro
   a table. *Partly:* the hall's mirror is fixed — over the console it is one that hangs clear of it
   (`slotPool`), and the full-height one hangs where the wall is free from the floor up: across from
   the wardrobe (`fitHall`) or on a bare wall; no mirror runs into a console in 360 flats (143
-  before). The bathroom mirror into the tap and the pendant are as they were.
+  before). The bathroom mirror is fixed too: once the pass has put the tap on, the mirror over the
+  basin is raised clear of the basin and the tap by the matcher's 12 cm (`hungClearOfBasin`) —
+  `hung_clash` (every one of them a mirror into a tap) 140 → 0 in 360 flats — and a tap that goes
+  on the wall because the basin leaves no deck behind it is a wall tap where the catalogue has one
+  (`tapSpot`), not a deck mixer up to 52 cm tall hung on the wall: mirrors with their middle over
+  1.75 m 105 → 38 of 308 (4 before the mirror was raised). Of the 38, 22 hang over the 43 cm black
+  panel mixer with its wall plate (a wall tap) and the rest are tall mirrors over high basins —
+  whether such a tap or mirror goes there is the owner's rule. The pendant is as it was.
 - [x] **O5 (low) — Two main lights at one spot.** The program's `pendant` (an item with a product)
   and the wiring's ceiling light (a point with a product) are both put in the middle of the room —
   `electrical.ts` never reads the pendant: 59 % of bedroom pendants, 53 % of living-room ones and
@@ -750,14 +772,32 @@ outputs were read, not re-run.
   `settleToWalls`, `clearOfDecor`) touches only what the check changed. A check with no fixes now
   changes 0 of 360 fixture flats (was 122), one that takes out a lamp or a print changes nothing
   else, and `aiCheck.test.ts` holds it on a bathroom with a WC box built to the wall's end (V4).
-- [ ] **W2 (high) — A basin lifted for a vanity that is never built.** The matcher lifts a
+- [x] **W2 (high) — A basin lifted for a vanity that is never built.** The matcher lifts a
   countertop basin to washing height (`matcher.ts:642`) before the bathroom pass tries the vanity;
   when the pass finds no stretch for one (`bathroom.ts:79-97`: the basin beside a door or window,
   a WC straddling the stretch, a stretch narrower than the basin plus 5 cm) the basin stays in the
   air: **106 of 692 bathroom basins hang at about 70 cm with nothing under them**.
-- [ ] **W3 (high) — A wall of wardrobe is built without looking in front of it.** `fitWardrobes`
+  *Fixed:* of the 39 in 360 flats (one more once the vanity stopped at the shower's tray, O2), 21
+  stood under a window (a vanity is now built under a sill at or over the basin's rim), 10 were
+  refused by a WC on the next wall whose 40 cm side room ended within 5 cm of the vanity's face (the
+  side room is now met, not kept 5 cm off — and a WC is measured 20 cm out, where it stands once
+  boxed, which four of the newly allowed vanities would have run into), and 8 had no room for a
+  vanity 5 cm wider than the basin. Those still without a vanity take a basin that stands on the
+  floor at that height, given by the matcher (`standingBasin`) — `basin_in_air` 38 → 0, no basin
+  lost. A basin a vanity holds keeps it and its product, even one too tall for the lowest vanity
+  (70 cm): `rule:basin_height` 61 → 62 in 360 flats, the one more being #393/modern/3 r2, a 30 cm
+  granite basin that hung in the air for the window over it and now stands on the vanity built
+  under that window's sill, its rim at a metre — like the 11 such basins on a vanity before. What a
+  basin too tall for any vanity should become (a lower vanity, another basin) is the owner's rule.
+- [x] **W3 (high) — A wall of wardrobe is built without looking in front of it.** `fitWardrobes`
   asks only for a free stretch as deep as the wardrobe (`bedroom.ts:41`). Of 402 built, 217 have
   something within 60 cm of their doors and 129 within 30 cm — the bed (97) or a nightstand (31).
+  *Fixed:* it is built only where the floor before the whole of it is as clear as the layout keeps
+  before a wardrobe (the archetype's 75 cm, `clearInFront`); elsewhere the shop's wardrobe stays —
+  `wardrobe_blocked` 70 → 0 in 360 flats, `joinery_in_door_zone` 76 → 49 by the way, no wardrobe
+  lost. The app's check then sees the shop's wardrobe beside the bed where it did not see the wall
+  of wardrobe (`ruleViolations` reads furniture, not joinery): `rule:bed_side_tight` 146 → 162, every
+  one of the 16 in a room that had a wall of wardrobe along the same wall before.
 - [x] **W4 (medium) — The designer's decor is fitted without the engine's joinery.**
   `proposalDecor(laid, proposal, items, catalog)` is given the furniture only
   (`generateScene.ts:122`), after the passes have swapped the shop's wardrobe for a built one: slats,
@@ -778,17 +818,40 @@ outputs were read, not re-run.
   takes none (`aiProposal.ts:91-94`, the rulebook's B-6), and two thirds of the beds placed are
   that tall (322 of 485): of the intents anchored on the bed 57 % are dropped for it and 14 % for
   want of a bed. The designer is not told the rule.
-- [ ] **W6 (medium) — The hall wardrobe always has a boiler section** (168 of 168 built), with
+- [x] **W6 (medium) — The hall wardrobe always has a boiler section** (168 of 168 built), with
   `hall.ts:60` reading the hall's width only: 105 flats had no boiler point, in 63 the boiler was
   elsewhere (the balcony 36, the hall outside the wardrobe 19, another section 8), and in 27 it also
   had a cabinet of its own (1,400–1,900 ₾) — paid for twice.
-- [ ] **W7 (medium) — Tall joinery and the openings round the corner.** A wall of wardrobe stands
+  *Fixed:* `fitHall` is handed the flat's technical points and builds the section only where the
+  boiler hangs in that hall at the wardrobe with no cabinet of its own, at the end it hangs at; the
+  wardrobe's stretch and length are as they were, the coats taking the section's room. On the test
+  plans every hall boiler has a cabinet of its own: boiler sections 164 → 0 of 164 hall wardrobes
+  in 360 flats.
+- [x] **W7 (medium) — Tall joinery and the openings round the corner.** A wall of wardrobe stands
   in front of 6–23 cm of a window on the next wall (15 in 360 flats) and in the sweep of a door's
   leaf by 15 cm or more (30). `cornerClearance` allows 25 cm of an opening
   (`decor/joinery.ts:137-140`).
-- [ ] **W8 (medium) — Joinery does not read the radiators**: a radiator's body inside the hall
+  *Fixed:* `cornerClearance` keeps a door's whole way clear (any of its width within the joinery's
+  depth) and a window but for the 5 cm a piece may stand onto one (`ONTO_WINDOW_M`), whatever stands
+  in the corner, for generation's joinery (`StretchOptions.strict`, passed by the bathroom, hall and
+  bedroom passes); the studio's own builder (`freeExtent`, `houseItem`) and the kitchen's corner leg
+  keep the older corner, so dragging and resizing joinery by hand is as it was — in 360 flats
+  joinery in front of a door round the corner 59 → 0, of a window 19 → 0, `joinery_in_door_zone`
+  77 → 0 (the detector takes joinery within a millimetre of a door's way as touching it, and
+  still finds 2.5 cm in it). With W3, walls of wardrobe 213 → 54: 97 refused for the floor before
+  their doors (W3), 62 for the corner; each room keeps the shop's wardrobe, nothing lost. That
+  wardrobe is then seen by the app's checks where the wall of wardrobe was not: besides
+  `rule:bed_side_tight` (W3), `rule:door_swing_blocked` 18 → 19 (#375/industrial/2 r4, the layout's
+  wardrobe in the door's swing) and `hung_into_floor` 39 → 40 (#384/vintage/2 r2, the pendant into
+  the wardrobe) — the layout's own placements, not this pass's.
+- [x] **W8 (medium) — Joinery does not read the radiators**: a radiator's body inside the hall
   wardrobe (9), a vanity (15) or a vanity with its column (11) in 360 flats — `freeStretch` is given
   furniture and decor, never `plan.technical`.
+  *Fixed:* `freeStretch` takes the flat's radiator bodies (`StretchOptions.radiators`) and stops at
+  one on its wall or round the corner, unless it hangs over the joinery's top; `generateScene` hands
+  them to the bathroom, hall and bedroom passes. In 360 flats a radiator's body in joinery 30 → 0;
+  7 halls keep their coat rack and shoe cabinet instead of the wardrobe and 3 washers stand without
+  a column, nothing lost. The studio's builder (`housing.ts`) is not given them yet.
 - [ ] **W9 (low)** — A WC under a window gets no box (48 of 336: the box is refused at the
   opening); 76 boxes are more than 5 cm off their WC's middle. A washer the layout stood free in a
   hall gets no column (9: no wall within 15 cm). Mouldings are not cut at openings (42 across a
@@ -1189,7 +1252,9 @@ them, **none has a test that would notice its fix**.
   line on 30 of 30 seeds (`studioLayout.test.ts:89` looks at hung pieces only); a bed with one
   nightstand in `generateScene.test.ts`'s own flat.
   *Partly:* `studioLayout.test.ts` now looks at the TV unit — against a wall of the living half,
-  never on the line or the separator, on 30 of 30 seeds (O7, RB6).
+  never on the line or the separator, on 30 of 30 seeds (O7, RB6). `bathroom.test.ts` joins the
+  vanity and the washer's column in its room with the shower taken out, and in the room as laid
+  out holds that nothing is built or moved into the tray (O2).
 - [ ] **V4 (medium) — Tests that cannot fail**: `housing.test.ts:306` (its flat has no joinery to
   settle — W1), `generationRandom.test.ts:167` and `:194` and `placementSettle.test.ts:668`
   (branches that never run — P1), and seven assertions that are always true.

@@ -31,7 +31,20 @@ describe('generating whole flats', () => {
 
   it('keeps what was fixed at zero', () => {
     // Fixed once, never again: add a metric here in the commit that takes it to zero.
-    const fixed: string[] = ['socket_in_radiator', 'rule:socket_in_splash', 'two_main_lights', 'missing:living_room:sofa'];
+    const fixed: string[] = [
+      'socket_in_radiator',
+      'rule:socket_in_splash',
+      'two_main_lights',
+      'missing:living_room:sofa',
+      'basin_in_air',
+      'hung_clash',
+      'in_shower_tray',
+      'joinery_in_tray',
+      'joinery_in_door_zone',
+      'joinery_tight',
+      'wardrobe_blocked',
+      'in_joinery',
+    ];
     const counts = sortedCounts(measure.counts);
     for (const metric of fixed) expect(counts[metric] ?? 0, metric).toBe(0);
     // Nothing is left arranged round a piece that is not there (`lib/design/arrangedOff`).

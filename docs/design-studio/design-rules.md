@@ -221,25 +221,48 @@ How stage 1 built it — **the bathroom pass** (`lib/design/bathroom.ts`, `fitBa
   (`slotPool`: under 45 cm tall), set on a `cabinet` piece's `basin` section — its top 90 cm less
   the basin's height (70–85 cm), 50 cm deep, from the basin's width and 40 cm up to 1.8 m, run on
   to a corner rather than leave a sliver under 30 cm (`JOINERY_SLIVER_M`), clear of the other
-  pieces on the wall (`freeStretch`). Vintage keeps a standing basin (60 cm or taller).
+  pieces on the wall (`freeStretch`; `vanityFor`) — under a window only where its sill is at or
+  over the basin's rim. Vintage keeps a standing basin (60 cm or taller). The matcher lifts a
+  countertop basin to washing height before the pass: where no vanity can be built round it, the
+  matcher gives its slot a basin that stands on the floor at a basin's height (85 ± 7 cm,
+  `BASIN_TOP_M`; `standingBasin`: `matchProducts` with the room's pieces where they stand — the fit
+  test, a door's way, the floor kept clear); with none that fits, the basin stays as matched. A
+  basin a vanity holds stays on it even when it is too tall to stand at a basin's height on the
+  lowest vanity (70 cm) — `rule:basin_height` says so; what such a basin should become (a lower
+  vanity, another basin) is a rule still to be decided. No basin is left hanging with nothing under
+  it on the test plans.
+- **The mirror over the basin** is raised, after the tap is on, clear of the basin and the tap by
+  the matcher's gap over a piece (12 cm, `settledElevation`; `hungClearOfBasin`), never lowered and
+  never through the ceiling. Over a tall wall tap (the 43 cm black panel mixer with its wall plate)
+  or under a tall mirror on a high basin, its middle ends over 1.75 m (38 of 308 bathroom mirrors in
+  360 flats): whether such a tap goes under a mirror at all is a rule still to be decided.
 - **Taps** (BA-8, BA-18): every basin not sold with its tap (`includesTap`: "…with … tap/mixer")
-  gets one — a wall tap 12 cm over the rim, or a deck tap behind the bowl on the vanity (on the wall
-  when there is no room behind a vessel basin) or on a standing basin's top; Vintage's on the wall;
-  never a floor-standing mixer at a basin.
+  gets one — a wall tap 12 cm over the rim, or a deck tap behind the bowl on the vanity or on a
+  standing basin's top; where the basin leaves no deck behind it on the vanity the tap goes on the
+  wall, and it is then a wall tap where the catalogue has one (`tapSpot`), not a deck mixer hung
+  on the wall at its full height; Vintage's on the wall; never a floor-standing mixer at a basin.
 - **Washer column** (BA-12–15): but in Vintage, the machine is built into a `washer` section 65 cm
   deep, its width and 2 × 1.8 cm sides, up to its top (and the dryer's): beside the vanity on its
   wall when there is room, the column at the end of the wall and the gap between filled with doors
   at the vanity's height — one piece; else its own column where it stands, moved to the wall's end
   when that is a sliver away. The joinery keeps clear of a WC by its box's 80 cm and 40 cm either side
   of its middle (`freeStretch`): on a generated flat the column had stood 18 cm off the WC's middle,
-  its box running into the column. A **dryer** (`dryer`, the library's tumble dryer) stacked on the
+  its box running into the column. That side room is the WC's clearance, so joinery may come up to
+  it (a vanity on the next wall 91 cm from the WC's middle); and a WC with its back on its wall is
+  measured where it will stand once its box is built, 20 cm out (`WC_BOX_DEPTH_M`). A **dryer** (`dryer`, the library's tumble dryer) stacked on the
   machine inside the column at the `premium` budget level with a ceiling of 2.2 m or more (G-29).
 - **Bath by style** (BA-16–18): Modern a freestanding bath (`slotPool` leaves built-in ones out);
   Scandinavian and Industrial a built-in one (a bath only from 9 m², `SHOWER_FIRST_STYLES`,
   `BATH_WITH_SHOWER_M2` — the shower first), boxed and tiled to just under its rim (a `box` piece,
   anchor `bath`); Vintage a freestanding rectangular bath in a tiled enclosure 10 cm wider each
   side and 6 cm over the rim. The **mixer** at the bath's head (the end nearer a corner): on the
-  wall over a boxed bath (`isWallTap`), standing on the floor by a freestanding one.
+  wall over a boxed bath (`isWallTap`), standing on the floor by a freestanding one — where it
+  stands clear (`standsClear`: in the room, off the other pieces and a shower's tray, the joinery,
+  a door's way and the floor the layout kept clear), else at the bath's other end, else a wall mixer
+  over the head when the bath has a wall, and only else where it was put.
+- **What the pass moves is tested as it is put** (`standsClear`): the washer is moved into a column
+  beside the vanity only where it then stands clear, else its column is built where it stands
+  (moved to the wall's end only where that is clear too, else round the machine as the engine put it).
 - **Showers** (BA-11, BA-24): a 1.4 × 0.9 m walk-in from 7 m² (`SHOWER_LONG_M2`), its long side
   along the room's length (`alongLength`); a shower-door product is never taken for the shower
   (`isShowerDoor`) — the glass is built.
@@ -283,13 +306,20 @@ How stage 2 built it — **the kitchen**:
 How stage 3 built it — **the entrance and the living room**:
 
 - **The hall's wardrobe** (E-4, E-6, E-7; `lib/design/hall.ts`, `fitHall`): in the hall with the front
-  door, 1.4 m wide or more (a shallow 38 cm one from 1.2 m), one `cabinet` piece to the ceiling on the
-  free stretch nearest the front door, 2.8 m at most: a ventilated `boiler` section (65 cm, louvred)
-  at the door's end when the hall is wide enough for the boiler's cupboard, the `coats` (80 cm–1.4 m),
-  the `shoes` (60 cm). It replaces the program's coat rack and shoe cabinet. The technical placement
-  hangs the boiler in its section (`housedBoilerSpot`; `suggestTechnical` takes the decor) with no
-  cabinet of its own (`cabinet: null`). A narrower hall keeps the coat rack (`prefer:
-  'near-entrance'`) and the shoe cabinet.
+  door, on a wall the hall is 1.4 m wide or more in front of (a shallow 38 cm one from 1.2 m) — the
+  clear width square off that wall along its free span (`widthInFront`), so an L-shaped hall's narrow
+  arm counts as narrow, not as its bounding box — one `cabinet` piece to the ceiling on the
+  free stretch nearest the front door, 2.8 m at most: the `coats` (80 cm–1.4 m) by the door, the
+  `shoes` (60 cm) past them, and a ventilated `boiler` section (65 cm, louvred) only where the flat's
+  boiler (`plan.technical`, `fitHall`'s `technical`) hangs in this hall — wide enough for the boiler's
+  cupboard — at the wardrobe, with no cabinet of its own: the section at the end of the wardrobe the
+  boiler hangs at, the wardrobe its cupboard. A boiler with a cabinet, one elsewhere or none gets no
+  section (the coats take the room; a hall wide enough for the cupboard still takes a wardrobe only
+  on a stretch long enough for the section). It replaces the program's coat rack and shoe cabinet.
+  The technical placement hangs a boiler the flat does not have yet in a section there is
+  (`housedBoilerSpot`; `suggestTechnical` takes the decor) with no cabinet of its own
+  (`cabinet: null`). A narrower hall keeps the coat rack (`prefer: 'near-entrance'`) and the shoe
+  cabinet.
 - **Mirror** (E-8): the hall's mirror is a tall flat one when the catalogue has any (140 cm or taller,
   `isFullHeightMirror`) **on a wall free from the floor up**: across from the wardrobe, where the
   hall pass hangs it on the facing wall's free stretch just off the floor (`fitHall` takes the
@@ -311,7 +341,10 @@ How stage 4 built it — **bedrooms**:
   bedroom's wardrobe stands on is otherwise free for 85 % of its length or more (a niche's back counts),
   a `cabinet` piece fills that stretch to the ceiling, in sections of 1.2 m at most, in place of the
   shop's wardrobe; and the room's chest of drawers goes (a desk or a dressing table is another slot
-  and stays).
+  and stays). Only where the floor before its doors, the whole length of it, is as clear as the
+  layout keeps it before a wardrobe (the archetype's `clearanceM`, 75 cm; `clearInFront` — a rug or
+  the chest of drawers that goes is in nobody's way): with the bed or a nightstand there, the shop's
+  wardrobe stays.
 - **Headboard** (B-6): a bed 1.2 m tall or more (`TALL_HEADBOARD_M`) has a headboard of its own; the
   AI designer's decor anchored on it is dropped (`proposalDecor`).
 - **Stool** (B-8): in a bedroom's program from 12 m² (migration 0015 lists the stools on its shelf).

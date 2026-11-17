@@ -139,7 +139,12 @@ scene ──tightSpots──▶ amber warnings (not a rule)
   a Scandinavian or Industrial bathroom takes a bath only from 9 m² (the shower first); a 1.4 m
   walk-in shower from 7 m², along the room's length; the WC in the middle of its wall; a towel shelf
   and a stool from 6 m²; after matching, the bathroom pass (`lib/design/bathroom.ts`) builds the
-  vanity, the taps, the washer's column and the bath's enclosure and mixer. The hallway's program
+  vanity, the taps, the washer's column and the bath's enclosure and mixer, gives a basin lifted for
+  a vanity that cannot be built a standing one through the matcher (`standingBasin`; a basin on a
+  vanity keeps it, too tall or not), and hangs the
+  mirror clear of the basin and its tap ([design-rules.md](design-rules.md), stage 1). What it looks
+  at for free wall and floor is each piece's floor (`floorTaken`: a shower's tray, not its column).
+  The hallway's program
   starts with a door mat at the front door (`entrance` placement, `placeAtEntrance`) and a coat
   rack near it (`prefer: 'near-entrance'`). Products by style in `slotPool`: a countertop basin but
   in Vintage, the bath's kind by style, no shower door, no towel shelf below `premium`.

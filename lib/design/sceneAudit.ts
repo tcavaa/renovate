@@ -86,6 +86,8 @@ export interface AuditedScene {
 
 /** What is counted as overlap: anything under 3 cm is how pieces are stood side by side. */
 const TOUCH_M = 0.03;
+/** Joinery is measured to the millimetre (`cabinetPiece` rounds its span to it). */
+const JOINERY_MM = 0.001;
 /** Lying on the floor or hanging at a window: in nobody's way. */
 const FLAT_SLOTS: ReadonlySet<SlotKind> = new Set<SlotKind>(['rug', 'door_mat', 'curtain']);
 
@@ -220,7 +222,9 @@ export function auditScene(scene: AuditedScene): SceneIssue[] {
         if (by > TOUCH_M * 2) say('in_joinery', `${item.kind} in ${piece.family}${piece.anchor ? `:${piece.anchor}` : ''} by ${cm(by)}`, item.id);
       }
       const middle = { x: (solid.minX + solid.maxX) / 2, z: (solid.minZ + solid.maxZ) / 2 };
-      const size = { width: solid.maxX - solid.minX, depth: solid.maxZ - solid.minZ, height: 2 };
+      // Joinery built up to a door's way touches it — within the millimetre joinery is measured to
+      // (a span's sum a hair past the edge) — and is not in it; any more of it is.
+      const size = { width: Math.max(JOINERY_MM, solid.maxX - solid.minX - 2 * JOINERY_MM), depth: Math.max(JOINERY_MM, solid.maxZ - solid.minZ - 2 * JOINERY_MM), height: 2 };
       if (inDoorway({ position: middle, rotation: 0, size, elevationM: 0 }, room)) say('joinery_in_door_zone', `${piece.family}${piece.anchor ? `:${piece.anchor}` : ''}`, piece.id);
       const edge = roomEdges(room.polygon).find((e) => e.index === piece.wallIndex);
       if (!edge || piece.family !== 'cabinet') continue;

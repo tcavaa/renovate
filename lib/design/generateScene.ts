@@ -28,6 +28,7 @@ import { defaultTrim, hasTrims } from './trims';
 import { columnFootprints } from './walls';
 import { withGeneratedPartitions } from './autoPartitions';
 import { radiatorKeepouts } from './ruleChecks';
+import { radiatorBodies } from './radiators';
 import { entranceSightBands, underCeiling, type Quad } from './rules';
 import type { Footprint } from './manipulate';
 import { isBaseFinish } from './zones';
@@ -91,14 +92,14 @@ export function generateScene(input: GenerateSceneInput): GeneratedScene {
   // The bathrooms finished as a joiner and a plumber would (the rulebook): a vanity made to measure
   // under the basin, a tap on it, the washer's column (a dryer on the machine at the top budget), the
   // bath boxed or enclosed and its mixer at its head.
-  const fitted = fitBathrooms({ rooms: underCeilings, items, catalog, styleId, level: budgetLevel(placed, catalog, matchOptions), rng });
+  const fitted = fitBathrooms({ rooms: underCeilings, items, catalog, styleId, level: budgetLevel(placed, catalog, matchOptions), rng, keepClear: obstacles, radiators: radiatorBodies(plan) });
   items = fitted.items;
   // The hall's built-in wardrobe by the front door (coats, the boiler's cupboard, shoes) and the
   // full-height mirror across from it.
-  const hall = fitHall({ rooms: underCeilings, items, catalog, styleId });
+  const hall = fitHall({ rooms: underCeilings, items, catalog, styleId, technical: plan.technical?.points ?? [], radiators: radiatorBodies(plan) });
   items = hall.items;
   // A bedroom's wall of wardrobe where the wardrobe's wall is otherwise empty (no chest besides).
-  const wardrobes = fitWardrobes({ rooms: underCeilings, items, catalog, styleId });
+  const wardrobes = fitWardrobes({ rooms: underCeilings, items, catalog, styleId, radiators: radiatorBodies(plan) });
   items = wardrobes.items;
   // A kitchen whose run is short of a kitchen turns the corner where the next wall is free (an
   // L-shaped kitchen): more of the same kitchen along the next wall, and its wall cabinets.

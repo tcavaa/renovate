@@ -59,6 +59,22 @@ export function showerArea(item: Pick<PlacedItem, 'slot' | 'areaM' | 'position' 
   return { centre: { x: item.position.x + forward.x * ahead, z: item.position.z + forward.z * ahead }, rotation: item.rotation, width: item.areaM.width, depth: item.areaM.depth };
 }
 
+/**
+ * The floor a piece takes, as a box where it stands: a shower's tray and glass (`showerArea`) — the
+ * column or panel at its back is only what stands in it, and a cabin larger than the tray it was
+ * given takes its own size — and anything else its own box. What the joinery, the bathroom pass
+ * and the hall look at for free wall and free floor.
+ */
+export function floorTaken(item: Pick<PlacedItem, 'slot' | 'areaM' | 'position' | 'rotation' | 'size'>): Pick<PlacedItem, 'position' | 'rotation' | 'size'> {
+  if (item.slot !== 'shower' || !item.areaM) return { position: item.position, rotation: item.rotation, size: item.size };
+  // The tray and the piece share their back and their middle across: the floor is the larger of each side.
+  const width = Math.max(item.areaM.width, item.size.width);
+  const depth = Math.max(item.areaM.depth, item.size.depth);
+  const { forward } = axes(item.rotation);
+  const ahead = depth / 2 - item.size.depth / 2;
+  return { position: { x: item.position.x + forward.x * ahead, z: item.position.z + forward.z * ahead }, rotation: item.rotation, size: { width, depth, height: item.size.height } };
+}
+
 /** The floor a shower is given when it has none: 90 × 90 cm, or its product's own size when that is larger (a cabin). */
 export const SHOWER_AREA_M = 0.9;
 

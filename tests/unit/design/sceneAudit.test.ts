@@ -130,6 +130,19 @@ describe('the whole-flat check', () => {
     expect(auditScene({ plan: flat([bath]), items: [washer], decor: [vanity('w')] }).map((i) => i.code)).not.toContain('in_joinery');
   });
 
+  it('finds joinery in a door’s way, not joinery built up to it', () => {
+    // The door is 5–95 cm along wall 0 from the corner; its way runs 90 cm into the room.
+    const hall = rect('h', 'hallway', 3, 3, { openings: [door('h', 0.5 / 3)] });
+    // A wardrobe 60 cm deep on wall 3, which runs from (0, 3) to that corner: 2.1 m along it is the edge of the door's way.
+    const side = (from: number): DecorPiece => ({ ...cabinet('decor-h-hall-wardrobe', 'h', from, 1200), wallIndex: 3, params: { sections: [{ kind: 'coats', widthMm: 1200, heightMm: 2700, depthMm: 600 }] } });
+    const codes = (piece: DecorPiece) => auditScene({ plan: flat([hall]), items: [], decor: [piece] }).map((i) => i.code).filter((c) => c === 'joinery_in_door_zone');
+    expect(codes(side(1))).toEqual(['joinery_in_door_zone']);
+    // Built up to that edge, its span's sum a hair past it, it is not in it.
+    expect(codes(side(0.9 + 1e-9))).toEqual([]);
+    // 2.5 cm into it, it is in it.
+    expect(codes(side(0.925))).toEqual(['joinery_in_door_zone']);
+  });
+
   it('finds a mirror hung into the console under it, and two main lights at one spot', () => {
     const hall = rect('h', 'hallway', 3, 3);
     const console = piece('c', 'console', 'h', 1.5, [1, 0.35, 0.8]);

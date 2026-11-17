@@ -10,7 +10,8 @@ import { generateScene } from '@/lib/design/generateScene';
 import { matchProducts, type CatalogProduct } from '@/lib/design/matcher';
 import { refreshRoom, roomEdges } from '@/lib/design/planGeometry';
 import { showerGlass, withShowerArea } from '@/lib/design/shower';
-import type { DecorPiece, Opening, PlacedItem, PlanRoom, Vec2 } from '@/lib/design/types';
+import { radiatorBodies } from '@/lib/design/radiators';
+import type { DecorPiece, FloorPlan, Opening, PlacedItem, PlanRoom, TechnicalPoint, Vec2 } from '@/lib/design/types';
 import { GENERATION_CATALOG, generationPlan } from '../../helpers/generation';
 
 /**
@@ -261,8 +262,74 @@ describe('joinery never runs into anything', () => {
     const edge = roomEdges(cornered.polygon)[0];
     expect(cornerClearance(cornered, edge, 0.65)).toEqual([0, 2.1]);
     expect(freeStretch(cornered, edge, 1.5, [], [], 0.65)).toEqual([0, 2.1]);
-    // What already stands in that corner keeps its cupboard.
+    // In the studio, what already stands in that corner keeps its cupboard.
     expect(freeStretch(cornered, edge, 2.6, [], [], 0.65)).toEqual([0, 3]);
+    // Generation keeps the door's way clear whatever stands in that corner: no cupboard round it.
+    expect(freeStretch(cornered, edge, 2.6, [], [], 0.65, [], [], { strict: true })).toBeNull();
+    // A door whose way the joinery would reach into by only 10 cm: lived with in the studio, kept
+    // clear by generation…
+    expect(cornerClearance(room([door(1, 0.9 / 2.5)]), edge, 0.65)).toEqual([0, 3]);
+    expect(cornerClearance(room([door(1, 0.9 / 2.5)]), edge, 0.65, true)).toEqual([0, 2.1]);
+    // …and one past its depth is no concern of either.
+    expect(cornerClearance(room([door(1, 1.1 / 2.5)]), edge, 0.65, true)).toEqual([0, 3]);
+  });
+
+  it('keeps generated joinery out of the way of a door across the room', () => {
+    // A hall 1.2 m wide, a door 70 cm wide in the middle of the far wall: its way reaches 30 cm off this wall.
+    const narrow = room([door(2, 0.5)], 'hallway', 3, 1.2);
+    const edge = roomEdges(narrow.polygon)[0];
+    const strict = { strict: true };
+    expect(freeStretch(narrow, edge, 0.5, [], [], 0.65, [], [], strict)).toEqual([0, 1.15]);
+    expect(freeStretch(narrow, edge, 2.5, [], [], 0.65, [], [], strict)).toEqual([1.85, 3]);
+    expect(freeStretch(narrow, edge, 1.5, [], [], 0.65, [], [], strict)).toBeNull();
+    // Joinery 30 cm deep stops short of it.
+    expect(freeStretch(narrow, edge, 1.5, [], [], 0.3, [], [], strict)).toEqual([0, 3]);
+    // The studio's own builder is not held to it.
+    expect(freeStretch(narrow, edge, 1.5, [], [], 0.65)).toEqual([0, 3]);
+  });
+
+  it('lets joinery in a corner by a door round it be widened and slid by hand as before', () => {
+    // A door 80 cm wide 45 cm up the wall round the corner; a wardrobe 60 cm deep in that corner.
+    const r = refreshRoom({ id: 'b', type: 'bedroom', name: 'b', polygon: [P(0, 0), P(3, 0), P(3, 3), P(0, 3)], heightM: 2.7, areaM2: 0, perimeterM: 0, openings: [{ ...door(3, 0.85, 0.8), id: 'd', roomId: 'b' }] });
+    const piece: DecorPiece = { id: 'p', roomId: 'b', family: 'cabinet', wallIndex: 0, span: { from: 0, to: 1.5 }, height: { from: 0, to: 2.4 }, params: { sections: [{ kind: 'doors', widthMm: 1500, heightMm: 2400, depthMm: 600 }] }, materials: {}, anchor: 'joinery' };
+    expect(spanOf(freeExtent(piece, { span: { from: 0, to: 1.8 }, height: piece.height }, 0, r, [], [piece], false)!)).toEqual([0, 1.8]);
+    expect(spanOf(freeExtent(piece, { span: { from: 0.1, to: 1.6 }, height: piece.height }, 0, r, [], [piece], true)!)).toEqual([0.1, 1.6]);
+  });
+
+  it('is not built over a radiator, nor against one round the corner — but under a towel rail hung over its top', () => {
+    const r = room();
+    const flatOf = (points: TechnicalPoint[]): FloorPlan => ({ rooms: [r], metresPerPixel: null, bounds: { width: 3, depth: 2.5 }, source: 'manual', wallThicknessM: 0.12, technical: { points } });
+    const edge = roomEdges(r.polygon)[0];
+    // Ten sections of 8 cm in the middle of wall 0: 1.1–1.9 m along it.
+    const radiator: TechnicalPoint = { id: 'rad', kind: 'radiator', roomId: 'b', position: { x: 1.5, z: 0.05 }, sections: 10, origin: 'user' };
+    const radiators = radiatorBodies(flatOf([radiator]));
+    expect(freeStretch(r, edge, 0.5, [], [], 0.65, [], [], { radiators })).toEqual([0, 1.1]);
+    expect(freeStretch(r, edge, 2.5, [], [], 0.65, [], [], { radiators })).toEqual([1.9, 3]);
+    // A piece standing in front of it gets no joinery round it.
+    expect(freeStretch(r, edge, 1.5, [], [], 0.65, [], [], { radiators })).toBeNull();
+    // Not given the radiators, the stretch is the whole wall, as before.
+    expect(freeStretch(r, edge, 1.5, [], [], 0.65)).toEqual([0, 3]);
+    // One on the wall round the corner, 20–60 cm from it: within the joinery's 65 cm.
+    const corner = radiatorBodies(flatOf([{ ...radiator, position: { x: 2.95, z: 0.4 }, sections: 5 }]));
+    expect(freeStretch(r, edge, 1.5, [], [], 0.65, [], [], { radiators: corner })?.[1]).toBeLessThan(2.95);
+    // A towel rail whose bottom is over the vanity's top does not stop it; under it, it does.
+    const rail = radiatorBodies(flatOf([{ ...radiator, towelRail: true, elevationM: 1.0 }]));
+    expect(freeStretch(r, edge, 1.5, [], [], 0.5, [], [], { top: 0.95, radiators: rail })).toEqual([0, 3]);
+    expect(freeStretch(r, edge, 1.5, [], [], 0.5, [], [], { top: 1.2, radiators: rail })).toBeNull();
+  });
+
+  it('is not generated in front of a window round the corner, but for the 5 cm a piece may stand onto one', () => {
+    const window = (t: number): Omit<Opening, 'roomId' | 'id'> => ({ kind: 'window', wallIndex: 1, t, widthM: 1.2, heightM: 1.4, sillM: 0.9, exterior: true });
+    const edge = roomEdges(room().polygon)[0];
+    // 15 cm of the window in front of joinery 65 cm deep: generation keeps 40 cm off the corner.
+    expect(cornerClearance(room([window(1.1 / 2.5)]), edge, 0.65, true)).toEqual([0, 2.6]);
+    expect(freeStretch(room([window(1.1 / 2.5)]), edge, 2.8, [], [], 0.65, [], [], { strict: true })).toBeNull();
+    // 4 cm of it: none.
+    expect(cornerClearance(room([window(1.21 / 2.5)]), edge, 0.65, true)).toEqual([0, 3]);
+    // Joinery under its sill stands where it likes.
+    expect(freeStretch(room([window(1.1 / 2.5)]), edge, 2.8, [], [], 0.65, [], [], { top: 0.85, strict: true })).toEqual([0, 3]);
+    // The studio lives with less than 25 cm of a window in front of it, as before.
+    expect(cornerClearance(room([window(1.1 / 2.5)]), edge, 0.65)).toEqual([0, 3]);
   });
 });
 

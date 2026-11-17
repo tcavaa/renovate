@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { layoutRoom } from '@/lib/design/autoLayout';
 import { fitBathrooms } from '@/lib/design/bathroom';
-import { cabinetFacadeM2, sectionSpans } from '@/lib/design/decor/joinery';
+import { cabinetFacadeM2, decorFootprint, freeStretch, sectionSpans } from '@/lib/design/decor/joinery';
+import { footprintQuad, quadsOverlap } from '@/lib/design/rules';
+import { floorTaken } from '@/lib/design/shower';
+import { roomEdges } from '@/lib/design/planGeometry';
 import { piecePurchases } from '@/lib/design/decor/quantities';
 import { withWcBoxes } from '@/lib/design/decor/wcBox';
 import { wetRoomSpots } from '@/lib/design/electrical';
-import { matchProducts, type CatalogProduct } from '@/lib/design/matcher';
+import { matchProducts, toSceneProduct, type CatalogProduct } from '@/lib/design/matcher';
 import { refreshRoom } from '@/lib/design/planGeometry';
 import { includesTap, refinedKind } from '@/lib/design/productRoles';
 import { suggestRadiators } from '@/lib/design/radiators';
@@ -25,6 +28,14 @@ function room(id: string, type: RoomType, w: number, d: number, openings: Array<
   });
 }
 const door = (wallIndex: number, t = 0.5): Omit<Opening, 'roomId' | 'id'> => ({ kind: 'door', wallIndex, t, widthM: 0.7, heightM: 2.05, sillM: 0, exterior: false });
+/** Corners pulled in towards their middle by `by`: what touches is not in. */
+function shrink(corners: Array<{ x: number; z: number }>, by: number) {
+  const c = corners.reduce((a, p) => ({ x: a.x + p.x / corners.length, z: a.z + p.z / corners.length }), { x: 0, z: 0 });
+  return corners.map((p) => {
+    const d = Math.hypot(p.x - c.x, p.z - c.z) || 1;
+    return { x: p.x - ((p.x - c.x) / d) * by, z: p.z - ((p.z - c.z) / d) * by };
+  });
+}
 
 function product(id: number, kind: string, w: number, d: number, h: number, nameEn: string, extra: Partial<CatalogProduct> = {}): CatalogProduct {
   return {
@@ -118,6 +129,36 @@ describe('the bathroom pass', () => {
     expect(piecePurchases(vanity!, bathroom)[0]?.product.productId).toBe(20);
   });
 
+  it('hangs the mirror over the basin clear of the basin and of the tap put on it, by the matcher\'s 12 cm', () => {
+    const items = matched(bathroom, 'modern');
+    const before = items.find((i) => i.slot === 'mirror')!;
+    const { items: out } = fitBathrooms({ rooms: [bathroom], items, catalog: CATALOG, styleId: 'modern', level: 'balanced' });
+    const mirror = out.find((i) => i.slot === 'mirror')!;
+    const tap = out.find((i) => i.slot === 'tap')!;
+    const sink = out.find((i) => i.slot === 'sink')!;
+    // The tap on the wall over the rim reaches past where the matcher hung the mirror.
+    expect(tap.elevationM + tap.size.height).toBeGreaterThan(before.elevationM);
+    expect(mirror.elevationM).toBeGreaterThanOrEqual(tap.elevationM + tap.size.height + 0.12 - 1e-6);
+    expect(mirror.elevationM).toBeGreaterThanOrEqual(sink.elevationM + sink.size.height + 0.12 - 1e-6);
+    expect(mirror.elevationM + mirror.size.height).toBeLessThanOrEqual(bathroom.heightM);
+    expect(mirror.position).toEqual(before.position);
+  });
+
+  it('hangs a wall tap, not a deck one, over a basin on a vanity with no deck behind it', () => {
+    const items = matched(bathroom, 'modern');
+    const { items: out } = fitBathrooms({ rooms: [bathroom], items, catalog: CATALOG, styleId: 'modern', level: 'balanced' });
+    const sink = out.find((i) => i.slot === 'sink')!;
+    const tap = out.find((i) => i.slot === 'tap')!;
+    // The basin fills the vanity's depth: the tap goes on the wall over its rim — a wall mixer (#5),
+    // never the 28 cm deck mixer (#4) hung on the wall.
+    expect(tap.elevationM).toBeGreaterThan(sink.elevationM + sink.size.height);
+    expect(tap.product?.productId).toBe(5);
+    // A catalogue with no wall tap keeps a tap on the basin all the same.
+    const deckOnly = CATALOG.filter((p) => p.id !== 5);
+    const kept = fitBathrooms({ rooms: [bathroom], items: matched(bathroom, 'modern', deckOnly), catalog: deckOnly, styleId: 'modern', level: 'balanced' });
+    expect(kept.items.find((i) => i.slot === 'tap')?.product?.productId).toBe(4);
+  });
+
   it('keeps Vintage\'s standing basin, with its tap on the wall', () => {
     const items = matched(bathroom, 'vintage');
     expect(items.find((i) => i.slot === 'sink')?.product?.productId).toBe(3);
@@ -156,7 +197,9 @@ describe('the bathroom pass', () => {
 
   it('runs the vanity and the washer column on as one piece, the column at the wall\'s end', () => {
     const big = room('j', 'bathroom', 3.4, 2.6, [door(3, 0.8)]);
-    const items = matched(big, 'modern');
+    // The room's shower stands in the corner at the far end of the basin's wall; without it there
+    // the column goes to that end.
+    const items = matched(big, 'modern').filter((i) => i.slot !== 'shower');
     const sink = items.find((i) => i.slot === 'sink')!;
     const washer = items.find((i) => i.slot === 'washer')!;
     // The washer on the basin's wall, away from it, as the engine might leave it.
@@ -165,6 +208,23 @@ describe('the bathroom pass', () => {
     expect(joined, JSON.stringify(decor.map((d) => [d.family, d.params.sections?.map((s) => s.kind)]))).toBeDefined();
     const kinds = joined!.params.sections!.map((s) => s.kind);
     expect(kinds[0] === 'washer' || kinds[kinds.length - 1] === 'washer').toBe(true);
+  });
+
+  it('builds nothing into the shower\'s tray and moves nothing into it: the tray is the shower\'s floor, not the column at its back', () => {
+    const big = room('j', 'bathroom', 3.4, 2.6, [door(3, 0.8)]);
+    const items = matched(big, 'modern');
+    const shower = items.find((i) => i.slot === 'shower')!;
+    expect(shower.areaM).toBeDefined();
+    const tray = floorTaken(shower);
+    expect(tray.size.width).toBeGreaterThan(shower.size.width);
+    for (const level of ['balanced', 'premium'] as const) {
+      const { items: out, decor } = fitBathrooms({ rooms: [big], items, catalog: CATALOG, styleId: 'modern', level });
+      for (const d of decor) {
+        const corners = decorFootprint(d, big);
+        if (corners) expect(quadsOverlap(shrink(corners, 0.02), footprintQuad(tray)), d.id).toBe(false);
+      }
+      for (const i of out.filter((x) => x.elevationM < 0.05 && x.id !== shower.id && x.slot !== 'bath_mixer')) expect(quadsOverlap(footprintQuad(i), footprintQuad(tray)), i.id).toBe(false);
+    }
   });
 
   it('boxes and tiles a built-in bath in Scandinavian, puts a Modern freestanding bath\'s mixer on the floor at its head', () => {
@@ -187,6 +247,36 @@ describe('the bathroom pass', () => {
     expect(mixer.elevationM).toBe(0);
   });
 
+  it('moves the washer beside the vanity only where it stands clear, else builds its column where the engine put it', () => {
+    const big = room('j', 'bathroom', 3.4, 2.6, [door(3, 0.8)]);
+    const items = matched(big, 'modern').filter((i) => i.slot !== 'shower');
+    const sink = items.find((i) => i.slot === 'sink')!;
+    const washer = items.find((i) => i.slot === 'washer')!;
+    const moved = items.map((i) => (i.id === washer.id ? { ...washer, position: { x: sink.position.x + 1.2, z: sink.position.z }, rotation: sink.rotation } : i));
+    // The floor before a radiator at the far end of the basin's wall, where the column would go.
+    const strip = { minX: 3.25, maxX: 3.4, minZ: 0, maxZ: 0.45 };
+    const { items: out, decor } = fitBathrooms({ rooms: [big], items: moved, catalog: CATALOG, styleId: 'modern', level: 'balanced', keepClear: { j: [strip] } });
+    expect(decor.some((d) => (d.params.sections ?? []).some((s) => s.kind === 'basin') && (d.params.sections ?? []).some((s) => s.kind === 'washer'))).toBe(false);
+    const placed = out.find((i) => i.slot === 'washer')!;
+    expect(placed.position).toEqual(moved.find((i) => i.id === washer.id)!.position);
+    expect(decor.some((d) => (d.params.sections ?? []).some((s) => s.kind === 'washer' && s.itemId === washer.id))).toBe(true);
+  });
+
+  it('stands a freestanding bath\'s floor mixer clear: at its head, else at its other end, else a mixer on the wall', () => {
+    const roomy = room('t', 'bathroom', 3.6, 2.8, [door(3, 0.8)]);
+    const modern = matched(roomy, 'modern');
+    const first = fitBathrooms({ rooms: [roomy], items: modern, catalog: CATALOG, styleId: 'modern', level: 'balanced' }).items.find((i) => i.slot === 'bath_mixer')!;
+    const around = (m: PlacedItem) => ({ minX: m.position.x - 0.2, maxX: m.position.x + 0.2, minZ: m.position.z - 0.2, maxZ: m.position.z + 0.2 });
+    // Its spot at the head is floor kept clear: it goes to the other end.
+    const second = fitBathrooms({ rooms: [roomy], items: modern, catalog: CATALOG, styleId: 'modern', level: 'balanced', keepClear: { t: [around(first)] } }).items.find((i) => i.slot === 'bath_mixer')!;
+    expect(second.elevationM).toBe(0);
+    expect(Math.hypot(second.position.x - first.position.x, second.position.z - first.position.z)).toBeGreaterThan(1);
+    // Both ends kept clear: the wall mixer over the head.
+    const third = fitBathrooms({ rooms: [roomy], items: modern, catalog: CATALOG, styleId: 'modern', level: 'balanced', keepClear: { t: [around(first), around(second)] } }).items.find((i) => i.slot === 'bath_mixer')!;
+    expect(third.product?.productId).toBe(11);
+    expect(third.elevationM).toBeGreaterThan(0);
+  });
+
   it('gives a Vintage bath its tiled enclosure, wider than the bath and over its rim', () => {
     const roomy = room('v', 'bathroom', 3.6, 2.8, [door(3, 0.8)]);
     const items = matched(roomy, 'vintage');
@@ -196,6 +286,87 @@ describe('the bathroom pass', () => {
     const box = decor.find((d) => d.anchor === 'bath')!;
     expect(box.span.to - box.span.from).toBeGreaterThan(bath.size.width);
     expect(box.height.to).toBeGreaterThan(bath.size.height);
+  });
+});
+
+describe('a basin lifted for a vanity stands on something', () => {
+  const r = room('a', 'bathroom', 2.4, 2, [door(2, 0.5)]);
+  const placed = (id: string, slot: PlacedItem['slot'], x: number, width: number, depth: number, height: number, elevationM: number, productId: number): PlacedItem => ({
+    id, roomId: 'a', slot, kind: slot, position: { x, z: depth / 2 }, rotation: 0, elevationM, size: { width, depth, height },
+    product: toSceneProduct(CATALOG.find((p) => p.id === productId)!, 1),
+  });
+  /** A countertop basin lifted to washing height between two towel racks, `gap` metres of wall between them. */
+  const squeezed = (gap: number, basin = placed('s', 'sink', 1.2, 0.6, 0.4, 0.14, 0.72, 2)) => [
+    basin,
+    placed('t1', 'towel_rack', 1.2 - gap / 2 - 0.25, 0.5, 0.4, 1, 0, 2),
+    placed('t2', 'towel_rack', 1.2 + gap / 2 + 0.25, 0.5, 0.4, 1, 0, 2),
+  ];
+
+  it('takes a basin that stands on the floor, at a basin\'s height, where the wall has no room for a vanity', () => {
+    // 64 cm between the racks: a 60 cm basin needs a vanity 5 cm wider; the 55 cm pedestal fits.
+    const { items, decor } = fitBathrooms({ rooms: [r], items: squeezed(0.64), catalog: CATALOG, styleId: 'modern', level: 'balanced' });
+    expect(decor.some((d) => d.family === 'cabinet')).toBe(false);
+    const sink = items.find((i) => i.id === 's')!;
+    expect(sink.product?.productId).toBe(3);
+    expect(sink.elevationM).toBe(0);
+    expect(Math.abs(sink.size.height - 0.85)).toBeLessThanOrEqual(0.07);
+  });
+
+  it('leaves the basin as it was where no standing basin fits either', () => {
+    const { items } = fitBathrooms({ rooms: [r], items: squeezed(0.5), catalog: CATALOG, styleId: 'modern', level: 'balanced' });
+    const sink = items.find((i) => i.id === 's')!;
+    expect(sink.product?.productId).toBe(2);
+    expect(sink.elevationM).toBe(0.72);
+  });
+
+  it('keeps a basin too tall for any vanity on the vanity that can be built: it stands on something, and it is not swapped', () => {
+    const tall = [...CATALOG, product(40, 'sink', 60, 40, 30, 'Tall stone vessel basin')];
+    const basin = placed('s', 'sink', 1.2, 0.6, 0.4, 0.3, 0.56, 2);
+    const wide = squeezed(1.4, basin);
+    // On the lowest vanity (70 cm) its top is at a metre (a rule:basin_height case, not one in the
+    // air) — the standing basin in the catalogue does not take its place.
+    for (const catalog of [tall, tall.filter((p) => p.id !== 3)]) {
+      const out = fitBathrooms({ rooms: [r], items: wide, catalog, styleId: 'modern', level: 'balanced' });
+      expect(out.decor.some((d) => d.family === 'cabinet')).toBe(true);
+      const sink = out.items.find((i) => i.id === 's')!;
+      expect(sink.product?.productId).toBe(2);
+      expect(sink.elevationM).toBe(0.7);
+    }
+  });
+});
+
+describe('the joinery and the wall it stands on', () => {
+  const edgeOf = (r: PlanRoom, index: number) => roomEdges(r.polygon).find((e) => e.index === index)!;
+  const wc = (x: number, z: number, rotation: number): PlacedItem => ({ id: 'wc', roomId: 'w', slot: 'toilet', kind: 'toilet', position: { x, z }, rotation, elevationM: 0, size: { width: 0.36, depth: 0.5, height: 0.4 }, product: null });
+
+  it('builds a vanity under a window whose sill is over its basin, never over a window', () => {
+    const r = room('w', 'bathroom', 2.4, 2, [{ kind: 'window', wallIndex: 0, t: 0.5, widthM: 0.8, heightM: 1, sillM: 1, exterior: true }, door(2, 0.5)]);
+    expect(freeStretch(r, edgeOf(r, 0), 1.2, [], [], 0.5, [], [], { top: 0.9 })).toEqual([0, 2.4]);
+    expect(freeStretch(r, edgeOf(r, 0), 1.2, [], [], 0.5, [], [], { top: 1.1 })).toBeNull();
+    // Tall joinery, or joinery of no stated height, keeps off it.
+    expect(freeStretch(r, edgeOf(r, 0), 1.2, [], [], 0.5)).toBeNull();
+  });
+
+  it('lets a vanity come up to the 40 cm a WC on the next wall keeps beside its middle', () => {
+    const r = room('w', 'bathroom', 2.4, 2, [door(2, 0.5)]);
+    // A WC on the left wall (index 3), standing in front of its box, its middle 91 cm off the
+    // basin's wall: a 50 cm vanity leaves it its 40 cm (and the centimetre the side room adds).
+    const placed = wc(0.2 + 0.25, 0.91, Math.PI / 2);
+    const stretch = freeStretch(r, edgeOf(r, 0), 0.35, [placed], [], 0.5);
+    expect(stretch).not.toBeNull();
+    expect(stretch![0]).toBe(0);
+  });
+
+  it('counts the 20 cm a WC will stand off its wall once its box is built', () => {
+    const r = room('w', 'bathroom', 2.4, 2, [door(2, 0.5)]);
+    // A WC with its back on the left wall, as the layout leaves it: once boxed its front is 70 cm
+    // out, so a 65 cm column on the wall beside it stops short of it.
+    const edge = edgeOf(r, 0);
+    const boxedFront = 0.2 + 0.5;
+    // Its side room clear of the column's depth: no concern of it.
+    expect(freeStretch(r, edge, 1.6, [wc(0.25, 1.2, Math.PI / 2)], [], 0.65)![0]).toBe(0);
+    const near = freeStretch(r, edge, 1.6, [wc(0.25, 0.6, Math.PI / 2)], [], 0.65)!;
+    expect(near[0]).toBeCloseTo(boxedFront, 5);
   });
 });
 
@@ -259,6 +430,26 @@ describe('the joinery beside a WC', () => {
     const stretch = freeStretch(r, edge, 3, [wc], [], 0.65)!;
     // The joinery starts at least 40 cm past the WC's middle.
     expect(stretch[0]).toBeGreaterThanOrEqual(1.4 + 0.4 - 1e-6);
+  });
+
+  it('stops the joinery at a shower\'s tray, not at the column standing at its back', () => {
+    const r = room('s2', 'bathroom', 3, 2, [door(3, 0.5)]);
+    const edge = roomEdges(r.polygon).find((e) => e.index === 0)!;
+    // A 25 cm column in the corner at the wall's far end, its 90 cm tray squared round it.
+    const shower: PlacedItem = { id: 'sh', roomId: 's2', slot: 'shower', kind: 'shower', position: { x: 2.55, z: 0.075 }, rotation: 0, elevationM: 0, size: { width: 0.25, depth: 0.15, height: 2.1 }, areaM: { width: 0.9, depth: 0.9 }, product: null };
+    const tray = floorTaken(shower);
+    expect(tray.position.z).toBeCloseTo(0.45, 5);
+    expect(tray.size.width).toBe(0.9);
+    // Off the tray's side by a little, the column itself 22.5 cm further on.
+    const right = { ...shower, position: { x: 2.55 + 0.325, z: 0.075 } };
+    expect(freeStretch(r, edge, 1.2, [right], [], 0.65)![1]).toBeCloseTo(2.875 - 0.45, 5);
+    // A cabin larger than the tray it was given takes its own size.
+    const cabin = floorTaken({ ...shower, size: { width: 1.26, depth: 0.97, height: 2.2 } });
+    expect(cabin.size.width).toBe(1.26);
+    expect(cabin.size.depth).toBe(0.97);
+    expect(cabin.position.z).toBeCloseTo(0.075, 5);
+    // Anything else is its own box.
+    expect(floorTaken({ ...shower, slot: 'washer' })).toEqual({ position: shower.position, rotation: 0, size: shower.size });
   });
 
   it('drops a fix of the AI check that would stand a piece in the joinery', async () => {

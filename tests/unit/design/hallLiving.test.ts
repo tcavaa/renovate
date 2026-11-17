@@ -2,12 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { layoutRoom } from '@/lib/design/autoLayout';
 import { suggestTechnical } from '@/lib/design/autoTechnical';
 import { sectionSpans } from '@/lib/design/decor/joinery';
-import { fitHall, housedBoilerSpot } from '@/lib/design/hall';
+import { fitHall, housedBoilerSpot, widthInFront } from '@/lib/design/hall';
 import { matchProducts, type CatalogProduct } from '@/lib/design/matcher';
 import { refreshRoom, roomEdges } from '@/lib/design/planGeometry';
+import { radiatorBodies } from '@/lib/design/radiators';
 import { seededRng } from '@/lib/design/random';
-import { footprintQuad, quadsOverlap } from '@/lib/design/rules';
-import type { FloorPlan, Opening, PlacedItem, PlanRoom } from '@/lib/design/types';
+import { footprintQuad, quadsOverlap, SHALLOW_WARDROBE_DEPTH_M, WARDROBE_DEPTH_M } from '@/lib/design/rules';
+import type { FloorPlan, Opening, PlacedItem, PlanRoom, TechnicalPoint } from '@/lib/design/types';
 import type { RoomType } from '@/lib/calculator/types';
 
 function room(id: string, type: RoomType, w: number, d: number, openings: Array<Omit<Opening, 'roomId' | 'id'>> = []): PlanRoom {
@@ -19,27 +20,80 @@ const plan = (...rooms: PlanRoom[]): FloorPlan => ({ rooms, metresPerPixel: null
 const material = { id: 50, nameKa: 'MDF', nameEn: 'MDF', slug: 'mdf', categorySlug: 'kitchen-custom', unit: 'm2', pricePerUnit: 600, model3dKind: 'kitchen_run', model3dUrl: null, styleTags: ['modern'] } as unknown as CatalogProduct;
 
 describe('the entrance hall', () => {
-  // A hall 3.6 × 1.8 m, the front door in its short wall.
-  const hall = room('h', 'hallway', 3.6, 1.8, [door(3, 0.5, true), door(1, 0.5)]);
+  // A hall 3.6 × 2.2 m, the front door in the middle of its short wall: a wardrobe along a long
+  // wall stands clear of its way (in a hall 1.8 m wide it would stand 15 cm into it, and is not built).
+  const hall = room('h', 'hallway', 3.6, 2.2, [door(3, 0.5, true), door(1, 0.5)]);
 
-  it('builds one wardrobe to the ceiling by the front door — the boiler\'s cupboard, the coats, the shoes — in place of the coat rack and shoe cabinet', () => {
+  it('builds one wardrobe to the ceiling by the front door — the coats, the shoes — in place of the coat rack and shoe cabinet', () => {
     const items = layoutRoom(hall, {}).map((i) => ({ ...i, product: null }));
     expect(items.some((i) => i.slot === 'coat_rack' || i.slot === 'shoe_cabinet')).toBe(true);
     const { items: out, decor } = fitHall({ rooms: [hall], items, catalog: [material], styleId: 'modern' });
     const wardrobe = decor.find((d) => d.family === 'cabinet');
     expect(wardrobe).toBeDefined();
     const kinds = sectionSpans(wardrobe!).map((s) => s.section.kind);
-    expect(kinds).toEqual(expect.arrayContaining(['boiler', 'coats', 'shoes']));
+    // No boiler hangs here: no section for one.
+    expect(kinds.sort()).toEqual(['coats', 'shoes']);
     expect(wardrobe!.height.to).toBeCloseTo(2.7, 3);
     expect(wardrobe!.materials.face?.product?.productId).toBe(50);
     expect(out.some((i) => i.slot === 'coat_rack' || i.slot === 'shoe_cabinet')).toBe(false);
-    // The boiler hangs in its section, with no cabinet of its own.
-    const spot = housedBoilerSpot([hall], decor)!;
-    expect(spot.room.id).toBe('h');
+    expect(housedBoilerSpot([hall], decor)).toBeNull();
+  });
+
+  it('gives the wardrobe a boiler\'s section only where the flat\'s boiler hangs at it, in the hall, with no cabinet of its own', () => {
+    const items = layoutRoom(hall, {}).map((i) => ({ ...i, product: null }));
+    const plain = fitHall({ rooms: [hall], items, catalog: [material], styleId: 'modern' }).decor[0];
+    const edge = roomEdges(hall.polygon).find((e) => e.index === plain.wallIndex)!;
+    // 30 cm in from the wardrobe's end by the front door (x = 0), 20 cm off its wall.
+    const end = Math.abs(edge.a.x + edge.dir.x * plain.span.from) < Math.abs(edge.a.x + edge.dir.x * plain.span.to) ? plain.span.from + 0.3 : plain.span.to - 0.3;
+    const position = { x: edge.a.x + edge.dir.x * end + edge.inward.x * 0.2, z: edge.a.z + edge.dir.z * end + edge.inward.z * 0.2 };
+    const boiler: TechnicalPoint = { id: 'b', kind: 'boiler', roomId: 'h', position, origin: 'generated' };
+    const sections = (technical: TechnicalPoint[]) => sectionSpans(fitHall({ rooms: [hall], items, catalog: [material], styleId: 'modern', technical }).decor[0]).map((s) => s.section.kind);
+    const housed = fitHall({ rooms: [hall], items, catalog: [material], styleId: 'modern', technical: [boiler] }).decor;
+    expect(sectionSpans(housed[0]).map((s) => s.section.kind)).toContain('boiler');
+    // The section is where the boiler hangs.
+    expect(Math.hypot(housedBoilerSpot([hall], housed)!.position.x - position.x, housedBoilerSpot([hall], housed)!.position.z - position.z)).toBeLessThan(0.33);
+    // A boiler with a cabinet of its own, one in another room, or none: no section.
+    const cabinet = { productId: 1, nameKa: 'c', slug: 'c', brand: null, pricePerUnit: 1, unit: 'm2', qty: 1, totalPrice: 1, imageUrl: null, colorHex: null, textureUrl: null, model3dUrl: null, categorySlug: null, store: null };
+    expect(sections([{ ...boiler, cabinet }])).not.toContain('boiler');
+    expect(sections([{ ...boiler, roomId: 'balcony', position: { x: 9, z: 9 } }])).not.toContain('boiler');
+    expect(sections([])).not.toContain('boiler');
+    // A boiler the technical button hangs later goes where the boiler's spot is, with its own cupboard.
     let n = 0;
-    const boiler = suggestTechnical(plan(hall), out, () => `t${n++}`, decor).points.find((p) => p.kind === 'boiler')!;
-    expect(boiler.position).toEqual(spot.position);
-    expect(boiler.cabinet).toBeNull();
+    const later = suggestTechnical(plan(hall), items, () => `t${n++}`, [plain]).points.find((p) => p.kind === 'boiler');
+    expect(later?.cabinet).not.toBeNull();
+  });
+
+  it('builds the wardrobe clear of a radiator', () => {
+    const items = layoutRoom(hall, {}).map((i) => ({ ...i, product: null }));
+    const plain = fitHall({ rooms: [hall], items, catalog: [material], styleId: 'modern' }).decor[0];
+    const edge = roomEdges(hall.polygon).find((e) => e.index === plain.wallIndex)!;
+    // A radiator of six sections (48 cm) in the middle of where the wardrobe stood.
+    const mid = (plain.span.from + plain.span.to) / 2;
+    const at = { x: edge.a.x + edge.dir.x * mid + edge.inward.x * 0.05, z: edge.a.z + edge.dir.z * mid + edge.inward.z * 0.05 };
+    const radiators = radiatorBodies({ ...plan(hall), technical: { points: [{ id: 'rad', kind: 'radiator', roomId: 'h', position: at, sections: 6, origin: 'user' }] } });
+    expect(radiators).toHaveLength(1);
+    const built = fitHall({ rooms: [hall], items, catalog: [material], styleId: 'modern', radiators }).decor.filter((d) => d.family === 'cabinet');
+    for (const piece of built) {
+      if (piece.wallIndex !== edge.index) continue;
+      const [lo, hi] = [Math.min(piece.span.from, piece.span.to), Math.max(piece.span.from, piece.span.to)];
+      expect(hi <= radiators[0].from + 1e-6 || lo >= radiators[0].to - 1e-6).toBe(true);
+    }
+  });
+
+  it('makes the wardrobe as deep as the hall is wide in front of it, not as its bounding box', () => {
+    // An L-shaped hall: a corridor 1.3 m wide and 4 m long, opening at its far end into a part 3 m
+    // wide — 3 × 5 m round it. The front door in the corridor's end.
+    const l = refreshRoom({ id: 'l', type: 'hallway', name: 'l', polygon: [{ x: 0, z: 0 }, { x: 1.3, z: 0 }, { x: 1.3, z: 4 }, { x: 3, z: 4 }, { x: 3, z: 5 }, { x: 0, z: 5 }], heightM: 2.7, areaM2: 0, perimeterM: 0, openings: [{ ...door(0, 0.5, true), id: 'l-o0', roomId: 'l' }] });
+    expect(widthInFront(l, roomEdges(l.polygon)[1], 0, 4)).toBeCloseTo(1.3, 3);
+    expect(widthInFront(l, roomEdges(l.polygon)[5], 0, 5)).toBeCloseTo(1.3, 3);
+    const items = layoutRoom(l, {}).map((i) => ({ ...i, product: null }));
+    const wardrobe = fitHall({ rooms: [l], items, catalog: [material], styleId: 'modern' }).decor.find((d) => d.family === 'cabinet');
+    expect(wardrobe).toBeDefined();
+    // 1.3 m wide: a shallow one, 80 cm and more left to pass (60 cm deep, it left 70).
+    expect(sectionSpans(wardrobe!).every((s) => s.section.depthMm === SHALLOW_WARDROBE_DEPTH_M * 1000)).toBe(true);
+    // The rectangular hall 2.2 m wide still takes one 60 cm deep.
+    const rect = fitHall({ rooms: [hall], items: layoutRoom(hall, {}).map((i) => ({ ...i, product: null })), catalog: [material], styleId: 'modern' }).decor[0];
+    expect(sectionSpans(rect).every((s) => s.section.depthMm === WARDROBE_DEPTH_M * 1000)).toBe(true);
   });
 
   it('keeps the coat rack in a hall too narrow for a wardrobe', () => {
