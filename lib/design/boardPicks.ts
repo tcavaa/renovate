@@ -99,7 +99,9 @@ export function dressBoard(board: FloorPlan, electrical: ElectricalPoint[], prod
       n = points.filter(wanted).length;
       if (n > 0) plan = { ...plan, technical: { ...plan.technical, points: points.map((p) => (wanted(p) ? withEquipmentProduct(p, product) : p)) } };
     } else {
-      const ofKind = (p: ElectricalPoint) => FIXTURE_PRODUCT_KIND[p.kind] === target.fixture;
+      // Not a hanging lamp's outlet: its lamp is the furniture's, bought as the item, and the flat's
+      // ceiling light is not hung at it as well (nor counted as put there).
+      const ofKind = (p: ElectricalPoint) => FIXTURE_PRODUCT_KIND[p.kind] === target.fixture && !(p.lampOutlet && !p.product);
       n = fittings.filter(ofKind).length;
       if (n > 0) fittings = fittings.map((p) => (ofKind(p) ? withFixtureProduct(p, product) : p));
     }

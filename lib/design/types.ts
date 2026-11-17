@@ -589,6 +589,13 @@ export interface ElectricalPoint {
   product?: SceneProduct | null;
   /** The product's real size, metres, for drawing a model that is not framed as a fixture. */
   sizeM?: { width: number; depth: number; height: number };
+  /**
+   * A ceiling point made the outlet of a hanging lamp — a furniture item of slot `pendant` — when
+   * the room was wired: the lamp is the room's light and is bought as the item, so the point carries
+   * no product of its own. It is the outlet while a lamp of its room hangs at it, whichever lamp
+   * that is (`isLampOutlet` in `lib/design/electrical.ts`); given a lamp of its own it is not.
+   */
+  lampOutlet?: boolean;
   origin?: ElementOrigin;
   locked?: boolean;
 }

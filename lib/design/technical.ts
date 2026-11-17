@@ -268,7 +268,8 @@ export function technicalSuggestions(plan: FloorPlan, items: PlacedItem[]): Tech
     const sewer = here.filter((a) => a.kind === 'sewer' || a.kind === 'floor_drain');
     const shaft = here.filter((a) => a.kind === 'sewer');
     const water = here.filter((a) => a.kind === 'water_supply' || a.kind === 'water_hot');
-    for (const item of items.filter((i) => i.roomId === room.id)) {
+    // A corner kitchen's leg (`legOf`) is part of its run: the sink is the run's, and so are its hints.
+    for (const item of items.filter((i) => i.roomId === room.id && !i.legOf)) {
       if (['shower', 'bathtub'].includes(item.slot) && sewer.length > 0) {
         const d = nearest(item.position, sewer);
         if (d > MAX_FIXTURE_DISTANCE_M) out.push({ code: 'far_from_sewer', roomId: room.id, itemId: item.id, distanceM: round1(d) });
@@ -286,8 +287,9 @@ export function technicalSuggestions(plan: FloorPlan, items: PlacedItem[]): Tech
     }
     const points = technicalPointsIn(plan, room);
     for (const point of points) {
-      if (point.kind !== 'radiator') continue;
       // A radiator belongs under a window, on an exterior wall — or under a window onto a balcony.
+      // A bathroom's towel rail hangs where the towels are wanted, on any wall.
+      if (point.kind !== 'radiator' || point.towelRail) continue;
       const edges = wallEdges(room);
       const near = edges
         .map((e) => ({ e, d: closestOnSegment(point.position, e.a, e.b).distance }))

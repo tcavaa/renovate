@@ -132,9 +132,17 @@ describe('the whole-flat check', () => {
     expect(auditScene({ plan: flat([hall]), items: [console, mirror] }).filter((i) => i.code === 'hung_into_floor').map((i) => i.what)).toEqual(['mirror into console']);
     expect(auditScene({ plan: flat([hall]), items: [console, { ...mirror, elevationM: 0.95 }] }).filter((i) => i.code === 'hung_into_floor')).toEqual([]);
     const pendant = piece('p', 'pendant', 'h', 1.5, [0.4, 0.4, 0.5], { position: { x: 1.5, z: 1.5 }, elevationM: 2.2 });
-    const light: ElectricalPoint = { id: 'e1', roomId: 'h', kind: 'light_ceiling', position: { x: 1.5, z: 1.5 }, elevationM: 2.7 };
+    // A second lamp is a ceiling point that is bought: one with a product of its own at the hanging lamp's spot.
+    const bought = { productId: 7, nameKa: 'lamp', slug: 'lamp', brand: null, pricePerUnit: 90, unit: 'piece', qty: 1, totalPrice: 90, imageUrl: null, colorHex: null, textureUrl: null, model3dUrl: '/models/fixtures/lamp.glb', categorySlug: 'lighting', store: null };
+    const light: ElectricalPoint = { id: 'e1', roomId: 'h', kind: 'light_ceiling', position: { x: 1.5, z: 1.5 }, elevationM: 2.7, product: bought };
     expect(auditScene({ plan: flat([hall]), items: [pendant], electrical: [light] }).map((i) => i.code)).toContain('two_main_lights');
     expect(auditScene({ plan: flat([hall]), items: [pendant], electrical: [{ ...light, position: { x: 0.5, z: 0.5 } }] }).map((i) => i.code)).not.toContain('two_main_lights');
+    // The lamp's own outlet — a point with no product, made the outlet of the lamp hanging at it — is the same light.
+    const outlet: ElectricalPoint = { id: 'e2', roomId: 'h', kind: 'light_ceiling', position: { x: 1.5, z: 1.5 }, elevationM: 2.7, lampOutlet: true };
+    expect(auditScene({ plan: flat([hall]), items: [pendant], electrical: [outlet] }).map((i) => i.code)).not.toContain('two_main_lights');
+    // A ceiling point there that is not the lamp's outlet is a second light, bought yet or not: the lighting plan lists both.
+    const { lampOutlet: _outlet, ...bare } = outlet;
+    expect(auditScene({ plan: flat([hall]), items: [pendant], electrical: [bare] }).map((i) => i.code)).toContain('two_main_lights');
   });
 
   it('finds a socket inside a radiator’s body', () => {

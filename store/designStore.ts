@@ -1177,7 +1177,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
           }),
 
         // --- electrical ---
-        suggestElectrical: (catalog = []) => commit((s) => (s.plan ? { electrical: withFixtureProducts(suggestElectrical(s.plan, s.items, s.electrical, s.styleId), catalog, s.styleId, s.plan.rooms) } : null)),
+        suggestElectrical: (catalog = []) => commit((s) => (s.plan ? { electrical: withFixtureProducts(suggestElectrical(s.plan, s.items, s.electrical, s.styleId, s.decor), catalog, s.styleId, s.plan.rooms, s.items) } : null)),
         placeByStandards: (catalog = []) => {
           const placed = { technical: 0, radiators: 0, electrical: 0 };
           commit((s) => {
@@ -1191,7 +1191,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             plan = withEquipmentProducts(plan, catalog, s.styleId);
             const before = s.electrical.filter((p) => p.origin !== 'generated').length;
             // The sockets and switches keep off the joinery and the tall furniture a furnished flat has.
-            const electrical = withFixtureProducts(standardElectrical(plan, s.electrical, s.items, s.decor), catalog, s.styleId, plan.rooms);
+            const electrical = withFixtureProducts(standardElectrical(plan, s.electrical, s.items, s.decor), catalog, s.styleId, plan.rooms, s.items);
             placed.technical = points.length;
             placed.radiators = radiators.length;
             placed.electrical = electrical.length - before;
@@ -1200,12 +1200,12 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
           return placed;
         },
         ensureBoardProducts: (catalog) => {
-          const { plan, electrical, styleId } = get();
+          const { plan, electrical, styleId, items } = get();
           if (!plan || catalog.length === 0) return;
           const withRadiators = withEquipmentProducts(withRadiatorProducts(plan, catalog, styleId), catalog, styleId);
           const rooms = withOpeningProducts(withRadiators.rooms, catalog, styleId);
           const nextPlan = rooms !== withRadiators.rooms ? { ...withRadiators, rooms } : withRadiators;
-          const nextElectrical = withFixtureProducts(electrical, catalog, styleId, plan.rooms);
+          const nextElectrical = withFixtureProducts(electrical, catalog, styleId, plan.rooms, items);
           const changedElectrical = nextElectrical.some((p, i) => p !== electrical[i]);
           if (nextPlan !== plan || changedElectrical) set({ ...(nextPlan !== plan ? { plan: nextPlan } : {}), ...(changedElectrical ? { electrical: nextElectrical } : {}) });
         },
@@ -1246,9 +1246,9 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
           }),
         setElectricalProduct: (id, product) => commit((s) => ({ electrical: s.electrical.map((p) => (p.id === id ? { ...withFixtureProduct(p, product), origin: 'user' } : p)) })),
         ensureFixtureProducts: (catalog) => {
-          const { electrical, styleId, plan } = get();
+          const { electrical, styleId, plan, items } = get();
           if (catalog.length === 0) return;
-          const next = withFixtureProducts(electrical, catalog, styleId, plan?.rooms ?? []);
+          const next = withFixtureProducts(electrical, catalog, styleId, plan?.rooms ?? [], items);
           if (next.some((p, i) => p !== electrical[i])) set({ electrical: next });
         },
         moveElectricalPoint: (id, position) =>

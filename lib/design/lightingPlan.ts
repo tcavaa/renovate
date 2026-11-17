@@ -10,7 +10,7 @@
  * Pure: no React, no DOM.
  */
 
-import { ELECTRICAL_KINDS, isLight } from './electrical';
+import { ELECTRICAL_KINDS, isLampOutlet, isLight } from './electrical';
 import { ceilingHeightM } from './rules';
 import type { ElectricalKind, ElectricalPoint, FloorPlan, LightCategory, PlacedItem } from './types';
 
@@ -50,7 +50,8 @@ export function lightingPlan(plan: FloorPlan, items: PlacedItem[], electrical: E
     };
     const ceiling = ceilingHeightM(room, plan);
     for (const point of electrical) {
-      if (point.roomId !== room.id || !isLight(point.kind)) continue;
+      // A hanging lamp's outlet is that lamp, listed below with the furniture's lamps.
+      if (point.roomId !== room.id || !isLight(point.kind) || isLampOutlet(point, items)) continue;
       const info = ELECTRICAL_KINDS[point.kind];
       const onCeiling = info.placement === 'ceiling';
       add({ fixture: point.kind, purpose: point.category ?? info.category ?? 'primary', mount: onCeiling ? 'ceiling' : 'wall', heightM: onCeiling ? ceiling : (point.elevationM ?? info.defaultElevationM) });

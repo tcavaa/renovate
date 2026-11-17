@@ -45,13 +45,10 @@
     "rule:bed_side_tight": 54,
     "rule:door_swing_blocked": 6,
     "rule:radiator_blocked": 6,
-    "rule:socket_in_splash": 6,
     "rule:sofa_tv_distance": 25,
     "rule:wc_faces_door": 32,
     "rule:wc_side_tight": 2,
-    "socket_in_radiator": 85,
     "tv_unit_off_wall": 8,
-    "two_main_lights": 215,
     "wardrobe_blocked": 13
   }
 }

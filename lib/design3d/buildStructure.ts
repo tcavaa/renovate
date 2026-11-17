@@ -17,7 +17,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { pointOnEdge, polygonBounds, polygonCentroid, roomEdges } from '@/lib/design/planGeometry';
 import { orphanWallSegments, wallHeightFor } from '@/lib/design/walls';
-import { ELECTRICAL_KINDS } from '@/lib/design/electrical';
+import { ELECTRICAL_KINDS, LAMP_OUTLET_NEAR_M } from '@/lib/design/electrical';
 import { cellPolygon } from '@/lib/design/paint';
 import type { DecorPiece, ElectricalKind, ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, StyleDefinition, SurfaceFinish, Vec2 } from '@/lib/design/types';
 import { StyleMaterials } from './materials';
@@ -173,8 +173,8 @@ export function buildElectrical(plan: FloorPlan, points: ElectricalPoint[], mate
 
 /** The width of one socket plate, and the pitch of a double or triple. */
 const PLATE_M = 0.08;
-/** A hanging lamp product this close to a ceiling point is that point's fitting. */
-const LAMP_NEAR_M = 0.5;
+/** A hanging lamp product this close to a ceiling point is that point's fitting (the wiring's own measure). */
+const LAMP_NEAR_M = LAMP_OUTLET_NEAR_M;
 /** Materials of a lamp model that stand for the light itself, lit when the point is on. */
 const LIT_MATERIAL = /light|lamp|glow|bulb|emiss|led|tube|shade/i;
 

@@ -28,6 +28,7 @@ import { calculateMaterials, calculateWorkerCosts, type EstimateCounts, type Est
 import type { HomeState, MaterialItem, Room, SelectedProduct, WorkChoices, WorkerCost } from '@/lib/calculator/types';
 import { CONTINGENCY_PCT } from '@/lib/calculator/constants';
 import { finishPickQuantity } from '@/lib/calculator/quantities';
+import { isLampOutlet } from './electrical';
 import { countDoors } from './openings';
 import { partitionArea } from './partitions';
 import { planToCalculatorRooms } from './planGeometry';
@@ -409,7 +410,9 @@ export function priceScene(
   const productLabels: ProductLabels = { ...DEFAULT_PRODUCT_LABELS, ...options.productLabels };
   // The points the plan holds are what the phases count: the electrician's points, the
   // plumber's, the radiators — so the estimate's lines and the points' own are one and the same.
-  const technical = technicalWork(plan, scene.electrical ?? [], full, phases, options.book, roomName, locale, have, productLabels);
+  // A hanging lamp's outlet is wired like any point, but the lamp is the furniture's: no second one is bought for it.
+  const outlets = new Set((scene.electrical ?? []).filter((p) => isLampOutlet(p, scene.items)).map((p) => p.id));
+  const technical = technicalWork(plan, scene.electrical ?? [], full, phases, options.book, roomName, locale, have, productLabels, outlets);
   if (full && phases.length > 0) {
     const { materials, workerCosts } = engineEstimate(plan, homeState, phases, technical.counts, options);
     for (const m of materials) {
@@ -646,7 +649,7 @@ function withoutExisting(phases: number[], have: AlreadyHave): number[] {
  * point's own line when it is not (a socket added to a flat nobody is rewiring). The fitting
  * or the equipment itself (the socket plate, the radiator, the boiler) is always the point's.
  */
-function technicalWork(plan: FloorPlan, electrical: ElectricalPoint[], full: boolean, phases: number[], book: RateBook | undefined, roomName: Map<string, string>, locale: 'ka' | 'en' | 'ru', have: AlreadyHave, labels: ProductLabels): { lines: BudgetLine[]; counts: Pick<EstimateCounts, 'electricPoints' | 'plumbingPoints' | 'radiators'> } {
+function technicalWork(plan: FloorPlan, electrical: ElectricalPoint[], full: boolean, phases: number[], book: RateBook | undefined, roomName: Map<string, string>, locale: 'ka' | 'en' | 'ru', have: AlreadyHave, labels: ProductLabels, lampOutlets: ReadonlySet<string> = new Set()): { lines: BudgetLine[]; counts: Pick<EstimateCounts, 'electricPoints' | 'plumbingPoints' | 'radiators'> } {
   const lines: BudgetLine[] = [];
   const counts = { electricPoints: 0, plumbingPoints: 0, radiators: 0 };
   const labourPrice = (key: TechnicalLabourKey): number => book?.labour[key]?.price ?? TECHNICAL_LABOUR_DEFAULT_GEL[key];
@@ -679,7 +682,7 @@ function technicalWork(plan: FloorPlan, electrical: ElectricalPoint[], full: boo
       bought.total = round2(bought.total + point.product.totalPrice);
       bought.rooms.add(point.roomId);
       byProduct.set(point.product.productId, bought);
-    } else {
+    } else if (!lampOutlets.has(point.id)) {
       entry.units = round2(entry.units + units);
     }
     if (owned(labour.key)) count(labour.key, labour.perUnit * units);

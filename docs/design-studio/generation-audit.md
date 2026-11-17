@@ -371,14 +371,23 @@ Severity: **high** = seen by anyone who generates; **medium** = wrong in some ro
   (`slotPool`), and the full-height one hangs where the wall is free from the floor up: across from
   the wardrobe (`fitHall`) or on a bare wall; no mirror runs into a console in 360 flats (143
   before). The bathroom mirror into the tap and the pendant are as they were.
-- [ ] **O5 (low) — Two main lights at one spot.** The program's `pendant` (an item with a product)
+- [x] **O5 (low) — Two main lights at one spot.** The program's `pendant` (an item with a product)
   and the wiring's ceiling light (a point with a product) are both put in the middle of the room —
   `electrical.ts` never reads the pendant: 59 % of bedroom pendants, 53 % of living-room ones and
   every office one have a ceiling point within 35 cm. The 3D view draws one lamp (the point shows
   only its rose under a hanging lamp, `lib/design3d/buildStructure.ts:234`), but the lighting plan
   lists two primary lights and a renovation's budget buys both (a design-only budget leaves
   generated points out, `pricing.ts:669`). In an L-shaped room the two middles differ (area
-  centroid, `planGeometry.ts:78`, against the corners' mean, `electrical.ts:239`).
+  centroid, `planGeometry.ts:78`, against the corners' mean, `electrical.ts:239`). *Fixed:* the
+  ceiling point under a hanging lamp is that lamp's outlet (`lampOutlets`, `isLampOutlet`,
+  `ElectricalPoint.lampOutlet`): no product, not in the lighting plan, not bought, not given the
+  flat's ceiling light (`dressBoard`), still wired — `two_main_lights` 213 → 0, which counts every
+  ceiling point at a hanging lamp that is not its outlet; and both middles are the area's centre
+  (`roomMiddle`). The outlet goes by the lamp that hangs at it, not by a lamp's id: in 323 rooms
+  whose wiring was kept and the flat generated again, 311 outlets are the new lamp's and 12 — the
+  lamp now hangs elsewhere — are ceiling lights with a lamp of their own. With the lamp deleted or
+  moved off the point is given a lamp like any other fitting, and a lamp picked for it in its panel
+  is put on it ([technical-and-fittings.md](technical-and-fittings.md), Known gaps, for when).
 - [ ] **O7 (high) — The TV unit is stood on a room separator's open line.** `placeRelative` is
   handed the room's whole outline (`autoLayout.ts:468`, `:1031`: "the wall the sofa faces" is
   whatever the ray meets), not the walls: in a living room that opens onto the kitchen or the hall
@@ -585,47 +594,90 @@ running the repo's own functions.
   `plan.technical`, and `wallBlocks` has no radiators (`electrical.ts:232-280`,
   `radiators.ts:249-254`): over 240 generated flats **435 of 1,115 general sockets are inside a
   radiator's body**. The filter that keeps sockets off "tall furniture" (1.2 m or more) leaves 337
-  behind lower pieces — the kitchen run (57), the bed's headboard (40).
+  behind lower pieces — the kitchen run (57), the bed's headboard (40). *Partly:* every generated
+  fitting slides along its wall off a radiator or a towel rail (`radiatorBody`, `makeOnWall`), and a
+  general socket keeps off a kitchen run and a wardrobe however low — `socket_in_radiator` 83 → 0.
+  *Left:* a general socket behind a bed's headboard, a sofa's back or another low piece — which
+  pieces hide a socket is for the per-room rules (one set, `HIDES_A_SOCKET`).
 - [ ] **T3 (high) — A towel rail is a radiator point that no radiator rule knows.** Hung over the WC
   (the rulebook's BA-19) it makes that WC `radiator_blocked` (60 of 60), and on the next generation
   its strip is a keep-clear floor: the WC is moved (55 of 60) or dropped (5). Every rail raises
   `radiator_not_exterior`. Placed before the furniture, its 0.58 × 0.375 m strip costs a
   2.4 × 3.2 m bathroom its shower on 14 seeds of 40 (`ruleChecks.ts:85-135`, `technical.ts:288-298`,
-  `radiators.ts:228-247`).
-- [ ] **T4 (medium) — A studio kitchen's spots hang in the living half.** The row is put on the
+  `radiators.ts:228-247`). *Partly:* a rail is in the way only of what stands up into it, raises no
+  `radiator_not_exterior`, and hung over a WC takes no floor (in four test bathrooms × 40 draws the
+  WC was flagged 40 of 40 and moved 40 of 40 on the next generation; now 0 and 0). A rail hung at
+  60 cm in a bare bathroom still keeps its strip: with the floor freed and no height-aware obstacle
+  in `autoLayout.ts`, a basin or a washer's column was generated up into the rail in 7–29 of 40 draws
+  (0–4 with the strip).
+- [x] **T4 (medium) — A studio kitchen's spots hang in the living half.** The row is put on the
   line through the room's middle, taken for the whole studio (`electrical.ts:516-528`): 2.9 m in
   front of the worktop, one of them 2 cm from the room's own ceiling light. In L-shaped kitchens
-  every spot was outside the room in 36 of 200 runs.
-- [ ] **T5 (medium) — A corner kitchen's leg is taken for a second run.** The leg copies the run's
+  every spot was outside the room in 36 of 200 runs. *Fixed:* the row runs through the middle of
+  the floor in front of its run — a studio's kitchen half, and the shallowest floor the run has
+  before it where the room is no rectangle (`kitchenSpots`): over 360 flats a studio's row was in
+  the living half in 48 of 96 runs and is in none, on average 1.0 m in front of the worktop
+  rather than 2.0 m; in the five L-shaped kitchens the row was wholly outside the room in 36 of
+  200 runs and partly in 20 more, and is inside in all 200.
+- [x] **T5 (medium) — A corner kitchen's leg is taken for a second run.** The leg copies the run's
   slot (`kitchenCorner.ts:178-189`) and `autoTechnical.ts:122-129` has no `legOf` test: all 74 legs
   in 240 flats got a hot and cold pair of their own, and where the leg is the longer piece (9) the
-  sewer, the gas and the hood went to the leg, which has no sink or hob.
+  sewer, the gas and the hood went to the leg, which has no sink or hob. *Fixed:* the technical
+  points, the kitchen's wiring and the step's hints all leave a piece with `legOf` out — the run is
+  what is served.
 - [ ] **T6 (medium) — Radiators are moved clear of furniture one at a time**, and the fallback
   returns the wanted spot even across a door (`radiators.ts:261-271`, `:311-331`): two radiators
   touching or on one spot (8 pairs in 120 flats), a radiator across a door by 30–50 cm in a hall
-  with a door in every wall.
+  with a door in every wall. *Partly:* a room's radiators are hung together — the ones that stay
+  first, the ones that move clear of them — and one whose spot is across a door slides beside it
+  (`clearSpot`): hanging them in 360 generated flats, 20 pairs overlapped and none does (one pair
+  is side by side, 5 cm apart), and in the 30 bare plans 7 radiators were across a door and 2 are.
+  *Left:* a radiator is placed as 80 cm long and the catalogue's panel is up to 1.4 m, so 9 of
+  1,846 still reach 3–20 cm across a door they were hung beside — `suggestRadiators` would need
+  the style's product before it places (T13).
 - [ ] **T7 (medium) — The boiler looks at nothing.** `hallCupboardSpot` and `clearOfWet` take no
   furniture (`autoTechnical.ts:234-274`): the cupboard through the WC on 15 of 30 seeds of one flat,
-  the boiler exactly on the electrical panel in 8 of 30.
+  the boiler exactly on the electrical panel in 8 of 30. *Partly:* the cupboard's stretch of wall is
+  clear, from the floor up, of the furniture, the joinery and the equipment already hung there
+  (`cupboardBlocks`), in the hall, the bathroom and the old rooms alike; a room with no such
+  stretch keeps its boiler, off the panel first. In the 30 bare plans the boiler was on the panel
+  in 9 and is in none; placed in 240 furnished flats, it was on the panel in 6 and is in none,
+  through a WC in 4 and its box in 7 (now none and 1), through a basin in 7 (now 4), on a
+  studio's air conditioner in 6 (now none). *Left:* a hall or a bathroom with no stretch
+  clear (the hall's mirror on the only wall that holds the cupboard, 9, a basin, 4), and the Vintage boiler,
+  whose cupboard is 1.4 m wide once it has its product — the placement goes by the 62 cm of a
+  boiler without one (T13).
 - [ ] **T8 (medium) — One edited fitting freezes a room's wiring.** Any edit, a product swap
   included, marks the point the person's (`store/designStore.ts:1247`); `wiredByHand` then skips the
   whole room (`electrical.ts:181-184`): generating again moves the furniture and keeps every old
   socket and light in that room (12 of 12 plans).
-- [ ] **T9 (medium) — The studio's own "wire it" does not pass the decor**
+- [x] **T9 (medium) — The studio's own "wire it" does not pass the decor**
   (`store/designStore.ts:1180`): a switch or a socket inside built joinery in 42 of 129 bedrooms
-  with a cabinet (none when the decor is passed).
-- [ ] **T10 (medium) — A washing machine gets no socket**, in any room (`furnitureFor` has no
+  with a cabinet (none when the decor is passed). *Fixed:* it passes the decor, as generation does.
+- [x] **T10 (medium) — A washing machine gets no socket**, in any room (`furnitureFor` has no
   washer), and one the layout sent to the hall gets cold water and no drain (84 of 108 halls;
-  `BY_ROOM` has no hallway).
-- [ ] **T11 (medium) — A fitting that falls on a door or a window is dropped, not moved**
+  `BY_ROOM` has no hallway). *Fixed:* it has a socket behind it at 30 cm, out of the splash zone
+  (196 of 216 machines in 360 flats; the rest stand on a room separator's open line or by a wall
+  that is in a splash zone from end to end), and a room with a machine and no sewer gets one at it.
+- [x] **T11 (medium) — A fitting that falls on a door or a window is dropped, not moved**
   (`makeOnWall` returns nothing and no caller tries again): every run under a window (40 of 600)
   loses the hood's socket and one worktop socket. A run of exactly 3.0 m gets two worktop sockets
-  where 3.01 m gets three (`0.8999… >= 0.9`, `electrical.ts:488`).
+  where 3.01 m gets three (`0.8999… >= 0.9`, `electrical.ts:488`). *Fixed:* it slides along its wall
+  to the nearest clear spot (`clearSpotOnWall`) — over 360 flats 150 switches, 87 two-way switches,
+  61 wall lights, 52 sockets and 20 each of the hood's sockets, the worktop's sockets and the
+  under-cabinet lights are no longer lost — and a 3.0 m run gets its third socket.
 - [ ] **T12 (low)** — A switch 1–3 cm from the corner where the wall beside the door is short (24
-  of 544 switches; `electrical.ts:139-152`). The basin's own socket inside the splash zone its
-  check reports (23 of 335; `electrical.ts:536-543` does not read `SPLASH_ZONE_M`). A room's middle
+  of 544 switches; `electrical.ts:139-152`) — *not fixed: no plate runs past the wall's end any more
+  (168 did in 360 flats) and the switch leaves the handle side only when its spot there is taken,
+  but a plate that slides stops a centimetre from the corner (137 of 3,543 switches, 39 more within
+  3 cm) — how far from a corner a plate keeps is a clearance nobody has set.* The basin's own socket inside the splash zone its
+  check reports (23 of 335; `electrical.ts:536-543` does not read `SPLASH_ZONE_M`) — *fixed: it is
+  placed out of the zone, which is now measured from the shower's tray, not the column standing in
+  it (`rule:socket_in_splash` 6 → 0; 11 → 0 by the tray).* A room's middle
   taken as the mean of its corners: 29 of 107 lights over 50 cm off the real middle, an L-shaped
-  hall's arm unlit (`:239`, `:324-337`).
+  hall's arm unlit (`:239`, `:324-337`) — *fixed for the room's main light and the bedroom's track:
+  the area's own centre (`roomMiddle`), inside the room; an L-shaped hall's arm is still unlit when
+  no light of the row along its longer side falls in it (`hallLightSpots`).*
 - [ ] **T13 — Reported, not re-checked**: rooms under 1.2 m² get no points and bathrooms under
   3.5 m² no towel rail; a room entered through a separator gets a light and no switch; a second
   sofa, desk or basin gets nothing; `CLEAR_WALL_M` 0.5 against cupboards of 0.62 and 0.8 m;

@@ -132,6 +132,61 @@ describe('placing the technical points by the rules', () => {
     expect(ruleViolations({ ...planOf([bath]), technical: { points: [boiler] } }, items).map((v) => v.code)).not.toContain('boiler_by_bath');
   });
 
+  describe('the boiler\'s cupboard and what is already there', () => {
+    /** Where along its nearest wall a point is, and which wall. */
+    const onWall = (r: PlanRoom, p: Vec2) =>
+      roomEdges(r.polygon)
+        .map((e) => ({ wall: e.index, s: (p.x - e.a.x) * e.dir.x + (p.z - e.a.z) * e.dir.z, off: Math.abs((p.x - e.a.x) * e.inward.x + (p.z - e.a.z) * e.inward.z), length: e.length }))
+        .filter((q) => q.s >= -0.01 && q.s <= q.length + 0.01)
+        .sort((a, b) => a.off - b.off)[0];
+    const at = (roomId: string, id: string, slot: PlacedItem['slot'], x: number, z: number, width: number, depth: number, height: number, rotation = 0, elevationM = 0): PlacedItem => ({ id, slot, kind: slot, roomId, position: P(x, z), rotation, size: { width, depth, height }, elevationM, product: null, origin: 'style' });
+
+    it('is never on the electrical panel: a hall with no front door has both on its longest wall, apart', () => {
+      const hall = room('hall', 'hallway', 0, 0, 2, 4);
+      const { points } = suggestTechnical(planOf([hall]), [], ids);
+      const boiler = onWall(hall, points.find((p) => p.kind === 'boiler')!.position);
+      const panel = onWall(hall, points.find((p) => p.kind === 'electrical_panel')!.position);
+      // The panel is outside the 80 cm the cupboard takes of the wall.
+      expect(boiler.wall !== panel.wall || Math.abs(boiler.s - panel.s) > 0.4).toBe(true);
+    });
+
+    it('stands clear of the hall\'s furniture when a wall has the room, and by the front door all the same', () => {
+      const hall = room('hall', 'hallway', 0, 0, 2, 5);
+      const bottom = roomEdges(hall.polygon).find((e) => Math.abs(e.a.z - 5) < 1e-6 && Math.abs(e.b.z - 5) < 1e-6)!;
+      const withDoor: PlanRoom = { ...hall, openings: [{ id: 'front', kind: 'door', wallIndex: bottom.index, t: 0.3, widthM: 0.9, heightM: 2.05, sillM: 0, roomId: 'hall', exterior: true }] };
+      const bare = suggestTechnical(planOf([withDoor]), [], ids).points.find((p) => p.kind === 'boiler')!;
+      const spot = onWall(withDoor, bare.position);
+      // A console and its mirror where the cupboard went in the bare hall.
+      const edge = roomEdges(withDoor.polygon)[spot.wall];
+      const facing = Math.atan2(edge.inward.x, edge.inward.z);
+      const console = at('hall', 'console', 'dresser', bare.position.x + edge.inward.x * 0.1, bare.position.z + edge.inward.z * 0.1, 0.9, 0.3, 0.8, facing);
+      const mirror = at('hall', 'mirror', 'mirror', bare.position.x, bare.position.z, 0.7, 0.05, 1, facing, 1);
+      const furnished = suggestTechnical(planOf([withDoor]), [console, mirror], ids).points.find((p) => p.kind === 'boiler')!;
+      const moved = onWall(withDoor, furnished.position);
+      expect(furnished.roomId).toBe('hall');
+      // The cupboard (80 cm) and the console (90 cm) do not share the wall.
+      expect(moved.wall !== spot.wall || Math.abs(moved.s - spot.s) >= 0.4 + 0.45).toBe(true);
+    });
+
+    it('is not put through a bathroom\'s WC when a wall is clear of it', () => {
+      // 3 × 2.5 m: the bath along the top wall, the shower in the bottom right corner; a WC then stands
+      // where the boiler went in the room without one.
+      const bath = room('bath', 'bathroom', 0, 0, 3, 2.5);
+      const wet = [at('bath', 'tub', 'bathtub', 2.15, 0.4, 1.7, 0.75, 0.5), at('bath', 'shower', 'shower', 2.5, 2.05, 0.9, 0.9, 0.5)];
+      const bare = suggestTechnical(planOf([bath]), wet, ids).points.find((p) => p.kind === 'boiler')!;
+      const spot = onWall(bath, bare.position);
+      const edge = roomEdges(bath.polygon)[spot.wall];
+      const facing = Math.atan2(edge.inward.x, edge.inward.z);
+      const wc = at('bath', 'wc', 'toilet', bare.position.x + edge.inward.x * 0.3, bare.position.z + edge.inward.z * 0.3, 0.4, 0.65, 0.8, facing);
+      const furnished = suggestTechnical(planOf([bath]), [...wet, wc], ids).points.find((p) => p.kind === 'boiler')!;
+      const moved = onWall(bath, furnished.position);
+      expect(furnished.roomId).toBe('bath');
+      // The cupboard (62 cm) is beside the WC (40 cm), not over it — and still clear of the shower and the bath.
+      expect(moved.wall !== spot.wall || Math.abs(moved.s - spot.s) >= 0.31 + 0.2).toBe(true);
+      expect(ruleViolations({ ...planOf([bath]), technical: { points: [furnished] } }, [...wet, wc]).map((v) => v.code)).not.toContain('boiler_by_bath');
+    });
+  });
+
   it('hangs a balcony\'s boiler on the flat\'s wall beside its door when its outside walls are railings', () => {
     // A living room above a balcony of railings on three sides: the door between them on the balcony's top wall.
     const living = room('liv', 'living_room', 0, 0, 4, 3);

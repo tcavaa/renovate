@@ -258,6 +258,7 @@ export const electricalPointSchema = z.object({
   lengthM: z.number().min(0.1).max(30).optional(),
   product: sceneProductSchema.nullable().optional(),
   sizeM: z.object({ width: z.number().min(0.01).max(10), depth: z.number().min(0.01).max(10), height: z.number().min(0.01).max(10) }).optional(),
+  lampOutlet: z.boolean().optional(),
   origin: elementOriginSchema.optional(),
   locked: z.boolean().optional(),
 });

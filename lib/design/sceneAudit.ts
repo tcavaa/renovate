@@ -11,6 +11,7 @@
 import { arrangedOff } from './arrangedOff';
 import { getArchetype } from './catalog';
 import { decorFootprint } from './decor/joinery';
+import { isLampOutlet } from './electrical';
 import { blocksWindow, footprintInRoom, footprintOf, inDoorway, pieceWall, tucksUnder, type Footprint } from './manipulate';
 import { isOpenEdge, roomEdges } from './planGeometry';
 import { DEFAULT_SECTION_WIDTH_M, radiatorPoints, radiatorSections, radiatorWallSpot } from './radiators';
@@ -53,7 +54,7 @@ export type SceneIssueCode =
   | 'hung_into_floor'
   /** A socket inside a radiator's body. */
   | 'socket_in_radiator'
-  /** A hanging lamp and the wiring's ceiling light at one spot: two main lights, both bought. */
+  /** A hanging lamp and a ceiling point that is a light of its own (not the lamp's outlet) at one spot: two main lights. */
   | 'two_main_lights'
   /** Something within 30 cm in front of a built wall of wardrobe: its doors cannot open. */
   | 'wardrobe_blocked'
@@ -284,7 +285,9 @@ export function auditScene(scene: AuditedScene): SceneIssue[] {
 
     // --- one main light: the hanging lamp, or the wiring's ceiling light
     for (const pendant of inRoom.filter((i) => i.slot === 'pendant')) {
-      const twin = electrical.find((p) => p.roomId === room.id && (p.kind === 'light_ceiling' || p.kind === 'light_spot') && Math.hypot(p.position.x - pendant.position.x, p.position.z - pendant.position.z) < 0.35);
+      // A ceiling point there that is a light of its own, bought yet or not — not the hanging lamp's
+      // outlet (`isLampOutlet`), which is that lamp: what the lighting plan lists as a second main light.
+      const twin = electrical.find((p) => p.roomId === room.id && (p.kind === 'light_ceiling' || p.kind === 'light_spot') && !isLampOutlet(p, inRoom) && Math.hypot(p.position.x - pendant.position.x, p.position.z - pendant.position.z) < 0.35);
       if (twin) say('two_main_lights', `${pendant.kind} and ${twin.kind}`, pendant.id);
     }
   }

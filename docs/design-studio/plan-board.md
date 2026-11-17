@@ -530,7 +530,8 @@ parses the result back with pdf.js; the writer takes a page per image (`pdfOfIma
 pass it): the plan with its lights alone — the light points and the lamps among the furniture
 (pendants, floor lamps) — over a table of every room's fittings, a row per kind: the fitting, what
 it lights (main, accent, furniture, bedside, indirect, decorative — the point's `category`; a
-pendant over a table lights the table), where it is fixed and how high (on the ceiling at the
+pendant over a table lights the table; the ceiling point a hanging lamp hangs from is that lamp and
+is not listed again — `isLampOutlet`), where it is fixed and how high (on the ceiling at the
 ceiling's height, on a wall at its height, hanging at its shade's, on the floor at its top), how
 many; rows that run past the page are counted. **The board has a Lighting layer** (განათება,
 `EditorLayers.lighting`) beside the Electrical one (sockets, switches, TV and data): the lights

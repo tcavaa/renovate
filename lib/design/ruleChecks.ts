@@ -10,7 +10,7 @@
 
 import { getArchetype } from './catalog';
 import { pointInPolygon, pointOnEdge, roomEdges, wallEdges, type PlanEdge } from './planGeometry';
-import { DEFAULT_SECTION_WIDTH_M, outsideEdges, radiatorPoints, radiatorSections, radiatorWallSpot, windowOver } from './radiators';
+import { TOWEL_RAIL_OVER_WC_MIN_M, outsideEdges, radiatorBodies, radiatorPoints, radiatorWallSpot, windowOver } from './radiators';
 import {
   BASIN_TOP_M,
   BASIN_TOP_TOLERANCE_M,
@@ -33,6 +33,7 @@ import {
   roomSightBands,
   type Quad,
 } from './rules';
+import { showerArea } from './shower';
 import type { ElectricalPoint, FloorPlan, PlacedItem, TechnicalPoint, Vec2 } from './types';
 
 export type RuleCode =
@@ -68,49 +69,56 @@ export interface RuleViolation {
   limitM?: number;
 }
 
-/** A radiator's depth when its product does not say. */
-const RADIATOR_DEPTH_M = 0.1;
-/** A radiator's height when it has no product: a middling one. */
-export const RADIATOR_HEIGHT_M = 0.6;
+export { RADIATOR_HEIGHT_M } from './radiators';
 
 interface Strip {
   roomId: string;
   point: TechnicalPoint;
-  /** The strip's four corners on the floor: along the radiator, from the wall out past its front. */
+  /** What nothing may stand in, as four corners on the floor: along the radiator, from the wall out past its front. */
   corners: Vec2[];
+  /** What stands lower than this is under it, what starts higher than `top` is over it: neither is in its way. */
+  bottom: number;
   top: number;
+  /** The floor the layout keeps clear for it (`radiatorKeepouts`); null when it takes none. */
+  floor: Vec2[] | null;
 }
 
-/** The floor in front of each radiator that is to stay clear: its length plus 5 cm each end, its depth plus 30 cm. */
+/**
+ * What is to stay clear at each radiator: the floor in front of it — its length plus 5 cm each end,
+ * its depth plus 30 cm — from the floor to its top. A heated towel rail hangs up the wall
+ * (`TOWEL_RAIL_*`): in its way is only what stands up into it where it hangs — the WC it is hung
+ * over stands under it. One hung over a WC (`TOWEL_RAIL_OVER_WC_MIN_M` or higher) takes no floor at
+ * all; under a lower one the layout still keeps the strip clear, because it cannot tell a piece that
+ * fits under the rail from one that reaches into it.
+ */
 function radiatorStrips(plan: FloorPlan): Strip[] {
   const out: Strip[] = [];
-  for (const point of radiatorPoints(plan)) {
-    const spot = radiatorWallSpot(plan, point);
-    if (!spot) continue;
-    const length = radiatorSections(plan, point) * (point.radiator?.sectionWidthM ?? DEFAULT_SECTION_WIDTH_M) + 0.1;
-    const depth = (point.radiator?.depthM ?? RADIATOR_DEPTH_M) + RADIATOR_KEEP_CLEAR_M;
-    const { edge } = spot;
-    const from = Math.max(0, spot.s - length / 2);
-    const to = Math.min(edge.length, spot.s + length / 2);
-    const a = pointOnEdge(edge, from / edge.length);
-    const b = pointOnEdge(edge, to / edge.length);
-    const out1 = (p: Vec2) => ({ x: p.x + edge.inward.x * depth, z: p.z + edge.inward.z * depth });
-    out.push({
-      roomId: spot.room.id,
-      point,
-      corners: [a, b, out1(b), out1(a)],
-      top: (point.elevationM ?? RADIATOR_FLOOR_GAP_M) + (point.radiator?.heightM ?? RADIATOR_HEIGHT_M),
-    });
+  for (const body of radiatorBodies(plan)) {
+    const { edge } = body;
+    const strip = (past: number, depth: number): Vec2[] => {
+      const a = pointOnEdge(edge, Math.max(0, body.from - past) / edge.length);
+      const b = pointOnEdge(edge, Math.min(edge.length, body.to + past) / edge.length);
+      const out1 = (p: Vec2) => ({ x: p.x + edge.inward.x * depth, z: p.z + edge.inward.z * depth });
+      return [a, b, out1(b), out1(a)];
+    };
+    const front = strip(RADIATOR_END_CLEAR_M, body.depthM + RADIATOR_KEEP_CLEAR_M);
+    const base = { roomId: body.room.id, point: body.point, top: body.top };
+    if (body.point.towelRail) out.push({ ...base, corners: strip(0, body.depthM), bottom: body.bottom, floor: body.bottom >= TOWEL_RAIL_OVER_WC_MIN_M ? null : front });
+    else out.push({ ...base, corners: front, bottom: 0, floor: front });
   }
   return out;
 }
 
-/** The strips in front of the radiators as boxes per room, for the layout engine's obstacles. */
+/** Kept clear past each end of a radiator. */
+const RADIATOR_END_CLEAR_M = 0.05;
+
+/** The strips in front of the radiators as boxes per room, for the layout engine's obstacles — a towel rail hung over a WC has none. */
 export function radiatorKeepouts(plan: FloorPlan): Record<string, Array<{ minX: number; maxX: number; minZ: number; maxZ: number }>> {
   const out: Record<string, Array<{ minX: number; maxX: number; minZ: number; maxZ: number }>> = {};
   for (const strip of radiatorStrips(plan)) {
-    const xs = strip.corners.map((c) => c.x);
-    const zs = strip.corners.map((c) => c.z);
+    if (!strip.floor) continue;
+    const xs = strip.floor.map((c) => c.x);
+    const zs = strip.floor.map((c) => c.z);
     (out[strip.roomId] ??= []).push({ minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs) });
   }
   return out;
@@ -123,12 +131,13 @@ export function radiatorKeepouts(plan: FloorPlan): Record<string, Array<{ minX: 
 export function ruleViolations(plan: FloorPlan, items: PlacedItem[], electrical: ElectricalPoint[] = []): RuleViolation[] {
   const out: RuleViolation[] = [];
 
-  // Nothing standing in front of a radiator (a curtain may hang there; a rug lies under).
+  // Nothing standing in front of a radiator (a curtain may hang there; a rug lies under), nothing
+  // standing up into a towel rail.
   for (const strip of radiatorStrips(plan)) {
     const blocker = items.find((item) => {
       if (item.roomId !== strip.roomId || item.slot === 'curtain') return false;
       if (getArchetype(item.kind)?.ghost) return false;
-      if (item.elevationM >= strip.top) return false;
+      if (item.elevationM >= strip.top || item.elevationM + item.size.height <= strip.bottom) return false;
       return quadsOverlap(footprintQuad(item), strip.corners);
     });
     if (blocker) out.push({ code: 'radiator_blocked', roomId: strip.roomId, pointId: strip.point.id, itemId: blocker.id });
@@ -295,14 +304,33 @@ function layoutRules(plan: FloorPlan, items: PlacedItem[]): RuleViolation[] {
   return out;
 }
 
+/**
+ * The floor each shower and bath of a room wets, as outlines: a shower's tray with its glass
+ * (`showerArea` — the piece itself is only the column standing in it), a bath's own footprint.
+ */
+export function wetFootprints(items: readonly PlacedItem[], roomId: string): Array<{ item: PlacedItem; quad: Quad }> {
+  return items
+    .filter((i) => i.roomId === roomId && (i.slot === 'shower' || i.slot === 'bathtub'))
+    .map((item) => {
+      const area = showerArea(item);
+      return { item, quad: area ? footprintQuad({ position: area.centre, rotation: area.rotation, size: { width: area.width, depth: area.depth, height: item.size.height } }) : footprintQuad(item) };
+    });
+}
+
+/** Whether a point is in a splash zone: within `SPLASH_ZONE_M` of the floor a shower or a bath wets. */
+export function inSplashZone(point: Vec2, wet: ReadonlyArray<{ quad: Quad }>): boolean {
+  return wet.some((w) => distanceToQuad(point, w.quad) < SPLASH_ZONE_M);
+}
+
 /** No socket within 60 cm of a shower or a bath — the splash zone. */
 function splashZones(items: PlacedItem[], electrical: ElectricalPoint[]): RuleViolation[] {
   const out: RuleViolation[] = [];
-  const wet = items.filter((i) => i.slot === 'shower' || i.slot === 'bathtub');
+  const byRoom = new Map<string, Array<{ item: PlacedItem; quad: Quad }>>();
   for (const point of electrical) {
     if (!point.kind.startsWith('socket')) continue;
-    const near = wet.find((i) => i.roomId === point.roomId && distanceToQuad(point.position, footprintQuad(i)) < SPLASH_ZONE_M);
-    if (near) out.push({ code: 'socket_in_splash', roomId: point.roomId, pointId: point.id, itemId: near.id });
+    if (!byRoom.has(point.roomId)) byRoom.set(point.roomId, wetFootprints(items, point.roomId));
+    const near = byRoom.get(point.roomId)!.find((w) => inSplashZone(point.position, [w]));
+    if (near) out.push({ code: 'socket_in_splash', roomId: point.roomId, pointId: point.id, itemId: near.item.id });
   }
   return out;
 }

@@ -570,6 +570,51 @@ describe('a WC’s box', () => {
   });
 });
 
+describe('wiring the flat from the studio', () => {
+  it('reads the joinery: no socket is put inside a wall of wardrobe', () => {
+    useDesignStore.getState().suggestElectrical();
+    const bare = useDesignStore.getState().electrical.filter((p) => p.kind === 'socket');
+    // A general socket in the middle of each 4 m wall.
+    expect(bare.map((p) => Math.round(p.t! * 4 * 100) / 100)).toEqual([2, 2]);
+    const wallIndex = bare[0].wallIndex!;
+    // A wardrobe built across the middle of that wall, 1–3 m along it, floor to ceiling.
+    const wardrobe = { id: 'w', roomId: room().id, family: 'cabinet' as const, wallIndex, span: { from: 1, to: 3 }, height: { from: 0, to: 2.8 }, params: { sections: [{ kind: 'doors' as const, widthMm: 2000, heightMm: 2800, depthMm: 600 }] }, materials: {} };
+    useDesignStore.getState().reset();
+    useDesignStore.getState().setPlan(plan());
+    useDesignStore.setState({ decor: [wardrobe] });
+    useDesignStore.getState().suggestElectrical();
+    const inside = useDesignStore.getState().electrical.filter((p) => p.wallIndex === wallIndex && p.t! * 4 > 0.95 && p.t! * 4 < 3.05);
+    expect(inside).toEqual([]);
+    expect(useDesignStore.getState().electrical.filter((p) => p.kind === 'socket')).toHaveLength(2);
+  });
+});
+
+describe('a hanging lamp’s outlet in the studio', () => {
+  const ceilingLight = { ...sofa(9, 30, 30), categorySlug: 'lighting', model3dKind: 'light_ceiling', model3dUrl: '/models/fixtures/ceiling.glb' } as CatalogProduct;
+  const lamp = (): PlacedItem => ({ ...placed('lamp', 2, 1.5, 0.4, 0.4, 'pendant_lamp', 'pendant'), elevationM: 2.2 });
+  const light = () => useDesignStore.getState().electrical.find((p) => p.kind === 'light_ceiling')!;
+
+  it('is the room’s ceiling light again, given a lamp like any other, once the hanging lamp is taken away', () => {
+    useDesignStore.setState({ items: [lamp()] });
+    useDesignStore.getState().suggestElectrical([ceilingLight]);
+    // The lamp hangs in the middle of the room: the ceiling point there is its outlet, not a second lamp.
+    expect([light().lampOutlet ?? null, light().product ?? null]).toEqual([true, null]);
+    useDesignStore.getState().ensureFixtureProducts([ceilingLight]);
+    expect(light().product ?? null).toBeNull();
+
+    useDesignStore.getState().removeItem('lamp');
+    useDesignStore.getState().ensureFixtureProducts([ceilingLight]);
+    expect([light().lampOutlet ?? null, light().product?.productId]).toEqual([null, 9]);
+  });
+
+  it('takes the lamp a person picks for it in its panel', () => {
+    useDesignStore.setState({ items: [lamp()] });
+    useDesignStore.getState().suggestElectrical([ceilingLight]);
+    useDesignStore.getState().setElectricalProduct(light().id, ceilingLight);
+    expect([light().lampOutlet ?? null, light().product?.productId, light().origin]).toEqual([null, 9, 'user']);
+  });
+});
+
 describe('several walls at once', () => {
   const state = () => useDesignStore.getState();
 

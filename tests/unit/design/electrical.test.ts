@@ -237,6 +237,6 @@ describe('a lamp’s colour temperature', () => {
     expect(fixtureCandidates('light_ceiling', catalog, 'modern').map((p) => p.id)).toEqual([3, 1, 2]);
     const rooms = plan().rooms;
     const light: ElectricalPoint = { id: 'l', roomId: 'kitchen', kind: 'light_ceiling', position: P(7, 5), elevationM: 2.7, wallIndex: null, t: null, on: true, origin: 'generated' };
-    expect(withFixtureProducts([light], catalog, 'modern', rooms)[0].product?.productId).toBe(1);
+    expect(withFixtureProducts([light], catalog, 'modern', rooms, [])[0].product?.productId).toBe(1);
   });
 });

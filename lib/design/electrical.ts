@@ -18,8 +18,11 @@
  * Pure geometry over the plan and the placed items; no React, no THREE.
  */
 
-import { clearOf, nearestClear, wallBlocks } from './wallClear';
-import { isPassage, openingSpanUp, pointInPolygon, pointOnEdge, polygonBounds, roomEdges, wallEdges, type PlanEdge } from './planGeometry';
+import { clearOf, nearestClear, wallBlocks, type WallBlock } from './wallClear';
+import { radiatorBodies, radiatorWallBlocks, type RadiatorBody } from './radiators';
+import { isPassage, openingSpanUp, pointInPolygon, pointOnEdge, polygonBounds, polygonCentroid, roomEdges, wallEdges, type PlanEdge } from './planGeometry';
+import { inSplashZone, wetFootprints } from './ruleChecks';
+import { partAt, studioParts } from './studio';
 import { closestOnSegment } from './walls';
 import { toSceneProduct, type CatalogProduct } from './matcher';
 import {
@@ -50,8 +53,9 @@ import {
   roomLightK,
   underCeiling,
   kitchenRunZones,
+  rayToPolygon,
 } from './rules';
-import type { DecorPiece, ElectricalKind, ElectricalPoint, FloorPlan, LightCategory, PlacedItem, PlanRoom, StyleId, TechnicalPoint, Vec2 } from './types';
+import type { DecorPiece, ElectricalKind, ElectricalPoint, FloorPlan, LightCategory, PlacedItem, PlanRoom, SlotKind, StyleId, TechnicalPoint, Vec2 } from './types';
 
 export { KITCHEN_SOCKET_M, KITCHEN_WORKTOP_M, HIGH_SOCKET_M, SOCKET_M, SWITCH_M, TV_SOCKET_M } from './rules';
 
@@ -115,7 +119,14 @@ function onWall(room: PlanRoom, edge: PlanEdge, t: number): Vec2 {
 interface Builder {
   points: ElectricalPoint[];
   next: () => string;
+  /** The flat's radiators and towel rails on their walls: no fitting is put in or behind one. */
+  radiators: readonly RadiatorBody[];
 }
+
+/** The height round a fitting that has to be clear of what stands or hangs at its wall. */
+const CLEAR_BAND_M = 0.1;
+/** How near a doorway or a window a fitting's middle goes. */
+const FROM_OPENING_M = 0.08;
 
 function make(b: Builder, room: PlanRoom, kind: ElectricalKind, position: Vec2, extra: Partial<ElectricalPoint> = {}): ElectricalPoint {
   const info = ELECTRICAL_KINDS[kind];
@@ -136,19 +147,44 @@ function make(b: Builder, room: PlanRoom, kind: ElectricalKind, position: Vec2, 
   return point;
 }
 
-function makeOnWall(b: Builder, room: PlanRoom, kind: ElectricalKind, edge: PlanEdge, t: number, extra: Partial<ElectricalPoint> = {}): ElectricalPoint | null {
-  // Not in a doorway or a window at that height — nor anywhere over a railing, where there is no wall.
+/**
+ * A fitting on a wall at `t` — or, when that spot is a doorway or a window at its height, has a
+ * radiator hanging on it, one of `avoid` standing at it or another plate on it, at the nearest spot
+ * along the same wall that is clear of them all (`clearSpotOnWall`). Null only when the wall has no
+ * such spot (over a railing, where there is no wall at all).
+ */
+function makeOnWall(b: Builder, room: PlanRoom, kind: ElectricalKind, edge: PlanEdge, t: number, extra: Partial<ElectricalPoint> = {}, avoid: readonly WallBlock[] = []): ElectricalPoint | null {
   const height = extra.elevationM ?? ELECTRICAL_KINDS[kind].defaultElevationM;
-  const blocked = room.openings.some((o) => {
-    if (o.wallIndex !== edge.index) return false;
-    const half = (o.widthM / 2 + 0.08) / edge.length;
-    const inSpan = t > o.t - half && t < o.t + half;
-    const gap = openingSpanUp(o, room.heightM);
-    const inHeight = height >= gap.bottom - 0.05 && height <= gap.top + 0.05;
-    return inSpan && inHeight;
-  });
-  if (blocked) return null;
-  return make(b, room, kind, onWall(room, edge, t), { wallIndex: edge.index, t: Math.max(0.02, Math.min(0.98, t)), ...extra });
+  const plate = DEFAULT_PLATE_M * Math.max(1, extra.count ?? ELECTRICAL_KINDS[kind].count ?? 1);
+  const s = clearSpotOnWall(b, room, edge, Math.max(0, Math.min(1, t)) * edge.length, height, plate, [...radiatorWallBlocks(b.radiators, room, edge), ...avoid]);
+  if (s == null) return null;
+  return make(b, room, kind, onWall(room, edge, s / edge.length), { wallIndex: edge.index, t: s / edge.length, ...extra });
+}
+
+/** Whether an opening's gap is in the wall at this height. */
+function opensAt(room: PlanRoom, opening: PlanRoom['openings'][number], height: number): boolean {
+  const gap = openingSpanUp(opening, room.heightM);
+  return height >= gap.bottom - 0.05 && height <= gap.top + 0.05;
+}
+
+/**
+ * Where along a wall a fitting's plate goes, as near `wanted` (metres from the wall's first corner)
+ * as it can: its middle 8 cm or more from a doorway or a window at its height, clear of `blocks` (a
+ * radiator, furniture that hides it), a hair off the plates already on that wall and off the wall's
+ * ends. `wanted` itself when nothing is there.
+ */
+function clearSpotOnWall(b: Builder, room: PlanRoom, edge: PlanEdge, wanted: number, height: number, plate: number, blocks: readonly WallBlock[]): number | null {
+  const gaps: WallBlock[] = room.openings.filter((o) => o.wallIndex === edge.index && opensAt(room, o, height)).map((o) => ({ from: o.t * edge.length - o.widthM / 2, to: o.t * edge.length + o.widthM / 2, bottom: height, top: height }));
+  const plates: WallBlock[] = b.points
+    .filter((p) => p.roomId === room.id && p.wallIndex === edge.index && p.t != null)
+    .map((p) => {
+      const half = (DEFAULT_PLATE_M * Math.max(1, p.count ?? 1)) / 2;
+      return { from: p.t! * edge.length - half, to: p.t! * edge.length + half, bottom: p.elevationM - DEFAULT_PLATE_M / 2, top: p.elevationM + DEFAULT_PLATE_M / 2 };
+    });
+  let spans = clearOf([[FITTING_GAP_M, edge.length - FITTING_GAP_M]], gaps, { bottom: height - 1, top: height + 1 }, true, Math.max(0, FROM_OPENING_M - plate / 2));
+  spans = clearOf(spans, blocks, { bottom: height - CLEAR_BAND_M, top: height + CLEAR_BAND_M }, false);
+  spans = clearOf(spans, plates, { bottom: height - DEFAULT_PLATE_M / 2, top: height + DEFAULT_PLATE_M / 2 }, true, FITTING_GAP_M);
+  return nearestClear(spans, wanted, plate);
 }
 
 /** The wall an item stands against: the edge nearest to the middle of its back. */
@@ -190,7 +226,7 @@ function wiredByHand(existing: ElectricalPoint[]): { kept: ElectricalPoint[]; sk
  */
 export function suggestElectrical(plan: FloorPlan, items: PlacedItem[], existing: ElectricalPoint[] = [], styleId?: StyleId | null, decor: readonly DecorPiece[] = []): ElectricalPoint[] {
   let counter = existing.length;
-  const b: Builder = { points: [], next: () => `e${Date.now().toString(36)}-${counter++}` };
+  const b: Builder = { points: [], next: () => `e${Date.now().toString(36)}-${counter++}`, radiators: radiatorBodies(plan) };
   const { kept, skip } = wiredByHand(existing);
 
   for (const room of plan.rooms) {
@@ -198,8 +234,10 @@ export function suggestElectrical(plan: FloorPlan, items: PlacedItem[], existing
     if (wallEdges(room).length === 0) continue;
     // Ceiling lights at the ceiling one sees — a new one hangs lower than the slab.
     const ceiled = underCeiling(room, plan);
+    const from = b.points.length;
     standardFor(b, ceiled, items, decor);
     furnitureFor(b, ceiled, items.filter((i) => i.roomId === room.id), plan.technical?.points ?? [], styleId ?? null);
+    lampOutlets(b, from, room, items);
   }
 
   return [...kept, ...b.points];
@@ -215,13 +253,55 @@ export function suggestElectrical(plan: FloorPlan, items: PlacedItem[], existing
  */
 export function standardElectrical(plan: FloorPlan, existing: ElectricalPoint[] = [], items: readonly PlacedItem[] = [], decor: readonly DecorPiece[] = []): ElectricalPoint[] {
   let counter = existing.length;
-  const b: Builder = { points: [], next: () => `e${Date.now().toString(36)}-${counter++}` };
+  const b: Builder = { points: [], next: () => `e${Date.now().toString(36)}-${counter++}`, radiators: radiatorBodies(plan) };
   const { kept, skip } = wiredByHand(existing);
   for (const room of plan.rooms) {
     if (skip.has(room.id) || wallEdges(room).length === 0) continue;
+    const from = b.points.length;
     standardFor(b, underCeiling(room, plan), items, decor);
+    lampOutlets(b, from, room, items);
   }
   return [...kept, ...b.points];
+}
+
+/** How near a ceiling point a hanging lamp hangs to be the lamp at that point (the 3D view draws only the point's rose there). */
+export const LAMP_OUTLET_NEAR_M = 0.5;
+
+/**
+ * One main light, not two: a room's hanging lamp (the furniture's `pendant`, bought as an item) and
+ * the wiring's main ceiling light are both put in the middle of the room, and were both bought. The
+ * main ceiling point nearest each hanging lamp — within `LAMP_OUTLET_NEAR_M` of it — becomes that
+ * lamp's outlet: a ceiling point where the lamp hangs, marked as one (`lampOutlet`), with no lamp of
+ * its own. A lamp hanging somewhere else (over the table) leaves the room its ceiling light.
+ */
+function lampOutlets(b: Builder, from: number, room: PlanRoom, items: readonly PlacedItem[]): void {
+  const taken = new Set<ElectricalPoint>();
+  for (const lamp of items) {
+    if (lamp.roomId !== room.id || lamp.slot !== 'pendant') continue;
+    let nearest: { point: ElectricalPoint; distance: number } | null = null;
+    for (const point of b.points.slice(from)) {
+      const main = point.kind === 'light_ceiling' || (point.kind === 'light_spot' && point.category === 'primary');
+      if (!main || taken.has(point)) continue;
+      const distance = Math.hypot(point.position.x - lamp.position.x, point.position.z - lamp.position.z);
+      if (distance < LAMP_OUTLET_NEAR_M && (!nearest || distance < nearest.distance)) nearest = { point, distance };
+    }
+    if (!nearest) continue;
+    taken.add(nearest.point);
+    Object.assign(nearest.point, { kind: 'light_ceiling', category: 'primary', position: { ...lamp.position }, lampOutlet: true });
+  }
+}
+
+/**
+ * Whether a point is the outlet of a hanging lamp rather than a lamp of its own: a ceiling point
+ * made one when the room was wired (`lampOutlet`), with no product, at which a `pendant` of its room
+ * hangs. Decided by what hangs there, not by which lamp it was made for — generating again numbers
+ * the lamps anew, and a room whose wiring is kept has the new lamp at its old outlet. The lamp is
+ * what is listed, bought and drawn; once it is taken away or moved off, the point is an ordinary
+ * ceiling light again and is given a lamp like any other (`withFixtureProducts`).
+ */
+export function isLampOutlet(point: Pick<ElectricalPoint, 'kind' | 'roomId' | 'position' | 'lampOutlet' | 'product'>, items: readonly PlacedItem[]): boolean {
+  if (!point.lampOutlet || point.kind !== 'light_ceiling' || point.product) return false;
+  return items.some((i) => i.slot === 'pendant' && i.roomId === point.roomId && Math.hypot(i.position.x - point.position.x, i.position.z - point.position.z) < LAMP_OUTLET_NEAR_M);
 }
 
 /**
@@ -232,11 +312,17 @@ export function standardElectrical(plan: FloorPlan, existing: ElectricalPoint[] 
 function standardFor(b: Builder, room: PlanRoom, items: readonly PlacedItem[] = [], decor: readonly DecorPiece[] = []): void {
   const edges = wallEdges(room);
   // In a furnished room a switch or a general socket keeps off the joinery and the tall furniture
-  // standing against its wall (the owner's notes of 13 Nov 2026); a bare room is as it was.
+  // standing against its wall (the owner's notes of 13 Nov 2026) — and off a kitchen run or a
+  // wardrobe however low, which nobody reaches behind; a bare room is as it was.
   const furnished = items.some((i) => i.roomId === room.id) || decor.some((d) => d.roomId === room.id);
-  const blocksOf = (edge: PlanEdge) => (furnished ? wallBlocks(room, edge, items, decor).filter((block) => block.built || block.top - block.bottom >= TALL_FURNITURE_M || block.bottom > 0.05) : []);
-  const blockedAt = (edge: PlanEdge, t: number, height: number) => blocksOf(edge).some((block) => !block.flat && t * edge.length > block.from - 0.05 && t * edge.length < block.to + 0.05 && height > block.bottom - 0.05 && height < block.top + 0.05);
-  const centre = { x: room.polygon.reduce((s, p) => s + p.x, 0) / room.polygon.length, z: room.polygon.reduce((s, p) => s + p.z, 0) / room.polygon.length };
+  const blocksOf = (edge: PlanEdge) =>
+    furnished
+      ? [
+          ...wallBlocks(room, edge, items, decor).filter((block) => block.built || block.top - block.bottom >= TALL_FURNITURE_M || block.bottom > 0.05),
+          ...wallBlocks(room, edge, items.filter((i) => HIDES_A_SOCKET.has(i.slot))),
+        ]
+      : [];
+  const centre = roomMiddle(room);
   const before = b.points.length;
 
   // Every room: a main light — a hallway one every 3 m or nearer, evenly down its middle (the
@@ -252,13 +338,27 @@ function standardFor(b: Builder, room: PlanRoom, items: readonly PlacedItem[] = 
     const edge = edges.find((e) => e.index === door.wallIndex);
     if (!edge) continue;
     const side = door.hinge === 'right' ? -1 : 1;
-    const offset = (door.widthM / 2 + SWITCH_FROM_OPENING_M) / edge.length;
-    const t = door.t + side * offset;
+    const offset = door.widthM / 2 + SWITCH_FROM_OPENING_M;
     const switchM = ELECTRICAL_KINDS.switch.defaultElevationM;
-    // The handle side, unless the wall ends there or a wardrobe stands there: then the other.
-    const other = door.t - side * offset;
-    if (t <= 0.02 || t >= 0.98 || (blockedAt(edge, t, switchM) && other > 0.02 && other < 0.98 && !blockedAt(edge, other, switchM))) makeOnWall(b, room, 'switch', edge, other);
-    else makeOnWall(b, room, 'switch', edge, t);
+    // The handle side — unless its spot there is taken: the wall ends before it, another door or a
+    // window is there, a radiator hangs there or a wardrobe stands there. Then the other side, when
+    // its spot is free; with neither free, whichever has a clear spot nearer. A spot that is free
+    // keeps its side though the plate has to move a hair off what is beside it (`makeOnWall` slides
+    // it): the switch does not go behind the open door for that.
+    const hidden = blocksOf(edge);
+    const inTheWay = [...radiatorWallBlocks(b.radiators, room, edge), ...hidden];
+    const sides = [side, -side].map((sign) => {
+      const wanted = door.t * edge.length + sign * offset;
+      const onTheWall = wanted >= 0 && wanted <= edge.length;
+      const spot = onTheWall ? clearSpotOnWall(b, room, edge, wanted, switchM, DEFAULT_PLATE_M, inTheWay) : null;
+      // Free: the middle of the plate is on clear wall where it is wanted (a plate of no width stays put).
+      const middle = onTheWall ? clearSpotOnWall(b, room, edge, wanted, switchM, 0, inTheWay) : null;
+      return { wanted, off: spot == null ? Infinity : Math.abs(spot - wanted), free: spot != null && middle != null && Math.abs(middle - wanted) < 1e-6 };
+    });
+    const best = sides[0].free ? sides[0] : sides[1].free ? sides[1] : sides[1].off < sides[0].off - 1e-6 ? sides[1] : sides[0];
+    const t = Math.max(0, Math.min(1, best.wanted / edge.length));
+    // Hidden behind a wardrobe when the wall has no spot clear of it — rather than no switch at all.
+    if (!makeOnWall(b, room, 'switch', edge, t, {}, hidden)) makeOnWall(b, room, 'switch', edge, t);
   }
   if (room.type === 'hallway') twoWayCorridor(b, room, edges, before);
 
@@ -271,10 +371,12 @@ function standardFor(b: Builder, room: PlanRoom, items: readonly PlacedItem[] = 
     let made = 0;
     for (const edge of free) {
       if (made >= wanted) break;
-      // The middle of the wall, or the nearest spot along it that nothing tall stands in front of.
-      const clear = furnished ? nearestClear(clearOf([[0.15, edge.length - 0.15]], blocksOf(edge), { bottom: socketM - 0.1, top: socketM + 0.1 }, false), edge.length / 2, 0.2) : edge.length / 2;
+      // The middle of the wall, or the nearest spot along it that nothing tall stands in front of —
+      // and from there off a radiator hanging on it (`makeOnWall`).
+      const hidden = blocksOf(edge);
+      const clear = furnished ? nearestClear(clearOf([[0.15, edge.length - 0.15]], hidden, { bottom: socketM - CLEAR_BAND_M, top: socketM + CLEAR_BAND_M }, false), edge.length / 2, 0.2) : edge.length / 2;
       if (clear == null) continue;
-      if (makeOnWall(b, room, 'socket', edge, clear / edge.length)) made++;
+      if (makeOnWall(b, room, 'socket', edge, clear / edge.length, {}, hidden)) made++;
       else if (!furnished) made++;
     }
   }
@@ -282,6 +384,8 @@ function standardFor(b: Builder, room: PlanRoom, items: readonly PlacedItem[] = 
 
 /** Furniture this tall standing against a wall hides a socket or a switch behind it: a wardrobe, a fridge, shelving. */
 const TALL_FURNITURE_M = 1.2;
+/** What hides a general socket behind it whatever its height: nobody reaches behind a kitchen's base units or a wardrobe. */
+const HIDES_A_SOCKET: ReadonlySet<SlotKind> = new Set<SlotKind>(['kitchen_run', 'wardrobe']);
 
 /** The styles whose rooms take a ring of spots round the main light, the rooms, and from what size. */
 const RING_STYLES: readonly StyleId[] = ['scandinavian', 'modern', 'vintage'];
@@ -336,6 +440,21 @@ export function hallLightSpots(room: PlanRoom): Vec2[] {
   return out;
 }
 
+/**
+ * The middle of a room's floor: its area's own centre (`polygonCentroid` — where the furniture's
+ * hanging lamp is hung, so the two agree), not the mean of its corners, which a wall drawn in
+ * several pieces pulls to its side. Where that centre is outside the room (a thin L), the middle of
+ * the room's widest stretch across it there.
+ */
+export function roomMiddle(room: Pick<PlanRoom, 'polygon'>): Vec2 {
+  const centre = polygonCentroid(room.polygon);
+  if (pointInPolygon(centre, room.polygon)) return centre;
+  const bounds = polygonBounds(room.polygon);
+  const alongX = bounds.width >= bounds.depth;
+  const middle = crossMiddle(room.polygon, alongX, alongX ? centre.x : centre.z);
+  return middle == null ? centre : alongX ? { x: centre.x, z: middle } : { x: middle, z: centre.z };
+}
+
 /** The middle of the widest stretch of the outline across the line at `u` (x = u, or z = u). */
 function crossMiddle(polygon: Vec2[], alongX: boolean, u: number): number | null {
   const hits: number[] = [];
@@ -388,6 +507,44 @@ function twoWayCorridor(b: Builder, room: PlanRoom, edges: PlanEdge[], from: num
   }
 }
 
+/**
+ * A kitchen run's row of spots: as wide as the run and running as it does, through the middle of
+ * the floor in front of it rather than hugging the worktop (the rulebook, K-13) — the floor of the
+ * kitchen itself: a studio's kitchen half (`studioParts`), not the whole studio, and where the room
+ * is not a rectangle the shallowest floor the run has before it, so the whole row is in the room.
+ * Never nearer the worktop than `KITCHEN_SPOT_AHEAD_M` in front of its edge; halfway to the table
+ * when the table's pendant hangs on the row's line.
+ */
+export function kitchenSpots(room: PlanRoom, run: PlacedItem, table?: PlacedItem): Vec2[] {
+  const forward = { x: Math.sin(run.rotation), z: Math.cos(run.rotation) };
+  const back = { x: -forward.x, z: -forward.z };
+  const right = { x: forward.z, z: -forward.x };
+  const n = Math.max(2, Math.round(run.size.width / KITCHEN_SPOT_SPACING_M));
+  const floor = studioParts(room)?.[partAt(room, run.position)].polygon ?? room.polygon;
+  const at = (lateral: number, ahead: number): Vec2 => ({ x: run.position.x + right.x * lateral + forward.x * ahead, z: run.position.z + right.z * lateral + forward.z * ahead });
+  const laterals = Array.from({ length: n }, (_, i) => ((i + 0.5) / n - 0.5) * run.size.width);
+  const near = run.size.depth / 2 + KITCHEN_SPOT_AHEAD_M;
+  // The middle between the wall behind the run and what the floor meets in front of it, where that is nearest.
+  let middle = Infinity;
+  for (const lateral of laterals) {
+    const from = at(lateral, 0);
+    if (!pointInPolygon(from, floor)) continue;
+    const ahead = rayToPolygon(from, forward, floor);
+    const behind = rayToPolygon(from, back, floor);
+    if (ahead != null && behind != null) middle = Math.min(middle, (ahead - behind) / 2);
+  }
+  let ahead = Number.isFinite(middle) ? Math.max(near, middle) : near;
+  const toTable = table ? (table.position.x - run.position.x) * forward.x + (table.position.z - run.position.z) * forward.z : null;
+  if (toTable != null && Math.abs(toTable - ahead) < 0.6) ahead = Math.max(near, (near + toTable) / 2);
+  const row = (distance: number) => laterals.map((lateral) => at(lateral, distance));
+  const inside = (spots: Vec2[]) => spots.filter((p) => pointInPolygon(p, room.polygon));
+  // Where the floor is not that deep along the whole run: in front of the worktop's edge; and no
+  // spot is left hanging outside the room.
+  if (inside(row(ahead)).length === n) return row(ahead);
+  const hugging = inside(row(near));
+  return hugging.length > 0 ? hugging : row(near);
+}
+
 /** A bedside socket's height: 10 cm over that side's nightstand, within 45–75 cm; 35 cm with none. */
 export function bedsideSocketHeight(stand: PlacedItem | undefined): number {
   if (!stand) return BEDSIDE_LOW_SOCKET_M;
@@ -402,13 +559,13 @@ function replaceMainLight(b: Builder, room: PlanRoom, spots: Vec2[]): void {
   for (const spot of spots) make(b, room, 'light_spot', spot, { category: 'primary' });
 }
 
-/** What the furniture standing in a room calls for: sockets and lamps by the bed, the TV, the sofa, the desk, the kitchen, the basin. */
+/** What the furniture standing in a room calls for: sockets and lamps by the bed, the TV, the sofa, the desk, the kitchen, the washing machine, the basin. */
 function furnitureFor(b: Builder, room: PlanRoom, here: PlacedItem[], technical: TechnicalPoint[], styleId: StyleId | null = null): void {
   const beds = here.filter((i) => i.slot === 'bed');
   // An industrial bedroom's main light is a track of cylinder spots across the room's middle,
   // square to the bed (the owner's notes), not the one ceiling light.
   if (room.type === 'bedroom' && styleId === 'industrial' && beds.length > 0) {
-    const centre = { x: room.polygon.reduce((sum, p) => sum + p.x, 0) / room.polygon.length, z: room.polygon.reduce((sum, p) => sum + p.z, 0) / room.polygon.length };
+    const centre = roomMiddle(room);
     const across = { x: Math.cos(beds[0].rotation), z: -Math.sin(beds[0].rotation) };
     replaceMainLight(b, room, Array.from({ length: TRACK_SPOTS }, (_, i) => {
       const off = (i - (TRACK_SPOTS - 1) / 2) * TRACK_SPOT_SPACING_M;
@@ -475,7 +632,8 @@ function furnitureFor(b: Builder, room: PlanRoom, here: PlacedItem[], technical:
     }
   }
 
-  const run = here.find((i) => i.slot === 'kitchen_run');
+  // The run itself — never the leg a corner kitchen turns along the next wall (`legOf`), which has no sink or hob.
+  const run = here.find((i) => i.slot === 'kitchen_run' && !i.legOf);
   const zones = run ? kitchenRunZones(room, run, technical, here) : null;
   if (run && zones) {
     const { edge } = zones;
@@ -485,7 +643,7 @@ function furnitureFor(b: Builder, room: PlanRoom, here: PlacedItem[], technical:
     const stretches = [...zones.worktop];
     const worktop = stretches.map(([p, q]) => (p + q) / 2);
     const longest = stretches.sort((p, q) => q[1] - q[0] - (p[1] - p[0]))[0];
-    if (longest && longest[1] - longest[0] >= 0.9) {
+    if (longest && longest[1] - longest[0] >= 0.9 - 1e-6) {
       const [p, q] = longest;
       worktop.splice(worktop.indexOf((p + q) / 2), 1, p + (q - p) / 3, p + (2 * (q - p)) / 3);
     }
@@ -503,27 +661,14 @@ function furnitureFor(b: Builder, room: PlanRoom, here: PlacedItem[], technical:
     const cabinets = here.find((i) => i.slot === 'kitchen_wall' && backWall(room, i)?.edge.index === edge.index);
     const wallT = along(edge, (cabinets ?? run).position) / edge.length;
     const under = cabinets ? Math.round(cabinets.elevationM * 1000) / 1000 : WALL_UNIT_BOTTOM_M;
-    makeOnWall(b, room, 'light_furniture', edge, wallT, { elevationM: under, lengthM: Math.max(0.3, Math.min((cabinets ?? run).size.width - 0.04, edge.length - 0.2)), category: 'furniture' });
-    // The main light: spots in a row over the working floor, just in front of the worktop, one
-    // every 90 cm of the run — kept to the run, apart from the pendant over the table (the owner's
-    // three layers: the table's pendant, the main light, the light under the cabinets). A
-    // kitchen's own ceiling light gives way to them; a studio's stays for its living half.
-    const forward = { x: Math.sin(run.rotation), z: Math.cos(run.rotation) };
-    const right = { x: forward.z, z: -forward.x };
-    const n = Math.max(2, Math.round(run.size.width / KITCHEN_SPOT_SPACING_M));
-    // The row runs as the run does, through the middle of the room rather than hugging the worktop
-    // (the rulebook, K-13); halfway to the table when the table's pendant hangs on that line.
-    const centre = { x: room.polygon.reduce((s, p) => s + p.x, 0) / room.polygon.length, z: room.polygon.reduce((s, p) => s + p.z, 0) / room.polygon.length };
-    const toCentre = (centre.x - run.position.x) * forward.x + (centre.z - run.position.z) * forward.z;
-    const table = here.find((i) => i.slot === 'dining_table');
-    const toTable = table ? (table.position.x - run.position.x) * forward.x + (table.position.z - run.position.z) * forward.z : null;
-    const near = run.size.depth / 2 + KITCHEN_SPOT_AHEAD_M;
-    let ahead = Math.max(near, toCentre);
-    if (toTable != null && Math.abs(toTable - ahead) < 0.6) ahead = Math.max(near, (near + toTable) / 2);
-    const spots = Array.from({ length: n }, (_, i) => {
-      const lateral = ((i + 0.5) / n - 0.5) * run.size.width;
-      return { x: run.position.x + forward.x * ahead + right.x * lateral, z: run.position.z + forward.z * ahead + right.z * lateral };
-    });
+    // It is in the cabinets, not on the wall: it goes where they are, whatever the wall has behind them.
+    const stripT = Math.max(0.02, Math.min(0.98, wallT));
+    make(b, room, 'light_furniture', onWall(room, edge, stripT), { wallIndex: edge.index, t: stripT, elevationM: under, lengthM: Math.max(0.3, Math.min((cabinets ?? run).size.width - 0.04, edge.length - 0.2)), category: 'furniture' });
+    // The main light: spots in a row over the working floor in front of the run, one every 90 cm
+    // of it — apart from the pendant over the table (the owner's three layers: the table's pendant,
+    // the main light, the light under the cabinets). A kitchen's own ceiling light gives way to
+    // them; a studio's stays for its living half.
+    const spots = kitchenSpots(room, run, here.find((i) => i.slot === 'dining_table'));
     if (room.type === 'kitchen') replaceMainLight(b, room, spots);
     else for (const at of spots) make(b, room, 'light_spot', at, { category: 'primary' });
   }
@@ -533,14 +678,60 @@ function furnitureFor(b: Builder, room: PlanRoom, here: PlacedItem[], technical:
     if (wall) makeOnWall(b, room, 'socket', wall.edge, wall.t, { elevationM: FRIDGE_SOCKET_M });
   }
 
+  // A washing machine's socket, behind it like the other appliances' — two outlets with a dryer on
+  // it — and out of a shower's or a bath's splash zone: none rather than one in it.
+  const washer = here.find((i) => i.slot === 'washer');
+  if (washer) {
+    // On the wall at its back — or, where it stands off every wall, the nearest: the wall its tap is put on.
+    const near = wallSpotNear(room, washer.position);
+    const wall = backWall(room, washer) ?? (near ? { edge: near.edge, t: near.t } : null);
+    const dryer = here.some((i) => i.slot === 'dryer');
+    if (wall) makeOnWall(b, room, dryer ? 'socket_double' : 'socket', wall.edge, wall.t, { elevationM: APPLIANCE_SOCKET_M }, splashBlocks(room, wall.edge, here));
+  }
+
   const sink = here.find((i) => i.slot === 'sink');
   if (sink && (room.type === 'bathroom' || room.type === 'toilet')) {
     const wall = backWall(room, sink);
     if (wall) {
-      makeOnWall(b, room, 'socket', wall.edge, alongBack(sink, wall, sink.size.width / 2 + 0.2), { elevationM: 1.1 });
+      // Beside the basin, 20 cm past its edge — on the side out of the splash zone of the shower and
+      // the bath (`SPLASH_ZONE_M`), sliding along the wall out of it where both sides are in one.
+      const wet = splashBlocks(room, wall.edge, here);
+      const sides = [1, -1].map((sign) => {
+        const wanted = Math.max(0, Math.min(1, alongBack(sink, wall, sign * (sink.size.width / 2 + 0.2)))) * wall.edge.length;
+        const spot = clearSpotOnWall(b, room, wall.edge, wanted, BASIN_SOCKET_M, DEFAULT_PLATE_M, [...radiatorWallBlocks(b.radiators, room, wall.edge), ...wet]);
+        return { wanted, off: spot == null ? Infinity : Math.abs(spot - wanted) };
+      });
+      const best = sides[1].off < sides[0].off - 1e-6 ? sides[1] : sides[0];
+      // With no wall out of the zone it stays beside the basin, and the rule check says so.
+      if (!makeOnWall(b, room, 'socket', wall.edge, best.wanted / wall.edge.length, { elevationM: BASIN_SOCKET_M }, wet)) makeOnWall(b, room, 'socket', wall.edge, best.wanted / wall.edge.length, { elevationM: BASIN_SOCKET_M });
       makeOnWall(b, room, 'light_wall', wall.edge, wall.t, { elevationM: 1.95, category: 'secondary' });
     }
   }
+}
+
+/** A bathroom basin's socket: by the mirror, for a shaver or a dryer. */
+const BASIN_SOCKET_M = 1.1;
+
+/**
+ * The stretches of a wall inside a splash zone — within `SPLASH_ZONE_M` of the floor a shower or a
+ * bath of the room wets (`inSplashZone`, what the rule check measures) — as what is in the way of a
+ * socket there, at any height.
+ */
+function splashBlocks(room: PlanRoom, edge: PlanEdge, here: readonly PlacedItem[]): WallBlock[] {
+  const wet = wetFootprints(here, room.id);
+  if (wet.length === 0) return [];
+  const blocks: WallBlock[] = [];
+  const step = 0.01;
+  let from: number | null = null;
+  for (let s = 0; s <= edge.length + step; s += step) {
+    const inside = s <= edge.length && inSplashZone(onWall(room, edge, s / edge.length), wet);
+    if (inside && from == null) from = s;
+    if (!inside && from != null) {
+      blocks.push({ from: from - step, to: s, bottom: 0, top: room.heightM });
+      from = null;
+    }
+  }
+  return blocks;
 }
 
 /** A point the person places by hand, on the nearest wall of its room where the kind wants a wall. */
@@ -735,8 +926,16 @@ export function fixtureQuantity(point: ElectricalPoint): number {
   return Math.max(1, point.count ?? 1);
 }
 
-/** The point with `product` as its fitting (or none), priced for its quantity and carrying the product's size. */
+/**
+ * The point with `product` as its fitting (or none), priced for its quantity and carrying the
+ * product's size. A hanging lamp's outlet (`lampOutlet`) given a lamp — the person's own pick in
+ * its panel — or made another kind of point is a fitting of its own from then on, no outlet.
+ */
 export function withFixtureProduct(point: ElectricalPoint, product: CatalogProduct | null): ElectricalPoint {
+  if (point.lampOutlet && (product || point.kind !== 'light_ceiling')) {
+    const { lampOutlet: _outlet, ...own } = point;
+    return withFixtureProduct(own, product);
+  }
   if (!product) {
     const { product: _dropped, sizeM: _size, ...rest } = point;
     return rest;
@@ -748,12 +947,15 @@ export function withFixtureProduct(point: ElectricalPoint, product: CatalogProdu
 /**
  * Gives every point without a product the best one the catalogue has, and re-prices the
  * ones that have one (a socket that became a double needs two). A product that is not of
- * the point's kind any more (the kind was changed) is replaced.
+ * the point's kind any more (the kind was changed) is replaced. A hanging lamp's outlet has the
+ * lamp for its fitting and gets none — while a lamp hangs at it (`isLampOutlet`, which is why the
+ * furniture is asked for): with the lamp deleted or moved off it is given a lamp like any other.
  */
-export function withFixtureProducts(points: ElectricalPoint[], catalog: CatalogProduct[], styleId: StyleId, rooms: readonly PlanRoom[] = []): ElectricalPoint[] {
+export function withFixtureProducts(points: ElectricalPoint[], catalog: CatalogProduct[], styleId: StyleId, rooms: readonly PlanRoom[], items: readonly PlacedItem[]): ElectricalPoint[] {
   if (catalog.length === 0) return points;
   const typeOf = new Map(rooms.map((r) => [r.id, r.type]));
   return points.map((point) => {
+    if (isLampOutlet(point, items)) return point;
     const candidates = fixtureCandidates(point.kind, catalog, styleId, typeOf.get(point.roomId));
     const current = point.product ? candidates.find((c) => c.id === point.product?.productId) : undefined;
     const chosen = current ?? candidates[0] ?? null;

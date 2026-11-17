@@ -29,7 +29,7 @@ priced) · [../3d-assets.md](../3d-assets.md) (`models:fixtures`, `models:radiat
 | `lib/design/technicalRates.ts` | estimate prices and labour keys: `ELECTRICAL_LABOUR` (`electric_point`), `TECHNICAL_RATES` (`plumbing_install`, `radiator_mount`, `heating_piping`, `ac_install`, `extractor_install`), `OPENING_ESTIMATE_GEL`, `ENTRANCE_DOOR_GEL`, `TRIM_INSTALL_DEFAULT_GEL` |
 | `lib/design/electrical.ts` | sockets, switches, lights: `standardElectrical` (what every room gets), `suggestElectrical` (that and the furniture's), `placeElectrical`, `reprojectElectrical`, `slideAlongWall`, `fittingClashes`, fixture products (`FIXTURE_PRODUCT_KIND`, `withFixtureProducts`, `fixtureCandidates`, `fixtureQuantity`) |
 | `lib/design/boardPicks.ts` | `dressBoard`: a product chosen for the whole flat on every door, window, radiator or fitting of its kind (the calculator's `boardWithPicks`, the design's `applyBoardPicks`) |
-| `lib/design/radiators.ts` | sections per room, `suggestRadiators`, radiator products (`withRadiatorProducts`, `radiatorCandidates`) |
+| `lib/design/radiators.ts` | sections per room, `suggestRadiators`, radiator products (`withRadiatorProducts`, `radiatorCandidates`), a radiator as it hangs on its wall (`radiatorBody`, `radiatorWallBlocks`) |
 | `lib/design/equipment.ts` | the points that are equipment (`EQUIPMENT_KINDS`), what each is bought as (`equipmentProductKind`: an extractor is a cooker hood in a kitchen, a fan elsewhere), `equipmentCandidates`, `withEquipmentProduct(s)`, `equipmentSignature` |
 | `lib/design/openings.ts` | doors and windows: move, update, remove, add, twins (`alignTwins`, `withOpeningTwins`, `mirrorHinge` / `mirrorSwing`, `leafOnOtherSide`; the room behind found at the wall's own thickness — `WallThickness`), `moveOpeningToWall`, products (`openingProductKind`, `withOpeningProducts`, `openingCandidates`), `countDoors` (an interior door's two halves once — what the doors phase hangs, in the studio and on the calculator's board), `countWindows` (what the calculator buys a window for the whole flat for); a balcony's railings (`railingFits`, `holdsRailings`, `cornerMargin`, `MIN_RAILING_M`, `RAILING_HEIGHT_RANGE_M`) |
 | `lib/design/planGeometry.ts` → `openingSpanUp`, `openingWallArea`, `isPassage` | how far up its wall an opening's gap runs (a railing's to the top), what it takes off the wall, whether people walk through it (a door or an archway) |
@@ -56,7 +56,7 @@ comes to; `LayoutOptions.obstacles` keeps furniture off the columns. `technicalS
 is the hint list on step 3 (a shower or bath far from the sewer or a drain; a WC, a washer or
 the kitchen's sink end more than 2 m from the sewer, which stands for the plumbing shaft
 (`far_from_shaft`); a sink, kitchen run or washer more than 2.2 m from the water, hot or cold; a
-bathroom with no floor drain or sewer; a radiator on an interior wall; no extractor in a bathroom
+bathroom with no floor drain or sewer; a radiator — not a towel rail — on an interior wall; no extractor in a bathroom
 or toilet). `suggestTechnical`
 (`lib/design/autoTechnical.ts`) places the water, drains, extractors, gas, air conditioning, one
 panel and one boiler by a fitter's rules at a click, all `origin: 'user'` — and **one button**
@@ -88,6 +88,9 @@ estimate. **Radiators on the board** are drawn as they hang — a bar along the 
 their sections and as deep as they stand, its fins marked (`drawRadiatorBody`), under the point's
 disc. **A kitchen run's** water and waste go to the end its sink is taken to be at,
 its gas and its hood to the hob (`kitchenRunZones`, [design-rules.md](design-rules.md#the-rules-module-libdesignrulests)).
+A corner kitchen's leg (`PlacedItem.legOf`) is part of its run: it has no sink and no hob, so it
+gets no water, drain, gas or hood of its own however long it is, the kitchen's sockets and spots
+are placed by the run, and the step's hints measure the run.
 The step's hints also list what the design rules find (`ruleViolations`: furniture in front of
 a radiator, a radiator reaching within 10 cm of its sill, a boiler off an outside wall or by a shower or a bath, a door
 narrower than 80 cm — 70 cm into a bathroom or toilet).
@@ -104,7 +107,9 @@ or a toilet room's WC cold, where its one water point used to go. The boiler get
 and a hot outlet 15 cm under it. A point of the kind already within 50 cm and 20 cm of the height
 counts as placed, so pressing it again adds nothing and a WC's pipe does not swallow the basin's
 beside it. Each point is a plumbing point in the budget (`TECHNICAL_RATES`). A bidet has no piece
-in the app yet, so it has no water of its own. Nothing is fixed to a
+in the app yet, so it has no water of its own. **A washing machine drains wherever it stands**: a
+room with one gets a sewer point at it when it has none — the hall, where the layout stands the
+machine when the bathroom has no room for it, used to get the cold water and no drain. Nothing is fixed to a
 room separator's open edge — not these points, not a socket or switch (`wallSpotNear`,
 `suggestElectrical`), not a radiator (`radiatorWallSpot`, `suggestRadiators`), not a door or a
 window (`nearestWall`, `addOpening`): they all go by `wallEdges`
@@ -137,7 +142,9 @@ Sockets, switches and lights are `scene.electrical` (`ElectricalPoint`: kind, wa
 position, height, outlets, on/off, a lighting `category`), in two parts, at the heights of the
 design rules (`lib/design/rules.ts`, [design-rules.md](design-rules.md)).
 **The standard fittings** (`standardElectrical`, decided by the room alone): one main light per
-room — a hallway one every 3 m or nearer, evenly spaced down its middle (`hallLightSpots`,
+room, in the middle of its floor (`roomMiddle`: the area's own centre, `polygonCentroid` — where the
+furniture's hanging lamp is hung too — not the mean of the outline's corners; where that centre
+falls outside a thin L, the middle of the room's widest stretch across it there) — a hallway one every 3 m or nearer, evenly spaced down its middle (`hallLightSpots`,
 `HALL_LIGHT_SPACING_M`; the owner: one light is not enough for a hallway) — a 105 cm switch on the handle side of every door, 20 cm from the opening (about 15 cm from
 the frame), general 45 cm sockets on the long walls of the rooms people live in, off the walls
 the switches are on; a hallway 4 m or longer is switched from both ends — the door switches
@@ -151,15 +158,25 @@ kitchen by `kitchenRunZones` — three double sockets at 105 cm over the 90 cm w
 zone, the coffee zone past the hob, one more in the longer), 30 cm sockets behind the dishwasher,
 the oven and the hob's ignition, the hood's at 215 cm over the hob, one at 170 cm in the wall
 cabinets for the under-cabinet light, the light itself, and the fridge's at 40 cm — and **the
-kitchen's main light is a row of spots over the working floor** (one every 90 cm of the run, 10 cm
-in front of the worktop's edge, `KITCHEN_SPOT_*`), replacing the room's one ceiling light (a
-studio keeps it for its living half): the owner's three layers, apart from each other — the
+kitchen's main light is a row of spots over the working floor** (`kitchenSpots`: one every 90 cm
+of the run, never nearer than 10 cm in front of the worktop's edge, `KITCHEN_SPOT_*`), replacing
+the room's one ceiling light (a studio keeps it for its living half): the owner's three layers,
+apart from each other — the
 pendant over the table (furniture, `placeOnCeiling`), the spots over the run, the light under the
 wall cabinets. **An industrial bedroom's main light is a track** of three cylinder spots across the
 room's middle, square to the bed (`TRACK_SPOTS`); `suggestElectrical` takes the style for it. An
 industrial spot or ceiling light whose name says cylinder, tube or track goes first
 (`fixtureCandidates`); a desk's
-sockets 10 cm over the desktop; 170 cm high sockets and the television and data points by the TV.
+sockets 10 cm over the desktop; 170 cm high sockets and the television and data points by the TV;
+**a bathroom basin's socket** at 110 cm, 20 cm past the basin's edge, on the side out of the splash
+zone (`SPLASH_ZONE_M`, 60 cm from a bath or a shower's tray — `splashBlocks` reads the same
+`inSplashZone` the rule check does), sliding along the wall out of it where both sides are in one —
+only a wall that is in the zone from end to end leaves it beside the basin, and `socket_in_splash`
+says so — and the mirror's light at 195 cm over the basin; **a washing machine's socket** behind
+it at 30 cm like the other appliances' (`APPLIANCE_SOCKET_M`), in whatever room it stands — two
+outlets with a dryer on it, on the nearest wall when it stands off every wall (the wall its tap is
+put on), and out of a splash zone: where its wall has no spot out of one it gets none rather than
+one in it.
 A two-way switch is bought as its own product kind (`switch_two_way`) — an estimate until the
 catalogue has one — and drawn with the switch's models. **A lamp's colour temperature**: a lamp
 product whose `specs.cct` is in its room's range (warm 2700–3000 K in living rooms and bedrooms,
@@ -185,6 +202,57 @@ style's radiator product and its sections), the standard fittings (`standardElec
 it (its "ტექნიკური" card, and the question on "გამოთვლის დაწყება"); `ensureBoardProducts`
 (no history) gives the board's doors, windows, radiators and fittings their products once the
 catalogue is in (`useCalculatorBoardProducts`).
+
+**The wiring reads its wall first.** Every fitting `suggestElectrical` and `standardElectrical`
+fix to a wall goes through `makeOnWall` → `clearSpotOnWall`: where it is wanted when that spot is
+clear, else the nearest spot along the same wall that is — its middle 8 cm or more from a door or a
+window that is in the wall at its height, off every radiator and towel rail (5 cm past each end;
+`radiatorBody` in `lib/design/radiators.ts` is the one measure of a radiator on its wall — the
+sections' length about the point, from its bottom to its top — which the strip kept clear in front
+of it is made from too), a hair off the plates already on that wall and off the wall's ends. So a
+fitting is moved, not lost: a run under a window keeps its hood's socket and all its worktop
+sockets, beside the window; a bedside socket wanted where a radiator hangs is beside the radiator.
+Only a wall with no clear spot at all (a balcony's railing) gets nothing. **The switch** is on the
+door's handle side, 20 cm from the opening — unless its spot there is taken (the middle of the
+plate is past the wall's end, in or within 8 cm of another door or a window, on a radiator, or on
+joinery or tall furniture, 5 cm round each): then on the other side when its spot there is free,
+and with neither free on the side whose clear spot is nearer. A free spot keeps its side though
+the plate has to move a hair off what is beside it — the switch does not go behind the open door
+for a mirror 9 cm from its middle. The plate's edge is a centimetre or more from the corner (5 cm
+to its middle) and never past the wall's end; how much further from a corner it should be is not a
+rule yet (Known gaps). A general socket also keeps off a kitchen run
+and a wardrobe however low they are (`HIDES_A_SOCKET` — nobody reaches behind base units), besides
+the joinery and the furniture 1.2 m or taller: it goes beside them or to the room's next long wall,
+and a kitchen whose long walls are all units has none (its worktop's sockets are its sockets). The
+sockets placed *for* a piece — bedside, the TV's, the desk's, the worktop's — stay with their piece
+unless a radiator, an opening or another plate is at their spot. The light under the wall cabinets
+is in the cabinets, not on the wall: it goes where they are whatever is behind them. Generation
+and the studio's own "wire it" (`designStore.suggestElectrical`) both hand the wiring the furniture
+and the decor, so neither puts a switch or a socket inside built joinery.
+
+**One main light, not two.** A room's hanging lamp is furniture (an item of slot `pendant`, bought
+as the item) and hangs in the middle of the room, where the wiring puts the main ceiling light: the
+two used to be listed and bought side by side. `suggestElectrical` and `standardElectrical` now
+finish each room with `lampOutlets`: the main ceiling point nearest each hanging lamp, within 50 cm
+of it (`LAMP_OUTLET_NEAR_M`, the distance at which the 3D view draws only the point's rose) —
+the ceiling light, or the spot of a kitchen's row or an industrial bedroom's track that falls there
+— becomes that lamp's **outlet**: a `light_ceiling` point exactly where the lamp hangs, marked as one
+(`ElectricalPoint.lampOutlet`, kept by the save schema), with no product. `isLampOutlet(point,
+items)` is the one test of it — a marked ceiling point carrying no product at which a `pendant` of
+its room hangs within 50 cm. It goes by what hangs there, not by which lamp the point was made
+for: generating again numbers the lamps anew, and a room whose wiring is kept (one fitting edited
+by hand) has the new lamp at its old outlet. The lighting plan lists the lamp and not the point,
+the budget buys no lamp for the point and still counts it as a point the electrician wires
+(`priceScene`), the product chosen for every ceiling light of the flat is not put on it
+(`dressBoard`), the whole-flat check reports any other ceiling point at a hanging lamp as a second
+main light (`two_main_lights`), and `withFixtureProducts` — which is why it takes the furniture —
+gives it no product while the lamp hangs there. Take the lamp away or move it off and the point is
+an ordinary ceiling light again: `withFixtureProducts` gives it the catalogue's lamp like any other
+fitting (the studio's `ensureFixtureProducts`, the next wiring or generation), and until then it is
+an estimate. A lamp the person picks for the outlet in its panel is put on it
+(`withFixtureProduct`): the point is then a light of its own, with the hanging lamp beside it by
+their choice. A lamp hanging somewhere else (over the dining table) leaves the room its own
+ceiling light.
 
 **Two fittings may not hold the same piece of wall** (`fittingClashes`). The rule is about
 plates, not points: two argue only when their footprints overlap *both* along the wall and
@@ -299,8 +367,13 @@ heated room's area, heat demand and the sections it wants against what hangs the
   `technicalCheckFrom` reads it; the URL is put back to the bare step once it is open): the
   studio's technical tray links "რა სამუშაოებია საჭირო?" to the works this way.
 
-The kitchen's main light is a row of spots along the run through the middle of the room (halfway
-to the table when its pendant is on that line), and the light under the wall cabinets is set into
+The kitchen's main light is a row of spots along the run through the middle of the floor in front
+of it (halfway to the table when its pendant is on that line) — the kitchen's own floor: a
+studio's kitchen half (`studioParts`), never the middle of the whole studio, which is in the
+living half; and where the room is not a rectangle, the shallowest floor the run has before it, so
+an L-shaped kitchen's row is inside the room from end to end (`kitchenSpots`: the middle is
+measured from each spot's place on the run to the wall behind and the floor's edge ahead, and a
+row that still cannot be whole in the room hugs the worktop). The light under the wall cabinets is set into
 their underside at their real height and length (the rulebook, K-13 and K-14). A kitchen's cooker
 hood is a round one first, then a thick one (`equipmentCandidates`).
 
@@ -317,11 +390,27 @@ reach into a band of height taken out of them (`clearOf`), and a point goes to t
 holds it (`nearestClear`). So a towel rail hangs clear of the vanity, its mirror and the washer's
 column (`towelRailSpot`); a radiator stays under its window when nothing stands there and otherwise
 goes to clear wall — the same wall, then another outside wall, then any (`clearSpot`; with nowhere
-clear it goes where it was wanted and the rule check flags it); a panel, a boiler, an air
+clear it goes where it was wanted and the rule check flags it). **A room's radiators are hung
+together, and never across a door** — furnished or not: the ones that stay where they are wanted
+go up first and the ones that move go clear of them, each hung radiator counted as long as the
+catalogue's longest would be there (`expectedLengthM`), so two never share a spot; and a radiator
+whose spot is across a door, or a window too low for it (a windowless hall with a door in every
+wall, where the spot is the middle of its longest wall), slides to the nearest wall beside it —
+where no wall holds the 80 cm a radiator is placed by, to the middle of the widest stretch
+between the doors. A panel, a boiler, an air
 conditioner or a fan with no fixture to go by takes the widest stretch clear at its height
-(`spotFor`, `widestClear`), a wall with none only when no wall has one; a general socket takes the
+(`spotFor`, `widestClear`), a wall with none only when no wall has one. **The boiler's cupboard
+reads what is already there, in every room it may go to** (`cupboardBlocks`, `cupboardTiers`): it
+stands on the floor, so its stretch of wall is clear from the floor to over the boiler — of the
+furniture and the joinery at the wall, and of the equipment already hung on it (the panel, an air
+conditioner, a fan), which are placed before it — and as wide as the cupboard
+(`boilerCabinetSize`: 62 cm indoors, 80 cm on a balcony; the hall's 80 cm). In the hall it is still
+as near the front door as such a stretch allows, in the bathroom still the spot farthest from the
+shower and the bath. A room with no such stretch keeps its boiler: clear of the equipment alone
+(never on the panel, though a mirror hangs there), then of the openings alone, as in a bare room.
+A general socket takes the
 nearest spot to the middle of its wall that no joinery or tall furniture (1.2 m) stands in front
-of, and a switch the other side of its door when a wardrobe stands on the handle side
+of, and a switch the other side of its door when a wardrobe stands on its spot on the handle side
 (`standardFor` — `standardElectrical` and `suggestElectrical` take the items and the decor, and the
 generation wires once the joinery stands). A bare room — the calculator's board — is placed exactly
 as before. Points already placed are left where they are.
@@ -337,7 +426,13 @@ or a bathroom (`openingCandidates` with the rooms either side, `isGlassDoor`).
 A bathroom's heated towel rail hangs over its WC when it has one — centred on it, its bottom 10 cm
 over the WC's half-height box (`towelRailOverWc`; `suggestRadiators` takes the furniture), where the
 towels hang when the bathroom has no towel shelf (the rulebook, BA-19); else on the longest clear
-wall. A bathroom's and a toilet's main light is spots, at least three, evenly down its length
+wall. **A rail is not a radiator on the floor**: it hangs up the wall, so in its way is only what
+stands up into it where it hangs (`radiator_blocked` — a washer's column through it; never the WC
+under it), it need not be on an outside wall (no `radiator_not_exterior` hint), and one hung over a
+WC (its bottom at `TOWEL_RAIL_OVER_WC_MIN_M`, 90 cm, or higher) takes no floor: generating again
+leaves the WC under it. Under a rail hung lower — the usual 60 cm, in a bathroom not furnished yet —
+the layout still keeps the radiator's strip clear, because its obstacles are boxes on the floor and
+cannot tell a stool from a vanity (Known gaps). A bathroom's and a toilet's main light is spots, at least three, evenly down its length
 (`wetRoomSpots`, [design-rules.md](design-rules.md#the-third-round-the-rulebook-nini-6-nov-2026)).
 
 A radiator is a `technical` point of kind `radiator` that carries a product, and the product
@@ -359,7 +454,7 @@ floor, the back 4 cm off the wall (`RADIATOR_FLOOR_GAP_M`, `RADIATOR_WALL_GAP_M`
 window (`radiatorProductFor`, `radiatorHeadroomM`), and a window too low for any radiator (a
 floor-length one) has its radiator beside it on the same wall (`besideWindow`). The layout keeps
 furniture off a strip 30 cm deep in front of every radiator (`radiatorKeepouts`, passed to
-`layoutPlan` as obstacles by `generateScene`); curtains may hang there. They are marked `origin: 'user'` because the person asked for them, so a
+`layoutPlan` as obstacles by `generateScene`; a towel rail hung over a WC has none); curtains may hang there. They are marked `origin: 'user'` because the person asked for them, so a
 finished home still costs them. The budget buys the sections and charges `radiator_mount` per
 radiator — on the radiator's own line, or inside the heating phase (2) when that phase runs.
 
@@ -639,7 +734,12 @@ or puts one along a whole outer wall from the wall's card ("მოაჯირ�
 `tests/unit/design/technical.test.ts` (with the checks each project is asked),
 `autoTechnical.test.ts`, `railings.test.ts` (where a railing may stand, what it replaces, what it
 takes off the wall, no switch or socket, the corner in 3D), `electrical.test.ts` (the furniture's fittings, and a room wired by hand
-kept whole by both suggesters), `radiators.test.ts`, `equipment.test.ts` (what a point is bought
+kept whole by both suggesters), `wiringRules.test.ts` (the wiring and the points read each other:
+no fitting in a radiator, a fitting slid off a door or a window, the basin's and the washer's
+sockets out of the splash zone, a towel rail over the WC, a corner kitchen's leg, one main light,
+the kitchen's row of spots), `wallClear.test.ts` (what stands in front of a wall; the towel rail,
+the radiators — hung together, never across a door — and the fittings in a furnished room),
+`radiators.test.ts`, `equipment.test.ts` (what a point is bought
 as, the candidates, the plan's equipment kept to its rooms, whole-flat picks, the budget's
 lines), `openings.test.ts`,
 `tests/unit/summary/calculatorSheet.test.ts` (the standard fittings and a whole-flat pick on
@@ -651,6 +751,43 @@ prices are refused), `e2e/design-studio.spec.ts` (going on through the checks). 
 have no tests of their own.
 
 ## Known gaps
+
+- **A towel rail hung low still costs its floor.** The layout engine's obstacles are boxes on the
+  floor (`LayoutOptions.obstacles`), so under a rail at the usual 60 cm — hung by the button in a
+  bathroom with no furniture yet — it keeps the whole strip clear, as for a radiator, though a piece
+  lower than the rail's bottom could stand there. Freeing that floor without height-aware obstacles
+  was measured (16 Nov 2026): a basin, a mirror or the washer's column was then generated up into the
+  rail in 7–29 of 40 draws of four small bathrooms, against 0–4 with the strip kept. It needs an
+  obstacle that says how high the floor under it is free (`autoLayout.ts`).
+
+- **A radiator and a boiler's cupboard are placed before their product is known**, by a nominal
+  size: a radiator as 80 cm long (`BESIDE_RADIATOR_M`) where the catalogue's panel is up to 1.4 m,
+  the cupboard as 62 cm wide where the Vintage boiler's is 1.4 m. So a radiator hung beside a door
+  can reach 3–20 cm across it once it has its sections (9 of 1,846 hung in 360 generated flats),
+  and the Vintage cupboard can stand through what is beside it. `suggestRadiators` and
+  `suggestTechnical` would need the style's product before they place
+  ([generation-audit.md](generation-audit.md), T13). Two radiators moved to the same clear wall
+  hang side by side, 5 cm apart: how far apart they should be is not a rule yet.
+- **An L-shaped hallway's arm can be unlit**: the hall's lights are a row along the longer side of
+  its outline (`hallLightSpots`), each in the middle of the hall's width there, so an arm that no
+  light of the row falls in has none. It needs the row laid along the hall's own centre line.
+- **A general socket can be behind a low piece** other than a kitchen run or a wardrobe (a bed's
+  headboard, a sofa's back): which pieces hide a socket is for the per-room rules.
+- **How far a plate keeps from a corner or a frame is not a rule.** A fitting that slides to the
+  nearest clear spot stops with its plate's edge a centimetre from the room's corner (137 of 3,543
+  switches in 360 generated flats, 39 more within 3 cm; none runs past the wall's end, which 168
+  did), and a double plate slid off a door or a window stops with its edge at the opening's edge —
+  the 8 cm from an opening are measured to the plate's middle (26 by a door, 12 by a window). A
+  room whose door fills its wall has no switch (one 0.77 m² bathroom with a 30 cm door in a 36 cm
+  wall — the switch used to be put in the doorway). Each needs a clearance nobody has set.
+- **A hanging lamp taken away leaves its outlet bare until the fittings are next gone through.**
+  The outlet is a ceiling light again at once — listed, wired, an estimate in the budget — and a
+  lamp picked in its panel is put on it, but the catalogue's lamp is given to it by
+  `ensureFixtureProducts`, which the studio page runs when the catalogue loads or the number of
+  fittings without a product changes (`app/(main)/design/[id]/studio/page.tsx`), not when a lamp
+  is deleted or moved. Counting there only the fittings that are not a lamp's outlet
+  (`isLampOutlet`) would give it at once. The outlet's own panel (`FixturePanel`) shows it as a
+  ceiling light with the estimate's price, though the budget charges no lamp for it.
 
 - A check stays looked at whatever happens afterwards: a room drawn on step 2 after the checks
   were gone through is not asked about again (its radiators, say) — the card still shows where

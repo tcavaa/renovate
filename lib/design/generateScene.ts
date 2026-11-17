@@ -125,7 +125,7 @@ export function generateScene(input: GenerateSceneInput): GeneratedScene {
   const decor = [...designed, ...fitted.decor, ...hall.decor, ...wardrobes.decor, ...wcBoxes(laid.rooms, items, catalog, designed)];
   // Wired once the joinery and the decor stand, so no switch or general socket lands behind a
   // wardrobe (`standardFor`).
-  const wired = withFixtureProducts(suggestElectrical(plan, items, known, styleId, decor), catalog, styleId, plan.rooms);
+  const wired = withFixtureProducts(suggestElectrical(plan, items, known, styleId, decor), catalog, styleId, plan.rooms, items);
   // A door, a window, a radiator, a socket or a light the calculation chose for the whole flat
   // stays its choice — the catalogue's product, from its shop.
   const dressed = calculatorPicks ? applyBoardPicks(laid, wired, calculatorPicks, catalog) : { plan: laid, electrical: wired };

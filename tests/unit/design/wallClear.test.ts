@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { suggestTechnical } from '@/lib/design/autoTechnical';
 import { standardElectrical } from '@/lib/design/electrical';
 import { refreshRoom, roomEdges } from '@/lib/design/planGeometry';
-import { suggestRadiators } from '@/lib/design/radiators';
+import { radiatorBody, suggestRadiators } from '@/lib/design/radiators';
 import { clearOf, nearestClear, wallBlocks } from '@/lib/design/wallClear';
 import type { DecorPiece, FloorPlan, Opening, PlacedItem, PlanRoom, Vec2 } from '@/lib/design/types';
 
@@ -91,6 +91,69 @@ describe('a room’s radiator', () => {
     // A bedside table away from the window leaves the radiator under it.
     const table = item('r', 'nightstand', 3.6, 0.25, { width: 0.5, depth: 0.4, height: 0.5 });
     expect(alongWall(bedroom, 0, suggestRadiators(plan(bedroom), ids(), [], [table])[0].position)).toBeCloseTo(2, 2);
+  });
+});
+
+describe('a room’s radiators together', () => {
+  // 7 × 4.5 m: it wants two radiators, a window for each in the top wall, the door in the far one.
+  const living = room('l', 'living_room', 7, 4.5, [window(0, 1.5 / 7), window(0, 5.5 / 7), door(2, 0.5)]);
+  /** Two radiators 80 cm long, as they are placed, do not overlap. */
+  const apart = (r: PlanRoom, a: Vec2, b: Vec2) => wallOf(r, a) !== wallOf(r, b) || Math.abs(alongWall(r, wallOf(r, a), a) - alongWall(r, wallOf(r, b), b)) >= 0.8;
+
+  it('are never hung on one spot when both move off the furniture under their windows', () => {
+    // A sofa 0.3–2.7 m and a long desk 3.9–6.9 m along the window wall: 1.1 m of it is clear, room for one.
+    const sofa = item('l', 'sofa', 1.5, 0.45, { width: 2.4, depth: 0.9, height: 0.8 });
+    const desk = item('l', 'desk', 5.4, 0.35, { width: 3, depth: 0.7, height: 0.75 });
+    const points = suggestRadiators(plan(living), ids(), [], [sofa, desk]);
+    expect(points).toHaveLength(2);
+    expect(apart(living, points[0].position, points[1].position)).toBe(true);
+    // Neither is behind the sofa or the desk: the second went to another wall.
+    for (const point of points) {
+      const s = alongWall(living, 0, point.position);
+      expect(wallOf(living, point.position) === 0 && (s < 2.7 + 0.4 || s > 3.9 - 0.4)).toBe(false);
+    }
+  });
+
+  it('leave the one whose window is clear under it, and move the other clear of it', () => {
+    // A kitchen run 0.05–4.65 m along the window wall: the first window is behind it, the second is clear.
+    const run = item('l', 'kitchen_run', 2.35, 0.3, { width: 4.6, depth: 0.6, height: 0.9 });
+    const [first, second] = suggestRadiators(plan(living), ids(), [], [run]);
+    expect(wallOf(living, second.position)).toBe(0);
+    expect(alongWall(living, 0, second.position)).toBeCloseTo(5.5, 2);
+    expect(apart(living, first.position, second.position)).toBe(true);
+  });
+
+  it('are as they were in an empty room: one under each window', () => {
+    const [first, second] = suggestRadiators(plan(living), ids());
+    expect(alongWall(living, 0, first.position)).toBeCloseTo(1.5, 2);
+    expect(alongWall(living, 0, second.position)).toBeCloseTo(5.5, 2);
+  });
+});
+
+describe('a radiator and the doors', () => {
+  const doors = [door(0, 0.5), door(1, 0.5), door(2, 0.5), door(3, 0.5)];
+  /** How much of the radiator, as long as it will be (`radiatorBody`), is across a door of its wall. */
+  const acrossADoor = (hall: PlanRoom, point: ReturnType<typeof suggestRadiators>[number]) => {
+    const body = radiatorBody({ ...plan(hall), technical: { points: [point] } }, point)!;
+    return Math.max(0, ...hall.openings.filter((o) => o.wallIndex === body.edge.index).map((o) => Math.min(body.to, o.t * body.edge.length + o.widthM / 2) - Math.max(body.from, o.t * body.edge.length - o.widthM / 2)));
+  };
+
+  it('is hung beside the door, not across it, in a windowless hall with a door in every wall', () => {
+    // 3 × 2 m: the long walls have a metre of wall each side of their door.
+    const hall = room('h', 'hallway', 3, 2, doors);
+    const [point] = suggestRadiators(plan(hall), ids());
+    expect(acrossADoor(hall, point)).toBe(0);
+    // Furnished or not.
+    const chair = item('h', 'armchair', 0.3, 0.3, { width: 0.4, depth: 0.4, height: 0.45 });
+    expect(acrossADoor(hall, suggestRadiators(plan(hall), ids(), [], [chair])[0])).toBe(0);
+  });
+
+  it('is hung in the widest wall beside a door where no wall holds a middling radiator', () => {
+    // 2.2 × 2 m: 70 cm of wall each side of the long walls' doors — less than the 80 cm a radiator is
+    // placed by, more than the four sections this hall needs.
+    const hall = room('h', 'hallway', 2.2, 2, doors);
+    const [point] = suggestRadiators(plan(hall), ids());
+    expect(acrossADoor(hall, point)).toBe(0);
   });
 });
 

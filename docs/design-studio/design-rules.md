@@ -272,7 +272,8 @@ How stage 2 built it — **the kitchen**:
   table keeps 1 m from the sofa, the coffee table, the armchair and the TV unit
   (`DINING_LOUNGE_GAP_M`) and takes the spot with the most room round it, walls included.
 - **Light** (K-13, K-14): the kitchen's row of spots runs along the run through the middle of the
-  room (halfway to the table when the table's pendant hangs on that line); the light under the
+  kitchen's floor — a studio's kitchen half, not the whole studio — (halfway to the table when the
+  table's pendant hangs on that line); the light under the
   wall cabinets is set into their underside at their real height and length, the strip's lowest
   point there (`sitOnPoint` in `buildStructure`), so it never shows below them.
 - **Style** (K-15, Y-7): the kitchen maker's material, the kitchen, the sofas, beds, baths,
@@ -518,7 +519,8 @@ in English — `ruleProblem` into `reviewFindings`' PROBLEMS) and the foot of th
 - `ruleViolations(plan, items, electrical?)`, each `{ code, roomId, itemId?, pointId?, openingId?,
   valueM?, limitM? }` — the building's (`TECHNICAL_RULES`, listed on the technical step) and the
   furniture's (all of them in the studio's pill, `RuleWarnings`): `radiator_blocked` (a piece standing in the strip in front of a radiator, lower than
-  its top; a curtain or a rug does not count), `radiator_under_sill` (a radiator's top within
+  its top; a curtain or a rug does not count — and, for a heated towel rail, only a piece standing up
+  into the rail where it hangs, never the WC under it), `radiator_under_sill` (a radiator's top within
   10 cm of its window's sill), `boiler_not_exterior` (its nearest wall is not an outside one),
   `door_too_narrow` (an interior door's two halves — found as two rooms' doors at the same spot —
   measured once, against the more lenient room; a half not twinned yet finds the room behind it
@@ -529,10 +531,13 @@ in English — `ruleProblem` into `reviewFindings`' PROBLEMS) and the foot of th
   `counters_too_close` (island to run under 120 cm), `shower_too_small` (under 80 cm),
   `wc_side_tight` (the WC's centre under 40 cm from a wall or a piece either side),
   `basin_height` (a bathroom basin's top more than 7 cm off 85 cm), `socket_in_splash` (a socket
-  within 60 cm of a shower or a bath). Worded by `components/design/ruleText.ts`.
+  within 60 cm of a bath or of a shower's tray — `wetFootprints`, `inSplashZone`; the wiring places
+  the basin's socket by the same measure). Worded by `components/design/ruleText.ts`.
 - `radiatorKeepouts(plan)`: the strips (the radiator's length plus 5 cm each end, its depth plus
   30 cm) as boxes per room, which `generateScene` adds to the layout engine's obstacles and hands
-  to the kitchen's corner pass (`fitKitchenCorners`) — read once, off the plan itself.
+  to the kitchen's corner pass (`fitKitchenCorners`) — read once, off the plan itself. A towel
+  rail hung over a WC (90 cm up or higher) has none; one hung lower keeps the strip
+  ([technical-and-fittings.md](technical-and-fittings.md#known-gaps)).
 
 On the sample flat (`samplePlan`), laid out with the engine's seeded generation, three pieces
 stood in front of radiators without the strips and none with them; over twenty seeds, with the
