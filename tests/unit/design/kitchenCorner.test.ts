@@ -138,7 +138,22 @@ describe('the generation’s corner kitchens', () => {
     // A radiator on the next wall, 1.65 m from the corner: 60 cm of leg is all that is left before it.
     const radiator = { id: 'rad', kind: 'radiator' as const, roomId: 'k', position: P(3.52, 1.65), elevationM: 0.12, origin: 'user' as const };
     expect(fitKitchenCorners([room], [short], [], radiatorKeepouts(planOf(room, [radiator])))).toHaveLength(1);
-    expect(kitchenLegLength(kitchenLeg(short, room, 'right', [short, ...radiatorObstacles([radiator])], [])[0])).toBe(0.6);
+    // The person's own corner (the store's `setKitchenCorner`) keeps off the same strip.
+    const [strip] = radiatorKeepouts(planOf(room, [radiator])).k;
+    const leg = kitchenLeg(short, room, 'right', [short, ...radiatorObstacles(planOf(room, [radiator]))], [])[0];
+    expect(leg.position.z + leg.size.width / 2).toBeCloseTo(strip.minZ, 3);
+  });
+
+  it('keeps the person’s own corner off the strips the generation keeps off, wherever the radiator says it is', () => {
+    const short = run(2.6, 2);
+    // Named for a room the plan no longer has: as a 90 cm square by its stored room, no obstacle at all.
+    const radiator = { id: 'rad', kind: 'radiator' as const, roomId: 'w2-18x76', position: P(3.52, 2.4), elevationM: 0.12, sections: 5, origin: 'user' as const };
+    const plan = planOf(room, [radiator]);
+    const [strip] = radiatorKeepouts(plan).k;
+    const legs = kitchenLeg(short, room, 'right', [short, ...radiatorObstacles(plan)], [], 1.8);
+    expect(legs[0].position.z + legs[0].size.width / 2).toBeCloseTo(strip.minZ, 3);
+    // Exactly what the generation builds there.
+    expect(legs[0]).toEqual({ ...kitchenLegOf('run', fitKitchenCorners([room], [short], [], radiatorKeepouts(plan)))!, pinned: true });
   });
 
   it('keeps a leg off the floor a radiator keeps clear, wherever the radiator says it is', () => {

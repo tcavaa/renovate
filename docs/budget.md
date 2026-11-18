@@ -382,7 +382,11 @@ The run's card has the switch — straight, corner left, corner right — and th
 (60 cm – 4 m, 1.8 m to start: `KITCHEN_LEG_M`). Choosing a corner stretches the run into it when
 that fits (`runIntoCorner`) and builds the pieces (`kitchenLeg`): the leg from the run's front
 along the next wall as far as it is clear — under a window whose sill is at the worktop or over
-it, never across a door, into furniture or joinery, nor over a radiator (`radiatorObstacles`) — and
+it, never across a door, into furniture or joinery, nor onto the floor a radiator keeps clear in
+front of it (`radiatorObstacles`: the strips read off the plan by where the radiator hangs,
+`radiatorKeepouts` — the ones generation's corners keep off; a corner made by hand used to be
+measured against a 90 cm square by the radiator's stored room, and now keeps off the same floor as
+generation's, on purpose) — and
 the wall cabinets from the corner — flush against the front of the run's own, a corner unit with no gap — out to the first window; a corner with no room says so. The run
 then grows and shrinks from its corner (`runFromCorner`). A leg stays where it is put; it goes only
 with a run that is deleted or became a shop's unit (`withoutOrphanLegs`, in `settleFitted`).

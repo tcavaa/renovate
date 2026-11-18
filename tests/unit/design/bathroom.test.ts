@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { layoutRoom } from '@/lib/design/autoLayout';
 import { fitBathrooms } from '@/lib/design/bathroom';
 import { cabinetFacadeM2, decorFootprint, freeStretch, sectionSpans } from '@/lib/design/decor/joinery';
-import { footprintQuad, quadsOverlap } from '@/lib/design/rules';
+import { BASIN_TOP_M, COUNTERTOP_BASIN_MAX_M, footprintQuad, quadsOverlap } from '@/lib/design/rules';
 import { floorTaken } from '@/lib/design/shower';
 import { roomEdges } from '@/lib/design/planGeometry';
 import { piecePurchases } from '@/lib/design/decor/quantities';
@@ -115,6 +115,9 @@ describe('the bathroom pass', () => {
   it('sets a countertop basin on a vanity made to measure, under 90 cm, with a tap on it', () => {
     const items = matched(bathroom, 'modern');
     expect(items.find((i) => i.slot === 'sink')?.product?.productId).toBe(2);
+    // The matcher lifts it to wash at, its top at a basin's height — as the rule and its check have it.
+    const lifted = items.find((i) => i.slot === 'sink')!;
+    expect(lifted.elevationM + lifted.size.height).toBeCloseTo(BASIN_TOP_M, 6);
     const { items: out, decor } = fitBathrooms({ rooms: [bathroom], items, catalog: CATALOG, styleId: 'modern', level: 'balanced' });
     const vanity = decor.find((d) => d.family === 'cabinet');
     expect(vanity).toBeDefined();
@@ -122,7 +125,13 @@ describe('the bathroom pass', () => {
     expect(basinSection.section.heightMm).toBeLessThanOrEqual(900);
     const sink = out.find((i) => i.slot === 'sink')!;
     expect(sink.elevationM).toBeCloseTo(basinSection.section.heightMm / 1000, 3);
-    expect(sink.elevationM + sink.size.height).toBeLessThanOrEqual(0.92);
+    // The vanity is as high as leaves the basin's top at a basin's height.
+    expect(sink.elevationM + sink.size.height).toBeCloseTo(BASIN_TOP_M, 3);
+    // A basin 47 cm tall is no countertop basin (`COUNTERTOP_BASIN_MAX_M`, the matcher's 45 cm): no vanity is built under it.
+    const tall = { ...lifted, elevationM: 0, size: { ...lifted.size, height: 0.47 } };
+    const none = fitBathrooms({ rooms: [bathroom], items: items.map((i) => (i.id === lifted.id ? tall : i)), catalog: CATALOG, styleId: 'modern', level: 'balanced' });
+    expect(none.decor.some((d) => d.params.sections?.some((s) => s.kind === 'basin'))).toBe(false);
+    expect(0.47).toBeGreaterThanOrEqual(COUNTERTOP_BASIN_MAX_M);
     expect(out.filter((i) => i.slot === 'tap')).toHaveLength(1);
     // The vanity is priced by its façade in the joiner's material.
     expect(cabinetFacadeM2(vanity!)).toBeGreaterThan(0);
@@ -130,9 +139,11 @@ describe('the bathroom pass', () => {
   });
 
   it('hangs the mirror over the basin clear of the basin and of the tap put on it, by the matcher\'s 12 cm', () => {
-    const items = matched(bathroom, 'modern');
+    // A wall mixer on a panel 15 cm tall: over the rim it reaches past where the matcher hangs the mirror.
+    const catalog = CATALOG.map((p) => (p.id === 5 ? { ...p, heightCm: 15 } : p));
+    const items = matched(bathroom, 'modern', catalog);
     const before = items.find((i) => i.slot === 'mirror')!;
-    const { items: out } = fitBathrooms({ rooms: [bathroom], items, catalog: CATALOG, styleId: 'modern', level: 'balanced' });
+    const { items: out } = fitBathrooms({ rooms: [bathroom], items, catalog, styleId: 'modern', level: 'balanced' });
     const mirror = out.find((i) => i.slot === 'mirror')!;
     const tap = out.find((i) => i.slot === 'tap')!;
     const sink = out.find((i) => i.slot === 'sink')!;
@@ -260,6 +271,33 @@ describe('the bathroom pass', () => {
     const placed = out.find((i) => i.slot === 'washer')!;
     expect(placed.position).toEqual(moved.find((i) => i.id === washer.id)!.position);
     expect(decor.some((d) => (d.params.sections ?? []).some((s) => s.kind === 'washer' && s.itemId === washer.id))).toBe(true);
+  });
+
+  it('never builds a washer\'s own column into the vanity planned beside it: the column stays, the vanity stops at it', () => {
+    // A bathroom 2.5 × 1.9 m: on its long wall a WC, a basin and the washer at the wall's end; the
+    // vanity grows to the machine's side, and the column — wider than its machine — cannot stand
+    // there but runs back towards the basin.
+    const r = room('k', 'bathroom', 2.5, 1.9, [door(2, 0.5)]);
+    const at = (id: string, slot: PlacedItem['slot'], productId: number, x: number, z: number, size: PlacedItem['size'], elevationM = 0): PlacedItem => ({ id, roomId: 'k', slot, kind: slot, position: { x, z }, rotation: 0, elevationM, size, product: toSceneProduct(CATALOG.find((p) => p.id === productId)!, 1) });
+    const items = [
+      at('wc', 'toilet', 1, 0.5, 0.27, { width: 0.36, depth: 0.54, height: 0.4 }),
+      at('s', 'sink', 2, 1.5, 0.135, { width: 0.47, depth: 0.27, height: 0.2 }, 0.7),
+      at('w', 'washer', 6, 2.198, 0.255, { width: 0.6, depth: 0.47, height: 0.85 }),
+    ];
+    const { items: out, decor } = fitBathrooms({ rooms: [r], items, catalog: CATALOG, styleId: 'modern', level: 'balanced' });
+    const column = decor.find((d) => d.params.sections?.some((s) => s.kind === 'washer'))!;
+    const vanity = decor.find((d) => d.params.sections?.some((s) => s.kind === 'basin'))!;
+    expect(column).toBeDefined();
+    expect(vanity).toBeDefined();
+    expect(column.id).not.toBe(vanity.id);
+    // Side by side, not one in the other — and the machine stands in its column.
+    expect(Math.min(vanity.span.to, column.span.to) - Math.max(vanity.span.from, column.span.from)).toBeLessThanOrEqual(1e-6);
+    const washer = out.find((i) => i.id === 'w')!;
+    expect(washer.position.x - 0.3).toBeGreaterThanOrEqual(column.span.from - 1e-6);
+    // The basin still stands on its vanity.
+    const sink = out.find((i) => i.id === 's')!;
+    expect(sink.position.x - 0.235).toBeGreaterThanOrEqual(vanity.span.from - 1e-6);
+    expect(sink.position.x + 0.235).toBeLessThanOrEqual(vanity.span.to + 1e-6);
   });
 
   it('builds the washer\'s column and its dryer clear of the mirror over the basin where any spot is, else hangs a mirror the catalogue has that clears the dryer', () => {

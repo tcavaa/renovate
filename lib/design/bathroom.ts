@@ -4,7 +4,7 @@
  * way a joiner and a plumber would finish it:
  *
  * - **The vanity** — in every style but Vintage, a basin set on a cabinet made to measure (`cabinet`
- *   decor, `joinery.ts`): its top under 90 cm, the basin on it, as wide as the wall lets it grow
+ *   decor, `joinery.ts`): the basin's top at 85 cm on it (`vanityTop`), as wide as the wall lets it grow
  *   (from the basin's width and 40 cm, to 1.8 m), run on to a corner rather than leave a sliver.
  *   Vintage keeps its standing basin (pedestal or vanity product).
  * - **A tap on every basin** that is not sold with its own (`includesTap`): on the deck behind the
@@ -29,9 +29,11 @@ import { weightedPick, type RoomRng, type Rng } from './random';
 import { styleAffinity } from './styles';
 import { styleRejects } from './styleGuide';
 import { pointOnEdge, type PlanEdge } from './planGeometry';
-import { BASIN_TOP_M, BASIN_TOP_TOLERANCE_M, WET_ROOM_TYPES } from './rules';
+import { BASIN_TOP_M, BASIN_TOP_TOLERANCE_M, COUNTERTOP_BASIN_MAX_M, WET_ROOM_TYPES } from './rules';
 import type { CabinetSection, DecorPiece, PlacedItem, PlanRoom, SlotKind, StyleId } from './types';
-import { CARCASS_M, JOINERY_SLIVER_M, VANITY_DEPTH_M, VANITY_MAX_M, VANITY_MIN_M, WASHER_COLUMN_DEPTH_M, cabinetPiece, decorFootprint, freeStretch, joineryFace, joineryMaterial, wallOf } from './decor/joinery';
+import { VANITY_DEPTH_M, WASHER_COLUMN_DEPTH_M, cabinetPiece, decorFootprint, freeStretch, joineryFace, joineryMaterial, wallOf } from './decor/joinery';
+import { bathBoxFor, columnSection, columnStart, vanitySpan, vanityTop } from './decor/housing';
+import { alongWall } from './wallClear';
 import { defaultDecorMaterial } from './decor/materials';
 import type { RadiatorBody } from './radiators';
 import { decorMaterialFrom } from './decor/resolve';
@@ -55,10 +57,6 @@ export interface BathroomInput {
   radiators?: readonly RadiatorBody[];
 }
 
-/** The widest a vanity grows to on its own; the wall may stop it sooner. */
-export const VANITY_GROW_M = 1.8;
-/** Room a vanity keeps beside its basin, both sides together. */
-const VANITY_ELBOW_M = 0.4;
 /** The ceiling a dryer needs over the machine (two machines and the column's top). */
 const DRYER_CEILING_M = 2.2;
 
@@ -72,6 +70,10 @@ export function fitBathrooms(input: BathroomInput): { items: PlacedItem[]; decor
   const vintage = styleId === 'vintage';
   const material = joineryMaterial(catalog, styleId, items);
   const face = joineryFace(material);
+  // A box is plasterboard, tiled (`decor/housing`'s bath box, `decor/wcBox`).
+  const gypsum = defaultDecorMaterial(catalog, ['gypsum']);
+  const tile = defaultDecorMaterial(catalog, ['tile', 'stone']);
+  const boxMaterials = { ...(gypsum ? { body: decorMaterialFrom(gypsum) } : {}), ...(tile ? { face: decorMaterialFrom(tile) } : {}) };
   const pickWith = (draw: Rng | undefined) => (kind: string, keep: (p: CatalogProduct) => boolean = () => true): CatalogProduct | null => {
     const all = candidatesFor(kind, catalog, styleId).filter(keep);
     const kept = all.filter((p) => !styleRejects(p, styleId));
@@ -90,7 +92,7 @@ export function fitBathrooms(input: BathroomInput): { items: PlacedItem[]; decor
     for (const sink of items.filter((i) => i.roomId === room.id && i.slot === 'sink' && i.product)) {
       let wall = wallOf(sink, room);
       let basin = sink;
-      const vanity = wall && wet && !vintage && sink.size.height < 0.5 ? vanityFor(room, sink, wall, items, radiators) : null;
+      const vanity = wall && wet && !vintage && sink.size.height < COUNTERTOP_BASIN_MAX_M ? vanityFor(room, sink, wall, items, radiators) : null;
       // A basin the matcher lifted for a vanity that cannot be built here would hang in the air: it
       // gives way to a basin that stands on the floor, at a basin's height, where one fits; with
       // none it stays. One a vanity holds stays on it, too tall for it or not (its height is a
@@ -126,9 +128,10 @@ export function fitBathrooms(input: BathroomInput): { items: PlacedItem[]; decor
     for (const washer of items.filter((i) => i.roomId === room.id && i.slot === 'washer' && i.product)) {
       if (vintage) continue;
       const dryerProduct = level === 'premium' && room.heightM >= DRYER_CEILING_M ? pick('dryer') : null;
-      const columnW = round3(washer.size.width + 2 * CARCASS_M + 0.02);
-      const columnH = round3(washer.size.height + 0.03 + (dryerProduct ? (dryerProduct.heightCm ?? 86) / 100 + 0.03 : 0));
-      const column: CabinetSection = { kind: 'washer', widthMm: mm(columnW), heightMm: mm(columnH), depthMm: mm(WASHER_COLUMN_DEPTH_M), ...(dryerProduct ? { dryer: true } : {}), itemId: washer.id };
+      // The column the studio builds for the same machine (`columnSection`), the dryer as it is stacked.
+      const column = columnSection(washer, dryerProduct ? sized(dryerProduct, getArchetype('dryer')!.size).height : null, room.heightM);
+      const columnW = column.widthMm / 1000;
+      const columnH = column.heightMm / 1000;
       const tapIds = items.filter((i) => i.roomId === room.id && i.slot === 'tap').map((i) => i.id);
       // What hangs on the wall over the column, lower than its top (a mirror wider than its basin):
       // the dryer stacked in it would run into it.
@@ -170,11 +173,9 @@ export function fitBathrooms(input: BathroomInput): { items: PlacedItem[]; decor
       // A column of its own where the machine stands.
       const wall = wallOf(washer, room);
       const stretch = wall && freeStretch(room, wall.edge, wall.along, items, [washer.id], WASHER_COLUMN_DEPTH_M, [], [], { radiators, strict: true });
-      if (wall && stretch && stretch[1] - stretch[0] >= columnW - 0.01) {
-        let from = Math.max(stretch[0], Math.min(stretch[1] - columnW, wall.along - columnW / 2));
-        // At the end of the wall when that is a sliver away (BA-14).
-        if (from - stretch[0] < JOINERY_SLIVER_M) from = stretch[0];
-        else if (stretch[1] - (from + columnW) < JOINERY_SLIVER_M) from = stretch[1] - columnW;
+      // Round the machine, at the end of the wall when that is a sliver away (BA-14).
+      const from = wall && stretch ? columnStart(stretch, wall.along, columnW) : null;
+      if (wall && stretch && from != null) {
         // Where the machine is moved to stands clear, else the column is built round it where it is.
         const columnAt = (start: number) => {
           const at = pointOnEdge(wall.edge, (start + columnW / 2) / wall.edge.length);
@@ -207,8 +208,11 @@ export function fitBathrooms(input: BathroomInput): { items: PlacedItem[]; decor
     // has that hangs clear of them (and of the basin and its tap); with none, it stays as it hung.
     items = items.map((i) => (i.roomId === room.id && i.slot === 'mirror' ? mirrorClearOfColumn(i, room, items, catalog, styleId) : i));
 
-    // The vanities that did not take a washer: a cabinet each.
-    for (const [sinkId, v] of vanities) {
+    // The vanities that did not take a washer: a cabinet each — stopped at a washer's column built
+    // on its wall since it was planned (the column is wider than the machine the vanity stopped at).
+    for (const [sinkId, planned] of vanities) {
+      const basin = items.find((i) => i.id === sinkId);
+      const v = basin ? clearOfBuilt(planned, basin, room, decor) : planned;
       decor.push(cabinetPiece(`decor-${room.id}-joinery-${sinkId}`, room, v.edge, v.from, [{ kind: 'basin', widthMm: mm(v.to - v.from), heightMm: mm(v.height), depthMm: mm(VANITY_DEPTH_M), itemId: sinkId }], face));
     }
 
@@ -217,7 +221,8 @@ export function fitBathrooms(input: BathroomInput): { items: PlacedItem[]; decor
       const wall = wallOf(bath, room);
       const boxed = vintage || isBuiltInBath(bath.product);
       if (wall && boxed) {
-        const enclosure = bathEnclosure(room, wall.edge, wall.along, bath, items, catalog, vintage, radiators);
+        // Stopped at the joinery built beside it (a washer's column is wider than its machine), as the studio's is.
+        const enclosure = bathBoxFor(bath, room, wall, items, vintage, boxMaterials, `decor-${room.id}-bath-${bath.id}`, { decor, stretch: { radiators, strict: true } });
         if (enclosure) decor.push(enclosure);
       }
       const head = bathHead(room, bath, wall?.edge ?? null);
@@ -334,26 +339,40 @@ function mirrorClearOfColumn(mirror: PlacedItem, room: PlanRoom, items: readonly
 
 type Vanity = { edge: PlanEdge; from: number; to: number; height: number };
 
+/**
+ * A vanity planned before the joinery beside it was built, cut back to that joinery on the side it
+ * stands — a washer's own column, wider than the machine the vanity's stretch stopped at, is built
+ * where it stands and the vanity gives way to it. The vanity as planned where the cut would leave
+ * it no longer 5 cm wider than its basin (`vanitySpan`'s least).
+ */
+function clearOfBuilt(v: Vanity, basin: PlacedItem, room: PlanRoom, decor: readonly DecorPiece[]): Vanity {
+  const middle = (basin.position.x - v.edge.a.x) * v.edge.dir.x + (basin.position.z - v.edge.a.z) * v.edge.dir.z;
+  let { from, to } = v;
+  for (const piece of decor) {
+    if (piece.roomId !== room.id) continue;
+    const corners = decorFootprint(piece, room);
+    const seen = corners && alongWall(v.edge, corners, VANITY_DEPTH_M - 1e-6);
+    if (!seen || seen[1] <= from + 1e-6 || seen[0] >= to - 1e-6) continue;
+    if (seen[1] <= middle) from = seen[1];
+    else if (seen[0] >= middle) to = seen[0];
+  }
+  return to - from >= basin.size.width + 0.05 - 1e-6 ? { ...v, from, to } : v;
+}
+
 /** Where a washer's column may be built: the joinery, the machine as it then stands, the vanity it joins, and whether something hangs in its way. */
 type ColumnSpot = { piece: DecorPiece; washer: PlacedItem; vanity?: string; underHung: boolean };
 
 /**
- * The vanity a countertop basin's wall can take: under 90 cm, as wide as the wall lets it grow
+ * The vanity a countertop basin's wall can take: the basin's top at 85 cm on it, as wide as the wall lets it grow
  * (from the basin's width and 40 cm, to 1.8 m), run on to a corner rather than leave a sliver —
  * and under a window only where the window's sill is over the basin's rim. Null where the free
  * stretch round the basin is not 5 cm wider than it.
  */
 function vanityFor(room: PlanRoom, sink: PlacedItem, wall: { edge: PlanEdge; along: number }, items: readonly PlacedItem[], radiators: readonly RadiatorBody[]): Vanity | null {
-  const height = round3(Math.min(VANITY_MAX_M - 0.05, Math.max(VANITY_MIN_M, VANITY_MAX_M - sink.size.height)));
+  const height = vanityTop(sink);
   const stretch = freeStretch(room, wall.edge, wall.along, items, [sink.id], VANITY_DEPTH_M, [], [], { top: height + sink.size.height, radiators, strict: true });
-  if (!stretch) return null;
-  const want = Math.min(VANITY_GROW_M, Math.max(sink.size.width + VANITY_ELBOW_M, 0.8));
-  let from = Math.max(stretch[0], wall.along - want / 2);
-  let to = Math.min(stretch[1], from + want);
-  from = Math.max(stretch[0], to - want);
-  if (from - stretch[0] < JOINERY_SLIVER_M) from = stretch[0];
-  if (stretch[1] - to < JOINERY_SLIVER_M) to = stretch[1];
-  return to - from >= sink.size.width + 0.05 ? { edge: wall.edge, from, to, height } : null;
+  const span = stretch ? vanitySpan(stretch, wall.along, sink.size.width) : null;
+  return span ? { edge: wall.edge, from: span[0], to: span[1], height } : null;
 }
 
 /**
@@ -462,34 +481,4 @@ function bathMixerItem(room: PlanRoom, bath: PlacedItem, product: CatalogProduct
   const lateral = head * (bath.size.width / 2 - Math.min(0.25, bath.size.width * 0.15));
   const ahead = bath.size.depth / 2 + size.depth / 2 + 0.06;
   return newItem(room, 'bath_mixer', `${bath.id}-mixer`, product, { x: bath.position.x + right.x * lateral + f.x * ahead, z: bath.position.z + right.z * lateral + f.z * ahead }, bath.rotation + Math.PI, 0, size);
-}
-
-/**
- * A boxed bath's enclosure: a tiled block on the bath's wall, as long as the bath (run on to a corner
- * rather than leave a sliver), up to its rim and a little deeper than it; Vintage's a surround 10 cm
- * wider each side and 6 cm over the rim, round the freestanding bath standing in it.
- */
-function bathEnclosure(room: PlanRoom, edge: PlanEdge, along: number, bath: PlacedItem, items: PlacedItem[], catalog: CatalogProduct[], vintage: boolean, radiators: readonly RadiatorBody[]): DecorPiece | null {
-  const stretch = freeStretch(room, edge, along, items, [bath.id, `${bath.id}-mixer`], bath.size.depth + 0.1, [], [], { radiators, strict: true });
-  if (!stretch) return null;
-  const extra = vintage ? 0.1 : 0.02;
-  let from = Math.max(stretch[0], along - bath.size.width / 2 - extra);
-  let to = Math.min(stretch[1], along + bath.size.width / 2 + extra);
-  if (from - stretch[0] < JOINERY_SLIVER_M) from = stretch[0];
-  if (stretch[1] - to < JOINERY_SLIVER_M) to = stretch[1];
-  const gypsum = defaultDecorMaterial(catalog, ['gypsum']);
-  const tile = defaultDecorMaterial(catalog, ['tile', 'stone']);
-  return {
-    id: `decor-${room.id}-bath-${bath.id}`,
-    roomId: room.id,
-    family: 'box',
-    wallIndex: edge.index,
-    span: { from: round3(from), to: round3(to) },
-    // A built-in bath's rim just shows over its box; Vintage's surround stands 6 cm over the rim.
-    height: { from: 0, to: round3(bath.size.height + (vintage ? 0.06 : -0.01)) },
-    params: { depthMm: mm(bath.size.depth + (vintage ? 0.12 : 0.03)), full: false },
-    materials: { ...(gypsum ? { body: decorMaterialFrom(gypsum) } : {}), ...(tile ? { face: decorMaterialFrom(tile) } : {}) },
-    anchor: 'bath',
-    itemId: bath.id,
-  };
 }

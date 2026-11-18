@@ -399,8 +399,14 @@ its own there (`cabinet: null`) — the wardrobe is its cupboard (the rulebook, 
 **In a furnished flat the automatic placements read the furniture and the decor first**
 (`lib/design/wallClear.ts`, the owner's notes of 13 Nov 2026 — a towel rail had been hung through a
 vanity). A wall is read as blocks (`wallBlocks`): every piece standing within 45 cm of it, from its
-bottom to its top (a shower as its floor and glass), every piece of joinery, box or niche wall, and
-the slats and panels flat on it; the stretches clear of the doors and windows have the blocks that
+bottom to its top (each as the floor it takes, `floorTaken` — a shower as its tray and glass), every
+piece of joinery, box or niche wall, and the slats and panels flat on it — but what stands before no
+wall (`NOT_IN_THE_WAY`: a rug, a door mat, a pendant, a curtain, and `blind`, which is no slot). The joinery reads a wall the same
+way (`freeStretch`: the same list, the same floor of each piece, the same test of what stands in
+front of a wall, `alongWall`, with its own depth for the reach), and leaves out besides what hangs
+over it or rides on a piece (`OVER_JOINERY`: a picture, a mirror, anything hung over 1.2 m, a tap,
+a bath's mixer, the dryer), which a fitting is kept off; each caller keeps its own margin round an
+opening (5 cm for the joinery, its own for each fitting). The stretches clear of the doors and windows have the blocks that
 reach into a band of height taken out of them (`clearOf`), and a point goes to the nearest one that
 holds it (`nearestClear`). So a towel rail hangs clear of the vanity, its mirror and the washer's
 column (`towelRailSpot`); a radiator stays under its window when nothing stands there and otherwise

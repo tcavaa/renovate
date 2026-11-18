@@ -46,7 +46,7 @@ proposal goes through) · [3d-engine.md](3d-engine.md) · [studio.md](studio.md)
 | `lib/db/migrations/0005_decor_materials.sql` | the category tree, the starter materials and the workshop store |
 | `tests/unit/design/decor.test.ts` | the fit, the quantities, the budget lines, the resolver, the proposal and its validation (the families and LED a style takes) |
 | `tests/unit/design/decorResize.test.ts` | the arrows dragged (one side, from the middle, kept on the wall and under the ceiling, the smallest size) and the card's sizes |
-| `tests/unit/design/housing.test.ts` | a WC and its box, a machine and its column, a basin and its vanity moved either way; a section leaving a longer run; joinery resized for real and stopped by doors, furniture and other joinery; decor moved by hand; a catalogue shower's glass; a generated flat left as it is by the pass |
+| `tests/unit/design/housing.test.ts` | a WC and its box, a machine and its column, a basin and its vanity moved either way; a section leaving a longer run; joinery resized for real and stopped by doors, furniture and other joinery; decor moved by hand; a catalogue shower’s glass; a bathroom as generation finished it left as it is by the studio’s settling, and a piece set down given what generation builds for it there |
 | `tests/unit/design/kitchenCorner.test.ts` | the leg at either corner, under a window, stopped by a door or furniture, resized, following its run, the generation's corner kitchens (a leg off a radiator's strip, read by where the radiator stands and off the plan itself, not the rooms under their ceilings; the floor a corner would take, said beforehand) |
 | `tests/unit/design/fittedStore.test.ts` | the store's actions: a drag takes the column (one undo), a dragged column takes the machine, delete and the card's button, the corner switch; furniture kept out of joinery |
 | `tests/unit/design/placementSettle.test.ts` | the check's findings, its validation and its fixes applied; no print over slats |
@@ -104,7 +104,12 @@ The reference library's rules, as code:
 - **box** — a wall-hung WC's installation box (`lib/design/decor/wcBox.ts`): plasterboard 20 cm
   deep on the wall behind the WC, 80 cm wide (the whole wall when a sliver under 30 cm would be
   left beside it; stopped at a piece standing on that wall beside the WC within its depth — a basin,
-  a shower's tray — as at a door), half height (1 m, its top a shelf) or to the ceiling (`params.full`, the card's
+  a shower's tray — as at a door; between the wall's doors and windows where that holds the whole
+  WC, else under a window whose sill is over its top — a toilet's high window the WC stands at, or
+  partly under — only where the WC stood out in front of it stands clear: out of a door's way, a
+  shower's tray and every piece, breaking no rule check it kept against the wall (`wcStandsClear`),
+  else between the openings as before — `wcBoxStretch`, `wcBoxToBuild`, by generation and the
+  studio's set-down and card alike; the studio builds none under 20 cm), half height (1 m, its top a shelf) or to the ceiling (`params.full`, the card's
   "სიმაღლე"; the store sets the band with it). Slots: body (gypsum), face (tile or stone,
   optional — without it the box is painted, the body's colour). Measured as its front, its two
   sides and, half height, its top. **Not the AI's**: `AI_DECOR_FAMILIES` leaves it out of the
@@ -112,9 +117,11 @@ The reference library's rules, as code:
   anchor `wc`, so it follows its WC — `reanchorDecor`), and the WC stands in front of it
   (`clearOfDecor`, `STANDS_OUT`). A WC set down in the studio gets one too (`withWcBoxes`, in
   `addItem` and `finishCarry`), its materials copied from a box the flat has (the store has no
-  catalogue). A **bath's enclosure** is a box too (anchor `bath`, `lib/design/bathroom.ts`): as
-  deep as the bath (up to 1 m), drawn hollow — its front, its ends and a strip on the wall round
-  the bath standing in it — and the bath is not pushed out of it (`clearOfDecor`).
+  catalogue). A **bath's enclosure** is a box too (anchor `bath`, `bathBoxFor` in
+  `lib/design/decor/housing.ts`, built by the bathroom pass and the studio alike): as deep as the
+  bath (up to 1 m), drawn hollow — its front, its ends and a strip on the wall round the bath
+  standing in it — stopped at the joinery beside it (a washer's column is wider than its machine),
+  and the bath is not pushed out of it (`clearOfDecor`).
 - **cabinet** — made-to-measure joinery (`lib/design/decor/joinery.ts`, the rulebook of 6 Nov
   2026): `params.sections`, left to right along the wall, each `{ kind, widthMm, heightMm,
   depthMm, dryer?, itemId? }` — `basin` (a vanity), `washer` (a column open in front round the machine, a
@@ -122,7 +129,11 @@ The reference library's rules, as code:
   No section is narrower than 10 cm (`MIN_SECTION_MM`, the save route's floor too): `cabinetPiece`
   folds a narrower filler into the section beside it (`withoutSlivers` — the vanity before a
   machine's column), so a vanity left 7 cm short of the washer's column runs on to it instead of
-  getting a 7 cm cupboard that kept the whole flat from being saved.
+  getting a 7 cm cupboard that kept the whole flat from being saved. A vanity that does not join
+  the washer's column is built after the column and stops at it (`clearOfBuilt`): it was planned
+  against the machine, and the column built where the machine stands is wider than it. Where the
+  cut would leave the vanity no longer 5 cm wider than its basin, it stays as planned, into the
+  column (known gaps).
   Resized by hand it is resized section by section (`cabinetAtExtent`, below). Slot:
   face, in the kitchen maker's materials (`kitchen-custom`, kind `joinery` — `decorMaterialKind`),
   the flat's kitchen run's own when it has one (`joineryMaterial`), so the joinery is one design.
@@ -246,6 +257,16 @@ A washing machine and its column, a basin and its vanity, a WC and its box, a bu
 surround are one thing to the person and two records here — a `PlacedItem` with a model, a
 `DecorPiece` built in code — so one module keeps them together (the owner's notes of 13 Nov 2026):
 
+- **One set of builders.** What is built round a piece is built by the same functions whether
+  generation builds it (`fitBathrooms`, `wcBoxes`) or the studio does (a piece set down, the card's
+  button, a housing following its piece): the column's carcass (`columnSection` — the machine's
+  width and sides, its height with the dryer stacked on it — and `columnStart`, round the machine
+  or at the wall's end), the vanity's (`vanityTop`, `vanitySpan`), the bath's box (`bathBoxFor`,
+  Vintage's surround 10 cm wider each side and 6 cm over the rim) and the WC's (`wcBoxFor` in
+  `decor/wcBox.ts`: centred, run on to a stretch's end rather than leave a sliver, stopped at what
+  stands beside the WC). Each caller finds the wall and says how the stretch is read; what only
+  generation adds stays its own — the basin's tap, the bath's mixer, the dryer stacked as an item,
+  a washer's column joined to the vanity beside it.
 - **The link** is by id: `CabinetSection.itemId`, and `DecorPiece.itemId` for a box. The generation
   writes it (`fitBathrooms`, `wcBoxes`); a design saved before it existed takes it from where the
   pieces stand (`adoptHoused`), read off the flat *before* the change in hand (`linkedDecor` in the
@@ -253,8 +274,14 @@ surround are one thing to the person and two records here — a `PlacedItem` wit
 - **The furniture moved** (`followHoused`, run by `settleFitted` after `placeItem`, a swap, a carry
   set down, a delete, a kitchen's new length): a piece set down by another wall with its back not
   to it is turned to stand with its back on that wall (`turnedToWall`), so its housing can go there;
-  a box sits centred behind its WC or its bath on whatever wall that now is (the WC stood out in
-  front of it); a basin moved about on its vanity's top — its own section and the plain doors beside
+  a box that stands where the builder builds it for its WC or its bath as they stand now stays as
+  it is (`builtAsItStands`) — a WC dropped back against its wall in it (the drag snaps a WC flush)
+  stood out in front of it again where there is room, tested as generation's `clearOfDecor` tests
+  it (in the room, out of every other piece), else left as it is —
+  and one whose piece moved sits centred behind it, its width kept, on whatever wall that now is (the
+  WC stood out in front of it), a WC's on the stretch its builder takes (`wcBoxStretch`: under a high
+  window only where the WC stands clear in front of the box, else between the openings, else it
+  waits on its wall); a basin moved about on its vanity's top — its own section and the plain doors beside
   it at its height — changes nothing (the vanity used to shrink to the basin); a piece that is the
   only thing its joinery was built for takes the whole of it, every section, to its new wall; and
   where a run houses two things, the one that left takes its section with it as a piece of its own,
@@ -268,8 +295,12 @@ surround are one thing to the person and two records here — a `PlacedItem` wit
 - **A piece set down from the catalogue** is given what a generated one has (`withFitted`, in
   `addItem` and `finishCarry`): a WC its box, a washing machine its column and a countertop basin in
   a bathroom its vanity (not in Vintage, as at generation — `takesHousing`), a built-in bath its
-  surround, a shower its floor and glass (`withShowerArea`). The joinery is made in the material the
-  flat's joinery already has, else the joiner's for the flat (`joinerFace`).
+  box and any bath in Vintage its surround, a shower its floor and glass (`withShowerArea`) — each
+  built as generation would build it there (`houseItem`: the same builders, the stretch read as
+  generation reads it, `StretchOptions.strict`, and a vanity under a window's sill over the basin's
+  rim). The joinery is made in the material the flat's joinery already has, else the joiner's for
+  the flat (`joinerFace`); a box in the materials of a box the flat has (generation's: plasterboard
+  and tiles).
 - **The card builds it again.** A piece whose housing was deleted (or never built) has a button on
   its card (`SwapPanel` `onAddFitted`, `lacksHousing`; the store's `addFitted`) — "add fitted
   cupboard", "add installation box", "add tiled bath surround", "add shower glass". With no wall
@@ -289,8 +320,9 @@ surround are one thing to the person and two records here — a `PlacedItem` wit
   a door or an archway it would reach into by any of its width (the way `inDoorway` keeps clear)
   and 40 cm off a window it would stand in front of by more than the 5 cm a piece may stand onto
   one (`ONTO_WINDOW_M`), whatever stands in that corner, and keeps out of every door's way (the
-  door's width, 90 cm into the room) across the room too. The studio's own builder (`freeExtent`,
-  `houseItem`: a person dragging, resizing or fitting joinery, and `settleFitted`) keeps the older
+  door's width, 90 cm into the room) across the room too; so does a piece set down from the
+  catalogue (`houseItem`). The studio's own builder for what a person drags or resizes
+  (`freeExtent`, and a housing following its piece in `settleFitted`) keeps the older
   corner — 90 cm off a door, 40 cm off any other opening, only where it would stand in front of
   25 cm or more of it, and not at all for a piece that stands in that corner — and reads no door
   across the room; so does the kitchen's corner leg (`kitchenCorner.ts`).
@@ -298,10 +330,11 @@ surround are one thing to the person and two records here — a `PlacedItem` wit
   joinery (`joineryObstacles`, `withJoinery` in `Viewer3D`): each section is a block of its own
   height, and the piece a housing was built for may stand in it.
 
-The studio runs this pass on every move of any piece, so whatever it shifts in a generated flat
-shifts on the first drag: the test's flat is left as it is, but on the fixture plans the pass still
-moves 69 of 360 untouched generated flats' WC boxes and WCs (its builders are not generation's —
-see Known gaps). The designer's check hands it the pieces it changed, and only their housings move.
+The studio runs this pass on every move of any piece, so whatever it shifted in a generated flat
+would shift on the first drag: with one set of builders it leaves every untouched housing as
+generation built it (0 of 360 fixture flats change; `housing.test.ts` holds it on a bathroom whose
+WC box runs on to the wall's end). The designer's check hands it the pieces it changed, and only
+their housings move.
 
 **By style.** The AI designer's decor is cut to the families its style takes
 (`STYLE_DECOR_FAMILIES`): Modern all of them; Scandinavian slats, niches, tiles and the WC's box
@@ -550,9 +583,8 @@ the project opens furnished afterwards.
    what the check changed: the pieces it moved, swapped or seated again, the decor whose piece it
    moved, and what stands in decor it moved. **What the engine built stays as it built it**: of the
    joinery and boxes only what was built for a piece the check moved, replaced or took out is settled
-   again (`settleFitted` with the changed pieces) — the studio's builders (`housing.ts`) would redo
-   the rest by other formulas (a WC's box slid off the wall's end, a WC moved into the washer). A
-   check that changed nothing leaves the flat exactly as it was.
+   again (`settleFitted` with the changed pieces). A check that changed nothing leaves the flat
+   exactly as it was.
 
 **Two invocations, because of the 300 s.** Work in `after()` counts towards the function that
 answered, from the request's start; the designer (one to two minutes, longer for a big flat or a
@@ -590,10 +622,24 @@ the next run). The route logs every run's tokens, cost and seed (`ai-generate`).
 
 ## Known gaps
 
-- `settleFitted` run with no changed pieces — what the studio runs after every move — re-settles a
-  generated flat's boxes and joinery with the studio's builders (`housing.ts`), not generation's
-  (`bathroom.ts`, `decor/wcBox.ts`): on the fixture plans 69 of 360 untouched flats change (a WC's
-  box slid off the wall's end, the WC 1 cm out) on the first drag of any piece.
+- A WC's box run on to a stretch's end is off the WC's middle (about a third of them): centring it
+  would run it as far past the WC on the other side, and `wcBoxes` is handed no joinery to stop at
+  ([generation-audit.md](generation-audit.md), W9). A box built under a toilet's high window and
+  switched to full height on its card runs up through the window.
+- Generation leaves a WC inside its own box where it cannot stand it out in front of it
+  (`clearOfDecor`'s `shiftWithFront` finds no room — #381's r8 in Vintage, a standing basin
+  opposite: 1 of 334 boxed WCs in 360 flats); the studio leaves such a WC as it is, and the audit's
+  `in_joinery` does not count a WC in its own box. What gives way is the owner's choice. Where
+  generation stands a WC out, it does not test a door's way or the rule checks (a WC stood out into
+  a door's swing, `wc_faces_door`: 6 of 112 in the first draw), and neither does the studio.
+- A vanity that cannot be cut back to a washer's column built beside it without becoming narrower
+  than its basin and 5 cm stays as planned, into the column (`clearOfBuilt`: 2 of 1,440 flats,
+  #375's r3, 4.9 cm), and a basin can stand 1.9 cm past the end of a vanity cut back to a corner
+  column (#373's r2, Industrial, draw 8 — on `main` the vanity ran 22 cm into the column with the
+  basin where it is). The audit counts neither (`in_joinery` is a floor piece in joinery); which
+  piece gives way is the owner's choice.
+- `settleFitted` reads no radiators, so a bath's box generation ran on to a radiator's end is
+  re-centred by the studio's settling on the first drag of any piece (3 of 1,440 fixture flats).
 - The designer's offer is held to what the matcher takes for each piece (`pickPool`) on the
   archetypes laid against the room's longest wall, as there is no layout when it is asked (A3 of the
   generation audit): a TV slot the layout narrows, a hall mirror the hall pass hangs elsewhere, or a
@@ -609,9 +655,10 @@ the next run). The route logs every run's tokens, cost and seed (`ai-generate`).
 - The studio's own joinery builder (`housing.ts`: `houseItem`, `freeExtent`, and `settleFitted`
   after the AI check) is given no radiators (it has no `FloorPlan` in hand: `radiatorBodies(plan)`
   would have to come from the store or `Viewer3D`), so joinery built or dragged by hand can cover a
-  radiator, and it keeps the older corner (25 cm of an opening lived with, waived for a piece in the
-  corner) and no door across the room — generation's stricter rules (`StretchOptions.strict`) are
-  the owner's to extend to the studio.
+  radiator; and joinery dragged or resized by hand keeps the older corner (25 cm of an opening lived
+  with, waived for a piece in the corner) and no door across the room — generation's stricter rules
+  (`StretchOptions.strict`, which a piece set down from the catalogue is built by) are the owner's
+  to extend to a person's own drag.
 - Still reading a shower by its column instead of its tray (`floorTaken`): the matcher's blockers,
   `tightSpots`, the studio's drag test, `reviewFindings` and the boiler's clearance.
 - Rules still to be decided (bathroom pass): what a basin too tall for the lowest vanity (70 cm)

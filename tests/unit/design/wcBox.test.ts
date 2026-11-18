@@ -72,6 +72,29 @@ describe('the WC’s installation box', () => {
     expect(wcBoxes([room], [wc(1.5), away], catalog)[0].span.to).toBeCloseTo(1.9, 3);
   });
 
+  it('is built under a window whose sill is over its top, and not under a lower one', () => {
+    const withWindow = (sillM: number): PlanRoom => ({ ...rect('b', 'toilet', 1.6, 1.4), openings: [{ id: 'w', roomId: 'b', kind: 'window', wallIndex: 0, t: 0.5, widthM: 0.6, heightM: 0.5, sillM, exterior: true }] });
+    // A toilet's high window, 1.5 m up: the box's metre fits under it.
+    const [box] = wcBoxes([withWindow(1.5)], [wc(0.8)], catalog);
+    expect(box).toBeDefined();
+    expect(box.span).toEqual({ from: 0.4, to: 1.2 });
+    expect(box.height.to).toBeLessThanOrEqual(1.5);
+    // A window at 90 cm: the box would stand in it.
+    expect(wcBoxes([withWindow(0.9)], [wc(0.8)], catalog)).toEqual([]);
+  });
+
+  it('runs on under a high window behind the whole of a WC standing partly under it, not cut short at the window', () => {
+    // A window 0.68–1.24 m along wall 0, 1.5 m up; the WC 1.17–1.57 m along it.
+    const toilet = (d: number): PlanRoom => ({ ...rect('b', 'toilet', 1.9, d), openings: [{ id: 'w', roomId: 'b', kind: 'window', wallIndex: 0, t: 0.96 / 1.9, widthM: 0.56, heightM: 0.5, sillM: 1.5, exterior: true }] });
+    const [box] = wcBoxes([toilet(1.4)], [wc(1.37)], catalog);
+    expect(box.span.from).toBeCloseTo(0.97, 3);
+    expect(box.span.to).toBeCloseTo(1.9, 3);
+    // Where the WC would not stand clear out in front of that box, the box between the openings, as before.
+    const [short] = wcBoxes([toilet(0.8)], [wc(1.37)], catalog);
+    expect(short.span.from).toBeCloseTo(1.29, 3);
+    expect(short.span.to).toBeCloseTo(1.9, 3);
+  });
+
   it('is not one of the AI designer’s families', () => {
     expect(DECOR_FAMILY_LIST).toContain('box');
     expect(AI_DECOR_FAMILIES).not.toContain('box');

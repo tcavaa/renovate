@@ -26,15 +26,21 @@ at runtime yet; the last one was seen on the sample plan.
   recovers. The plain bugs are fixed (four batches, 16–18 Nov; `pnpm audit:generation` measures
   each fix); which piece gives way to which, and ten decisions the fixes ran into, wait for the
   owner's per-room rules — [design-studio/generation-audit.md](design-studio/generation-audit.md#where-it-stands-18-nov-2026).
-- **Two rare clashes are left in generated flats at 12 draws** — a washer's column built into the
-  vanity beside it (5 of 1,440 flats) and a WC in a shower's tray (1)
-  — [design-studio/generation-audit.md](design-studio/generation-audit.md#how-it-is-being-fixed).
-- **The studio re-settles a generated flat's joinery on the first drag of any piece** — `settleFitted` with the
-  studio's builders moves 69 of 360 untouched fixture flats' WC boxes and WCs
-  ([design-studio/decor.md](design-studio/decor.md#known-gaps)).
-- The studio's joinery builder reads no radiators and keeps the older corner rule; other code still
+- **One rare clash is left in generated flats at 12 draws** — a WC in a shower's tray (1 of 1,440
+  flats) — [design-studio/generation-audit.md](design-studio/generation-audit.md#how-it-is-being-fixed);
+  and two the audit does not count, kept as they were for the owner's choice of what gives way: a
+  vanity that cannot be cut back to a washer's column without becoming narrower than its basin (2
+  of 1,440) and a basin 1.9 cm past a vanity cut back to a corner column (1) —
+  [design-studio/decor.md](design-studio/decor.md#known-gaps).
+- The studio's joinery builder reads no radiators (a bath's box run on to a radiator is re-centred
+  on the first drag of any piece, 3 of 1,440 fixture flats) and keeps the older corner rule for a
+  person's own drag and resize; other code still
   reads a shower by its column, not its tray; a basin too tall for any vanity and a mirror over a
   tall wall tap wait for the owner's rule — [design-studio/decor.md](design-studio/decor.md#known-gaps).
+- A WC's box off its WC's middle (needs `generateScene` to hand `wcBoxes` the joinery), a cove in a
+  room of more than four corners (needs the 3D panel as an outline), a moulding piece's span across
+  a door (needs the owner's choice of stretch) —
+  [design-studio/generation-audit.md](design-studio/generation-audit.md), W9.
 - Windows with no product render as an empty hole (the fixtures manifest lost its window role;
   re-run `pnpm models:fixtures`) — [3d-assets.md](3d-assets.md#known-gaps).
 - Brigade orders are missing from the revenue report and the CSV —

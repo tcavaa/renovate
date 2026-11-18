@@ -500,8 +500,8 @@ own. The matcher re-measures every piece from the product it got, so the room st
   strip came out a section shorter than the one the layout and the check use. The pass used to
   read each radiator by the room id stored on it, as a 90 cm square: one whose id named a room the
   plan no longer had was no obstacle, and #408's leg stood on its strip on every draw. A corner a
-  person makes by hand in the studio is still measured against the squares (`radiatorObstacles`,
-  the store's `setKitchenCorner`).
+  person makes by hand in the studio keeps off the same strips (`radiatorObstacles(plan)`, the
+  store's `setKitchenCorner` and `setKitchenLegLength`).
 - **A small kitchen goes on one wall**: the run, the fridge at its end, the wall cabinets over the
   run. The run tries first to start in one corner and leave the other end of the wall for the fridge
   (`leaveFor: 'fridge'` — the fridge's width and 8 cm, clear of openings and door swings), and only
@@ -545,7 +545,7 @@ own. The matcher re-measures every piece from the product it got, so the room st
   each clear of anything standing below by 12 cm; a mirror as tall as a person and deep enough to
   stand (a floor mirror on its stand) stands on the floor, a flat one hangs 30 cm off it
   (`hungPosition` keeps its back on the wall at its depth). A basin too short to stand (countertop,
-  wall-hung) is lifted, its top at 86 cm. **A hanging lamp hangs from the ceiling by its own
+  wall-hung, under `COUNTERTOP_BASIN_MAX_M`) is lifted, its top at a basin's height (`BASIN_TOP_M`, 85 cm). **A hanging lamp hangs from the ceiling by its own
   length**, its bottom no lower than 1.9 m (1.45 m over a table): every pendant used to hang at
   2.25 m whatever its length, so a 0.9 m one went through the ceiling; the slot takes only lamps
   short enough (`slotPool`).

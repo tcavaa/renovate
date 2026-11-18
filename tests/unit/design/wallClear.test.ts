@@ -5,6 +5,7 @@ import { refreshRoom, roomEdges } from '@/lib/design/planGeometry';
 import { radiatorBody, suggestRadiators, withRadiatorProducts } from '@/lib/design/radiators';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import { clearOf, nearestClear, wallBlocks } from '@/lib/design/wallClear';
+import { freeStretch } from '@/lib/design/decor/joinery';
 import type { DecorPiece, FloorPlan, Opening, PlacedItem, PlanRoom, TechnicalPoint, Vec2 } from '@/lib/design/types';
 
 /**
@@ -55,6 +56,19 @@ describe('what stands in front of a wall', () => {
     expect(clearOf([[0, 4]], blocks, { bottom: 0.2, top: 0.4 }, false)).toEqual([[0, 0.65], [2.35, 3.35]]);
     expect(nearestClear([[0, 0.65], [2.35, 2.95]], 2, 0.5)).toBeCloseTo(2.6, 3);
     expect(nearestClear([[0, 0.3]], 2, 0.5)).toBeNull();
+  });
+
+  it('is read the same by the joinery: a rug lies under it, a shower is its tray, a mirror hangs over joinery but is in a fitting’s way', () => {
+    const bath = room('b', 'bathroom', 3, 2.5);
+    const wall = roomEdges(bath.polygon)[0];
+    // A shower column 25 cm wide in a 90 × 90 tray, 0.6–1.5 m along the wall.
+    const shower: PlacedItem = { ...item('b', 'shower', 1.05, 0.075, { width: 0.25, depth: 0.15, height: 2.1 }), areaM: { width: 0.9, depth: 0.9 } };
+    const rug = item('b', 'rug', 2.3, 0.5, { width: 1, depth: 0.6, height: 0.01 });
+    const mirror = item('b', 'mirror', 2.3, 0.02, { width: 0.6, depth: 0.03, height: 0.8 }, 0, 1.3);
+    const round = (n: number) => Math.round(n * 1000) / 1000;
+    expect(wallBlocks(bath, wall, [shower, rug, mirror]).map((b) => [round(b.from), round(b.to)])).toEqual([[0.6, 1.5], [2, 2.6]]);
+    // The joinery stops at the tray, not the column, and runs under the mirror and over the rug.
+    expect(freeStretch(bath, wall, 2.3, [shower, rug, mirror], [], 0.5)?.map(round)).toEqual([1.5, 3]);
   });
 });
 

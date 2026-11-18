@@ -27,9 +27,9 @@ import { footprintInRoom, footprintOf, footprintsOverlap, type Footprint } from 
 import { getArchetype } from './catalog';
 import { isCustomKitchenItem, kitchenFacadeM2, LOWER_UNIT_HEIGHT_M } from './kitchen';
 import { roomEdges, type PlanEdge } from './planGeometry';
-import { RADIATOR_HEIGHT_M } from './ruleChecks';
+import { RADIATOR_HEIGHT_M, radiatorKeepouts } from './ruleChecks';
 import { RADIATOR_FLOOR_GAP_M } from './rules';
-import type { DecorPiece, PlacedItem, PlanRoom, TechnicalPoint } from './types';
+import type { DecorPiece, FloorPlan, PlacedItem, PlanRoom } from './types';
 
 export type KitchenCorner = 'left' | 'right';
 
@@ -45,16 +45,15 @@ const IN_CORNER_M = 0.03;
 const round3 = (n: number) => Math.round(n * 1000) / 1000;
 
 /**
- * The flat's radiators as things a leg (and a run stretched into its corner) may not be built over:
- * a block 90 cm square round each, off the floor. They hang on the plan, not among the furniture,
- * so the callers put these with the items they pass. What a corner a person makes by hand is
- * measured against (the store's `setKitchenCorner`, `setKitchenLegLength`); the generation keeps
- * its legs off the radiators' strips instead (`radiatorFloor`).
+ * The flat's radiators as things a leg (and a run stretched into its corner) may not be built over,
+ * for a corner a person makes by hand (the store's `setKitchenCorner`, `setKitchenLegLength`): the
+ * floor each keeps clear in front of it, read off the plan (`radiatorKeepouts`, by where it hangs,
+ * whatever room id is stored on it) — the very strips the generation's corners keep off
+ * (`fitKitchenCorners`). They hang on the plan, not among the furniture, so the callers put these
+ * with the items they pass.
  */
-export function radiatorObstacles(points: readonly TechnicalPoint[] | undefined): PlacedItem[] {
-  return (points ?? [])
-    .filter((p) => p.kind === 'radiator' && !!p.roomId)
-    .map((p) => ({ id: `radiator:${p.id}`, roomId: p.roomId!, slot: 'wardrobe' as const, kind: 'wardrobe', position: p.position, rotation: 0, elevationM: p.elevationM ?? 0.12, size: { width: 0.9, depth: 0.9, height: 0.6 }, product: null, locked: true }));
+export function radiatorObstacles(plan: FloorPlan | null | undefined): PlacedItem[] {
+  return plan ? radiatorFloor(radiatorKeepouts(plan)) : [];
 }
 
 /** The floor in front of the flat's radiators that stays clear, room by room: what `radiatorKeepouts` reads off the plan. */

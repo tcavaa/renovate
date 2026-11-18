@@ -22,12 +22,14 @@
  * Pure: no React, no three.js.
  */
 
+import { isPlacementValid } from '@/lib/design/manipulate';
 import { roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
-import { WC_BOX_DEPTH_M, WC_BOX_HALF_M, WC_BOX_WIDTH_M } from '@/lib/design/rules';
+import { BASIN_TOP_M } from '@/lib/design/rules';
 import type { CabinetSection, DecorMaterial, DecorPiece, DecorSlot, PlacedItem, PlanRoom, SlotKind } from '@/lib/design/types';
-import { CARCASS_M, JOINERY_SLIVER_M, VANITY_DEPTH_M, VANITY_MAX_M, VANITY_MIN_M, WASHER_COLUMN_DEPTH_M, freeStretch, sectionSpans, sectionsWidth } from './joinery';
+import { CARCASS_M, JOINERY_SLIVER_M, VANITY_DEPTH_M, VANITY_MAX_M, VANITY_MIN_M, WASHER_COLUMN_DEPTH_M, freeStretch, sectionSpans, sectionsWidth, wallOf, type StretchOptions } from './joinery';
 import { decorDepth, freeSpans } from './layout';
 import type { DecorExtent } from './resize';
+import { wcBoxFor, wcBoxStretch, wcBoxToBuild, wcStandsClear } from './wcBox';
 
 /** What a slot is housed in. */
 export type HousingKind = 'vanity' | 'column' | 'wc' | 'bath';
@@ -282,53 +284,147 @@ interface Built {
   item: PlacedItem;
 }
 
+// ---------------------------------------------------------------------------
+// The builders: what is built round a piece, one set for generation (the bathroom pass,
+// `lib/design/bathroom`; the WC's box, `decor/wcBox`) and for the studio (a piece set down from
+// the catalogue, a housing asked for on its card, a housing that follows its piece). Each caller
+// finds the wall (`wall`) and says how the stretch along it is read (`StretchOptions`: generation
+// keeps a door's way and reads the radiators); the carcass is the same.
+// ---------------------------------------------------------------------------
+
 /**
- * The washing machine's column where the machine stands: 65 cm deep, its sides close round it, at
- * the end of the wall when that is a sliver away — the machine centred in it, its back to the wall.
- * `like` keeps a column's own size (one that followed its machine). Null with no wall behind the
- * machine or no room for the column there.
+ * The washing machine's column (BA-12): 65 cm deep, its sides close round the machine, as tall as
+ * the machine and — stacked on it — the dryer (`dryerHeight`), never taller than the room. `like`
+ * keeps a column's own size where that is larger (one that followed its machine).
  */
-function columnFor(washer: PlacedItem, room: PlanRoom, items: readonly PlacedItem[], decor: readonly DecorPiece[], face: Partial<Record<DecorSlot, DecorMaterial>>, like?: CabinetSection, id = housingId(washer)): Built | null {
-  const wall = backWall(washer, room, 0.4);
-  if (!wall) return null;
-  const dryer = items.find((i) => i.id === `${washer.id}-dryer`);
-  const least = { width: washer.size.width + 2 * CARCASS_M + 0.02, height: washer.size.height + 0.03 + (dryer ? dryer.size.height + 0.03 : 0) };
+export function columnSection(washer: Pick<PlacedItem, 'id' | 'size'>, dryerHeight: number | null, roomHeight: number, like?: CabinetSection): CabinetSection {
+  const least = { width: washer.size.width + 2 * CARCASS_M + 0.02, height: washer.size.height + 0.03 + (dryerHeight != null ? dryerHeight + 0.03 : 0) };
   const width = round3(Math.max(least.width, like ? like.widthMm / 1000 : 0));
-  const height = round3(Math.min(room.heightM, Math.max(least.height, like ? like.heightMm / 1000 : 0)));
+  const height = round3(Math.min(roomHeight, Math.max(least.height, like ? like.heightMm / 1000 : 0)));
   const depth = like ? like.depthMm / 1000 : WASHER_COLUMN_DEPTH_M;
-  const stretch = freeStretch(room, wall.edge, wall.along, items, [washer.id, ...companionsOf(washer.id, items).map((c) => c.id)], depth, decor, [id]);
-  if (!stretch || stretch[1] - stretch[0] < width - 0.01) return null;
-  let from = clamp(wall.along - width / 2, stretch[0], stretch[1] - width);
-  if (from - stretch[0] < JOINERY_SLIVER_M) from = stretch[0];
-  else if (stretch[1] - (from + width) < JOINERY_SLIVER_M) from = stretch[1] - width;
-  const section: CabinetSection = { kind: 'washer', widthMm: mm(width), heightMm: mm(height), depthMm: mm(depth), ...(dryer ? { dryer: true } : {}), itemId: washer.id };
-  return {
-    piece: { id, roomId: room.id, family: 'cabinet', wallIndex: wall.edge.index, span: { from: round3(from), to: round3(from + width) }, height: { from: 0, to: height }, params: { sections: [section], depthMm: section.depthMm }, materials: face, anchor: 'joinery', origin: 'studio' },
-    item: { ...washer, position: onEdge(wall.edge, from + width / 2, washer.size.depth / 2 + 0.02), rotation: wall.edge.facing },
-  };
+  return { kind: 'washer', widthMm: mm(width), heightMm: mm(height), depthMm: mm(depth), ...(dryerHeight != null ? { dryer: true } : {}), itemId: washer.id };
 }
 
 /**
- * A vanity under a basin: its top under 90 cm with the basin on it, from the basin's width and
- * 40 cm to 1.8 m, run on to a corner rather than leave a sliver. `like` keeps a vanity's own size.
- * Null with no wall behind the basin or no room.
+ * Where along its stretch a column `width` wide stands for a machine whose middle is `along`: round
+ * the machine, at the end of the stretch when that is a sliver away (BA-14). Null where the stretch
+ * is narrower than the column.
  */
-function vanityFor(sink: PlacedItem, room: PlanRoom, items: readonly PlacedItem[], decor: readonly DecorPiece[], face: Partial<Record<DecorSlot, DecorMaterial>>, like?: CabinetSection, id = housingId(sink)): Built | null {
-  const wall = backWall(sink, room, 0.4);
-  if (!wall) return null;
-  const depth = like ? like.depthMm / 1000 : VANITY_DEPTH_M;
-  const stretch = freeStretch(room, wall.edge, wall.along, items, [sink.id, ...companionsOf(sink.id, items).map((c) => c.id)], depth, decor, [id]);
-  if (!stretch) return null;
-  const want = like ? like.widthMm / 1000 : Math.min(VANITY_GROW_M, Math.max(sink.size.width + VANITY_ELBOW_M, 0.8));
-  let from = Math.max(stretch[0], wall.along - want / 2);
+export function columnStart(stretch: readonly [number, number], along: number, width: number): number | null {
+  if (stretch[1] - stretch[0] < width - 0.01) return null;
+  let from = Math.max(stretch[0], Math.min(stretch[1] - width, along - width / 2));
+  if (from - stretch[0] < JOINERY_SLIVER_M) from = stretch[0];
+  else if (stretch[1] - (from + width) < JOINERY_SLIVER_M) from = stretch[1] - width;
+  return from;
+}
+
+/**
+ * A vanity's top for a basin: the basin's top at a basin's height (`BASIN_TOP_M`) — the vanity is
+ * as high as that leaves under the basin, never taller than 90 cm (BA-7) nor lower than 70 cm.
+ */
+export function vanityTop(sink: Pick<PlacedItem, 'size'>): number {
+  return round3(Math.min(VANITY_MAX_M, Math.max(VANITY_MIN_M, BASIN_TOP_M - sink.size.height)));
+}
+
+/**
+ * The vanity's ends along its stretch for a basin whose middle is `along`: from the basin's width
+ * and 40 cm to 1.8 m, run on to a corner rather than leave a sliver — `like` keeps a vanity's own
+ * width (one that followed its basin), not run on. Null where it would not be 5 cm wider than the basin.
+ */
+export function vanitySpan(stretch: readonly [number, number], along: number, sinkWidth: number, like?: CabinetSection): [number, number] | null {
+  const want = like ? like.widthMm / 1000 : Math.min(VANITY_GROW_M, Math.max(sinkWidth + VANITY_ELBOW_M, 0.8));
+  let from = Math.max(stretch[0], along - want / 2);
   let to = Math.min(stretch[1], from + want);
   from = Math.max(stretch[0], to - want);
   if (!like) {
     if (from - stretch[0] < JOINERY_SLIVER_M) from = stretch[0];
     if (stretch[1] - to < JOINERY_SLIVER_M) to = stretch[1];
   }
-  if (to - from < sink.size.width + 0.05) return null;
-  const height = round3(like ? like.heightMm / 1000 : Math.min(VANITY_MAX_M - 0.05, Math.max(VANITY_MIN_M, VANITY_MAX_M - sink.size.height)));
+  return to - from >= sinkWidth + 0.05 ? [from, to] : null;
+}
+
+/** What a builder reads besides its piece and its wall. */
+export interface BuildOptions {
+  /** How the stretch is read (generation's: `strict`, the radiators). */
+  stretch?: StretchOptions;
+  /** The joinery and boxes already built, and those not to count (the piece being rebuilt). */
+  decor?: readonly DecorPiece[];
+  exceptDecor?: readonly string[];
+}
+
+/**
+ * A bath's box: a tiled block on the bath's wall as long as the bath, run on to a corner rather
+ * than leave a sliver, up to just under its rim and a little deeper than it; `surround` (Vintage,
+ * round a freestanding bath standing in it, BA-18) 10 cm wider each side and 6 cm over the rim.
+ * Null where its stretch has no room.
+ */
+export function bathBoxFor(bath: PlacedItem, room: PlanRoom, wall: { edge: PlanEdge; along: number }, items: readonly PlacedItem[], surround: boolean, materials: DecorPiece['materials'], id: string, options: BuildOptions = {}): DecorPiece | null {
+  const { edge, along } = wall;
+  const stretch = freeStretch(room, edge, along, items, [bath.id, `${bath.id}-mixer`], bath.size.depth + 0.1, options.decor ?? [], options.exceptDecor ?? [], options.stretch ?? {});
+  if (!stretch) return null;
+  const extra = surround ? BATH_SURROUND_M : 0.02;
+  let from = Math.max(stretch[0], along - bath.size.width / 2 - extra);
+  let to = Math.min(stretch[1], along + bath.size.width / 2 + extra);
+  if (from - stretch[0] < JOINERY_SLIVER_M) from = stretch[0];
+  if (stretch[1] - to < JOINERY_SLIVER_M) to = stretch[1];
+  return {
+    id,
+    roomId: room.id,
+    family: 'box',
+    wallIndex: edge.index,
+    span: { from: round3(from), to: round3(to) },
+    // A built-in bath's rim just shows over its box; Vintage's surround stands 6 cm over the rim.
+    height: { from: 0, to: round3(bath.size.height + (surround ? 0.06 : -0.01)) },
+    params: { depthMm: mm(bath.size.depth + (surround ? 0.12 : 0.03)), full: false },
+    materials,
+    anchor: 'bath',
+    itemId: bath.id,
+  };
+}
+
+/** How much wider than the bath Vintage's surround is, each side. */
+const BATH_SURROUND_M = 0.1;
+
+/** Whether a bath's box is a surround: it stands over the bath's rim (a built-in bath's box stops under it). */
+function isSurround(box: DecorPiece, bath: PlacedItem): boolean {
+  return Math.max(box.height.from, box.height.to) > bath.size.height;
+}
+
+/**
+ * The washing machine's column where the machine stands: 65 cm deep, its sides close round it, at
+ * the end of the wall when that is a sliver away — the machine centred in it, its back to the wall.
+ * `like` keeps a column's own size (one that followed its machine). Null with no wall behind the
+ * machine or no room for the column there.
+ */
+function columnFor(washer: PlacedItem, room: PlanRoom, items: readonly PlacedItem[], decor: readonly DecorPiece[], face: Partial<Record<DecorSlot, DecorMaterial>>, like?: CabinetSection, id = housingId(washer), stretchOptions: StretchOptions = {}): Built | null {
+  const wall = backWall(washer, room, 0.4);
+  if (!wall) return null;
+  const dryer = items.find((i) => i.id === `${washer.id}-dryer`);
+  const section = columnSection(washer, dryer ? dryer.size.height : null, room.heightM, like);
+  const width = section.widthMm / 1000;
+  const stretch = freeStretch(room, wall.edge, wall.along, items, [washer.id, ...companionsOf(washer.id, items).map((c) => c.id)], section.depthMm / 1000, decor, [id], stretchOptions);
+  const from = stretch ? columnStart(stretch, wall.along, width) : null;
+  if (from == null) return null;
+  return {
+    piece: { id, roomId: room.id, family: 'cabinet', wallIndex: wall.edge.index, span: { from: round3(from), to: round3(from + width) }, height: { from: 0, to: section.heightMm / 1000 }, params: { sections: [section], depthMm: section.depthMm }, materials: face, anchor: 'joinery', origin: 'studio' },
+    item: { ...washer, position: onEdge(wall.edge, from + width / 2, washer.size.depth / 2 + 0.02), rotation: wall.edge.facing },
+  };
+}
+
+/**
+ * A vanity under a basin: the basin's top at 85 cm on it (`vanityTop`), from the basin's width and
+ * 40 cm to 1.8 m, run on to a corner rather than leave a sliver. `like` keeps a vanity's own size.
+ * Null with no wall behind the basin or no room.
+ */
+function vanityFor(sink: PlacedItem, room: PlanRoom, items: readonly PlacedItem[], decor: readonly DecorPiece[], face: Partial<Record<DecorSlot, DecorMaterial>>, like?: CabinetSection, id = housingId(sink), stretchOptions: StretchOptions = {}): Built | null {
+  const wall = backWall(sink, room, 0.4);
+  if (!wall) return null;
+  const depth = like ? like.depthMm / 1000 : VANITY_DEPTH_M;
+  const height = like ? round3(like.heightMm / 1000) : vanityTop(sink);
+  const stretch = freeStretch(room, wall.edge, wall.along, items, [sink.id, ...companionsOf(sink.id, items).map((c) => c.id)], depth, decor, [id], stretchOptions.strict ? { top: height + sink.size.height, ...stretchOptions } : stretchOptions);
+  const span = stretch ? vanitySpan(stretch, wall.along, sink.size.width, like) : null;
+  if (!span) return null;
+  const [from, to] = span;
   const section: CabinetSection = { kind: 'basin', widthMm: mm(to - from), heightMm: mm(height), depthMm: mm(depth), itemId: sink.id };
   const along = clamp(wall.along, from + sink.size.width / 2, to - sink.size.width / 2);
   return {
@@ -337,17 +433,49 @@ function vanityFor(sink: PlacedItem, room: PlanRoom, items: readonly PlacedItem[
   };
 }
 
-/** A box where its WC or its bath stands: centred behind it on its wall, its width kept, between the wall's doors and windows. Null with no wall behind the piece. */
-function boxAt(piece: DecorPiece, item: PlacedItem, room: PlanRoom): DecorPiece | null {
+/**
+ * Whether a box stands where the builder builds it for its WC or its bath as they stand now (and
+ * so stays as it is): the flat as generated, or as the person left it, is not redone by the
+ * studio's own settling.
+ */
+function builtAsItStands(piece: DecorPiece, item: PlacedItem, room: PlanRoom, items: readonly PlacedItem[], decor: readonly DecorPiece[]): boolean {
+  const same = (b: DecorPiece | null) => !!b && b.wallIndex === piece.wallIndex && Math.abs(b.span.from - Math.min(piece.span.from, piece.span.to)) < 0.0015 && Math.abs(b.span.to - Math.max(piece.span.from, piece.span.to)) < 0.0015;
+  // A WC's box as its builder builds it: under a high window, or — where the WC would not stand clear
+  // in front of that one — between the wall's openings.
+  if (piece.anchor === 'wc') return same(wcBoxFor(item, room, items)) || same(wcBoxFor(item, room, items, {}, undefined, true));
+  const wall = wallOf(item, room);
+  if (!wall) return false;
+  return same(bathBoxFor(item, room, wall, items, isSurround(piece, item), {}, piece.id, { decor, exceptDecor: [piece.id], stretch: { strict: true } }));
+}
+
+/**
+ * A box where its WC or its bath stands: centred behind it on its wall, its width kept, between the
+ * wall's doors and windows — a WC's half-height box under a high window too, as its builder builds
+ * it there (`wcBoxFor`), where the WC stands clear in front of it (`wcStandsClear`). Null with no
+ * wall behind the piece or no stretch of it there.
+ */
+function boxAt(piece: DecorPiece, item: PlacedItem, room: PlanRoom, items: readonly PlacedItem[]): DecorPiece | null {
   const wall = backWall(item, room, piece.anchor === 'bath' ? 0.4 : 1.2);
   if (!wall) return null;
   const width = Math.abs(piece.span.to - piece.span.from);
-  const stretch = freeSpans(wall.edge, room.openings, 0, wall.edge.length, 0.05).find(([a, b]) => wall.along >= a - 1e-6 && wall.along <= b + 1e-6);
-  if (!stretch) return null;
-  const w = Math.min(width, stretch[1] - stretch[0]);
-  const from = round3(clamp(wall.along - w / 2, stretch[0], stretch[1] - w));
-  if (piece.roomId === room.id && piece.wallIndex === wall.edge.index && Math.abs(from - Math.min(piece.span.from, piece.span.to)) < 0.005 && Math.abs(w - width) < 0.005) return piece;
-  return { ...piece, roomId: room.id, wallIndex: wall.edge.index, span: { from, to: round3(from + w) } };
+  const between = (openings: PlanRoom['openings']) => freeSpans(wall.edge, openings, 0, wall.edge.length, 0.05).find(([a, b]) => wall.along >= a - 1e-6 && wall.along <= b + 1e-6) ?? null;
+  const at = (stretch: readonly [number, number]): DecorPiece => {
+    const w = Math.min(width, stretch[1] - stretch[0]);
+    const from = round3(clamp(wall.along - w / 2, stretch[0], stretch[1] - w));
+    if (piece.roomId === room.id && piece.wallIndex === wall.edge.index && Math.abs(from - Math.min(piece.span.from, piece.span.to)) < 0.005 && Math.abs(w - width) < 0.005) return piece;
+    return { ...piece, roomId: room.id, wallIndex: wall.edge.index, span: { from, to: round3(from + w) } };
+  };
+  if (piece.anchor !== 'wc') {
+    const stretch = between(room.openings);
+    return stretch ? at(stretch) : null;
+  }
+  // A WC's: the stretch its builder takes, under a high window only where the WC stands clear in front of it.
+  const chosen = wcBoxStretch(wall.edge, wall.along, item.size.width / 2, room, !!piece.params.full, 1e-6);
+  if (!chosen) return null;
+  const next = at(chosen.stretch);
+  if (!chosen.underWindow || next === piece || wcStandsClear(next, item, room, items)) return next;
+  const plain = between(room.openings);
+  return plain ? at(plain) : null;
 }
 
 /** A WC out in front of its box: its back on the box's face when it stands in it. */
@@ -413,7 +541,16 @@ export function followHoused(decorIn: DecorPiece[], itemsIn: PlacedItem[], rooms
     }
 
     if (housing.section == null) {
-      const next = boxAt(piece, item, room);
+      // Where its piece stands as the box was built for it, the box stays as it is.
+      // A WC dropped back against its wall in it is stood out in front of it again where that is
+      // room for it, as generation stands it out (`clearOfDecor`: in the room, out of every other
+      // piece); where it is not, it is left as generation left it.
+      if (piece.roomId === room.id && builtAsItStands(piece, item, room, items, decor)) {
+        const out = kind === 'wc' ? inFrontOf(piece, item, room) : item;
+        if (out !== item && isPlacementValid(room, out, items.filter((i) => i.id !== item.id), rooms, true)) items = withMoved(items, out);
+        continue;
+      }
+      const next = boxAt(piece, item, room, items);
       if (!next) continue; // out in the room: its box waits on its wall
       if (next !== piece) decor = decor.map((d) => (d.id === piece.id ? next : d));
       if (kind === 'wc') items = withMoved(items, inFrontOf(next, item, room));
@@ -471,57 +608,42 @@ export function followHoused(decorIn: DecorPiece[], itemsIn: PlacedItem[], rooms
 /**
  * The housing a piece of furniture is given — set down from the catalogue, or asked for on its
  * card: a box behind a WC (`family: 'box'`), a column round a washing machine, a vanity under a
- * basin; a bath is boxed by the bathroom pass, which has the tiles (`boxFor`). `face` is the
- * joiner's material when the caller has the catalogue. Null for a piece that takes none, has one,
- * or has no wall or room for it.
+ * basin, a bath's box (Vintage's a surround: `surround`) — built as generation builds it, by the
+ * same builders, the stretch read as generation reads it (a door's way kept clear round the corner
+ * and across the room, a vanity under a window's sill). `face` is the joiner's material when the
+ * caller has the catalogue. Null for a piece that takes none, has one, or has no wall or room for it.
  */
-export function houseItem(item: PlacedItem, rooms: readonly PlanRoom[], items: PlacedItem[], decor: DecorPiece[], face?: Partial<Record<DecorSlot, DecorMaterial>>): { decor: DecorPiece[]; items: PlacedItem[] } | null {
+export function houseItem(item: PlacedItem, rooms: readonly PlanRoom[], items: PlacedItem[], decor: DecorPiece[], face?: Partial<Record<DecorSlot, DecorMaterial>>, surround = false): { decor: DecorPiece[]; items: PlacedItem[] } | null {
   const kind = HOUSING_OF_SLOT[item.slot];
   const room = rooms.find((r) => r.id === item.roomId);
   if (!kind || !room || housingOf(item.id, decor)) return null;
   if (kind === 'column' || kind === 'vanity') {
-    const built = kind === 'column' ? columnFor(item, room, items, decor, faceOf(decor, face)) : vanityFor(item, room, items, decor, faceOf(decor, face));
+    const built = kind === 'column' ? columnFor(item, room, items, decor, faceOf(decor, face), undefined, undefined, GENERATION_READ) : vanityFor(item, room, items, decor, faceOf(decor, face), undefined, undefined, GENERATION_READ);
     return built ? { decor: [...decor, built.piece], items: withMoved(items, built.item) } : null;
   }
-  const box = boxFor(item, room, items, decor);
+  const box = boxFor(item, room, items, decor, surround);
   if (!box) return null;
   return { decor: [...decor, box], items: kind === 'wc' ? withMoved(items, inFrontOf(box, item, room)) : items };
 }
 
+/** How generation reads a stretch for what it builds (`StretchOptions.strict`); the studio's set-down reads it so too. */
+const GENERATION_READ: StretchOptions = { strict: true };
+
 /**
- * A WC's installation box (80 cm, 20 cm deep, half height, the whole stretch when a sliver would be
- * left) or a bath's enclosure (as long as the bath, to just under its rim), in the materials of a
- * box the flat already has — the studio has no catalogue, so a first one is plain plasterboard
- * until a finish is picked on its card.
+ * A WC's installation box (`wcBoxFor`: 80 cm centred behind it, 20 cm deep, half height, the whole
+ * stretch when a sliver would be left, never into what stands beside it) or a bath's box
+ * (`bathBoxFor`: as long as the bath, to just under its rim — `surround`, Vintage's, wider and over
+ * the rim), in the materials of a box the flat already has (generation's: plasterboard and tiles) —
+ * the studio has no catalogue, so a first one is plain plasterboard until a finish is picked on its card.
  */
-export function boxFor(item: PlacedItem, room: PlanRoom, items: readonly PlacedItem[], decor: readonly DecorPiece[]): DecorPiece | null {
-  const bath = item.slot === 'bathtub';
-  const wall = backWall(item, room, bath ? 0.4 : 1.2);
-  if (!wall) return null;
+export function boxFor(item: PlacedItem, room: PlanRoom, items: readonly PlacedItem[], decor: readonly DecorPiece[], surround = false): DecorPiece | null {
   const model = decor.find((d) => d.family === 'box' && d.materials.body) ?? decor.find((d) => d.family === 'box');
-  const half = bath ? item.size.width / 2 + 0.02 : WC_BOX_WIDTH_M / 2;
-  const stretch = bath
-    ? freeStretch(room, wall.edge, wall.along, items, [item.id, ...companionsOf(item.id, items).map((c) => c.id)], item.size.depth + 0.1, decor)
-    : (freeSpans(wall.edge, room.openings, 0, wall.edge.length, 0.05).find(([a, b]) => wall.along >= a && wall.along <= b) ?? null);
-  if (!stretch) return null;
-  let from = Math.max(stretch[0], wall.along - half);
-  let to = Math.min(stretch[1], wall.along + half);
-  if (from - stretch[0] < JOINERY_SLIVER_M) from = stretch[0];
-  if (stretch[1] - to < JOINERY_SLIVER_M) to = stretch[1];
-  if (to - from < 0.2) return null;
-  return {
-    id: housingId(item),
-    roomId: room.id,
-    family: 'box',
-    wallIndex: wall.edge.index,
-    span: { from: round3(from), to: round3(to) },
-    height: { from: 0, to: bath ? round3(item.size.height - 0.01) : WC_BOX_HALF_M },
-    params: { depthMm: mm(bath ? item.size.depth + 0.03 : WC_BOX_DEPTH_M), full: false },
-    materials: model ? model.materials : {},
-    anchor: bath ? 'bath' : 'wc',
-    itemId: item.id,
-    origin: 'studio',
-  };
+  const materials = model ? model.materials : {};
+  // A WC's box as generation builds it (`wcBoxToBuild`: under a high window only where the WC stands clear in front of it).
+  const wall = item.slot === 'bathtub' ? backWall(item, room, 0.4) : null;
+  const box = item.slot !== 'bathtub' ? wcBoxToBuild(item, room, items, materials, housingId(item)) : wall ? bathBoxFor(item, room, wall, items, surround, materials, housingId(item), { decor, stretch: GENERATION_READ }) : null;
+  // The studio builds no box under 20 cm.
+  return box && box.span.to - box.span.from >= SECTION_MIN_WIDTH_M ? { ...box, origin: 'studio' } : null;
 }
 
 /**

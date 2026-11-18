@@ -337,6 +337,12 @@ export const WC_BOX_WIDTH_M = 0.8;
 /** A basin's top: 85 cm (the check allows a few centimetres either way). */
 export const BASIN_TOP_M = 0.85;
 export const BASIN_TOP_TOLERANCE_M = 0.07;
+/**
+ * A countertop basin (a vessel or one set on a counter) is lower than this — too short to stand on
+ * the floor: it is lifted to a basin's height, onto the vanity built for it. The matcher's own
+ * threshold (`slotPool`, `settledElevation`).
+ */
+export const COUNTERTOP_BASIN_MAX_M = 0.45;
 /** A bathroom's splash zone round a shower or bath, where no socket goes. */
 export const SPLASH_ZONE_M = 0.6;
 

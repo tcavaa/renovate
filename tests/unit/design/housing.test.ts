@@ -7,10 +7,12 @@ import { isMovable, moveDecor, resizeDecor } from '@/lib/design/decor/resize';
 import { wcBoxes } from '@/lib/design/decor/wcBox';
 import { lacksHousing, settleFitted, takesHousing, withFitted } from '@/lib/design/fitted';
 import { generateScene } from '@/lib/design/generateScene';
-import { matchProducts, type CatalogProduct } from '@/lib/design/matcher';
+import { matchProducts, toSceneProduct, type CatalogProduct } from '@/lib/design/matcher';
+import { clearOfDecor } from '@/lib/design/aiProposal';
 import { refreshRoom, roomEdges } from '@/lib/design/planGeometry';
 import { showerGlass, withShowerArea } from '@/lib/design/shower';
 import { radiatorBodies } from '@/lib/design/radiators';
+import { BASIN_TOP_M } from '@/lib/design/rules';
 import type { DecorPiece, FloorPlan, Opening, PlacedItem, PlanRoom, TechnicalPoint, Vec2 } from '@/lib/design/types';
 import { GENERATION_CATALOG, generationPlan } from '../../helpers/generation';
 
@@ -35,6 +37,8 @@ const washer = (x: number, z = 0.295, rotation = 0) => item('w', 'washer', x, z,
 const wc = (x: number, z = 0.54, rotation = 0) => item('wc', 'toilet', x, z, { width: 0.4, depth: 0.68, height: 0.82 }, rotation);
 const basin = (x: number) => item('s', 'sink', x, 0.25, { width: 0.6, depth: 0.4, height: 0.14 });
 const spanOf = (piece: Pick<DecorPiece, 'span'>) => [piece.span.from, piece.span.to];
+const bathProduct = (id: number, kind: string, w: number, d: number, h: number, nameEn: string, extra: Partial<CatalogProduct> = {}): CatalogProduct =>
+  ({ id, nameKa: nameEn, nameEn, nameRu: null, slug: `p-${id}`, brand: null, categorySlug: 'sanitary', categoryId: null, pricePerUnit: 100, unit: 'piece', imageUrl: null, colorHex: '#ffffff', textureUrl: null, model3dKind: kind, model3dUrl: `/m/${id}.glb`, widthCm: w, depthCm: d, heightCm: h, styleTags: ['modern', 'vintage'], tags: null, isFeatured: false, specs: null, coveragePerUnit: null, store: null, ...extra }) as CatalogProduct;
 
 describe('a WC and its box', () => {
   const r = room();
@@ -70,6 +74,41 @@ describe('a WC and its box', () => {
     expect(withFitted('wc', [r], fitted.items, fitted.decor, 'vintage')).toBeNull();
     expect(lacksHousing(fitted.items[0], fitted.decor)).toBe(false);
     expect(lacksHousing(wc(1.5), [])).toBe(true);
+  });
+
+  it('stands its WC out in front of it again when the WC is dropped back against the wall in it, where it was', () => {
+    // The drag snaps a WC flush to its wall (2 cm off it): inside its own 20 cm box, which stays.
+    const dropped = followHoused([box], [wc(1.5, 0.36)], [r]);
+    expect(dropped.decor[0]).toBe(box);
+    expect(dropped.items[0].position.z).toBeCloseTo(0.54, 3);
+    expect(settleFitted([box], [wc(1.5, 0.36)], [r]).items[0].position.z).toBeCloseTo(0.54, 3);
+  });
+
+  /** A toilet 2.4 m wide with a high window (sill 1.5 m) over the middle of wall 0, 0.7–1.7 m along it. */
+  const highWindowRoom = (d = 1.4): PlanRoom => ({ ...room([], 'toilet', 2.4, d), openings: [{ id: 'w', roomId: 'b', kind: 'window', wallIndex: 0, t: 0.5, widthM: 1.0, heightM: 0.5, sillM: 1.5, exterior: true }] });
+
+  it('is not built in the studio under a high window where generation refuses it — the WC would not stand clear in front of it', () => {
+    // 80 cm deep: the WC fits flush to the wall, not 20 cm out in front of a box.
+    const tight = highWindowRoom(0.8);
+    expect(wcBoxes([tight], [wc(1.2, 0.36)], [])).toEqual([]);
+    expect(withFitted('wc', [tight], [wc(1.2, 0.36)], [], 'modern')).toBeNull();
+    expect(withFitted('wc', [tight], [wc(1.2, 0.36)], [], 'modern', undefined, true)).toBeNull();
+    // Where it stands clear, the studio builds generation's box under the window.
+    const roomy = highWindowRoom();
+    const set = withFitted('wc', [roomy], [wc(1.2, 0.36)], [], 'modern')!;
+    expect(set.decor[0].span).toEqual(wcBoxes([roomy], [wc(1.2, 0.36)], [])[0].span);
+  });
+
+  it('follows its WC slid along beneath a high window, as the builder builds it there', () => {
+    const r2 = highWindowRoom();
+    const [under] = wcBoxes([r2], [wc(1.2, 0.36)], []);
+    expect(spanOf(under)).toEqual([0.8, 1.6]);
+    const slid = followHoused([under], [wc(1.3, 0.54)], [r2]);
+    expect(spanOf(slid.decor[0])).toEqual([0.9, 1.7]);
+    expect(slid.items[0].position.z).toBeCloseTo(0.54, 3);
+    // Slid where it would not stand clear out in front of it (the room 80 cm deep), it waits on its wall.
+    const tight = highWindowRoom(0.8);
+    expect(followHoused([under], [wc(1.3, 0.36)], [tight]).decor[0]).toBe(under);
   });
 });
 
@@ -130,15 +169,16 @@ describe('a basin and its vanity', () => {
   const built = houseItem(basin(1.5), [r], [basin(1.5)], [])!;
   const vanity = built.decor[0];
 
-  it('stands under the basin: a metre wide, its top 76 cm with the basin on it', () => {
+  it('stands under the basin: a metre wide, its top 71 cm so the basin’s is at 85 cm', () => {
     expect(spanOf(vanity)).toEqual([1, 2]);
-    expect(vanity.height.to).toBe(0.76);
-    expect(built.items[0].elevationM).toBe(0.76);
+    expect(vanity.height.to).toBe(0.71);
+    expect(built.items[0].elevationM).toBe(0.71);
+    expect(built.items[0].elevationM + built.items[0].size.height).toBeCloseTo(BASIN_TOP_M, 6);
     expect(built.items[0].position).toEqual(P(1.5, 0.25));
   });
 
   it('made taller by its top arrow, lifts the basin and its tap; made wider, keeps the basin where it stood', () => {
-    const tap = item('s-tap', 'tap', 1.5, 0.04, { width: 0.15, depth: 0.18, height: 0.28 }, 0, 0.76);
+    const tap = item('s-tap', 'tap', 1.5, 0.04, { width: 0.15, depth: 0.18, height: 0.28 }, 0, 0.71);
     const items = [...built.items, tap];
     const taller = cabinetAtExtent(vanity, { span: vanity.span, height: { from: 0, to: 0.85 } }, items);
     expect(sectionSpans(taller)[0].section.heightMm).toBe(850);
@@ -158,7 +198,7 @@ describe('a basin and its vanity', () => {
     const place = moveDecor(vanity, r, 0, 1.8, 0)!;
     expect(spanOf(place)).toEqual([1.8, 2.8]);
     // Joinery stays on the floor whatever the pointer's height.
-    expect(moveDecor(vanity, r, 0, 1.8, 1.2)!.height).toEqual({ from: 0, to: 0.76 });
+    expect(moveDecor(vanity, r, 0, 1.8, 1.2)!.height).toEqual({ from: 0, to: 0.71 });
     const slid = { ...vanity, span: place.span };
     expect(carryHoused(vanity, slid, built.items, [r])[0].position).toEqual(P(2.3, 0.25));
     // The card's distance from the wall's start slides it the same way.
@@ -372,6 +412,57 @@ describe('a generated flat', () => {
     const settled = settleFitted(scene.decor, scene.items, scene.plan.rooms);
     expect(settled.items).toEqual(scene.items);
     expect(settled.decor).toEqual(scene.decor);
+  });
+
+  it('is left as generation built it by the studio’s own settling — a WC’s box run on to the wall’s end, a bath’s box, a Vintage surround, a column with its dryer', () => {
+    // A bathroom 2.6 × 2.4 m, a door in the far wall: the WC 50 cm from the corner (its box runs
+    // on to the corner, off its middle), a built-in bath on the west wall, the washer beside it.
+    const catalog = [
+      bathProduct(1, 'toilet', 36, 54, 40, 'Wall-hung WC'),
+      bathProduct(6, 'washer', 60, 55, 85, 'Washing machine'),
+      bathProduct(7, 'dryer', 60, 62, 86, 'Tumble dryer'),
+      bathProduct(8, 'bathtub', 150, 75, 50, 'Rectangular built-in bathtub'),
+      bathProduct(10, 'bath_mixer', 20, 15, 20, 'Wall-mounted bath mixer'),
+      bathProduct(20, 'decor-gypsum', 0, 0, 0, 'Plasterboard', { categorySlug: 'decor-gypsum', model3dKind: null, model3dUrl: null, unit: 'm2' }),
+      bathProduct(21, 'decor-tile', 0, 0, 0, 'Tile', { categorySlug: 'decor-tile', model3dKind: null, model3dUrl: null, unit: 'm2' }),
+    ];
+    const bath = refreshRoom({ id: 'b', type: 'bathroom', name: 'b', polygon: [P(0, 0), P(2.6, 0), P(2.6, 2.4), P(0, 2.4)], heightM: 2.7, areaM2: 0, perimeterM: 0, openings: [{ id: 'o', roomId: 'b', kind: 'door', wallIndex: 2, t: 0.5, widthM: 0.7, heightM: 2.05, sillM: 0, exterior: false }] });
+    const at = (id: string, slot: PlacedItem['slot'], productId: number, x: number, z: number, size: PlacedItem['size'], rotation: number): PlacedItem => ({ id, roomId: 'b', slot, kind: slot, position: P(x, z), rotation, elevationM: 0, size, product: toSceneProduct(catalog.find((p) => p.id === productId)!, 1) });
+    const items = [
+      at('wc', 'toilet', 1, 0.5, 0.29, { width: 0.36, depth: 0.54, height: 0.4 }, 0),
+      at('bath', 'bathtub', 8, 0.395, 1.6, { width: 1.5, depth: 0.75, height: 0.5 }, Math.PI / 2),
+      at('w', 'washer', 6, 2.3, 0.295, { width: 0.6, depth: 0.55, height: 0.85 }, 0),
+    ];
+    for (const styleId of ['modern', 'vintage'] as const) {
+      const fitted = fitBathrooms({ rooms: [bath], items, catalog, styleId, level: 'premium' });
+      const decor = [...fitted.decor, ...wcBoxes([bath], fitted.items, catalog)];
+      const plan: FloorPlan = { rooms: [bath], metresPerPixel: null, bounds: { width: 2.6, depth: 2.4 }, source: 'manual', wallThicknessM: 0.12 };
+      const laid = clearOfDecor(fitted.items, decor, plan);
+      const box = decor.find((d) => d.anchor === 'wc')!;
+      expect(box.span.from).toBe(0);
+      expect(decor.some((d) => d.anchor === 'bath')).toBe(true);
+      if (styleId === 'modern') expect(decor.some((d) => d.params.sections?.some((s) => s.dryer))).toBe(true);
+      const settled = settleFitted(decor, laid, [bath]);
+      expect(settled.decor).toEqual(decor);
+      expect(settled.items).toEqual(laid);
+    }
+  });
+
+  it('builds for a piece set down from the catalogue what generation builds for it there', () => {
+    const r = room();
+    // A WC beside a basin on a console: the box stops at the basin, as generation's does.
+    const console: PlacedItem = { ...item('basin', 'sink', 1.7 + 0.345, 0.425, { width: 0.69, depth: 0.81, height: 0.91 }) };
+    const set = withFitted('wc', [r], [wc(1.5, 0.36), console], [], 'modern')!;
+    expect(set.decor[0].span).toEqual(wcBoxes([r], [wc(1.5, 0.36), console], [])[0].span);
+    expect(set.decor[0].span.to).toBeLessThanOrEqual(1.7 + 1e-6);
+    // A Vintage bath stands in its tiled surround: 10 cm wider each side, 6 cm over its rim.
+    const tub = item('bath', 'bathtub', 1.5, 0.395, { width: 1.5, depth: 0.75, height: 0.5 });
+    const surround = withFitted('bath', [r], [tub], [], 'vintage')!.decor[0];
+    expect(surround.span).toEqual({ from: 0.65, to: 2.35 });
+    expect(surround.height.to).toBe(0.56);
+    expect(surround.params.depthMm).toBe(870);
+    const builtIn = withFitted('bath', [r], [{ ...tub, product: { ...tub.product!, nameEn: 'Built-in bathtub' } }], [], 'modern')!.decor[0];
+    expect(builtIn.height.to).toBe(0.49);
   });
 
   it('names the furniture in every vanity and column the bathroom pass builds, and the pass leaves them be', () => {

@@ -1366,7 +1366,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
               return { items: without, decor, selectedItemId: itemId };
             }
             // The run fills its corner first; the leg goes on from it along the next wall — neither over a radiator.
-            const radiators = radiatorObstacles(s.plan?.technical?.points);
+            const radiators = radiatorObstacles(s.plan);
             const inCorner = runIntoCorner(run, room, corner, [...without, ...radiators]);
             const items = inCorner ? without.map((i) => (i.id === itemId ? inCorner : i)) : without;
             const legs = inCorner ? kitchenLeg(inCorner, room, corner, [...items, ...radiators], decor, was ? was.size.width : KITCHEN_LEG_M.initial) : [];
@@ -1385,7 +1385,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             if (!run || !room || !was?.legCorner) return null;
             // Built again from its corner at the new length: the leg, and the wall cabinets over it.
             const without = s.items.filter((i) => i.legOf !== itemId);
-            const legs = kitchenLeg(run, room, was.legCorner, [...without, ...radiatorObstacles(s.plan?.technical?.points)], s.decor, lengthM);
+            const legs = kitchenLeg(run, room, was.legCorner, [...without, ...radiatorObstacles(s.plan)], s.decor, lengthM);
             if (legs.length === 0) return null;
             ok = true;
             return { items: [...without, ...legs] };

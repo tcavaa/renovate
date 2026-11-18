@@ -218,12 +218,14 @@ How stage 1 built it — **the bathroom pass** (`lib/design/bathroom.ts`, `fitBa
 `generateScene` after matching):
 
 - **Vanity** (BA-7): in every style but Vintage the basin slot takes a countertop or vessel basin
-  (`slotPool`: under 45 cm tall), set on a `cabinet` piece's `basin` section — its top 90 cm less
-  the basin's height (70–85 cm), 50 cm deep, from the basin's width and 40 cm up to 1.8 m, run on
+  (`slotPool`: under 45 cm tall, `COUNTERTOP_BASIN_MAX_M` — the bathroom pass and the studio's
+  `takesHousing` build a vanity under no taller one), set on a `cabinet` piece's `basin` section —
+  its top a basin's height (`BASIN_TOP_M`, 85 cm) less the basin's height, between 70 and 90 cm
+  (`vanityTop`), so the basin's top is at 85 cm wherever the vanity allows; 50 cm deep, from the basin's width and 40 cm up to 1.8 m, run on
   to a corner rather than leave a sliver under 30 cm (`JOINERY_SLIVER_M`), clear of the other
   pieces on the wall (`freeStretch`; `vanityFor`) — under a window only where its sill is at or
   over the basin's rim. Vintage keeps a standing basin (60 cm or taller). The matcher lifts a
-  countertop basin to washing height before the pass: where no vanity can be built round it, the
+  countertop basin to washing height before the pass (its top at `BASIN_TOP_M`): where no vanity can be built round it, the
   matcher gives its slot a basin that stands on the floor at a basin's height (85 ± 7 cm,
   `BASIN_TOP_M`; `standingBasin`: `matchProducts` with the room's pieces where they stand — the fit
   test, a door's way, the floor kept clear); with none that fits, the basin stays as matched. A

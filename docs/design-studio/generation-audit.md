@@ -70,10 +70,15 @@ that placed or moved a piece without testing it again — the bath's floor mixer
 stacked under a mirror wider than its basin, a print hung inside the TV (by the matcher, and by the
 AI check's swap), a shower cabin under a lifted basin, a WC's box built into the basin beside it, a
 corner piece settled 0.04 mm through a wall drawn off square — and the invariants test holds all
-five at 0. At 12 draws (1,440 flats) two kinds are left, of other causes and not fixed yet: a
-washer's own column built into the vanity planned for the basin beside it (`in_joinery` 5 — the
-column's stretch does not read the vanities still to be built) and a WC in a shower's tray
-(`in_shower_tray` 1) — [roadmap](../roadmap.md).
+five at 0. At 12 draws (1,440 flats) a washer's own column was built into the vanity planned for
+the basin beside it (`in_joinery` 5: the column, wider than its machine, ran back over the vanity
+that had stopped at the machine's side) — now the vanity, built after the column, stops at it
+(`clearOfBuilt` in `bathroom.ts`), `in_joinery` 5 → 0 with nothing lost; one kind is left, of
+another cause and not fixed yet: a WC in a shower's tray (`in_shower_tray` 1) — [roadmap](../roadmap.md).
+Two clashes the audit does not count are kept as they were: where the cut would leave the vanity
+narrower than its basin and 5 cm it stays into the column (2 of 1,440 flats, #375's r3, 4.9 cm),
+and a basin stands 1.9 cm past a vanity cut back to a corner column (#373's r2) — what gives way
+there is the owner's choice ([decor.md](decor.md#known-gaps)).
 
 ## Where it stands (18 Nov 2026)
 
@@ -688,6 +693,19 @@ pieces a room has, the kitchen, the joinery, taps, lamps on the wiring, radiator
   `ruleChecks.ts:291`), 0.86 in the matcher (`matcher.ts:642`), 0.90 for the vanity
   (`decor/joinery.ts:28`); a "countertop basin" is under 45 cm in `matcher.ts:475` and under 50 cm in
   `bathroom.ts:79`. 163 basins in 1,080 flats fail the app's own check.
+  *Partly:* what places the basin puts its top at `BASIN_TOP_M` — the matcher's lift
+  (`settledElevation`) and the vanity, whose height follows from the basin's (`vanityTop`: 85 cm
+  less the basin, between 70 and 90 cm) — and a countertop basin is one under
+  `COUNTERTOP_BASIN_MAX_M` (45 cm, the matcher's) for the bathroom pass and the studio's
+  `takesHousing` alike (the matcher's own `slotPool` and `settledElevation` still write 45 / 0.45 as
+  literals — the matcher lane's to point at the constant). `rule:basin_height` stays 105 in 720
+  flats: none of the 105 was the 86-against-90 cm mismatch (those tops were within the check's
+  7 cm). 88 are Vintage's standing basins the matcher takes from any product 60 cm or taller
+  (`slotPool`'s `standing`): a console washbasin 95 cm tall (#2366, 74), a vanity of 1.27 m (#2431),
+  pedestals of 77 cm and 1.17 m, a vanity of 1.01 m — choosing a standing basin by its height is
+  the matcher's rule to add, and the products' heights are catalogue data (K); 17 are a basin 30 cm
+  tall (#1817, a kitchen's granite double sink with a drainer filed as a basin — K) on the lowest
+  vanity, 70 cm, its top at a metre — what such a basin becomes is the owner's rule (W2).
 - [ ] **X2 — Two minimum areas per piece** in `catalog.ts`, different for nine kinds (dresser 12 and
   13, bath 6 and 7.5, island 16 and 17…), the archetype's applied whenever the program has none (M5).
 - [ ] **X3 — Sofa to TV**: 2.5–3.5 m scores the sofa's wall and is what the check flags
@@ -702,8 +720,13 @@ pieces a room has, the kitchen, the joinery, taps, lamps on the wiring, radiator
 - [ ] **X6 — Free floor in front of kitchen units**: 1.2 m (`KITCHEN_CIRCULATION_M`), 0.9 m for a
   leg (`kitchenCorner.ts:39`), 0.38 m when the run itself is placed (`0.95 × 0.4`,
   `autoLayout.ts:816`); the island's 1.2 m is declared twice.
-- [ ] **X7 — A radiator's floor**: its length plus 10 cm by its depth plus 30 cm for the layout
+- [x] **X7 — A radiator's floor**: its length plus 10 cm by its depth plus 30 cm for the layout
   (`radiatorKeepouts`, `ruleChecks.ts`); a 90 cm square block for the kitchen leg (`kitchenCorner.ts:50-54`).
+  *Fixed:* one definition, the strips — generation's corner pass already kept off them; the
+  studio's own corner (the store's `setKitchenCorner`, `setKitchenLegLength`) now reads them too
+  (`radiatorObstacles(plan)`: `radiatorKeepouts` read off the plan, by where the radiator hangs), a
+  change to a person's own action on purpose; `kitchenCorner.test.ts` holds that the person's leg
+  is the one generation builds there, beside a radiator named for a room the plan no longer has.
 - [ ] **X8 — Rules the next stage undoes**: the table of 1.2 m (slot) and a 70 cm table (product);
   "always a wardrobe" and the 8 m² gate; "a TV only with a unit" and "every window dressed" against
   the AI check's `remove`.
@@ -748,16 +771,25 @@ pieces a room has, the kitchen, the joinery, taps, lamps on the wiring, radiator
   tolerance), the matcher's and the studio's `footprintOf` + `footprintsOverlap` (2 cm), the checks'
   `footprintQuad` + `quadsOverlap` (the turned quad, 1 cm). A chair turned 45° is one thing to the
   engine and another to the checks.
-- [ ] **D3 — What is built round a piece, twice**: the vanity in `bathroom.ts:79-97` and `vanityFor`
+- [x] **D3 — What is built round a piece, twice**: the vanity in `bathroom.ts:79-97` and `vanityFor`
   (`decor/housing.ts:308`); the washer's column in `bathroom.ts:110-162` and `columnFor` (`:283`); the
   bath's box in `bathroom.ts:279` and `boxFor` (`:489`, without Vintage's surround); the WC's box in
   `decor/wcBox.ts` and `housing.ts`. Generation uses the first of each, the studio the second.
+  *Fixed:* one set of builders for both (W10).
 - [ ] **D4 — "A product takes a slot", four ways**: the matcher (`matcher.ts:281-302`), the AI
   check (`aiProposal.ts:385-392`), the studio's swap (`store/designStore.ts`), the calculator's picks
   (`fromCalculator.ts:109-116`, with no fit and no height) *(the last two not re-checked)*.
-- [ ] **D5 — "What stands in front of this wall", twice**: `wallBlocks` + `clearOf`
+- [x] **D5 — "What stands in front of this wall", twice**: `wallBlocks` + `clearOf`
   (`wallClear.ts`) and `freeStretch`'s own loop (`decor/joinery.ts:207-230`), with different lists of
   what does not count; the margin round an opening is 0, 5, 8 or 10 cm by caller.
+  *Fixed:* one test of what stands in front of a wall (`alongWall`), one list of what stands before
+  no wall (`NOT_IN_THE_WAY`) and one floor per piece (`floorTaken`, a shower's tray) for both; the
+  joinery's own extra list is named for what it is (`OVER_JOINERY`: hung over it or riding on a
+  piece, which a fitting is kept off), and each caller's reach and margin round an opening stay its
+  own — every flat of 360 unchanged, byte for byte. One reading did change outside generated
+  flats: `wallBlocks` read a shower by its tray (`showerArea`) and now by `floorTaken`, the tray or
+  the cabin, whichever is larger — a cabin the studio's resize left larger than its tray
+  (`resizedShower` clamps the tray whatever the cabin) is now a block as wide as the cabin.
 - [ ] **D6 — Who belongs to whom, five tables**: `placement.to` in `catalog.ts`; `PLACED_OFF` and
   `IN_FRONT` (`aiProposal.ts`); `TUCKS_UNDER` (`manipulate.ts:217`); `COMPANIONS`
   (`decor/housing.ts:43`); the matcher's `followers` (`matcher.ts:377-382`).
@@ -1020,6 +1052,31 @@ outputs were read, not re-run.
   door or a window in 240 flats). A light cove is dropped in any room with more than four corners
   (30 % of bedrooms, 53 % of living rooms and halls); a niche is built on 25–48 % of the walls
   asked and a panel on 37–74 % (each needs 1.2 m clear) — the designer cannot know which.
+  *Partly:* a WC at a toilet's high window gets its box under the sill (`wcBoxStretch`: a window
+  whose sill is over the box's top is no obstacle where the WC stands at one, or partly under one —
+  there the box between the openings had stopped short of the WC, 8 of 360 flats), only where the
+  WC stood out in front of it stands clear (no door's way, no shower's tray, no piece, no rule check
+  it kept broken — `wcStandsClear`), by generation and by the studio's set-down and card alike
+  (`wcBoxToBuild`): WCs with no box 100 → 14 of 672 in 720 flats, every count of the audit as it
+  was. Not fixed: *the WC box off its WC's middle* (169 of 572 boxes more than
+  5 cm off in 720 flats; 229 of 658 with the new boxes under windows, small toilets' sliver joins)
+  — the box is off-centre where it runs on to a stretch's end rather than leave a sliver; centring
+  it means running it as far past the WC on the other side, where joinery may stand (a vanity
+  comes up to the WC's 41 cm side room), and `wcBoxes` is handed no joinery
+  (`generateScene.ts:126` calls `wcBoxes(laid.rooms, items, catalog)`): it needs `generateScene` to
+  hand it the joinery built so far, outside this lane. *Mouldings across openings:* not reproduced
+  in the fit — a moulding on every wall of every room of 60 flats (1,988 pieces) has no frame or
+  rail inside a door or a window (`fitMoulding` stops each rail at an opening and puts frames only
+  under a window's sill and over an opening's head); what does cross a door is the piece's span,
+  which `resolveDecor` sets to the whole wall, so readers of the span (`wallBlocks` reads it as flat
+  decor before a radiator; `overlaps`) see it across the door — cutting it needs a choice: which
+  stretch a moulding (one piece a wall, four a room) keeps when a door splits its wall. *The cove
+  in a room of more than four corners:* its panel is a rectangle in `fitLight` and drawn as one in
+  `lib/design3d/decor.ts` (`buildCove`) and read as one by `underCeilingDecor` (`aiProposal.ts`):
+  following the outline needs the panel as an outline in those, outside this lane. *A hall washer
+  stood free:* no bug under the code's rule — of 15 in 360 flats, 12 stand past the end of the wall
+  behind them (no wall within `wallOf`'s or `backWall`'s reach) and 3 have 45 cm of free wall
+  between a coat rack and the corner; a column for them needs the machine moved to another wall.
 - [x] **W11 (high) — A generated flat that cannot be saved** *(found after the audit)*: where the
   washer's column stands at the wall's end beside a vanity, the gap between them became a `doors`
   section of whatever width was left — 5–10 cm in 4 of 360 flats — and the save route refuses a
@@ -1028,10 +1085,26 @@ outputs were read, not re-run.
   always the vanity's, so the column stays round the machine moved there. The whole-flat check
   counts what the save route would refuse (`unsaveable`), and `generationInvariants.test.ts` runs
   every generated flat through the save schema.
-- [ ] **W10 — D3 in numbers**: the studio's builder makes the washer's column 0.9 m lower than
+- [x] **W10 — D3 in numbers**: the studio's builder makes the washer's column 0.9 m lower than
   generation's wherever a dryer is stacked (41 of 63 compared), on another wall in 16, and the
   bath's box smaller in Vintage (no surround); its boxes have no tiles (generation's: plasterboard
   and tiles); taps, the bath's mixer and the dryer are added by generation only.
+  *Fixed:* one set of builders (`decor/housing.ts`: `columnSection`, `columnStart`, `vanityTop`,
+  `vanitySpan`, `bathBoxFor`; `decor/wcBox.ts`: `wcBoxFor`) builds for generation and for the studio
+  — a piece set down or the card's button gets generation's carcass, read as generation reads the
+  stretch (Vintage's surround, the column with its dryer, a WC box stopped at what stands beside it,
+  a box in the flat's plasterboard and tiles) — and a box that stands where the builder builds it
+  for its piece as it stands is left as it is (`builtAsItStands`): the studio's `settleFitted` with
+  no changed piece now changes 0 of 360 fixture flats (was 83 by today's draw: 69 WC boxes, 16 bath
+  boxes, a WC), 3 of 1,440 (a bath box run on to a radiator, which the studio does not read — W8).
+  A WC dropped back against its wall in its box is stood out in front of it again where there is
+  room, tested as generation's `clearOfDecor` tests it (111 of 112 boxed WCs of the first draw — the
+  one left is a WC generation left in its box, #381's r8; `main` stood out 88), the
+  studio's set-down builds no box under a high window where generation refuses one (it built 14,
+  6 into a door's way), and a moved WC's box follows it under a high window as its builder builds
+  it there (`wcBoxStretch`). Generation's bath box also stops at the joinery beside it now (it ran
+  2.8 cm into a washer's column in 2 of 360 flats). `housing.test.ts` holds these on hand-built
+  rooms (V4).
 
 ### I. Floors and walls
 
@@ -1285,8 +1358,7 @@ no table in 60 of the 416 runs of 10 m² or more; an island 0 of 96.
   (`radiatorKeepouts`, by position), the ones `generateScene` read off the plan and hands to both
   (read again from the rooms under their ceilings a strip came out a section shorter): 12 of 102
   legs stood on one (#408), now none, and none is lost. The floor in front of the fridge is as it
-  was, and the studio's own corner (the store's `setKitchenCorner`) still measures the 90 cm
-  squares (`radiatorObstacles`) — X7.
+  was; the studio's own corner keeps off the same strips now (X7).
 
 ### M. Partitions, doors and windows, the calculator's picks
 
@@ -1476,8 +1548,11 @@ them, **none has a test that would notice its fix**.
   settle — W1), `generationRandom.test.ts:167` and `:194` and `placementSettle.test.ts:668`
   (branches that never run — P1), and seven assertions that are always true.
   *Partly:* the check's settling has a test that can fail (`aiCheck.test.ts`, W1: a bathroom whose WC
-  box the studio's builder would slide); `housing.test.ts:306` itself is unchanged, and on the real
-  plans the studio's own `settleFitted` (no changed pieces given) still changes 69 of 360 untouched flats.
+  box the studio's builder would slide); so does the studio's own settling (`housing.test.ts`, "is
+  left as generation built it": a bathroom whose WC box runs on to the wall's end, a built-in bath, a
+  Vintage surround, a column with its dryer — it failed before W10), and on the real plans the
+  studio's own `settleFitted` (no changed pieces given) changes 0 of 360 untouched flats. The other
+  tests named here are not changed.
 - [ ] **V5 (medium) — Fixtures.** Each file types a few products at the slot's own size and one
   style: 89 % are within 10 % of the slot's width, against 39 % in the real catalogue; 27 of 42
   kinds have a product in some test. Of 58 rooms laid out, 54 are rectangles and 42 have no window;

@@ -20,6 +20,7 @@ import { decorDepth, freeSpans } from './layout';
 import { WC_BOX_DEPTH_M, WC_BOX_WIDTH_M, WC_SIDE_M } from '@/lib/design/rules';
 import { floorTaken } from '@/lib/design/shower';
 import type { RadiatorBody } from '@/lib/design/radiators';
+import { alongWall, floorCorners, NOT_IN_THE_WAY } from '@/lib/design/wallClear';
 import { decorMaterialFrom } from './resolve';
 
 /** A column's side panels and the gap round a machine, metres. */
@@ -249,6 +250,14 @@ export interface StretchOptions {
 
 /** What stands within this of joinery's face, not only what it would stand in, stops it. */
 const FACE_GAP_M = 0.05;
+/**
+ * What joinery does not stop at besides what stands before no wall (`NOT_IN_THE_WAY`): what hangs
+ * on the wall over it (a picture, a mirror — anything hung higher than `HUNG_OVER_JOINERY_M`) and
+ * what rides on a piece (a basin's tap, a bath's mixer, the dryer on the machine). `wallBlocks`
+ * reads these as blocks of their own height instead: a socket or a radiator is in their way.
+ */
+const OVER_JOINERY: ReadonlySet<string> = new Set(['artwork', 'mirror', 'tap', 'bath_mixer', 'dryer']);
+const HUNG_OVER_JOINERY_M = 1.2;
 
 /**
  * The stretch of a wall clear of its doors and windows, of every piece standing against it (but
@@ -291,7 +300,7 @@ export function freeStretch(
   // far in front of the joinery's face it still counts.
   const blocks: Array<{ corners: Array<{ x: number; z: number }>; gap: number }> = [];
   for (const item of items) {
-    if (item.roomId !== room.id || except.includes(item.id) || item.elevationM > 1.2 || ['rug', 'curtain', 'pendant', 'artwork', 'mirror', 'blind', 'door_mat', 'tap', 'bath_mixer', 'dryer'].includes(item.slot)) continue;
+    if (item.roomId !== room.id || except.includes(item.id) || item.elevationM > HUNG_OVER_JOINERY_M || NOT_IN_THE_WAY.has(item.slot) || OVER_JOINERY.has(item.slot)) continue;
     if (item.slot !== 'toilet') {
       // A shower takes its tray, not the column at its back (`floorTaken`).
       blocks.push({ corners: footprint(floorTaken(item)), gap: FACE_GAP_M });
@@ -328,11 +337,9 @@ export function freeStretch(
   }
   for (const { corners, gap } of blocks) {
     // The footprint as seen along the wall, where it comes within the joinery's depth of it.
-    const off = corners.map((p) => (p.x - edge.a.x) * edge.inward.x + (p.z - edge.a.z) * edge.inward.z);
-    if (Math.min(...off) > depth + gap - 1e-6 || Math.max(...off) < -0.05) continue;
-    const along = corners.map((p) => (p.x - edge.a.x) * edge.dir.x + (p.z - edge.a.z) * edge.dir.z);
-    const lo = Math.min(...along);
-    const hi = Math.max(...along);
+    const seen = alongWall(edge, corners, depth + gap - 1e-6);
+    if (!seen) continue;
+    const [lo, hi] = seen;
     if (hi <= a || lo >= b) continue;
     if (hi <= at + 1e-6) a = Math.max(a, hi);
     else if (lo >= at - 1e-6) b = Math.min(b, lo);
@@ -366,11 +373,7 @@ function underSill(opening: Opening, top: number | undefined): boolean {
 }
 
 function footprint(item: Pick<PlacedItem, 'position' | 'rotation' | 'size'>): Array<{ x: number; z: number }> {
-  const f = { x: Math.sin(item.rotation), z: Math.cos(item.rotation) };
-  const r = { x: f.z, z: -f.x };
-  const w = item.size.width / 2;
-  const d = item.size.depth / 2;
-  return [[-w, -d], [w, -d], [w, d], [-w, d]].map(([u, v]) => ({ x: item.position.x + r.x * u + f.x * v, z: item.position.z + r.z * u + f.z * v }));
+  return floorCorners(item.position, item.rotation, item.size.width, item.size.depth);
 }
 
 /** The wall a piece stands with its back against (within 15 cm), and how far along it its middle is. */

@@ -544,8 +544,11 @@ carry up), `tests/unit/design3d/footprintFromModel.test.ts`, and `e2e/design-stu
 A selected piece's card (`SwapPanel`) knows what is built for it: a washing machine's column, a
 basin's vanity, a WC's box, a bath's surround, a shower's glass. When the piece has none — it was
 deleted, or the piece came from the catalogue where the rules build none — the card has one button
-that builds it (`onAddFitted` → `designStore.addFitted`), and says when there is no wall behind the
-piece or no room. A made-to-measure kitchen run's card has the **corner** switch — straight, corner
+that builds it (`onAddFitted` → `designStore.addFitted`) as generation would build it there (one
+set of builders: a column as tall as the machine and the dryer on it, Vintage's bath surround, a WC
+box stopped at what stands beside it and under a toilet's high window only where the WC stands
+clear in front of it), and says when there is no wall behind the piece or no room.
+A piece nobody moved keeps its housing exactly as generation built it. A made-to-measure kitchen run's card has the **corner** switch — straight, corner
 left, corner right — and the leg's length (`kitchenCorner` → `setKitchenCorner`,
 `setKitchenLegLength`; [../budget.md](../budget.md#a-corner-l-shaped-kitchen-libdesignkitchencornerts)).
 Moving, turning, swapping or deleting a piece takes what is built for it and what rides on it along

@@ -10,7 +10,7 @@
 import { adoptHoused, companionsOf, houseItem, housedIds, housingOf, followHoused, HOUSING_OF_SLOT } from './decor/housing';
 import { withoutOrphanLegs } from './kitchenCorner';
 import { isBuiltInBath } from './productRoles';
-import { WET_ROOM_TYPES } from './rules';
+import { COUNTERTOP_BASIN_MAX_M, WET_ROOM_TYPES } from './rules';
 import { withShowerArea } from './shower';
 import type { DecorMaterial, DecorPiece, DecorSlot, PlacedItem, PlanRoom, StyleId } from './types';
 
@@ -21,11 +21,12 @@ export interface Fitted {
 
 /**
  * After the furniture changed: every housing where its piece stands, and no corner leg left of a
- * kitchen run that is gone. Given `changed` — the ids of the pieces that were moved, replaced or
- * taken out — only what was built for those (or for a piece no longer there) is settled again, and
- * every other housing and its piece stay exactly as they were: the generation built them with its
- * own builders (`lib/design/bathroom`, `decor/wcBox`), which the studio's (`decor/housing`) would
- * redo by other formulas. An empty set changes nothing.
+ * kitchen run that is gone. A housing whose piece stands where it was built for it stays as it is —
+ * generation and the studio build with the same builders (`decor/housing`, `decor/wcBox`), so a
+ * generated flat is not redone by the studio's settling. Given `changed` — the ids of the pieces
+ * that were moved, replaced or taken out — only what was built for those (or for a piece no longer
+ * there) is settled again, and every other housing and its piece stay exactly as they were. An
+ * empty set changes nothing.
  */
 export function settleFitted(decor: DecorPiece[], items: PlacedItem[], rooms: readonly PlanRoom[], changed?: ReadonlySet<string>): Fitted {
   const housed = followHoused(decor, items, rooms);
@@ -64,7 +65,7 @@ export function takesHousing(item: PlacedItem, room: Pick<PlanRoom, 'type'>, sty
     case 'column':
       return !vintage;
     case 'vanity':
-      return !vintage && WET_ROOM_TYPES.includes(room.type) && item.size.height < 0.5;
+      return !vintage && WET_ROOM_TYPES.includes(room.type) && item.size.height < COUNTERTOP_BASIN_MAX_M;
     case 'bath':
       return vintage || isBuiltInBath(item.product);
     default:
@@ -92,5 +93,6 @@ export function withFitted(itemId: string, rooms: readonly PlanRoom[], items: Pl
     return next === item ? null : { items: items.map((i) => (i.id === itemId ? next : i)), decor };
   }
   if (!force && !takesHousing(item, room, styleId)) return null;
-  return houseItem(item, rooms, items, decor, face);
+  // Vintage's bath stands in a tiled surround, as generation builds it (`lib/design/bathroom`).
+  return houseItem(item, rooms, items, decor, face, styleId === 'vintage');
 }

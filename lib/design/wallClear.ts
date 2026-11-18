@@ -14,7 +14,7 @@
 
 import { decorFootprint } from './decor/joinery';
 import type { PlanEdge } from './planGeometry';
-import { showerArea } from './shower';
+import { floorTaken, showerArea } from './shower';
 import type { DecorPiece, PlacedItem, PlanRoom } from './types';
 
 export interface WallBlock {
@@ -30,37 +30,59 @@ export interface WallBlock {
   built?: boolean;
 }
 
-/** What never blocks a wall: it lies on the floor, hangs from the ceiling or dresses a window. */
-const NOT_IN_THE_WAY = new Set(['rug', 'door_mat', 'pendant', 'curtain', 'blind']);
+/**
+ * What never stands in front of a wall: it lies on the floor, hangs from the ceiling or dresses a
+ * window. One list for every reader of what stands before a wall — `wallBlocks` here (the fittings,
+ * the radiators, the technical points) and the joinery's `freeStretch` (`decor/joinery.ts`, which
+ * leaves out more of its own: what hangs over joinery and what rides on a piece).
+ */
+export const NOT_IN_THE_WAY: ReadonlySet<string> = new Set(['rug', 'door_mat', 'pendant', 'curtain', 'blind']);
 /** How near a wall a piece stands to be in front of it. */
 export const WALL_REACH_M = 0.45;
+/** How far behind a wall's line a footprint may reach and still be read as standing before it (a wall drawn a little off). */
+const BEHIND_WALL_M = 0.05;
 
 const along = (edge: PlanEdge, p: { x: number; z: number }) => (p.x - edge.a.x) * edge.dir.x + (p.z - edge.a.z) * edge.dir.z;
 const off = (edge: PlanEdge, p: { x: number; z: number }) => (p.x - edge.a.x) * edge.inward.x + (p.z - edge.a.z) * edge.inward.z;
 
-function corners(position: { x: number; z: number }, rotation: number, width: number, depth: number): Array<{ x: number; z: number }> {
+/** A box's four corners on the floor, where it stands turned as it is. */
+export function floorCorners(position: { x: number; z: number }, rotation: number, width: number, depth: number): Array<{ x: number; z: number }> {
   const f = { x: Math.sin(rotation), z: Math.cos(rotation) };
   const r = { x: f.z, z: -f.x };
   return [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([u, v]) => ({ x: position.x + (r.x * u * width) / 2 + (f.x * v * depth) / 2, z: position.z + (r.z * u * width) / 2 + (f.z * v * depth) / 2 }));
+}
+
+/**
+ * What stands in front of a wall, seen along it: where a footprint's corners fall along `edge`
+ * (metres from its first corner, `[lo, hi]`, not clipped to the wall) when it comes within `reach`
+ * of the wall and does not stand behind it. Null when it does not stand in front of it. Every reader
+ * of a wall asks this — `wallBlocks` with the fittings' reach, `freeStretch` with the joinery's depth.
+ */
+export function alongWall(edge: PlanEdge, corners: ReadonlyArray<{ x: number; z: number }>, reach: number): [number, number] | null {
+  const offs = corners.map((p) => off(edge, p));
+  if (Math.min(...offs) > reach || Math.max(...offs) < -BEHIND_WALL_M) return null;
+  const s = corners.map((p) => along(edge, p));
+  return [Math.min(...s), Math.max(...s)];
 }
 
 /** Everything in front of one wall of a room: the furniture within `reach` of it and the decor on it. */
 export function wallBlocks(room: Pick<PlanRoom, 'id' | 'polygon' | 'heightM'>, edge: PlanEdge, items: readonly PlacedItem[], decor: readonly DecorPiece[] = [], reach = WALL_REACH_M): WallBlock[] {
   const blocks: WallBlock[] = [];
   const add = (points: Array<{ x: number; z: number }>, bottom: number, top: number, built = false) => {
-    const offs = points.map((p) => off(edge, p));
-    if (Math.min(...offs) > reach || Math.max(...offs) < -0.05) return;
-    const s = points.map((p) => along(edge, p));
-    const from = Math.max(0, Math.min(...s));
-    const to = Math.min(edge.length, Math.max(...s));
+    const seen = alongWall(edge, points, reach);
+    if (!seen) return;
+    const from = Math.max(0, seen[0]);
+    const to = Math.min(edge.length, seen[1]);
     if (to - from > 0.01) blocks.push({ from, to, bottom, top, ...(built ? { built: true } : {}) });
   };
   for (const item of items) {
     if (item.roomId !== room.id || NOT_IN_THE_WAY.has(item.slot)) continue;
-    // A shower is the floor it takes and the glass round it, not the column at its back.
-    const area = showerArea(item);
-    if (area) add(corners(area.centre, area.rotation, area.width, area.depth), 0, Math.max(2, item.elevationM + item.size.height));
-    else add(corners(item.position, item.rotation, item.size.width, item.size.depth), item.elevationM, item.elevationM + item.size.height);
+    // Each piece as the floor it takes (`floorTaken`, as the joinery reads it): a shower its tray and
+    // the glass round it, to 2 m at least, not the column at its back.
+    const floor = floorTaken(item);
+    const corners = floorCorners(floor.position, floor.rotation, floor.size.width, floor.size.depth);
+    if (showerArea(item)) add(corners, 0, Math.max(2, item.elevationM + item.size.height));
+    else add(corners, item.elevationM, item.elevationM + item.size.height);
   }
   for (const piece of decor) {
     if (piece.roomId !== room.id || piece.wallIndex == null) continue;

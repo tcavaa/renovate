@@ -16,7 +16,7 @@ import { getArchetype, isKitchenMaterial, type Archetype } from './catalog';
 import { roomEdges } from './planGeometry';
 import { seatSlots } from './autoLayout';
 import { asPlacedKitchen, CUSTOM_KITCHEN_SLOTS, kitchenMaterialCandidates } from './kitchen';
-import { KITCHEN_CIRCULATION_M } from './rules';
+import { BASIN_TOP_M, KITCHEN_CIRCULATION_M } from './rules';
 import { styleAffinity } from './styles';
 import { guideFit, styleRejects } from './styleGuide';
 import { seededRng, weightedOrder, weightedPick, type RoomRng, type Rng } from './random';
@@ -915,13 +915,13 @@ export const MATCHED_ABOVE_GAP_M = 0.12;
 
 /**
  * The height a matched piece stands or hangs at. Floor pieces stay on the floor — a basin too
- * short to stand (countertop, wall-hung) is lifted to wash at, its top at 86 cm. A piece on a
+ * short to stand (countertop, wall-hung) is lifted to wash at, its top at `BASIN_TOP_M`. A piece on a
  * wall keeps its middle where the slot's was, and clear of anything standing below it by 12 cm
  * (a print over the bed's headboard); a mirror as tall as a person and deep enough to stand
  * (a floor mirror on its stand) stands on the floor, a flat one hangs 30 cm off it.
  */
 export function settledElevation(item: PlacedItem, size: PlacedItem['size'], product: CatalogProduct, settled: PlacedItem[]): number {
-  if (item.slot === 'sink' && size.height < 0.45) return round2(0.86 - size.height);
+  if (item.slot === 'sink' && size.height < 0.45) return round2(BASIN_TOP_M - size.height);
   const rule = getArchetype(item.kind)?.placement;
   // A hanging lamp hangs from the ceiling by its own length, not through it: its top where the
   // slot's was, its bottom no lower than 1.9 m (1.45 m over a table).
