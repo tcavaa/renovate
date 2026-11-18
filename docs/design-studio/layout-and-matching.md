@@ -208,7 +208,7 @@ scene ──tightSpots──▶ amber warnings (not a rule)
   10 cm over the head (`BLIND_OVER_HEAD_M`, under the ceiling), let down a third of the way
   (`BLIND_LOWERED`), so the room keeps its daylight; it is drawn stretched to that size
   (`fitToItem` measures a curtain's slot per axis). A room with no window draws nothing for either.
-  The AI designer is offered the room's kinds dressed the same way (`programKinds`). The blinds are
+  The AI designer is asked about the window dressing the engine laid (`laidSlots`). The blinds are
   code-built models (`pnpm models:blinds`, [../3d-assets.md](../3d-assets.md)).
 - **A Scandinavian flat has nothing whose main colour is black** (`styleRejects`, `styleGuide.ts`):
   the matcher draws from the rest of a kind (all of it if every candidate is black), the AI designer

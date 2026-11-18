@@ -362,7 +362,9 @@ How stage 4 built it — **bedrooms**:
   the chest of drawers that goes is in nobody's way): with the bed or a nightstand there, the shop's
   wardrobe stays.
 - **Headboard** (B-6): a bed 1.2 m tall or more (`TALL_HEADBOARD_M`) has a headboard of its own; the
-  AI designer's decor anchored on it is dropped (`proposalDecor`).
+  AI designer's decor anchored on it is dropped (`proposalDecor`). The designer is told so per room
+  (`bedText` in `aiDesign.ts`): whether the bed the engine laid takes decor behind it, and which of
+  the beds it is offered are low enough to.
 - **Stool** (B-8): in a bedroom's program from 12 m² (migration 0015 lists the stools on its shelf).
 
 **The AI check and the engine's work**: the room check (`aiReview`) is shown the joinery, the WC's

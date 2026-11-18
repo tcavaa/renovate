@@ -403,22 +403,49 @@ the project opens furnished afterwards.
    `AI_PAUSED`), and writes the job (`designing`, a seed, its `aiCount` — the run it would be).
    It answers 202 at once; everything after runs in `after()` (`afterResponse`).
 3. **The design stage** (`runDesignStage`, after the start's answer, in its function's 300 s):
-   the brief is built from the row's plan (`ensureWalls`, as the browser opens it) and the cached
-   design catalogue (`buildBrief`): per room its outline in words (`outlineText`: rectangular,
+   **the flat is laid out by the engine first** (`layOutFlat` in `generateScene.ts`, from the job's
+   seed and with the calculation's picks: the layout, the matching, the bathroom, hall and bedroom
+   passes, the kitchen's corner, the doors' and windows' products and the WC's boxes — about 40 ms,
+   no call). The layout does not depend on the designer's answer, so the slots it lays are the
+   slots the flat will have, and the designer is briefed on them. The brief is built from the row's
+   plan (`ensureWalls`, as the browser opens it), that flat and the cached design catalogue
+   (`buildBrief`; without a laid-out flat handed to it, it lays one out itself from the seed): per
+   room its outline in words (`outlineText`: rectangular,
    L-shaped — six square corners — or so many corners, a wall drawn as two edges counted as one,
    and the box it fits in), its walls by index (side of the plan, length, doors,
-   windows with sills and heads, clear stretches), the pieces the engine lays out there with 12
-   products per kind — decided by the engine's own gate (`programPiece` in `autoLayout.ts`, run on
-   each half of a studio as the engine furnishes it: the room's size, a bath only where the style
-   takes one, a curtain or a blind only at a window; `programKinds`), 10 floor and 10 wall finishes for the room, every decor material, and the
-   reference library's entries for the style and the room types.
+   windows with sills and heads, clear stretches) and on each wall, in order along it, what stands
+   against it and hangs on it with its stretch and height, the joinery and boxes built there (the
+   hall's wardrobe, a wall of wardrobe, a vanity, a column, a WC's or a bath's box) and **the decor
+   families it takes and the stretch each is fitted to** (`decorFit` in `aiProposal.ts`: a piece of
+   the family asked for on that wall, fitted as the designer's decor is — `resolveDecor`, kept off
+   the joinery by `clearOfBuilt` — at the family's own height; `Offer.decorWalls` records it, a
+   record and not a filter); then **the
+   pieces the engine laid out** there, each a place of its laid size where it stands (against which
+   wall and where along it, hung how high, from the ceiling, under the bed, free in the room), with
+   12 products per kind; 10 floor and 10 wall finishes for the room — what the engine would lay
+   there (`finishCandidates`: the category of the style's own for the room, tiles in a wet room, a
+   closed kitchen and on a balcony), one draw for the lead room and every room that shares the
+   flat's one floor and walls (the same ids in each), and per room which it is ("leads the flat's one floor and walls",
+   "room X's choice is laid here", "a closed kitchen: its own, its floor tiled";
+   [finishes.md](finishes.md)) — for a room with a bed, whether decor goes behind it (`bedText`:
+   the bed the engine laid takes none from `TALL_HEADBOARD_M` up, the rulebook's B-6, and which of the
+   beds offered are low enough to take it), every decor material, and the
+   reference library's entries for the style and the room types. A piece is asked about only where
+   the matcher would take a pick for it (`laidSlots`): a slot it filled with a product of the slot's
+   own kind from the kind's own pool — not one filled by a way out (a three-seat in the corner
+   sofa's place, another style's), not one whose product a pass chose again (the hall's full-height
+   mirror), not one a pass replaced (the coat rack by the hall's wardrobe, the wardrobe by a wall of
+   wardrobe) or left empty, and never the kitchen.
    **Every generation is offered a fresh draw** (the job's seed, logged): the products are drawn
-   at random from what the matcher would take as a pick for the piece (`pickPool`: the kind's pool
-   for the style — the style's own for the big pieces, nothing the style keeps out, `kindPool` —
-   held to what the slot can hold, `slotPool`: a countertop basin on a bathroom's vanity, a flat
-   mirror over the basin, a pendant that clears a head, the bath of the style; measured on the
-   archetypes laid against the room's longest wall, the lamp over the table, as there is no layout
-   yet) that fits the room (`fitsRoom`) — the style's own and the well-priced more likely
+   at random from what the matcher would take as a pick for the piece where it was laid
+   (`laidPool`: `pickPool` on each of the kind's slots as laid, with the pieces matched before it as
+   they were matched — the kind's pool for the style, the style's own for the big pieces, nothing
+   the style keeps out, `kindPool`, held to what the slot can hold, `slotPool`: a countertop basin on
+   a bathroom's vanity, a flat mirror over the basin, a pendant that clears a head, the bath of the
+   style — and, where the engine's own product fits its place keeping clear all the matcher keeps
+   clear, only the products that fit it so too, `placeFitting` with the floor kept clear and every
+   piece as built: there a pick that does not loses to one that does) that fits the room
+   (`fitsRoom`) — the style's own and the well-priced more likely
    (`generationWeight`, weighted sampling without replacement), any of them possible — and so are
    the finishes; the decor materials and each
    reference's concepts come in a random order; and the run gets a **direction**, a palette and
@@ -429,7 +456,13 @@ the project opens furnished afterwards.
    mid-century for modern, traditional, French country, farmhouse or bohemian for vintage), drawn
    when the plate was picked directly — and the system prompt the design rules a designer chooses
    by (palette of 2–3 colours and an accent, light in three layers at the room's colour
-   temperature, curtains from the ceiling, the sizes of a shower, a basin, a wardrobe). What the flat's saved design
+   temperature, curtains from the ceiling, the sizes of a shower, a basin, a wardrobe; the decor's
+   default heights). **The prompts' numbers are the code's** (`DESIGN_PROMPT`, and the check's
+   `REVIEW_PROMPT`): read from `lib/design/rules.ts` (`BASIN_TOP_M`, `SHOWER_MIN_M` and the largest
+   square of `SHOWER_SIZES_M`, `WARDROBE_DEPTH_M` / `SHALLOW_WARDROBE_DEPTH_M`, the light's
+   `WARM_LIGHT_K` / `NEUTRAL_LIGHT_K`, `BLIND_STYLES` / `BLIND_ROOMS`, `KITCHEN_CIRCULATION_M`) and
+   from the decor's own defaults (`defaultHeight` in `resolve.ts`, the niche's depth in
+   `DECOR_FAMILIES`), so a number changed there is changed in what the designer is told. What the flat's saved design
    already uses is drawn far less often (`PREVIOUS_WEIGHT`) and named in the brief, so generating
    again gives a new design. The prompt tells the designer the lists are random and unordered.
    Measured on two flats in one style: 10 of 28 products shared, no finish shared; one flat
@@ -440,10 +473,17 @@ the project opens furnished afterwards.
    designed to be thrown away — the job fails `design:CHANGED`, nothing paid. One Claude call (`DESIGN_MODEL`, adaptive thinking, effort medium,
    server-side refusal fallback, the system prompt cached, structured output against
    `DESIGN_SCHEMA`, let go after `DESIGN_DEADLINE_MS` — 240 s) answers per room: furniture picks,
-   floor, wall, up to three decor intents, a note — in the person's language. `validateProposal`
-   keeps only what was offered — and no tiled field (`tile`) in a bathroom or a toilet: their walls
+   floor, wall, decor intents, a note — in the person's language. `validateProposal`
+   keeps only what was offered — the first `MAX_DECOR_PER_ROOM` (three) usable decor intents — and
+   no tiled field (`tile`) in a bathroom or a toilet: their walls
    are tiled as their wall finish already, so a field over them was the tiling twice (the prompt
-   says so too). The flat is then laid out by **`generateScene`**
+   says so too). Whether a decor piece fits its wall is left to the flat as built, with the
+   designer's picks in it (`proposalDecor`): the picks change the products' sizes from the engine's
+   flat the brief described, so a wall the brief said takes no niche can take one once a narrower
+   piece is picked, and a wall-anchored piece with no wall (-1) goes on the longest clear wall. A room
+   keeps as many pieces as it takes (`maxDecor`: one in a hallway, a kitchen or a bathroom,
+   `MAX_DECOR_PER_ROOM` elsewhere; the prompt says the same), the first asked of those that can be
+   built — one the flat cannot take does not stand in for one it can. The flat is then laid out by **`generateScene`**
    (`lib/design/generateScene.ts`) — the function the browser's store runs for `generate`, from the
    same seed (the job's), so the server's flat is the one the browser would have laid out — and
    written as a design save made on the server (`designWriteColumns`: every product repriced, the
@@ -640,10 +680,15 @@ the next run). The route logs every run's tokens, cost and seed (`ai-generate`).
   piece gives way is the owner's choice.
 - `settleFitted` reads no radiators, so a bath's box generation ran on to a radiator's end is
   re-centred by the studio's settling on the first drag of any piece (3 of 1,440 fixture flats).
-- The designer's offer is held to what the matcher takes for each piece (`pickPool`) on the
-  archetypes laid against the room's longest wall, as there is no layout when it is asked (A3 of the
-  generation audit): a TV slot the layout narrows, a hall mirror the hall pass hangs elsewhere, or a
-  piece that does not fit its real slot can still turn a pick down.
+- The brief is made from the engine's flat, and a pick changes a product's real size: a piece
+  matched after it, which fitted beside the engine's product, can fail to fit beside the pick, and
+  a pass can build round it otherwise. With a stand-in designer that takes one offered product per
+  kind (120 fixture flats), 83 of 3,566 picks were still not taken and 58 kinds offered were not in
+  the flat (most a nightstand, a floor lamp, a dining chair, a TV). Measuring the decor offer the
+  same way, 4 of 561 wall intents on a wall offered for the family were still left out. The other
+  way round, what the brief says a wall takes is the engine's flat: a niche or a panel asked on a
+  wall the brief does not offer it can still be built once the picks leave the stretch, and the
+  flat as built decides (`proposalDecor`).
 
 - A decorative piece (slats, a panel, mouldings…) cannot be added by hand in the studio — it is
   moved, resized, re-materialled or removed; with no key there is none at all. Joinery and boxes are

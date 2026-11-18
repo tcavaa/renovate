@@ -11,7 +11,7 @@ import { reviewWithClaude, type AiReview, type AiReviewUsage } from '@/lib/desig
 import { MAX_AI_GENERATIONS, type AiProposal } from '@/lib/design/aiProposal';
 import { getArchetype } from '@/lib/design/catalog';
 import { picksFromCalculator } from '@/lib/design/fromCalculator';
-import { generateScene, reviewedScene } from '@/lib/design/generateScene';
+import { generateScene, layOutFlat, reviewedScene } from '@/lib/design/generateScene';
 import { DESIGN_DEADLINE_MS, REVIEW_DEADLINE_MS, REVIEW_START_MS, calledDesigner, isLive, isStale, jobError, wroteDesignersFlat, type GenerationJobView, type GenerationStage, type GenerationStatus, type JobErrorCode } from '@/lib/design/generationJob';
 import { randomSeed } from '@/lib/design/random';
 import { ensureWalls } from '@/lib/design/walls';
@@ -31,7 +31,8 @@ import { calculatorPickIds, refusedSceneChange } from '@/lib/plans/sceneGuard';
  *
  * 1. `POST /api/design/ai-generate` starts a job (`startDesignJob`: the design's revision as the
  *    page saved it, the per-design cap counted here, one job at a time) and answers at once; after
- *    the answer `runDesignStage` asks the designer, lays the flat out (`generateScene`, the same
+ *    the answer `runDesignStage` lays the flat out with the engine to brief the designer on it
+ *    (`layOutFlat`), asks the designer, lays the flat out with its answer (`generateScene`, the same
  *    function the browser's store runs), writes it — not yet laid out (`progress.generated` false)
  *    — and starts the check with a request of its own.
  * 2. `POST /api/design/ai-review` (the server's own request, signed with `jobToken`) answers at once;
@@ -203,7 +204,12 @@ export async function runDesignStage(jobId: number, origin: string): Promise<voi
     let proposal: AiProposal | null = null;
     let usage: AiDesignUsage | undefined;
     let designError: string | null = null;
+    const calculatorPicks = calculatorPicksOf(project, saved);
     try {
+      // The flat as the engine lays it out from this run's seed (about 40 ms, no call): its layout
+      // does not depend on the designer's answer, so the designer is briefed on its real slots,
+      // what the matcher takes in each and the walls left free once the joinery is built.
+      const engine = layOutFlat({ plan, styleId: saved.styleId, budgetGel: saved.budgetGel ?? null, catalog, proposal: null, calculatorPicks, seed: job.seed });
       // The flat's design so far (what the person has): offered rarely again, so "generate" a
       // second time is a new design and not the same one reshuffled.
       const previous = {
@@ -219,6 +225,7 @@ export async function runDesignStage(jobId: number, origin: string): Promise<voi
         catalog,
         previous,
         seed: job.seed,
+        engine,
         signal: AbortSignal.timeout(DESIGN_DEADLINE_MS),
       });
       proposal = answer.proposal;
@@ -237,7 +244,7 @@ export async function runDesignStage(jobId: number, origin: string): Promise<voi
       proposal,
       finishes: saved.finishes ?? [],
       electrical: saved.electrical ?? [],
-      calculatorPicks: calculatorPicksOf(project, saved),
+      calculatorPicks,
       seed: job.seed,
       at: new Date().toISOString(),
       // The job's count holds this run; the engine's flat is not one (`wroteDesignersFlat`).

@@ -82,9 +82,11 @@ AI answer is accepted when its total is not worse than the engine's for the same
 style test + budget + plan
    └─▶ POST /api/design/ai-generate  (auth, the design's fee paid, rate limit, maxDuration)
          1. brief: rooms (type, area, polygon as wall list with lengths, doors, windows,
-            technical points), style, quiz answers, budget level and total
+            technical points), style, quiz answers, budget level and total (built: from the
+            flat the engine lays out first, `layOutFlat` — each piece's place, what stands on
+            each wall, the joinery, the decor each wall takes)
          2. candidates: per room × kind the top ~8 products (generationWeight + fit; built: 12
-            drawn from what the matcher takes as a pick, `pickPool`), per room
+            drawn from what the matcher takes as a pick where the piece was laid, `laidPool`), per room
             and surface the top ~10 finishes (generatedFinish's pool) — compact, ids only
          3. Claude (Messages API, structured output against a Zod-derived schema; the catalogue
             part of the prompt cached), one call per flat — rooms in one answer so the flat is

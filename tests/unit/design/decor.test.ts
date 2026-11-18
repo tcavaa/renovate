@@ -6,11 +6,15 @@ import { priceScene } from '@/lib/design/pricing';
 import type { DecorPiece, DesignScene, FloorPlan, PlacedItem, PlanRoom } from '@/lib/design/types';
 import { decorWall, fitMoulding, fitNiche, fitSlats, freeSpans } from '@/lib/design/decor/layout';
 import { decorPurchases, decorUses, piecePurchases, quantityIn } from '@/lib/design/decor/quantities';
-import { decorMaterialFrom, resolveDecor, resolveRoomDecor, sanitizeParams, wallBehind } from '@/lib/design/decor/resolve';
+import { decorMaterialFrom, defaultHeight, resolveDecor, resolveRoomDecor, sanitizeParams, wallBehind } from '@/lib/design/decor/resolve';
 import { decorMaterialKind, isDecorMaterial } from '@/lib/design/decor/materials';
-import { proposalDecor, proposalPicks } from '@/lib/design/aiProposal';
+import { proposalDecor, proposalFinish, proposalPicks } from '@/lib/design/aiProposal';
+import { generateScene } from '@/lib/design/generateScene';
+import { getStyle } from '@/lib/design/styles';
 import { tickFor } from '@/lib/design/ticks';
-import { buildBrief, validateProposal, type Offer } from '@/lib/design/aiDesign';
+import { buildBrief, DESIGN_PROMPT, listText, MAX_DECOR_PER_ROOM, maxDecor, validateProposal, type Offer } from '@/lib/design/aiDesign';
+import { REVIEW_PROMPT } from '@/lib/design/aiReview';
+import { BASIN_TOP_M, BLIND_ROOMS, KITCHEN_CIRCULATION_M, NEUTRAL_LIGHT_K, SHALLOW_WARDROBE_DEPTH_M, SHOWER_MIN_M, WARDROBE_DEPTH_M, WARM_LIGHT_K } from '@/lib/design/rules';
 
 function room(openings: PlanRoom['openings'] = [], polygon = [{ x: 0, z: 0 }, { x: 4, z: 0 }, { x: 4, z: 3.5 }, { x: 0, z: 3.5 }]): PlanRoom {
   return refreshRoom({ id: 'r1', type: 'bedroom', name: 'Bedroom', polygon, heightM: 2.7, areaM2: 0, perimeterM: 0, openings });
@@ -332,6 +336,135 @@ describe('checking the designer\'s answer', () => {
 
   it('refuses an answer with nothing usable', () => {
     expect(() => validateProposal({ rooms: [] }, plan, offer, 'm')).toThrow();
+  });
+
+  it('builds one decor piece in a hall, a kitchen or a bathroom, as the prompt says — the first asked that can be built — and three elsewhere (A7)', () => {
+    const piece = (family: string, wallIndex: number) => ({ family, referenceId: '', concept: '', anchor: 'wall', wallIndex, widthM: 0, heightFromM: -1, heightToM: -1, params: auto, materials: [], note: '' });
+    // The first of five is not usable (an unknown family): the first three usable ones are kept.
+    const answer = (roomId: string) => ({ rooms: [{ roomId, note: '', furniture: [], floor: 0, wall: 0, decor: [piece('spaceship', 0), piece('slab', 0), piece('slab', 1), piece('slab', 2), piece('slab', 3)] }] }) as never;
+    expect(validateProposal(answer(r.id), plan, offer, 'm').rooms[0].decor.map((d) => d.wallIndex)).toEqual([0, 1, 2]);
+    expect(maxDecor('living_room')).toBe(MAX_DECOR_PER_ROOM);
+    // The bed stands against the north wall: a niche asked there cannot be built.
+    const north = northIndex(r);
+    const other = (north + 2) % 4;
+    const asked = { rooms: [{ roomId: r.id, note: '', furniture: [], floor: 0, wall: 0, decor: [piece('niche', north), piece('slab', other), piece('slab', (north + 1) % 4)] }] } as never;
+    for (const type of ['hallway', 'kitchen', 'bathroom'] as const) {
+      const typed = { rooms: [{ ...r, type }] } as FloorPlan;
+      const built = proposalDecor(typed, validateProposal(asked, typed, offer, 'm'), [bed(r)], CATALOG);
+      expect(built.map((d) => `${d.family}@${d.wallIndex}`), type).toEqual([`slab@${other}`]);
+    }
+    expect(proposalDecor(plan, validateProposal(answer(r.id), plan, offer, 'm'), [], CATALOG)).toHaveLength(MAX_DECOR_PER_ROOM);
+  });
+
+  it('leaves a niche or a panel asked on a wall to the flat as built, which the designer’s picks may change (W9)', () => {
+    // The brief, from the engine's flat, offered wall 1 for slats only; the flat as built leaves it clear.
+    const offered: Offer = { ...offer, decorWalls: new Map([[r.id, new Map([[0, new Set(['niche', 'panel', 'slats'] as const)], [1, new Set(['slats'] as const)]])]]) };
+    const piece = (family: string, wallIndex: number) => ({ family, referenceId: '', concept: '', anchor: 'wall', wallIndex, widthM: 0, heightFromM: -1, heightToM: -1, params: auto, materials: [], note: '' });
+    const answer = { rooms: [{ roomId: r.id, note: '', furniture: [], floor: 0, wall: 0, decor: [piece('niche', 1), piece('panel', -1)] }] } as never;
+    const proposal = validateProposal(answer, plan, offered, 'm', 'modern');
+    // A wall-anchored piece with no wall (-1) goes on the room's longest clear wall.
+    expect(proposal.rooms[0].decor.map((d) => `${d.family}@${d.wallIndex}`)).toEqual(['niche@1', 'panel@null']);
+    const built = proposalDecor(plan, proposal, [], CATALOG);
+    expect(built.map((d) => d.family)).toEqual(['niche', 'panel']);
+    expect(built[0].wallIndex).toBe(1);
+  });
+});
+
+describe('the designer’s prompts read their numbers from the rules (A7)', () => {
+  const cm = (m: number) => Math.round(m * 100);
+  it('tells the designer the rules’ sizes, light and window dressing', () => {
+    expect(DESIGN_PROMPT).toContain(`a basin's top at ${cm(BASIN_TOP_M)} cm`);
+    expect(DESIGN_PROMPT).toContain(`a shower at least ${cm(SHOWER_MIN_M)}×${cm(SHOWER_MIN_M)} cm`);
+    expect(DESIGN_PROMPT).toContain(`a wardrobe ${cm(WARDROBE_DEPTH_M)} cm deep (${cm(SHALLOW_WARDROBE_DEPTH_M)} cm when shallow)`);
+    expect(DESIGN_PROMPT).toContain(`warm (${WARM_LIGHT_K.min}–${WARM_LIGHT_K.max} K)`);
+    expect(DESIGN_PROMPT).toContain(`neutral (${NEUTRAL_LIGHT_K.min}–${NEUTRAL_LIGHT_K.max} K)`);
+    expect(DESIGN_PROMPT).toContain(`over every ${listText(BLIND_ROOMS.map((t) => `${t}'s`))} window`);
+    expect(DESIGN_PROMPT).toContain(`Never more than ${MAX_DECOR_PER_ROOM} in a room`);
+  });
+
+  it('tells it the decor’s default heights as the engine fits them', () => {
+    const band = (family: 'slab' | 'panel', anchor: 'tv' | 'bed') => defaultHeight(family, anchor, Infinity);
+    expect(DESIGN_PROMPT).toContain(`a slab behind a TV ${band('slab', 'tv').from}–${band('slab', 'tv').to} m`);
+    expect(DESIGN_PROMPT).toContain(`an upholstered headboard panel ${band('panel', 'bed').from}–${band('panel', 'bed').to} m`);
+    expect(DESIGN_PROMPT).toContain(`a tiled field up to ${defaultHeight('tile', 'wall', Infinity).to} m`);
+  });
+
+  it('tells the check the kitchen’s clear floor', () => {
+    expect(REVIEW_PROMPT).toContain(`${KITCHEN_CIRCULATION_M} m in front of the run stays clear`);
+  });
+});
+
+describe('the designer is offered the finishes the engine lays (F4)', () => {
+  const style = getStyle('modern');
+  const finish = (id: number, categorySlug: string, surfaces: Array<'floor' | 'wall'>, wet = false, textureUrl = `/textures/f${id}.webp`): CatalogProduct => ({ ...material(id, 'wood', 'm2', 40 + id), categorySlug, slug: `f${id}`, textureUrl, specs: { surfaces, wet } });
+  const at = (id: string, type: PlanRoom['type'], x: number, w: number, d: number, openings: PlanRoom['openings'] = []) =>
+    refreshRoom({ id, type, name: id, polygon: [{ x, z: 0 }, { x: x + w, z: 0 }, { x: x + w, z: d }, { x, z: d }], heightM: 2.7, areaM2: 0, perimeterM: 0, openings });
+  const plan = {
+    rooms: [
+      at('bed', 'bedroom', 0, 3.5, 3.5),
+      at('liv', 'living_room', 4, 5, 4),
+      at('kit', 'kitchen', 10, 3, 3),
+      at('bal', 'balcony', 14, 3, 1.2),
+      at('wc', 'bathroom', 18, 2, 2),
+    ],
+  } as FloorPlan;
+  const catalog = [
+    finish(10, 'laminate', ['floor'], false, style.surfaces.floor.textureUrl ?? undefined),
+    finish(11, 'laminate', ['floor']),
+    finish(12, 'carpet', ['floor']),
+    finish(13, 'carpet', ['floor']),
+    finish(20, 'floor-tiles', ['floor'], true, style.surfaces.wetFloor.textureUrl ?? undefined),
+    finish(21, 'floor-tiles', ['floor'], true),
+    finish(22, 'floor-tiles', ['floor']),
+    finish(30, 'paint', ['wall'], false, style.surfaces.wall.textureUrl ?? undefined),
+    finish(31, 'paint', ['wall']),
+    finish(40, 'wall-tiles', ['wall'], true, style.surfaces.wetWall.textureUrl ?? undefined),
+  ];
+  const { offer, text } = buildBrief({ plan, styleId: 'modern', locale: 'en', catalog, seed: 2 });
+  const floors = (id: string) => [...(offer.floors.get(id) ?? [])].sort();
+
+  it('offers a closed kitchen and a balcony tiles, not the living room’s carpet, and a bathroom wet tiles', () => {
+    for (const id of ['kit', 'bal']) {
+      expect(floors(id).length, id).toBeGreaterThan(0);
+      for (const p of floors(id)) expect(catalog.find((c) => c.id === p)?.categorySlug, id).toBe('floor-tiles');
+    }
+    expect(floors('wc')).toEqual([20, 21]);
+  });
+
+  it('offers every room that shares the flat’s floor the lead room’s lists, and says which room leads and which kitchen is closed', () => {
+    expect(floors('liv')).toEqual([10, 11]);
+    expect(floors('bed')).toEqual(floors('liv'));
+    expect([...(offer.walls.get('bed') ?? [])].sort()).toEqual([...(offer.walls.get('liv') ?? [])].sort());
+    expect(text).toMatch(/this room leads the flat's one floor and walls/);
+    expect(text).toMatch(/room liv's choice is laid here/);
+    expect(text).toMatch(/a closed kitchen: its own, its floor tiled/);
+  });
+
+  it('offers the lead room the very lists the rooms that share its floor get, where there are more finishes than it draws (F4)', () => {
+    // More laminates and paints than the ten drawn per surface: two draws would differ.
+    const many = [
+      ...catalog,
+      ...Array.from({ length: 16 }, (_, i) => finish(100 + i, 'laminate', ['floor'])),
+      ...Array.from({ length: 16 }, (_, i) => finish(200 + i, 'paint', ['wall'])),
+    ];
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const { offer } = buildBrief({ plan, styleId: 'modern', locale: 'en', catalog: many, seed });
+      const of = (map: Map<string, Set<number>>, id: string) => [...(map.get(id) ?? [])].sort((a, b) => a - b);
+      expect(of(offer.floors, 'liv').length, `seed ${seed}`).toBeGreaterThan(0);
+      expect(of(offer.floors, 'bed'), `seed ${seed}`).toEqual(of(offer.floors, 'liv'));
+      expect(of(offer.walls, 'bed'), `seed ${seed}`).toEqual(of(offer.walls, 'liv'));
+    }
+  });
+
+  it('lays the lead room’s choice through the rooms that share it, and the closed kitchen’s own', () => {
+    const proposal = validateProposal({ rooms: [{ roomId: 'liv', note: '', furniture: [], floor: 11, wall: 0, decor: [] }, { roomId: 'bed', note: '', furniture: [], floor: 11, wall: 0, decor: [] }, { roomId: 'kit', note: '', furniture: [], floor: floors('kit')[0], wall: 0, decor: [] }] } as never, plan, offer, 'm', 'modern');
+    const scene = generateScene({ plan, styleId: 'modern', budgetGel: null, catalog, proposal, finishes: [], electrical: [], seed: 2, at: 'now', aiCount: 1 });
+    const floorOf = (id: string) => scene.finishes.find((f) => f.roomId === id && f.surface === 'floor')?.product?.productId;
+    expect(floorOf('liv')).toBe(11);
+    expect(floorOf('bed')).toBe(11);
+    expect(floorOf('kit')).toBe(floors('kit')[0]);
+    // A carpet is no finish the engine lays in a kitchen: refused.
+    expect(proposalFinish(plan.rooms[2], 'floor', 12, 'modern', catalog, plan.rooms)).toBeNull();
   });
 });
 

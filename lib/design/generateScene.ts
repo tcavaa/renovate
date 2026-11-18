@@ -16,7 +16,7 @@ import type { AiReview } from './aiReview';
 import { layoutPlan } from './autoLayout';
 import { suggestElectrical, withFixtureProducts } from './electrical';
 import { applyBoardPicks, applyFinishPicks, applyFurniturePicks, type CalculatorPicks } from './fromCalculator';
-import { budgetLevel, matchProducts, type CatalogProduct, type MatchOptions } from './matcher';
+import { budgetLevel, matchProducts, type BudgetLevel, type CatalogProduct, type MatchOptions } from './matcher';
 import { fitBathrooms } from './bathroom';
 import { fitHall } from './hall';
 import { fitWardrobes } from './bedroom';
@@ -32,7 +32,7 @@ import { radiatorBodies } from './radiators';
 import { entranceSightBands, underCeiling, type Quad } from './rules';
 import type { Footprint, KeepClear } from './manipulate';
 import { isBaseFinish } from './zones';
-import type { DecorPiece, ElectricalPoint, FloorPlan, GenerationRecord, PlacedItem, StyleId, SurfaceFinish } from './types';
+import type { DecorPiece, ElectricalPoint, FloorPlan, GenerationRecord, PlacedItem, PlanRoom, StyleId, SurfaceFinish } from './types';
 import { wcBoxes } from './decor/wcBox';
 
 export interface GenerateSceneInput {
@@ -66,7 +66,38 @@ export interface GeneratedScene {
   generation: GenerationRecord;
 }
 
-export function generateScene(input: GenerateSceneInput): GeneratedScene {
+/**
+ * The flat laid out and furnished before anything is finished, decorated or wired: the slots the
+ * layout engine laid (`placed`), the products matched to them — the AI designer's picks where they
+ * fit — with what the bathroom, hall and bedroom passes built round them and the kitchen turned
+ * round its corner (`items`), the calculation's furniture picks applied, and the joinery and boxes
+ * built (`built`: the hall's wardrobe, a wall of wardrobe, a vanity, a column, a bath's box, the
+ * WC's box). What `generateScene` lays its finishes, decor and fittings over — and, with no
+ * proposal, the engine's flat the AI designer is briefed from (`buildBrief`): the layout does not
+ * depend on the designer's answer, so the slots it names are the slots the flat will have.
+ */
+export interface LaidOutFlat {
+  /** The plan with the partitions the app adds. */
+  plan: FloorPlan;
+  /** That plan with its doors and windows as products. */
+  laid: FloorPlan;
+  /** The rooms as laid out: under the ceiling (`underCeiling`). */
+  rooms: PlanRoom[];
+  /** The slots as the layout engine laid them, at the archetypes' sizes, before any product. */
+  placed: PlacedItem[];
+  /** The slots as the matcher filled them, before the passes built round them (in `placed`'s order). */
+  matched: PlacedItem[];
+  /** The pieces as matched and fitted: what stands in the flat before the decor and the tidy-up. */
+  items: PlacedItem[];
+  /** The joinery and the boxes built (cabinets, then the WC's boxes). */
+  built: DecorPiece[];
+  /** The budget level the flat is matched at (`budgetLevel`). */
+  level: BudgetLevel;
+  /** The floor kept clear it was laid out with, per room. */
+  kept: Record<string, KeepClear[]>;
+}
+
+export function layOutFlat(input: Pick<GenerateSceneInput, 'plan' | 'styleId' | 'budgetGel' | 'catalog' | 'proposal' | 'calculatorPicks' | 'seed'>): LaidOutFlat {
   const { styleId, budgetGel, catalog, proposal = null, calculatorPicks = null } = input;
   // The partitions the app adds (the entrance out of the living room's sight, an en-suite's lobby),
   // before anything is laid out round them; the floor behind each stays free.
@@ -96,10 +127,11 @@ export function generateScene(input: GenerateSceneInput): GeneratedScene {
     return { kept: clear, placed: laid, matchOptions: options, items: withoutOrphans(laid, placeableOnly(matchProducts(laid, catalog, options)), underCeilings) };
   });
   let items = matched;
+  const level = budgetLevel(placed, catalog, matchOptions);
   // The bathrooms finished as a joiner and a plumber would (the rulebook): a vanity made to measure
   // under the basin, a tap on it, the washer's column (a dryer on the machine at the top budget), the
   // bath boxed or enclosed and its mixer at its head.
-  const fitted = fitBathrooms({ rooms: underCeilings, items, catalog, styleId, level: budgetLevel(placed, catalog, matchOptions), roomRng: roomStreams(streams, 'bathroom'), keepClear: kept, radiators: radiatorBodies(plan) });
+  const fitted = fitBathrooms({ rooms: underCeilings, items, catalog, styleId, level, roomRng: roomStreams(streams, 'bathroom'), keepClear: kept, radiators: radiatorBodies(plan) });
   items = fitted.items;
   // The hall's built-in wardrobe by the front door (coats, the boiler's cupboard, shoes) and the
   // full-height mirror across from it.
@@ -111,28 +143,34 @@ export function generateScene(input: GenerateSceneInput): GeneratedScene {
   // A kitchen whose run is short of a kitchen turns the corner where the next wall is free (an
   // L-shaped kitchen): more of the same kitchen along the next wall, and its wall cabinets.
   items = fitKitchenCorners(underCeilings, items, [...fitted.decor, ...hall.decor, ...wardrobes.decor], radiators);
+  if (calculatorPicks) items = withoutOrphans(items, placeableOnly(applyFurniturePicks(items, plan, calculatorPicks, catalog, kept)), plan.rooms);
+  // Every door and window is bought as a product where the catalogue has one.
+  const rooms = withOpeningProducts(plan.rooms, catalog, styleId);
+  const laid = rooms !== plan.rooms ? { ...plan, rooms } : plan;
+  // A box behind every WC for its concealed cistern (the design rules), whoever designed the rest.
+  const boxes = wcBoxes(laid.rooms, items, catalog);
+  return { plan, laid, rooms: underCeilings, placed, matched, items, built: [...fitted.decor, ...hall.decor, ...wardrobes.decor, ...boxes], level, kept };
+}
+
+export function generateScene(input: GenerateSceneInput): GeneratedScene {
+  const { styleId, catalog, proposal = null, calculatorPicks = null } = input;
+  const { plan, laid, items: furnished, built } = layOutFlat(input);
+  let items = furnished;
+  const streams = rngStreams(input.seed);
   // Every floor and wall is the style's product for its room — tiles in the bathroom, laminate
   // and paint elsewhere — so the budget buys what the flat is shown in. Re-laying out the
   // furniture is not a reason to lose the tiles someone picked. The designer's floors and walls
   // replace the style's own draw.
   let finishes = withFlatFinish(withProposalFinishes(keepChosen(defaultFinishes(plan, styleId, catalog, undefined, roomStreams(streams, 'finish')), input.finishes), plan, proposal, styleId, catalog), plan.rooms, catalog);
-  if (calculatorPicks) {
-    items = withoutOrphans(items, placeableOnly(applyFurniturePicks(items, plan, calculatorPicks, catalog, kept)), plan.rooms);
-    finishes = applyFinishPicks(finishes, plan, calculatorPicks, catalog);
-  }
+  if (calculatorPicks) finishes = applyFinishPicks(finishes, plan, calculatorPicks, catalog);
   // The wiring follows the furniture; a room the person wired by hand — on this board or on the
   // calculation's — is kept whole. Points from before origins were recorded go, as they always
-  // did. Every fitting is bought as a product where the catalogue has one — and so is every door
-  // and window.
+  // did. Every fitting is bought as a product where the catalogue has one.
   const known = input.electrical.filter((p) => p.origin === 'user' || p.origin === 'generated');
-  const rooms = withOpeningProducts(plan.rooms, catalog, styleId);
-  const laid = rooms !== plan.rooms ? { ...plan, rooms } : plan;
-  // A box behind every WC for its concealed cistern (the design rules), whoever designed the rest.
-  const boxes = wcBoxes(laid.rooms, items, catalog);
   // The designer's wall decor, measured against where the engine put the bed, the sofa, the TV
   // unit, and kept off the joinery and the boxes it built (`proposalDecor`). An engine generation has none.
-  const designed = proposalDecor(laid, proposal, items, catalog, [...fitted.decor, ...hall.decor, ...wardrobes.decor, ...boxes]);
-  const decor = [...designed, ...fitted.decor, ...hall.decor, ...wardrobes.decor, ...boxes];
+  const designed = proposalDecor(laid, proposal, items, catalog, built);
+  const decor = [...designed, ...built];
   // Wired once the joinery and the decor stand, so no switch or general socket lands behind a
   // wardrobe (`standardFor`).
   const wired = withFixtureProducts(suggestElectrical(plan, items, known, styleId, decor), catalog, styleId, plan.rooms, items);

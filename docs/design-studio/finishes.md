@@ -176,7 +176,14 @@ its finish, and a product that may not be laid in the room is not (`mayLay`: a w
 what is made for one; "wet" — `specs.wet` — says a tile may go in a bathroom, not that it may go
 nowhere else, so a terracotta or a terrazzo flagged wet floors the balcony or the kitchen its style
 names it for). `defaultFinishes`
-and `generateScene` both end with it, the AI designer's floors and walls included.
+and `generateScene` both end with it, the AI designer's floors and walls included. **The AI
+designer is offered what the engine lays** (`finishCandidates` in `aiProposal.ts`): for each room
+and surface the finishes of the category of the style's own for it (`styleFinishProduct` — tiles in
+a wet room, a closed kitchen and on a balcony, the room's paint, the living room's laminate — what
+`generatedFinish` draws from), `mayLay` held; a room that shares the flat's floor and walls is
+offered the lead room's lists, since the lead's choice is what `withFlatFinish` lays in it, and the
+brief says which room leads, which rooms follow it and which kitchen is closed. A designer's floor
+or wall outside those lists is refused (`proposalFinish`).
 
 **The style's own floors and walls are partner products, and the budget buys them.** The
 textures the styles lay are the textures of `textures:stock` products (modern's bathroom walls

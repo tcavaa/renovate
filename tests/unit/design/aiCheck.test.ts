@@ -4,11 +4,11 @@ import { wcBoxes } from '@/lib/design/decor/wcBox';
 import { buildReviewBrief, reviewFindings, validateReview, type ReviewOffer } from '@/lib/design/aiReview';
 import { buildBrief, outlineText, programKinds } from '@/lib/design/aiDesign';
 import type { CatalogProduct } from '@/lib/design/matcher';
-import { reviewedScene } from '@/lib/design/generateScene';
-import { applyReviewFixes, proposalDecor, type AiProposal } from '@/lib/design/aiProposal';
+import { generateScene, reviewedScene } from '@/lib/design/generateScene';
+import { applyReviewFixes, proposalDecor, TALL_HEADBOARD_M, type AiProposal } from '@/lib/design/aiProposal';
 import type { DecorIntent } from '@/lib/design/decor/resolve';
 import { suggestElectrical } from '@/lib/design/electrical';
-import { refreshRoom } from '@/lib/design/planGeometry';
+import { refreshRoom, roomEdges } from '@/lib/design/planGeometry';
 import { footprintOf, footprintsOverlap } from '@/lib/design/manipulate';
 import type { DecorPiece, FloorPlan, Opening, PlacedItem, PlanRoom, Vec2 } from '@/lib/design/types';
 import { sceneDefects } from '../../helpers/sceneChecks';
@@ -314,6 +314,86 @@ describe('the designer is offered what the matcher takes as a pick (A1)', () => 
     const sofa = { ...item('l', 'sofa', 'sofa_3seat', 2.5, 0.5, { width: 2.2, depth: 0.95, height: 0.85 }, 0, 0, 'sofa'), product: { ...sceneProduct(9, 'sofa'), productId: 9 } as PlacedItem['product'] };
     const { offer: alternatives } = buildReviewBrief({ plan, items: [sofa], styleId: 'modern', locale: 'en', catalog: [...catalog, product(9, 'sofa_3seat', 220, 95, 85, 'modern')], seed: 1 });
     expect([...(alternatives.alternatives.get('sofa') ?? [])]).toEqual([7]);
+  });
+});
+
+describe('the designer is briefed from the flat the engine laid out (A3)', () => {
+  // A bedroom 4 × 3.5 m: the bed's place against the near wall, a wardrobe beside it to the corner,
+  // built-in cabinets the whole length of the far wall, the door in the left wall.
+  const bedroom = room('r', 'bedroom', 4, 3.5, [{ kind: 'door', wallIndex: 3, t: 0.5, widthM: 0.8, heightM: 2.05, sillM: 0, exterior: false }]);
+  const edges = roomEdges(bedroom.polygon);
+  const near = edges.find((e) => e.inward.z > 0.5)!;
+  const far = edges.find((e) => e.inward.z < -0.5)!;
+  const right = edges.find((e) => e.inward.x < -0.5)!;
+  const plan = planOf(bedroom);
+  const slot = (id: string, kind: string, x: number, z: number, size: PlacedItem['size']): PlacedItem => ({ ...item('r', id, kind, x, z, size), product: null });
+  const bedSlot: PlacedItem = { ...slot('bed', 'bed_double', 1.8, 1.02, { width: 1.6, depth: 2, height: 1 }), slot: 'bed' };
+  const wardrobeSlot = slot('wardrobe', 'wardrobe', 3.5, 0.32, { width: 1, depth: 0.6, height: 2.1 });
+  const withProduct = (s: PlacedItem, id: number) => ({ ...s, product: { ...sceneProduct(id, s.kind), productId: id } as PlacedItem['product'] });
+  const matched = [withProduct(bedSlot, 11), withProduct(wardrobeSlot, 21)];
+  const cabinets: DecorPiece = { id: 'decor-r-wardrobe', roomId: 'r', family: 'cabinet', wallIndex: far.index, span: { from: 0, to: 4 }, height: { from: 0, to: 2.4 }, params: { depthMm: 600 }, materials: {}, anchor: 'joinery' };
+  const engine = { plan, laid: plan, rooms: [bedroom], placed: [bedSlot, wardrobeSlot], matched, items: matched, built: [cabinets], level: 'balanced' as const, kept: {} };
+  const catalog = [
+    product(11, 'bed_double', 160, 200, 100), // the engine's bed
+    product(12, 'bed_double', 180, 210, 110), // fits its place too
+    product(13, 'bed_double', 260, 210, 110), // fits the room's box, not its place: it would stand in the wardrobe
+    product(21, 'wardrobe', 100, 60, 210),
+    product(31, 'dresser', 100, 45, 80), // the room's program has a dresser; the engine laid none
+  ];
+  const brief = buildBrief({ plan, styleId: 'modern', locale: 'en', catalog, seed: 1, engine });
+
+  it('asks only about the pieces laid, offering what fits each where it was laid', () => {
+    expect([...(brief.offer.furniture.get('r')?.keys() ?? [])].sort()).toEqual(['bed_double', 'wardrobe']);
+    expect([...(brief.offer.furniture.get('r')?.get('bed_double') ?? [])].sort()).toEqual([11, 12]);
+    expect(brief.text).toMatch(new RegExp(`bed_double, a 160×200 cm place against wall ${near.index} at 1–2\\.6 m`));
+  });
+
+  it('names what stands on each wall and what is built in, and offers decor only where it would be fitted', () => {
+    expect(brief.text).toMatch(new RegExp(`against it: bed double 1–2\\.6 \\(1 m high\\), wardrobe 3–4`));
+    expect(brief.text).toMatch(/built in: built-in cabinets 0–4 m, up to 2\.4 m/);
+    const walls = brief.offer.decorWalls!.get('r')!;
+    // Slats on the cabinets' wall would stand behind them: left out, so not offered there.
+    expect(walls.get(far.index)?.has('slats')).toBe(false);
+    expect(walls.get(right.index)?.has('slats')).toBe(true);
+    // A niche is built out from the wall: never where the bed and the wardrobe stand.
+    expect(walls.get(near.index)?.has('niche')).toBe(false);
+    expect(walls.get(right.index)?.has('niche')).toBe(true);
+  });
+
+  it('says whether the bed takes decor behind it, and which beds offered would (W5)', () => {
+    expect(brief.text).toMatch(/Decor behind the bed \(anchor bed\): the bed laid here \(1 m tall\) takes decor behind it; every bed offered is under 1\.2 m and takes it\./);
+    // A bed with a tall headboard laid, and one bed offered low enough for slats over it.
+    const tallBed = { ...matched[0], size: { ...matched[0].size, height: TALL_HEADBOARD_M + 0.05 } };
+    const shop = [product(11, 'bed_double', 160, 200, 100), product(12, 'bed_double', 180, 210, 130), product(21, 'wardrobe', 100, 60, 210)];
+    const tall = buildBrief({ plan, styleId: 'modern', locale: 'en', catalog: shop, seed: 1, engine: { ...engine, matched: [tallBed, matched[1]], items: [tallBed, matched[1]] } });
+    expect(tall.text).toMatch(/the bed laid here \(1\.25 m tall\) has a headboard of its own \(a bed 1\.2 m tall or more does\) and takes no decor behind it; of the beds offered, only 11 are under 1\.2 m and take it\./);
+  });
+
+  it('gets every pick it offers taken, on the flat generated from the same seed', () => {
+    const living = room('l', 'living_room', 5.2, 3.6, [{ kind: 'door', wallIndex: 3, t: 0.8, widthM: 0.9, heightM: 2.05, sillM: 0, exterior: false }, { kind: 'window', wallIndex: 1, t: 0.5, widthM: 1.4, heightM: 1.4, sillM: 0.9, exterior: true }]);
+    const flat = planOf(living, room('b', 'bedroom', 3.4, 3.1, [{ kind: 'door', wallIndex: 2, t: 0.3, widthM: 0.8, heightM: 2.05, sillM: 0, exterior: false }]));
+    const shop = [
+      ...[180, 200, 220, 240, 260, 290, 320].map((w, i) => product(100 + i, 'sofa_3seat', w, 95, 85)),
+      ...[100, 140, 180, 220].map((w, i) => product(120 + i, 'tv_unit', w, 45, 50)),
+      ...[90, 120, 150].map((w, i) => product(130 + i, 'coffee_table', w, 60, 40)),
+      ...[140, 160, 180, 200, 240].map((w, i) => product(140 + i, 'bed_double', w, 210, 100)),
+      ...[40, 50, 60].map((w, i) => product(150 + i, 'nightstand', w, 40, 50)),
+      ...[80, 120, 160, 200].map((w, i) => product(160 + i, 'wardrobe', w, 60, 210)),
+    ];
+    let picks = 0;
+    for (let seed = 1; seed <= 6; seed++) {
+      const { offer } = buildBrief({ plan: flat, styleId: 'modern', locale: 'en', catalog: shop, seed });
+      const proposal: AiProposal = { model: 'm', rooms: [...offer.furniture].map(([roomId, kinds]) => ({ roomId, note: null, floor: null, wall: null, decor: [], furniture: [...kinds].map(([kind, ids]) => ({ kind, productId: [...ids][seed % ids.size] })) })) };
+      const scene = generateScene({ plan: flat, styleId: 'modern', budgetGel: null, catalog: shop, proposal, finishes: [], electrical: [], seed, at: 'now', aiCount: 1 });
+      for (const room of proposal.rooms) {
+        for (const pick of room.furniture) {
+          picks++;
+          const laid = scene.items.filter((i) => i.roomId === room.roomId && i.kind === pick.kind);
+          expect(laid.map((i) => i.product?.productId), `${seed} ${room.roomId} ${pick.kind}`).toContain(pick.productId);
+        }
+      }
+    }
+    expect(picks).toBeGreaterThan(20);
   });
 });
 

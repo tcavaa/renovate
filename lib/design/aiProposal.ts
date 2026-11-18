@@ -18,8 +18,8 @@ import { decorDepth, fitLight, paramsOf } from './decor/layout';
 import { blocksWindow, clampInsideRoom, fitSwapped, footprintInRoom, footprintOf, footprintsOverlap, inDoorway, isPlacementValid, pieceWall, type Footprint } from './manipulate';
 import { roomEdges, type PlanEdge } from './planGeometry';
 import type { AiReview } from './aiReview';
-import { finishFromProduct, isWetRoomType, surfaceOptions, surfaceSpecs } from './surfaces';
-import type { DecorPiece, DecorSlot, ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, SlotKind, StyleId, SurfaceFinish, Vec2 } from './types';
+import { finishFromProduct, flatFinishRoom, mayLay, sharesFlatFinish, styleFinishProduct, surfaceOptions } from './surfaces';
+import type { DecorFamily, DecorPiece, DecorSlot, ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, SlotKind, StyleId, SurfaceFinish, Vec2 } from './types';
 import type { RoomType } from '@/lib/calculator/types';
 import { COVERS_WALL, overlaps, reanchorDecor, resolveDecor, resolveRoomDecor, type DecorIntent } from './decor/resolve';
 import { underCeiling } from './rules';
@@ -49,19 +49,30 @@ export function proposalPicks(proposal: AiProposal | null | undefined): Record<s
   return picks;
 }
 
-/** The finishes a surface of a room may wear: the right surface, as wet or dry as the room. */
-export function finishCandidates(catalog: CatalogProduct[], room: PlanRoom, surface: 'floor' | 'wall', styleId: StyleId): CatalogProduct[] {
-  const wet = isWetRoomType(room.type);
-  return surfaceOptions(catalog, surface, room, styleId).filter((p) => !!surfaceSpecs(p).wet === wet);
+/**
+ * The finishes a surface of a room may wear in a designed flat: what the engine would lay there —
+ * the finishes of the category of the style's own for the room (`styleFinishProduct`: tiles in a
+ * wet room, a closed kitchen and on a balcony, the room's paint, the living room's laminate), only
+ * what is made for a wet room in one (`mayLay`), as `generatedFinish` draws them. A room that shares
+ * the flat's one floor and walls (`sharesFlatFinish`, given the flat's `rooms`) wears the lead
+ * room's (`flatFinishRoom`) — laid through all of them (`withFlatFinish`) — so it is offered the
+ * lead's. None where the catalogue has nothing the style would lay there.
+ */
+export function finishCandidates(catalog: CatalogProduct[], room: PlanRoom, surface: 'floor' | 'wall', styleId: StyleId, rooms: readonly PlanRoom[] = []): CatalogProduct[] {
+  const from = (sharesFlatFinish(room) ? flatFinishRoom([...rooms]) : null) ?? room;
+  const own = styleFinishProduct(catalog, from, surface, styleId);
+  if (!own) return [];
+  return surfaceOptions(catalog, surface, from, styleId).filter((p) => p.categorySlug === own.categorySlug && mayLay(p, from) && mayLay(p, room));
 }
 
 /**
  * The designer's floor or wall for a room as a finish laid by the style (`origin: 'style'`,
- * `laidFor`): a product the room may wear, or null to keep what the engine drew.
+ * `laidFor`): a product the room may wear (`finishCandidates`, given the flat's `rooms`), or null to
+ * keep what the engine drew.
  */
-export function proposalFinish(room: PlanRoom, surface: 'floor' | 'wall', productId: number | null, styleId: StyleId, catalog: CatalogProduct[]): SurfaceFinish | null {
+export function proposalFinish(room: PlanRoom, surface: 'floor' | 'wall', productId: number | null, styleId: StyleId, catalog: CatalogProduct[], rooms: readonly PlanRoom[] = []): SurfaceFinish | null {
   if (productId == null) return null;
-  const product = finishCandidates(catalog, room, surface, styleId).find((p) => p.id === productId);
+  const product = finishCandidates(catalog, room, surface, styleId, rooms).find((p) => p.id === productId);
   if (!product) return null;
   return { ...finishFromProduct(room, surface, product, 'style'), laidFor: room.type };
 }
@@ -74,7 +85,7 @@ export function withProposalFinishes(finishes: SurfaceFinish[], plan: FloorPlan,
     const asked = proposal.rooms.find((r) => r.roomId === room.id);
     if (!asked) continue;
     for (const surface of ['floor', 'wall'] as const) {
-      const finish = proposalFinish(room, surface, asked[surface], styleId, catalog);
+      const finish = proposalFinish(room, surface, asked[surface], styleId, catalog, plan.rooms);
       if (!finish) continue;
       const index = next.findIndex((f) => f.roomId === room.id && f.surface === surface && f.wallIndex == null && !f.zone && !f.span && !f.cells);
       // A finish somebody chose stays theirs.
@@ -85,11 +96,22 @@ export function withProposalFinishes(finishes: SurfaceFinish[], plan: FloorPlan,
   return next;
 }
 
+/** At most this many decor pieces in a room the designer decorates (what the prompt says; `validateProposal`, `proposalDecor`). */
+export const MAX_DECOR_PER_ROOM = 3;
+/** The rooms that take one decor piece at most: a hallway, a kitchen, a bathroom. */
+export const ONE_DECOR_ROOMS: readonly RoomType[] = ['hallway', 'kitchen', 'bathroom'];
+
+/** How many of the designer's decor pieces a room keeps at most — what the prompt tells it, held by `proposalDecor` on what is built. */
+export function maxDecor(type: RoomType): number {
+  return ONE_DECOR_ROOMS.includes(type) ? 1 : MAX_DECOR_PER_ROOM;
+}
+
 /**
  * Every room's decor intents measured against the flat as the engine laid it out — its furniture
  * and, `built`, the joinery and boxes it made (the hall's wardrobe, a wall of wardrobe, a vanity, a
  * column, a bath's box): decor that covers its wall keeps off those as it keeps off what hangs there
- * for use (`clearOfBuilt`).
+ * for use (`clearOfBuilt`). A room keeps as many as it takes (`maxDecor`), the first asked of those
+ * that can be built: one the flat cannot take does not stand in for one it can.
  */
 export function proposalDecor(plan: FloorPlan, proposal: AiProposal | null | undefined, items: PlacedItem[], catalog: CatalogProduct[], built: readonly DecorPiece[] = []): DecorPiece[] {
   if (!proposal) return [];
@@ -100,8 +122,23 @@ export function proposalDecor(plan: FloorPlan, proposal: AiProposal | null | und
     const bed = items.find((i) => i.roomId === room.id && i.slot === 'bed');
     const ownHeadboard = !!bed && bed.size.height >= TALL_HEADBOARD_M;
     const wanted = ownHeadboard ? asked.decor.filter((d) => d.anchor !== 'bed') : asked.decor;
-    return clearOfBuilt((r) => resolveRoomDecor(wanted, r, items, catalog), underCeiling(room, plan), built);
+    return clearOfBuilt((r) => resolveRoomDecor(wanted, r, items, catalog), underCeiling(room, plan), built).slice(0, maxDecor(room.type));
   });
+}
+
+/**
+ * Where a decor piece of `family` asked for on wall `wallIndex` would be fitted in the flat as laid
+ * out — its furniture `items` and the joinery and boxes `built` — fitted as `proposalDecor` fits the
+ * designer's (`resolveDecor`, kept off the joinery by `clearOfBuilt`), at the family's own height:
+ * the piece, or null where it would be left out (no stretch clear of the openings, of what hangs
+ * there for use and of the joinery — and for a niche, built out, of all that stands against the
+ * wall; a niche or a panel needs 1.2 m). What the designer is told each wall takes. Pure.
+ */
+export function decorFit(family: DecorFamily, wallIndex: number, room: PlanRoom, items: PlacedItem[], built: readonly DecorPiece[]): DecorPiece | null {
+  const intent: DecorIntent = { family, anchor: 'wall', wallIndex, widthM: null, heightFromM: null, heightToM: null, params: {}, materials: [], referenceId: null, concept: null, note: null };
+  // No catalogue: the materials do not move the piece.
+  const fitted = clearOfBuilt((r) => [resolveDecor(intent, r, items, [], `fit-${room.id}-${wallIndex}`)].filter((d): d is DecorPiece => !!d), room, built)[0];
+  return fitted && fitted.wallIndex === wallIndex ? fitted : null;
 }
 
 /** Joinery and boxes the engine built on a wall: what decor covering the wall cannot stand behind. */

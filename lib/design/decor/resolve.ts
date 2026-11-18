@@ -204,7 +204,7 @@ function longestClearWall(room: PlanRoom): PlanEdge | null {
 }
 
 /** The family's band of height by default, for what it is anchored to. */
-function defaultHeight(family: DecorFamily, anchor: DecorAnchor, roomHeight: number): { from: number; to: number } {
+export function defaultHeight(family: DecorFamily, anchor: DecorAnchor, roomHeight: number): { from: number; to: number } {
   if (family === 'slab' && anchor === 'tv') return { from: 0.65, to: Math.min(2.45, roomHeight - 0.3) };
   if (family === 'panel' && anchor === 'bed') return { from: 0.35, to: 1.6 };
   if (family === 'slats' && anchor === 'bed') return { from: 1.0, to: roomHeight - 0.25 };

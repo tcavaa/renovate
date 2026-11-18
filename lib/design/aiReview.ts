@@ -27,6 +27,7 @@ import type { DecorPiece, FloorPlan, PlacedItem, PlanRoom, StyleId } from './typ
 import { MissingApiKeyError } from './aiPlan';
 import { heldByMove } from './aiProposal';
 import { ruleProblem, ruleViolations } from './ruleChecks';
+import { KITCHEN_CIRCULATION_M } from './rules';
 import { STYLE_GUIDES } from './styleGuide';
 
 export type AiReviewAction = 'replace' | 'remove' | 'to_wall' | 'move_to_wall' | 'remove_decor' | 'decor_to_wall';
@@ -328,7 +329,8 @@ export function buildReviewBrief(request: AiReviewRequest): { text: string; offe
   return { text, offer: { alternatives, itemsById, decorIds, offWall }, seed };
 }
 
-const SYSTEM_PROMPT = `You are the interior designer of a Georgian home renovation platform, checking a flat the layout engine has just furnished from real shop products. You see each room as built: its walls with doors and windows, every piece with its product, real size and where it stands, the built-in decor with its wall, size and depth, and what measuring the room found wrong (PROBLEMS).
+/** The check's rules, the numbers in them read from `lib/design/rules.ts`. */
+export const REVIEW_PROMPT = `You are the interior designer of a Georgian home renovation platform, checking a flat the layout engine has just furnished from real shop products. You see each room as built: its walls with doors and windows, every piece with its product, real size and where it stands, the built-in decor with its wall, size and depth, and what measuring the room found wrong (PROBLEMS).
 
 Walk through every room as a designer would and fix what is wrong:
 - a product that is not the piece it stands for (a room divider hung as curtains, a toy or a wall hook as the bedroom's art, a step stool as a dining chair, a floor mirror over a basin);
@@ -338,7 +340,7 @@ Walk through every room as a designer would and fix what is wrong:
 - a piece the room is better without (a second storage piece blocking a passage, a plant crowding a small bathroom);
 - what breaks the owner's design rules — the PROBLEMS name the rule (a WC the door opens onto, a kitchen facing the entrance, a squeezed bed, the TV too near or too far): move the piece to a better wall where it may move, or swap it for one that fits;
 - built-in decor in the wrong place: a niche wall behind a bath or a washing machine, a backsplash away from the kitchen run, decor a piece stands in — move it to another wall or take it out;
-- the owner's layout rules: in a bathroom every fixture keeps free floor in front of it (never a basin facing the WC across a narrow room), the basin is what the door opens onto and the mirror hangs over the basin only; a wardrobe stands beside the bed, never facing it from its foot; the sofa faces the TV, not a window; a bookcase stands beside or behind the sofa, not on the TV's wall; the kitchen's fridge stands at the end of the run and 1.2 m in front of the run stays clear of the table and chairs.
+- the owner's layout rules: in a bathroom every fixture keeps free floor in front of it (never a basin facing the WC across a narrow room), the basin is what the door opens onto and the mirror hangs over the basin only; a wardrobe stands beside the bed, never facing it from its foot; the sofa faces the TV, not a window; a bookcase stands beside or behind the sofa, not on the TV's wall; the kitchen's fridge stands at the end of the run and ${KITCHEN_CIRCULATION_M} m in front of the run stays clear of the table and chairs.
 
 Actions (one per fix; "target" is the piece's or the decor's id as listed):
 - "replace": the piece with one of its own alternatives (product = that id). Pieces of one kind in a room are a set (two nightstands): replacing one replaces them all.
@@ -477,7 +479,7 @@ export async function reviewWithClaude(request: AiReviewRequest): Promise<{ revi
     ...(model.startsWith('claude-haiku') ? {} : { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const }),
     thinking: { type: 'adaptive' },
     output_config: { effort: 'medium', format: { type: 'json_schema', schema: REVIEW_SCHEMA as unknown as Record<string, unknown> } },
-    system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
+    system: [{ type: 'text', text: REVIEW_PROMPT, cache_control: { type: 'ephemeral' } }],
     messages: [{ role: 'user', content: [{ type: 'text', text: `Check this flat room by room.\n${text}` }] }],
   }, { signal: request.signal });
   const response = await stream.finalMessage();

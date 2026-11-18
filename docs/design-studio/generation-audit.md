@@ -667,10 +667,20 @@ pieces a room has, the kitchen, the joinery, taps, lamps on the wiring, radiator
   (27 %) → 934 (21 %). Left — they need the layout first (A3) — the draw and the passes: the optional decor
   (`OPTIONAL_DECOR`), the coat rack the hall wardrobe replaces, the wardrobe a wall of wardrobe
   replaces, and pieces with no room left (a balcony's armchair, a shower).
-- [ ] **A3 (high) — It designs before the layout exists.** The layout does not depend on its answer
+- [x] **A3 (high) — It designs before the layout exists.** The layout does not depend on its answer
   and takes 40 ms; run first, the brief could name the real slots (size, wall, what stands beside),
   the matcher's own pool per slot, and the walls that are really free for decor. Today a decor
   intent on "wall 2" is chosen blind and dropped when the engine put the wardrobe there.
+  *Fixed:* the job lays the flat out with the engine before the paid call (`layOutFlat`, lifted out
+  of `generateScene` — every engine flat as it was) and the brief is built from it: each piece the
+  matcher would take a pick for, its place's size and wall, what stands and hangs on each wall in
+  order and what is built there, the products the matcher takes in that place (`laidPool`: `pickPool`
+  on the slot as laid, then only what fits it where the engine's own product fits keeping
+  everything clear — `placeFitting`), and the decor each wall takes and where (`decorFit`, the
+  designer's own fitting with the joinery built). Stand-in designer on 120 fixture flats (one pick
+  per offered kind, one decor intent per room on a wall the brief offers for its family): picks
+  taken 3,018 of 4,425 → 3,425 of 3,566 (not taken though the kind is there 515 → 83, kind absent
+  892 → 58); wall intents dropped 83 of 522 (70 niches) → 4 of 561.
 - [x] **A4 (high) — The check is shown the engine's own work as PROBLEMS.** `reviewFindings` reports
   a WC in front of its box as "stands 21 cm off the wall behind it" (559 times in 720 flats), a washer
   in its column and a bath in its box as "stands in the cabinet decor" (337 times)
@@ -714,6 +724,16 @@ pieces a room has, the kitchen, the joinery, taps, lamps on the wiring, radiator
   shower, 60 cm wardrobe, 1.2 m in front of the run, decor heights; `aiDesign.ts:266-289`,
   `aiReview.ts:291-315`) — a third copy to keep in step. "At most one decor piece in a hall, kitchen
   or bathroom" is in the prompt only: the code allows three (`aiDesign.ts:446`).
+  *Fixed:* both prompts are templated from the code (`DESIGN_PROMPT`, `REVIEW_PROMPT`): the basin,
+  the shower, the wardrobe, the light's temperatures, the blinds' styles and rooms and the kitchen's
+  clear floor from `rules.ts`, the decor's default heights from `defaultHeight` and the niche's depth
+  from `DECOR_FAMILIES` — and a generated flat keeps one decor piece in a hallway, a kitchen or a
+  bathroom and three elsewhere (`maxDecor`, held by `proposalDecor` on what can be built: the first
+  asked that fits), as the prompt says. *Left* (why A7 stays open): numbers still literal in the
+  prompt and the code, not constants of a rule — the backsplash's 1.8 m (`isBacksplash` in
+  `resolve.ts`), the mantel's 3.2 m wall, the params' design ranges (`slatWidthMm 20–45` and the
+  rest), the review's "at most six fixes" (`validateReview`), the 1.2 m whole stretch a niche or a
+  panel needs (`resolve.ts`) and `resolveRoomDecor`'s own cap of four.
 - [ ] **A8 (medium) — What the engine draws ignores the designer's palette**: the kitchen's
   material, the joinery's, the taps, the lamps on the wiring.
 - [x] **A9 (low)** — The brief calls every room that is not four-cornered "L-shaped"
@@ -1097,10 +1117,15 @@ outputs were read, not re-run.
   decor over joinery instead would change the height the designer asked for — the owner's choice.
   *Open:* the re-fit opens the joinery's stretch for every intent of the room, so a second intent on
   that wall that cleared the joinery (hung above it) is fitted beside it too.
-- [ ] **W5 (medium) — Decor behind the bed is dropped in most bedrooms.** A bed 1.2 m tall or more
+- [x] **W5 (medium) — Decor behind the bed is dropped in most bedrooms.** A bed 1.2 m tall or more
   takes none (`aiProposal.ts:91-94`, the rulebook's B-6), and two thirds of the beds placed are
   that tall (322 of 485): of the intents anchored on the bed 57 % are dropped for it and 14 % for
   want of a bed. The designer is not told the rule.
+  *Fixed:* the brief says per room with a bed whether the bed the engine laid takes decor behind it
+  and which of the beds offered are under `TALL_HEADBOARD_M` and would (`bedText`), and the prompt
+  gives the rule. A stand-in designer on 120 fixture flats that anchors decor on the bed in half the
+  bedrooms: blind, 46 of 69 intents dropped (23 placed); following the brief (a bed it picked, or
+  the engine's, under 1.2 m), 2 of 25 dropped (niches with no stretch beside the bed, 23 placed).
 - [x] **W6 (medium) — The hall wardrobe always has a boiler section** (168 of 168 built), with
   `hall.ts:60` reading the hall's width only: 105 flats had no boiler point, in 63 the boiler was
   elsewhere (the balcony 36, the hall outside the wardrobe 19, another section 8), and in 27 it also
@@ -1166,6 +1191,16 @@ outputs were read, not re-run.
   stood free:* no bug under the code's rule — of 15 in 360 flats, 12 stand past the end of the wall
   behind them (no wall within `wallOf`'s or `backWall`'s reach) and 3 have 45 cm of free wall
   between a coat rack and the corner; a column for them needs the machine moved to another wall.
+  *The niche and the panel, the designer's half:* the brief says for each wall, as the flat is laid
+  out, whether a niche and a panel are fitted there and on what stretch (`decorFit`, A3). The flat
+  as built decides, not the brief: the designer's picks change the products' sizes, so a niche asked
+  on a wall the brief did not offer it is still built where the picks leave the stretch (a refusal
+  by the brief dropped 12 niches and 2 panels in 120 flats that would have been built). One asked
+  on every room of 120 fixture flats with no picks: on a wall at random, a niche built 315 of 740
+  times and a panel 103 of 185; on a wall the brief offers, 646 of 646 and 174 of 174 (94 and 11
+  rooms have no wall that takes one). With a stand-in's picks, on a wall at random: niche 296 → 305
+  of 740, panel 98 → 98 of 185; on no wall (-1, the longest clear wall), niche 0 → 420 of 740 and
+  panel 0 → 149 of 185, which the brief's refusal had dropped every time.
 - [x] **W11 (high) — A generated flat that cannot be saved** *(found after the audit)*: where the
   washer's column stands at the wall's end beside a vanity, the gap between them became a `doors`
   section of whatever width was left — 5–10 cm in 4 of 360 flats — and the save route refuses a
@@ -1225,13 +1260,22 @@ which product, and what the designer is offered.
   without a draw) — and any other room any finish of the category it draws from. The style's own
   look on a balcony: Scandinavian 34 of 150, Vintage 22 of 150 (was 0 and 0); in a closed kitchen
   3 of 6 and 2 of 6 (was 0).
-- [ ] **F4 (medium) — The designer's lists cannot give what its prompt asks.** A dry room's floor
+- [x] **F4 (medium) — The designer's lists cannot give what its prompt asks.** A dry room's floor
   list is one pool for a living room, a kitchen and a balcony (`finishCandidates`,
   `aiProposal.ts:52`): 22 laminates, 31 carpets, 14 products of category wall-tiles, 2 tiles —
   carpet is offered for 94 % of kitchens and balconies. Each room's ten are drawn separately
   (`aiDesign.ts:218`), so "one floor through the whole flat" is rarely possible: 266 of 360 briefs
   have no floor id common to the rooms that share one. The brief never says which room leads or
   which kitchen is closed.
+  *Fixed:* each room is offered what the engine lays there (`finishCandidates`: the category of the
+  style's own for the room, `mayLay` held — `generatedFinish`'s pool), every room that shares the
+  flat's floor and walls the same lists as the lead room (one draw for all of them: the lead's
+  choice is what `withFlatFinish` lays in them), and the brief says which room leads, which follow it and which kitchen is closed.
+  On 120 fixture briefs: carpet offered for a balcony 97 of 100 → 0, an open kitchen 60 of 64 → 0, a
+  closed kitchen 4 of 4 → 0; briefs with no floor id common to the rooms that share it 86 of 120 → 0,
+  and briefs where the lead room's lists are not the very lists of a room sharing them 120 → 0 (a
+  room's floor list lacking the lead's first id 164 of 392 → 0); a stand-in designer's floor and wall laid as chosen (the lead's in the rooms that share it) 740 of
+  740 before and after.
 - [ ] **F5 (medium) — 75 of 195 finish products and all 8 mouldings are never laid.** The draw
   stays in the category of the style's own product: no look is a carpet (31); dry wall finishes
   filed under wall-tiles — brick, concrete, wallpaper, cladding — enter only through rooms that then
