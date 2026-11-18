@@ -1,5 +1,7 @@
-import { blockingItems, footprintOf, type Footprint } from './manipulate';
-import { isPassage, openFloor, pointOnEdge, polygonBounds, roomEdges } from './planGeometry';
+import { blockingItems, floorFootprint, type Footprint } from './manipulate';
+import { floorTaken } from './shower';
+import { doorFloor } from './pieceGeometry';
+import { isPassage, openFloor, polygonBounds, roomEdges } from './planGeometry';
 import type { PlacedItem, PlanRoom } from './types';
 
 /**
@@ -40,7 +42,8 @@ export interface TightSpot {
 export function tightSpots(room: PlanRoom, items: PlacedItem[], rooms?: readonly PlanRoom[]): TightSpot[] {
   const floor = rooms ? openFloor(room, rooms) : [room];
   const floorItems = blockingItems(items, floor.map((r) => r.id), '');
-  const boxes = floorItems.map((item) => ({ item, box: footprintOf(item.position, item.size, item.rotation), large: isLarge(item) }));
+  // A shower is the floor it takes — its tray and glass (`floorTaken`), not the column at its back.
+  const boxes = floorItems.map((item) => ({ item, box: floorFootprint(item), large: isLarge(item) }));
   const roomBounds = floor.map((r) => polygonBounds(r.polygon));
   const bounds = {
     minX: Math.min(...roomBounds.map((b) => b.minX)),
@@ -62,8 +65,8 @@ export function tightSpots(room: PlanRoom, items: PlacedItem[], rooms?: readonly
       .map((o) => {
         const edge = edges.find((e) => e.index === o.wallIndex);
         if (!edge) return null;
-        const on = pointOnEdge(edge, o.t);
-        return { x: on.x + edge.inward.x * 0.45, z: on.z + edge.inward.z * 0.45 };
+        // A point 45 cm in front of the opening's middle (`doorFloor`), with `DOOR_CLEARANCE_M` round it.
+        return doorFloor(edge, o.t, o.widthM, 0, 0).ahead(0.45);
       })
       .filter((p): p is { x: number; z: number } => p != null);
   });
@@ -95,7 +98,7 @@ export function tightSpots(room: PlanRoom, items: PlacedItem[], rooms?: readonly
 }
 
 function isLarge(item: PlacedItem): boolean {
-  return isLargeSize(item.size);
+  return isLargeSize(floorTaken(item).size);
 }
 
 /** A piece big enough for the passage past it to matter (a bed, a sofa, a wardrobe). */

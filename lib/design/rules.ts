@@ -11,6 +11,7 @@
  */
 
 import { isOpenEdge, isPassage, pointOnEdge, roomEdges, wallEdges, type PlanEdge } from './planGeometry';
+import { QUAD_TOUCH_M, quadsOverlap as outlinesOverlap, turnedQuad, wallBehind, type Quad } from './pieceGeometry';
 import type { Opening, PlacedItem, PlanRoom, SlotKind, StyleId, TechnicalPoint, Vec2 } from './types';
 
 // ---------------------------------------------------------------------------
@@ -346,34 +347,15 @@ export const COUNTERTOP_BASIN_MAX_M = 0.45;
 /** A bathroom's splash zone round a shower or bath, where no socket goes. */
 export const SPLASH_ZONE_M = 0.6;
 
-/** A floor footprint, four corners. */
-export type Quad = [Vec2, Vec2, Vec2, Vec2];
+/** A floor footprint, four corners (`pieceGeometry`). */
+export type { Quad };
 
-/** A piece's footprint on the floor, turned with it. */
-export function footprintQuad(item: Pick<PlacedItem, 'position' | 'rotation' | 'size'>): Quad {
-  const forward = { x: Math.sin(item.rotation), z: Math.cos(item.rotation) };
-  const right = { x: forward.z, z: -forward.x };
-  const w = item.size.width / 2;
-  const d = item.size.depth / 2;
-  const at = (r: number, f: number): Vec2 => ({ x: item.position.x + right.x * r + forward.x * f, z: item.position.z + right.z * r + forward.z * f });
-  return [at(-w, -d), at(w, -d), at(w, d), at(-w, d)];
-}
+/** A piece's footprint on the floor, turned with it (`turnedQuad`). */
+export const footprintQuad = turnedQuad;
 
-/** Whether two convex outlines overlap by more than a centimetre (separating axes). */
-export function quadsOverlap(a: Vec2[], b: Vec2[]): boolean {
-  for (const poly of [a, b]) {
-    for (let i = 0; i < poly.length; i++) {
-      const p = poly[i];
-      const q = poly[(i + 1) % poly.length];
-      const axis = { x: -(q.z - p.z), z: q.x - p.x };
-      const len = Math.hypot(axis.x, axis.z) || 1;
-      const project = (pts: Vec2[]) => pts.map((v) => (v.x * axis.x + v.z * axis.z) / len);
-      const pa = project(a);
-      const pb = project(b);
-      if (Math.max(...pa) <= Math.min(...pb) + 0.01 || Math.max(...pb) <= Math.min(...pa) + 0.01) return false;
-    }
-  }
-  return true;
+/** Whether two convex outlines overlap by more than `tolerance` — a centimetre unless a caller says otherwise (`QUAD_TOUCH_M`). */
+export function quadsOverlap(a: Vec2[], b: Vec2[], tolerance = QUAD_TOUCH_M): boolean {
+  return outlinesOverlap(a, b, tolerance);
 }
 
 /** How far from `from`, along the unit direction `dir`, the ray first meets the outline. */
@@ -588,15 +570,7 @@ export function alongWall(edge: PlanEdge, point: Vec2): number {
   return (point.x - edge.a.x) * edge.dir.x + (point.z - edge.a.z) * edge.dir.z;
 }
 
-/** The wall an item stands against: the wall edge nearest the middle of its back, within 45 cm. */
+/** The wall an item stands against: the wall edge nearest the middle of its back, within 45 cm, whichever way it faces. */
 export function backWallOf(room: PlanRoom, item: PlacedItem): PlanEdge | null {
-  const forward = { x: Math.sin(item.rotation), z: Math.cos(item.rotation) };
-  const back = { x: item.position.x - forward.x * (item.size.depth / 2), z: item.position.z - forward.z * (item.size.depth / 2) };
-  let best: { edge: PlanEdge; distance: number } | null = null;
-  for (const edge of wallEdges(room)) {
-    const s = Math.max(0, Math.min(edge.length, alongWall(edge, back)));
-    const distance = Math.hypot(back.x - (edge.a.x + edge.dir.x * s), back.z - (edge.a.z + edge.dir.z * s));
-    if (distance <= 0.45 && (!best || distance < best.distance)) best = { edge, distance };
-  }
-  return best?.edge ?? null;
+  return wallBehind(item, wallEdges(room), { facing: null, by: 'distance', max: 0.45 })?.edge ?? null;
 }

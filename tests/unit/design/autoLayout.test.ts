@@ -112,3 +112,22 @@ describe('dining chairs', () => {
     }
   });
 });
+
+describe('floor kept clear under a hung thing (an obstacle\'s `bottom`)', () => {
+  // A bathroom 2.4 × 2: the floor before a towel rail hung 60 cm up covers all of it.
+  const room: PlanRoom = { id: 'b', name: 'b', type: 'bathroom', polygon: [P(0, 0), P(2.4, 0), P(2.4, 2), P(0, 2)], heightM: 2.6, areaM2: 4.8, perimeterM: 8.8, openings: [] };
+  const strip = { minX: 0, maxX: 2.4, minZ: 0, maxZ: 2 };
+
+  it('is free for what stays lower than the hung thing: a bath 58 cm tall stands under a rail at 60 cm', async () => {
+    const { placeAdditional } = await import('@/lib/design/autoLayout');
+    expect(placeAdditional(room, 'bathtub', [], undefined, [{ ...strip, bottom: 0.6 }])).not.toBeNull();
+    expect(placeAdditional(room, 'bathtub', [], undefined, [strip])).toBeNull();
+  });
+
+  it('is kept clear of what reaches up into it: a washing machine does not stand under the rail', async () => {
+    const { placeAdditional } = await import('@/lib/design/autoLayout');
+    expect(placeAdditional(room, 'washer', [], undefined, [{ ...strip, bottom: 0.6 }])).toBeNull();
+    const laid = layoutRoom(room, { obstacles: { b: [{ ...strip, bottom: 0.6 }] } });
+    expect(laid.filter((i) => !getArchetype(i.kind)?.ghost && i.size.height > 0.6)).toEqual([]);
+  });
+});

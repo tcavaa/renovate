@@ -11,16 +11,17 @@
  */
 
 import { isBuiltInBath, isRectangularBath, isShowerDoor } from './productRoles';
-import { blockingItems, blocksWindow, clampInsideRoom, footprintInRoom, footprintOf, footprintsOverlap, inDoorway, isPlacementValid, PIECE_TOUCH_M, TUCKS_UNDER, tucksUnder, type Footprint } from './manipulate';
+import { blockingItems, blocksWindow, clampInsideRoom, clearsUnder, floorFootprint, footprintInRoom, footprintOf, footprintsOverlap, inDoorway, isPlacementValid, pieceWall, PIECE_TOUCH_M, TUCKS_UNDER, tucksUnder, type Footprint, type KeepClear } from './manipulate';
 import { getArchetype, isKitchenMaterial, type Archetype } from './catalog';
 import { roomEdges } from './planGeometry';
-import { seatSlots } from './autoLayout';
+import { ISLAND_CLEAR_M, seatSlots } from './autoLayout';
 import { asPlacedKitchen, CUSTOM_KITCHEN_SLOTS, kitchenMaterialCandidates } from './kitchen';
-import { BASIN_TOP_M, KITCHEN_CIRCULATION_M } from './rules';
+import { BASIN_TOP_M, KITCHEN_CIRCULATION_M, WC_BOX_DEPTH_M, WC_SIDE_M } from './rules';
+import { round2, wallBehind } from './pieceGeometry';
 import { styleAffinity } from './styles';
 import { guideFit, styleRejects } from './styleGuide';
 import { seededRng, weightedOrder, weightedPick, type RoomRng, type Rng } from './random';
-import { isStudio, partAt, partName, partOfId } from './studio';
+import { isStudio, partAt, partName, partOfId, partRoom, studioParts } from './studio';
 import type { PlacedItem, PlanRoom, SceneProduct, StyleId, Vec2 } from './types';
 
 /** A catalogue row as the client receives it. */
@@ -72,7 +73,7 @@ export interface MatchOptions {
    * before each radiator, the columns, the floor behind a partition): a slot takes a product that
    * keeps it clear — and a door's way, and a kitchen run's working floor — wherever one does.
    */
-  keepClear?: Record<string, Footprint[]>;
+  keepClear?: Record<string, KeepClear[]>;
   /**
    * A designer's choices (`lib/design/aiProposal`): `${kind}|${roomId}` → product id. A pick that is
    * a candidate of the kind is taken for the room in place of the draw — and, like any choice,
@@ -352,21 +353,28 @@ export function matchProducts(
     // laid against, or a cabinet that would stand in the doorway, is not placed at that size:
     // the next-best product that fits takes the slot, and when nothing fits — of the slot's own
     // products, then of its ways out — the slot stays empty rather than poke through the wall.
-    // Twice over: first only a product that also keeps clear what the layout kept clear — a
-    // door's way, the floor before a radiator, a column, the working floor of a kitchen run
-    // (`keepsClear`) — through every step; and when none does, by the room, the windows and the
-    // other pieces alone, so the room keeps the piece it would have had.
-    const keepClear = room ? (options.keepClear?.[room.id] ?? []) : [];
+    // Four times over (`fitPasses`): first only a product that also keeps clear what the layout
+    // kept clear — a door's way, the floor before a radiator, a column, the working floor of a
+    // kitchen run, what it keeps round a WC or an island — through every step, each piece as the
+    // floor it takes once generation has built round it (`builtFloor`: a shower its tray, a WC its
+    // cistern's box); when none does, by the room, the windows and the other pieces alone, as
+    // built; and when none does either, the two as they were, each piece its own box, so the room
+    // keeps the piece it would have had where it would have had it.
+    const passes = fitPasses(room ? (options.keepClear?.[room.id] ?? []) : []);
     // A dining chair goes through all of that at each seat it may take in turn — its own, and only
     // when it does not fit there the ones that are no chair's; anything else, where it was laid.
     const spots = seating && room ? seating.seats : [null];
-    for (const spot of spots) {
-      for (const careful of [true, false]) for (let step = 0; step < steps.length; step++) {
+    // A studio's piece stands in the half that laid it (`partRoom`, as the layout lays it) — the
+    // line between the halves is open floor, but what stands across it is in the other half's
+    // furniture; only where nothing of it fits there at all, anywhere in the studio, as before.
+    const halves = room ? [...(studioHalf(room, item) ? [studioHalf(room, item)!] : []), room] : [undefined];
+    for (const within of halves) for (const spot of spots) {
+      for (const pass of passes) for (let step = 0; step < steps.length; step++) {
         const offer = offerAt(step);
         if (!offer) continue;
         const { chosen, ranked, roomKey, used } = offer;
         const piece = spot ? { ...offer.piece, position: spot.position, rotation: spot.rotation } : offer.piece;
-        const placed = room ? placeFitting(piece, chosen, ranked, room, others, slots, settled, careful ? keepClear : null) : { product: chosen, position: piece.position };
+        const placed = room ? placeFitting(piece, chosen, ranked, room, others, slots, settled, pass.keepClear, pass.asBuilt, within) : { product: chosen, position: piece.position };
         if (!placed) continue;
         if (spot) seating!.taken.add(spot.index);
         if (piece.slot === 'dining_chair') setStarted.add(roomKey);
@@ -374,25 +382,85 @@ export function matchProducts(
         if (piece.slot === 'dining_chair' || step > 0) chosenByRoom.set(roomKey, placed.product);
         used.add(placed.product.id);
         usedByKind.set(piece.kind, used);
-        const size = sizeFromProduct(placed.product, piece);
-        const elevationM = hungClearOfHung(piece, size, settledElevation(piece, size, placed.product, settled), settled, room);
-        return finish({
-          ...piece,
-          position: hungPosition(piece, size, elevationM, settled) ?? placed.position,
-          product: toSceneProduct(placed.product, quantityFor(piece)),
-          // A product with real dimensions overrides the archetype's defaults, so the room
-          // reflects the thing you would actually receive.
-          size,
-          elevationM,
-          origin: 'style' as const,
-          // A run with no kitchen maker's material in the catalogue is still made to measure — the joiner's estimate.
-          ...(piece.slot === 'kitchen_run' ? { custom: true, size: piece.size } : {}),
-        });
+        return finish(placedWith(piece, placed, settled, room));
       }
     }
     return finish({ ...item, product: null });
   });
-  return pairsAlike(matched, catalog, roomsById);
+  return pairsAlike(completePairs(matched, slots, poolOf, roomsById, options.keepClear), catalog, roomsById);
+}
+
+/**
+ * The tests a slot's products are put through, in turn (`placeFitting`): each piece as built
+ * (`builtFloor`) with what the layout kept clear and what it keeps round a piece (`keptRound`), then
+ * as built alone; then the matcher's two passes as they were — each piece its own box, with what
+ * the layout kept clear, then alone — so a slot none of whose products keeps clear of a shower's
+ * tray or a WC's box is fitted as it was before, keeping a door's way where it did.
+ */
+function fitPasses(keepClear: readonly KeepClear[]): Array<{ keepClear: readonly KeepClear[] | null; asBuilt: boolean }> {
+  return [
+    { keepClear, asBuilt: true },
+    { keepClear: null, asBuilt: true },
+    { keepClear, asBuilt: false },
+    { keepClear: null, asBuilt: false },
+  ];
+}
+
+/**
+ * Its slot with the product that fits it, where it fits (`placeFitting`): a product with real
+ * dimensions overrides the archetype's defaults, so the room reflects the thing you would actually
+ * receive; stood or hung at the height it takes (`settledElevation`, clear of what hangs under it).
+ */
+function placedWith(piece: PlacedItem, placed: { product: CatalogProduct; position: Vec2 }, settled: PlacedItem[], room: PlanRoom | undefined): PlacedItem {
+  const size = sizeFromProduct(placed.product, piece);
+  const elevationM = hungClearOfHung(piece, size, settledElevation(piece, size, placed.product, settled), settled, room);
+  return {
+    ...piece,
+    position: hungPosition(piece, size, elevationM, settled) ?? placed.position,
+    product: toSceneProduct(placed.product, quantityFor(piece)),
+    size,
+    elevationM,
+    origin: 'style' as const,
+    // A run with no kitchen maker's material in the catalogue is still made to measure — the joiner's estimate.
+    ...(piece.slot === 'kitchen_run' ? { custom: true, size: piece.size } : {}),
+  };
+}
+
+/**
+ * A piece of a pair (`PAIRED_SLOTS`: a nightstand) that found no product beside its piece as the
+ * room was being matched, tried again once every piece of the room stands as matched: matched
+ * before the pieces laid after it, it was refused by their slots at the archetypes' sizes — a
+ * floor lamp's slot laid in the corner beyond the nightstand's, the real bed wider than its slot
+ * standing the nightstand into it — where the lamp drawn is 11 cm wide and leaves it room. The
+ * pair's product first, then the slot's others from the narrowest, through the matcher's passes
+ * (`placeFitting`); the first that fits takes it (`pairsAlike` then makes the two alike where one
+ * product fits both). With none, it stays without, as before. Draws nothing: no other piece moves.
+ */
+function completePairs(
+  items: PlacedItem[],
+  slots: ReadonlyMap<string, PlacedItem>,
+  poolOf: (kind: string) => KindPool,
+  rooms: ReadonlyMap<string, PlanRoom>,
+  keepClear: Record<string, KeepClear[]> | undefined
+): PlacedItem[] {
+  let out = items;
+  for (const item of items) {
+    const room = rooms.get(item.roomId);
+    if (!room || item.product || item.pinned || !PAIRED_SLOTS.has(item.slot)) continue;
+    const standing = out.filter((other) => other.product && other.id !== item.id);
+    const pair = standing.find((other) => other.roomId === item.roomId && other.slot === item.slot)?.product?.productId;
+    const pool = poolOf(item.kind).first;
+    const order = [...pool.filter((p) => p.id === pair), ...pool.filter((p) => p.id !== pair).sort((a, b) => (a.widthCm ?? 0) - (b.widthCm ?? 0))];
+    if (order.length === 0) continue;
+    const passes = fitPasses(keepClear?.[room.id] ?? []);
+    const half = studioHalf(room, item);
+    let placed: { product: CatalogProduct; position: Vec2 } | null = null;
+    for (const within of half ? [half, room] : [room]) for (const pass of passes) placed ??= placeFitting(item, order[0], order, room, standing, slots, standing, pass.keepClear, pass.asBuilt, within);
+    if (!placed) continue;
+    const filled = placedWith(item, placed, standing, room);
+    out = out.map((other) => (other.id === item.id ? filled : other));
+  }
+  return out;
 }
 
 /** What one step of `slotSteps` offers a slot: the piece as it would be, the product drawn for it and the order the others are tried in. */
@@ -540,9 +608,20 @@ export function workingFloor(run: Pick<PlacedItem, 'position' | 'rotation' | 'si
  *
  * Given `keepClear` — the floor the layout was told to keep clear in this room (the strip before a
  * radiator, a column, a partition's floor) — a product fits only where it also keeps clear what
- * the layout engine kept clear for the slot: that floor, a door's way (`inDoorway`), and, for what
- * is not the kitchen's own furniture, the working floor in front of a kitchen run. With null, the
- * room, the windows and the other pieces alone.
+ * the layout engine kept clear for the slot: that floor, a door's way (`inDoorway`), for what is
+ * not the kitchen's own furniture the working floor in front of a kitchen run, and what the layout
+ * keeps clear round a piece, measured as built (`keptRound`: a WC's 40 cm either side of its
+ * centre, an island's 1.2 m all round) — a product neither stands in another's nor has another in
+ * its own, and its own is inside the room. With null, the room, the windows and the other pieces alone.
+ *
+ * `within`: the floor the product stands on — a studio's half (`studioHalf`) — when it is not the
+ * whole room: its outline in place of the room's; the room's doors, windows and walls as they are.
+ *
+ * `asBuilt`: every piece is the floor it takes once generation has built round it (`builtFloor`) —
+ * a shower its tray and glass, a WC on a wall the box of its cistern behind it — both what is in the
+ * product's way and the product tested; false, each its own box and nothing kept round a piece —
+ * the matcher's test as it was, its last resort (a WC that fits only into a shower's tray stands
+ * there rather than not at all) and a calculator pick's test (`fitPick`).
  */
 export function placeFitting(
   item: PlacedItem,
@@ -552,7 +631,9 @@ export function placeFitting(
   others: PlacedItem[],
   slots: ReadonlyMap<string, PlacedItem>,
   settled: PlacedItem[] = [],
-  keepClear: readonly Footprint[] | null = null
+  keepClear: readonly KeepClear[] | null = null,
+  asBuilt = true,
+  within: PlanRoom = room
 ): { product: CatalogProduct; position: Vec2 } | null {
   if (!fitMatters(item)) {
     if (!liesWithinRoom(item)) return { product: preferred, position: item.position };
@@ -583,21 +664,29 @@ export function placeFitting(
   const lifted = others.filter((other) => other.roomId === room.id && other.id !== item.id && other.elevationM >= 0.05 && (slots.get(other.id)?.elevationM ?? 1) < 0.05 && !getArchetype(other.kind)?.ghost);
   const blockers = [...blockingItems(others, room.id, item.id), ...lifted].filter((other) => !followers(other)).map((other) => ({
     other,
-    box: footprintOf(other.position, other.size, other.rotation),
+    box: asBuilt ? builtFloor(other, room) : footprintOf(other.position, other.size, other.rotation),
+    round: clear && asBuilt ? keptRound(other) : null,
     chair: tuckedChair(item, other, slots),
   }));
   const fits = (position: Vec2, size: PlacedItem['size']): boolean => {
     const footprint = footprintOf(position, size, item.rotation);
-    if (!footprintInRoom(footprint, room.polygon)) return false;
+    if (!footprintInRoom(footprint, within.polygon)) return false;
     // A product taller than the slot's piece stands across no window (a wardrobe for a dresser).
     if (blocksWindow({ ...item, position, size }, room)) return false;
+    const floor = asBuilt ? builtFloor({ ...item, position, size }, room) : footprint;
     for (const { other, box, chair } of blockers) {
       // Pieces may touch; a chair the engine tucked under its table may stand under it by up
       // to half its depth besides — its seat under the top, its back clear of it.
       const depth = chair === item ? size.depth : chair === other ? other.size.depth : 0;
-      if (footprintsOverlap(footprint, box, Math.max(PIECE_TOUCH_M, depth / 2))) return false;
+      if (footprintsOverlap(floor, box, Math.max(PIECE_TOUCH_M, depth / 2))) return false;
     }
-    if (clear && (inDoorway({ position, rotation: item.rotation, size, elevationM: item.elevationM }, room) || clear.some((box) => footprintsOverlap(footprint, box)))) return false;
+    const own = floor.minX === footprint.minX && floor.maxX === footprint.maxX && floor.minZ === footprint.minZ && floor.maxZ === footprint.maxZ;
+    if (clear && (inDoorway({ ...(own ? { position, rotation: item.rotation, size } : boxPose(floor)), elevationM: item.elevationM }, room) || clear.some((box) => !clearsUnder(box, size.height) && footprintsOverlap(floor, box)))) return false;
+    if (clear && asBuilt) {
+      const round = keptRound({ ...item, position, size });
+      if (round && (!footprintInRoom(round, within.polygon) || blockers.some(({ box }) => footprintsOverlap(round, box, 0)))) return false;
+      if (blockers.some(({ round }) => round && footprintsOverlap(floor, round, 0))) return false;
+    }
     return true;
   };
   const tryProduct = (product: CatalogProduct): Vec2 | null => {
@@ -605,7 +694,7 @@ export function placeFitting(
     // Where the real product belongs (its back on the wall the slot's back was on, a nightstand
     // beside the real bed), then where the slot was — each kept inside the room.
     for (const spot of [settledPosition(item, size, room, settled), item.position]) {
-      const position = clampInsideRoom(room, spot, size, item.rotation);
+      const position = clampInsideRoom(within, spot, size, item.rotation);
       if (fits(position, size)) return position;
     }
     return null;
@@ -618,6 +707,49 @@ export function placeFitting(
     if (position) return { product, position };
   }
   return null;
+}
+
+/**
+ * The floor a piece takes once generation has built round it, as a box where it stands: a shower
+ * its tray and glass (`floorFootprint`, `floorTaken`); a WC with its back on a wall the box its
+ * concealed cistern is built into behind it as well (`wcBoxes`, `WC_BOX_DEPTH_M` deep), which stands
+ * the WC that much further out (`clearOfDecor`) — a WC matched flush to the wall beside a shower
+ * was pushed out by its box into the shower's tray; anything else its own box.
+ */
+function builtFloor(item: PlacedItem, room: PlanRoom): Footprint {
+  if (item.slot !== 'toilet' || item.elevationM >= 0.05 || !pieceWall(item, room)) return floorFootprint(item);
+  const { forward } = axes(item.rotation);
+  const ahead = WC_BOX_DEPTH_M / 2;
+  return footprintOf({ x: item.position.x + forward.x * ahead, z: item.position.z + forward.z * ahead }, { width: item.size.width, depth: item.size.depth + WC_BOX_DEPTH_M }, item.rotation);
+}
+
+/**
+ * The half of a studio a piece stands in as the layout laid it (`partRoom`): the half whose program
+ * laid it (its id, `partOfId`), else the half it stands in. Null for any other room.
+ */
+function studioHalf(room: PlanRoom, item: PlacedItem): PlanRoom | null {
+  const parts = isStudio(room) ? studioParts(room) : null;
+  return parts ? partRoom(room, parts[partOfId(room.id, item.id) ?? partAt(room, item.position)]) : null;
+}
+
+/**
+ * What the layout keeps clear round a piece, as a box where it stands (`stand` in `autoLayout`):
+ * a WC 40 cm either side of its centre (`WC_SIDE_M`), as deep as the WC — the layout's box, not the
+ * cistern's box the WC is stood out by besides (measured that deep, it re-chose basins the app's
+ * own check, `wc_side_tight`, never faulted); an island 1.2 m all round (`ISLAND_CLEAR_M`). Null for
+ * anything else.
+ */
+function keptRound(item: PlacedItem): Footprint | null {
+  if (item.elevationM >= 0.05) return null;
+  if (item.slot === 'toilet') return footprintOf(item.position, { ...item.size, width: Math.max(item.size.width, 2 * WC_SIDE_M) }, item.rotation);
+  if (item.slot !== 'kitchen_island') return null;
+  const box = footprintOf(item.position, item.size, item.rotation);
+  return { minX: box.minX - ISLAND_CLEAR_M, maxX: box.maxX + ISLAND_CLEAR_M, minZ: box.minZ - ISLAND_CLEAR_M, maxZ: box.maxZ + ISLAND_CLEAR_M };
+}
+
+/** An axis box as a piece standing square on it: what the tests of a piece (`inDoorway`) take. */
+function boxPose(box: Footprint): Pick<PlacedItem, 'position' | 'rotation' | 'size'> {
+  return { position: { x: (box.minX + box.maxX) / 2, z: (box.minZ + box.maxZ) / 2 }, rotation: 0, size: { width: box.maxX - box.minX, depth: box.maxZ - box.minZ, height: 0 } };
 }
 
 /**
@@ -775,10 +907,20 @@ export function slotPool(item: PlacedItem, candidates: CatalogProduct[], room: P
     const fitsUnit = (p: CatalogProduct) => unit != null && (p.widthCm ?? 0) / 100 <= unit.size.width && (p.depthCm ?? 0) / 100 <= unit.size.depth + 0.02;
     return candidates.filter((p) => (p.widthCm ?? 0) / 100 <= item.size.width + 0.02 && (onStand(p) ? fitsUnit(p) : walled));
   }
-  // A pendant short enough to hang from the ceiling and clear a head (or the table under it).
+  // A pendant short enough to hang from the ceiling and clear a head (or the table under it) —
+  // and, where any does, clear of what stands under it by the gap a hung piece keeps over a piece
+  // (`MATCHED_ABOVE_GAP_M`): a lamp hung into a canopy bed or a tall bookcase. It hangs from where
+  // the slot's top is (`settledElevation`), so a shorter lamp hangs higher and never through the
+  // ceiling; with none that clears, the lamps that hang as before.
   if (getArchetype(item.kind)?.placement.type === 'ceiling') {
-    const drop = item.elevationM + item.size.height - lowestPendant(item, settled);
-    return candidates.filter((p) => (p.heightCm ?? 0) > 0 && (p.heightCm ?? 0) / 100 <= drop);
+    const top = item.elevationM + item.size.height;
+    const drop = top - lowestPendant(item, settled);
+    const hanging = candidates.filter((p) => (p.heightCm ?? 0) > 0 && (p.heightCm ?? 0) / 100 <= drop);
+    const clear = hanging.filter((p) => {
+      const size = sizeFromProduct(p, item);
+      return standingBelow(item, size, settled).every((piece) => top - size.height >= piece.size.height + MATCHED_ABOVE_GAP_M);
+    });
+    return clear.length > 0 ? clear : hanging;
   }
   // A hall's mirror is full height (the rulebook, E-8) on a wall free from the floor up: a tall flat
   // one when there is any. Over the console, or anything else standing under the slot, one that
@@ -810,20 +952,9 @@ function axes(rotation: number): { forward: Vec2; right: Vec2 } {
   return { forward, right: { x: forward.z, z: -forward.x } };
 }
 
-/** Whether a piece's back stands on a wall of the room (within `slack` metres), facing into it as the wall does. */
+/** Whether a piece's back stands on a wall of the room (within `slack` metres either side of its line, within 2 % of its length past an end), facing into it as the wall does. */
 function backOnWall(item: PlacedItem, room: PlanRoom, slack: number): boolean {
-  const { forward } = axes(item.rotation);
-  const back = { x: item.position.x - forward.x * (item.size.depth / 2), z: item.position.z - forward.z * (item.size.depth / 2) };
-  return roomEdges(room.polygon).some((edge) => {
-    const turn = edge.facing - item.rotation;
-    if (Math.abs(Math.atan2(Math.sin(turn), Math.cos(turn))) > 0.05) return false;
-    const dx = edge.b.x - edge.a.x;
-    const dz = edge.b.z - edge.a.z;
-    const t = ((back.x - edge.a.x) * dx + (back.z - edge.a.z) * dz) / (edge.length * edge.length);
-    if (t < -0.02 || t > 1.02) return false;
-    const distance = (back.x - edge.a.x) * edge.inward.x + (back.z - edge.a.z) * edge.inward.z;
-    return Math.abs(distance) <= slack;
-  });
+  return wallBehind(item, roomEdges(room.polygon), { facing: Math.cos(0.05), by: 'gap', min: -slack, max: slack, past: { share: 0.02 } }) != null;
 }
 
 /**
@@ -875,18 +1006,10 @@ export function settledPosition(item: PlacedItem, size: PlacedItem['size'], room
   return item.position;
 }
 
-/** How far a piece's back stands off the wall behind it (0 when on it). */
+/** How far a piece's back stands off the wall behind it — the nearest it faces as, anywhere along its line (0 when on it). */
 function backGap(item: PlacedItem, room: PlanRoom): number {
-  const { forward } = axes(item.rotation);
-  const back = { x: item.position.x - forward.x * (item.size.depth / 2), z: item.position.z - forward.z * (item.size.depth / 2) };
-  let best = Infinity;
-  for (const edge of roomEdges(room.polygon)) {
-    const turn = edge.facing - item.rotation;
-    if (Math.abs(Math.atan2(Math.sin(turn), Math.cos(turn))) > 0.05) continue;
-    const distance = (back.x - edge.a.x) * edge.inward.x + (back.z - edge.a.z) * edge.inward.z;
-    if (distance >= -0.01 && distance < best) best = distance;
-  }
-  return Number.isFinite(best) ? Math.max(0, best) : 0;
+  const wall = wallBehind(item, roomEdges(room.polygon), { facing: Math.cos(0.05), by: 'gap', min: -0.01, max: Infinity });
+  return wall ? Math.max(0, wall.gap) : 0;
 }
 
 /**
@@ -1160,8 +1283,4 @@ export function applySwap(
       product
     );
   });
-}
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
 }

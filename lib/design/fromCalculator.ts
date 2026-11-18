@@ -309,7 +309,9 @@ function fitPick(piece: PlacedItem, product: CatalogProduct, room: PlanRoom, oth
   const settled = others.filter((other) => !placedOff(other, piece));
   const tested: PlacedItem = piece.slot === 'kitchen_run' && !isKitchenMaterial(product) ? { ...piece, slot: 'fridge' } : piece;
   const slots = new Map([...others, tested].map((item) => [item.id, item]));
-  const fit = placeFitting(tested, product, [], room, others, slots, settled, keepClear);
+  // Each piece its own box, as picks were always fitted (`placeFitting`'s `asBuilt` false): a pick
+  // is not measured against a shower's tray or with its WC's box, nor kept round a WC or an island.
+  const fit = placeFitting(tested, product, [], room, others, slots, settled, keepClear, false);
   return fit ? rehung(piece, { ...piece, position: fit.position, size: sizeFromProduct(product, piece) }, product, settled) : null;
 }
 

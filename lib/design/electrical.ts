@@ -24,6 +24,7 @@ import { isOpenEdge, isPassage, openingSpanUp, pointInPolygon, pointOnEdge, poly
 import { inSplashZone, wetFootprints } from './ruleChecks';
 import { partAt, studioParts } from './studio';
 import { closestOnSegment } from './walls';
+import { backMiddle, wallBehind } from './pieceGeometry';
 import { toSceneProduct, type CatalogProduct } from './matcher';
 import {
   APPLIANCE_SOCKET_M,
@@ -188,12 +189,10 @@ function clearSpotOnWall(b: Builder, room: PlanRoom, edge: PlanEdge, wanted: num
   return nearestClear(spans, wanted, plate);
 }
 
-/** The wall an item stands against: the edge nearest to the middle of its back. */
+/** The wall an item stands against: the wall edge nearest to the middle of its back, within 45 cm (`backWallOf`), and how far along it that is, as a share of its length. */
 function backWall(room: PlanRoom, item: PlacedItem): { edge: PlanEdge; t: number } | null {
-  const forward = { x: Math.sin(item.rotation), z: Math.cos(item.rotation) };
-  const back = { x: item.position.x - forward.x * (item.size.depth / 2), z: item.position.z - forward.z * (item.size.depth / 2) };
-  const spot = wallSpotNear(room, back, 0.45);
-  return spot ? { edge: spot.edge, t: spot.t } : null;
+  const wall = wallBehind(item, wallEdges(room), { facing: null, by: 'distance', max: 0.45 });
+  return wall ? { edge: wall.edge, t: closestOnSegment(backMiddle(item), wall.edge.a, wall.edge.b).t } : null;
 }
 
 /** Where along a wall a point falls, metres from its first corner. */

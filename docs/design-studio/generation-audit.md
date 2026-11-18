@@ -70,11 +70,12 @@ that placed or moved a piece without testing it again — the bath's floor mixer
 stacked under a mirror wider than its basin, a print hung inside the TV (by the matcher, and by the
 AI check's swap), a shower cabin under a lifted basin, a WC's box built into the basin beside it, a
 corner piece settled 0.04 mm through a wall drawn off square — and the invariants test holds all
-five at 0. At 12 draws (1,440 flats) a washer's own column was built into the vanity planned for
-the basin beside it (`in_joinery` 5: the column, wider than its machine, ran back over the vanity
-that had stopped at the machine's side) — now the vanity, built after the column, stops at it
-(`clearOfBuilt` in `bathroom.ts`), `in_joinery` 5 → 0 with nothing lost; one kind is left, of
-another cause and not fixed yet: a WC in a shower's tray (`in_shower_tray` 1) — [roadmap](../roadmap.md).
+five at 0. At 12 draws (1,440 flats) the two kinds left after that are fixed too: a washer's own
+column was built into the vanity planned for the basin beside it (`in_joinery` 5: the column, wider
+than its machine, ran back over the vanity that had stopped at the machine's side) — now the
+vanity, built after the column, stops at it (`clearOfBuilt` in `bathroom.ts`), `in_joinery` 5 → 0
+with nothing lost; and the WC in a shower's tray (`in_shower_tray` 1 → 0) went with O2, the tray
+read as the shower's floor everywhere.
 Two clashes the audit does not count are kept as they were: where the cut would leave the vanity
 narrower than its basin and 5 cm it stays into the column (2 of 1,440 flats, #375's r3, 4.9 cm),
 and a basin stands 1.9 cm past a vanity cut back to a corner column (#373's r2) — what gives way
@@ -439,7 +440,7 @@ Severity: **high** = seen by anyone who generates; **medium** = wrong in some ro
 
 ### B. Overlaps and clashes
 
-- [ ] **O1 (high) — The matcher does not know what the engine kept clear.** `placeFitting`
+- [x] **O1 (high) — The matcher does not know what the engine kept clear.** `placeFitting`
   (`matcher.ts:363-419`) tests the room's outline, the windows and the other pieces — not the door
   zones, radiator strips, columns, a partition's floor, the run's working floor, a WC's 80 cm or an
   island's ring. And the product is rarely the slot's size: of double beds placed 32 % were over
@@ -452,7 +453,16 @@ Severity: **high** = seen by anyone who generates; **medium** = wrong in some ro
   layout's), on keep-clear floor 37 → 18, `door_swing_blocked` 77 → 19. Still not known to the
   matcher: a WC's 80 cm, an island's ring, a shower's tray (O2); and a chair seated round a table
   stands at its own seat where it fits there at all, in a door's way or not (M8).
-- [ ] **O2 (high) — The shower's floor.** `PlacedItem.areaM` (the tray and its glass) is read by the
+  *Fixed:* the careful pass keeps what the layout keeps clear round a piece too (`keptRound`, as
+  deep as the layout's `stand` keeps it: a WC's 40 cm either side of its centre over the WC's own
+  depth, an island's 1.2 m all round — neither stood in nor standing in another's, and inside the
+  room), and the shower's tray went with O2 — `wc_side_tight` 10 → 0 in 1,440 flats, nothing lost.
+  The trade, for the owner beside X1: a basin that keeps out of a WC's 40 cm is often a narrower
+  product, and some of those are outside the basin's 0.85 ± 0.07 m — `basin_height` 226 → 226 in
+  1,440 flats, but 9 rooms newly fail it and 9 no longer do (a ring measured with the WC's cistern
+  box besides re-chose more basins: 226 → 228). No fixture plan has an island (a 17 m² kitchen), so
+  the ring is held by the unit test alone (`matcherFit.test.ts`).
+- [x] **O2 (high) — The shower's floor.** `PlacedItem.areaM` (the tray and its glass) is read by the
   layout's slot, `wallClear.ts:61` and one check (`ruleChecks.ts:284`). Everything else measures the
   50 cm column: `freeStretch` (`decor/joinery.ts:208-212`, so the vanity, the washer's column, the
   bath's box, the hall wardrobe and the kitchen leg), the matcher's blockers once the shower is
@@ -464,6 +474,17 @@ Severity: **high** = seen by anyone who generates; **medium** = wrong in some ro
   bath's box, the hall wardrobe and the kitchen leg stop at the tray: `joinery_in_tray` 34 → 0 and
   `in_shower_tray` 15 → 0 in 360 flats, nothing lost. Still reading the column: the matcher's
   blockers, `tightSpots`, the studio's drag test, `reviewFindings` and the boiler's clearance.
+  *Fixed:* the matcher's fit test (`placeFitting` → `builtFloor`, a shower in a product's way and a
+  shower product tested alike, and a WC with its cistern's box behind it, which stands it 20 cm
+  out), `tightSpots`, the studio's drag test (`itemFootprints`, so `isPlacementValid`,
+  `snapPlacement`, `rotateItem` and the AI check's moves), `reviewFindings`' overlaps and the
+  boiler's clearance all read `floorTaken` — `in_shower_tray` 1 → 0 and a WC standing in its own
+  box 13 → 5 in 1,440 flats, `door_zone` 116 → 100 and `door_swing_blocked` 104 → 88 (WCs their box
+  stood in a door's way), nothing lost; a WC that fits only into a tray keeps standing there (the
+  matcher's last two passes, each piece as its box — the careful one first, so it keeps a door's
+  way where it did). Still the column: a calculator pick (`fitPick`, fitted as it always was —
+  `asBuilt` false) and the walls in the studio's drag test (a shower dragged until its tray pokes
+  through a wall is let stand; only the pieces are tested against the tray).
 - [x] **O3 (medium) — The passes after the matcher test for themselves, partly.** The bathroom pass
   moves the washer beside the vanity (`bathroom.ts:116-146`) and stands a floor mixer in front of the
   bath with no test at all (`:268-271`). `fitHall` reads the hall's width off its bounding box
@@ -510,6 +531,12 @@ Severity: **high** = seen by anyone who generates; **medium** = wrong in some ro
   the style that hangs clear of them at a mirror's height (`mirrorClearOfColumn`; with none it stays
   as it hung — never lifted out of sight) — `hung_clash` 3 → 0 in 720 flats (6 → 0 in 1,440). The
   matcher still hangs a mirror without a fit test (a 1.29 m mirror over a 55 cm basin's slot).
+  *Partly:* a hanging lamp hangs clear of what stands under it — the slot takes one of its lamps
+  short enough to hang from the slot's top with its bottom over that piece by the matcher's 12 cm
+  (`slotPool`, `MATCHED_ABOVE_GAP_M`), never through the ceiling, and with none the lamps it had —
+  `hung_into_floor` 102 → 9 in 720 flats (96 of the 102 a pendant into a canopy bed); the 7 lamps
+  left over a bed hang under 2.7 m ceilings where the catalogue has no lamp short enough (13 cm).
+  Left: the mirror's width over its basin (which mirror fits a basin is the owner's).
 - [x] **O5 (low) — Two main lights at one spot.** The program's `pendant` (an item with a product)
   and the wiring's ceiling light (a point with a product) are both put in the middle of the room —
   `electrical.ts` never reads the pendant: 59 % of bedroom pendants, 53 % of living-room ones and
@@ -706,6 +733,9 @@ pieces a room has, the kitchen, the joinery, taps, lamps on the wiring, radiator
   the matcher's rule to add, and the products' heights are catalogue data (K); 17 are a basin 30 cm
   tall (#1817, a kitchen's granite double sink with a drainer filed as a basin — K) on the lowest
   vanity, 70 cm, its top at a metre — what such a basin becomes is the owner's rule (W2).
+  A WC's 40 cm either side
+  in the matcher (O1) chooses narrower basins beside a WC, some outside the check: 9 rooms in 1,440
+  flats newly fail it, as many no longer do.
 - [ ] **X2 — Two minimum areas per piece** in `catalog.ts`, different for nine kinds (dresser 12 and
   13, bath 6 and 7.5, island 16 and 17…), the archetype's applied whenever the program has none (M5).
 - [ ] **X3 — Sofa to TV**: 2.5–3.5 m scores the sofa's wall and is what the check flags
@@ -717,6 +747,20 @@ pieces a room has, the kitchen, the joinery, taps, lamps on the wiring, radiator
 - [ ] **X5 — A door's clear floor, five ways**: 0.95 m × door + 20 cm (archway 0.55) in the engine;
   0.90 m × the door in `inDoorway`; the leaf's square, inward doors only, in the check; a point 45 cm
   in with 30 cm round it in `tightSpots`; 0.90 m in the joinery. The matcher uses none.
+  *Partly:* one function draws the floor in front of an opening (`doorFloor`,
+  `lib/design/pieceGeometry.ts`: the opening's middle, a point straight in front of it, the
+  rectangle across it from one depth to another and its axis box), and four of the five are it,
+  each with its own numbers — every generated flat as it was. The five sets, for the owner to choose
+  one:
+  1. the layout engine (`doorKeepouts`): 95 cm into the room — an archway 55 — the door's width and
+     10 cm either side, squared onto the room's axes, every door and archway;
+  2. what generation's later passes, the matcher and the audit test (`inDoorway`): 90 cm in, the
+     door's width, every door and archway;
+  3. the app's own check (`doorSwings`, `door_swing_blocked`): the leaf's square — the door's width
+     across, from 2 cm in to the door's width in — inward doors only (not archways);
+  4. the tight passages (`tightSpots`): a point 45 cm in front of the opening's middle, nothing
+     within 30 cm of it (`DOOR_CLEARANCE_M`), every door and archway;
+  5. the joinery (`decor/joinery.ts`, the builders' file, not moved onto `doorFloor`): 90 cm in.
 - [ ] **X6 — Free floor in front of kitchen units**: 1.2 m (`KITCHEN_CIRCULATION_M`), 0.9 m for a
   leg (`kitchenCorner.ts:39`), 0.38 m when the run itself is placed (`0.95 × 0.4`,
   `autoLayout.ts:816`); the island's 1.2 m is declared twice.
@@ -767,10 +811,25 @@ pieces a room has, the kitchen, the joinery, taps, lamps on the wiring, radiator
   (`decor/housing.ts:91`, 30 cm; `electrical.ts:155`), `backOnWall` and `backGap`
   (`matcher.ts:535`, `:600`), `hungWall` (`manipulate.ts:371`) and two inline
   (`autoLayout.ts:842`, `:1356`). One generation runs nearly all of them on the same piece.
-- [ ] **D2 — Three footprints and three overlap tests**: the engine's `boxFor` + `overlaps` (no
+  *Partly:* one function answers it (`wallBehind`, `lib/design/pieceGeometry.ts`: the wall a piece
+  has its back to by its gap or by its distance, square to it within a caller's angle or any way,
+  within a caller's range, past an end by metres or a share of the wall) and `pieceWall`,
+  `backWallOf`, the matcher's `backOnWall` and `backGap`, the wiring's `backWall`, the decor's
+  `wallBehind` and the layout's two inline ones are it, each with its own tolerances (the AI check's
+  copy is `pieceWall` itself) — every generated flat as it was (360 flats compared field by field).
+  Left for the builders' files: `wallOf` (`decor/joinery.ts`), `backWall` (`decor/housing.ts`);
+  and `hungWall` (`manipulate.ts`, a hung piece's wall read from where it is, not which way it faces).
+- [x] **D2 — Three footprints and three overlap tests**: the engine's `boxFor` + `overlaps` (no
   tolerance), the matcher's and the studio's `footprintOf` + `footprintsOverlap` (2 cm), the checks'
   `footprintQuad` + `quadsOverlap` (the turned quad, 1 cm). A chair turned 45° is one thing to the
   engine and another to the checks.
+  *Fixed:* one axis box (`axisBox`, `lib/design/pieceGeometry.ts` — with a right angle's noise taken
+  out or not) and one turned quad (`turnedQuad`), and one overlap test each (`boxesOverlap`,
+  `quadsOverlap`) with the tolerance passed at the call: the engine's `boxFor` and `overlaps`
+  (as the cosine comes, 0), the studio's and the matcher's `footprintOf` and `footprintsOverlap`
+  (squared, 2 cm), the checks' `footprintQuad` and `quadsOverlap` (1 cm) are them — each caller's
+  box or quad and tolerance as they were, every generated flat as it was. Which of the two a chair
+  turned 45° should be is still each caller's.
 - [x] **D3 — What is built round a piece, twice**: the vanity in `bathroom.ts:79-97` and `vanityFor`
   (`decor/housing.ts:308`); the washer's column in `bathroom.ts:110-162` and `columnFor` (`:283`); the
   bath's box in `bathroom.ts:279` and `boxFor` (`:489`, without Vintage's surround); the WC's box in
@@ -800,6 +859,15 @@ pieces a room has, the kitchen, the joinery, taps, lamps on the wiring, radiator
 - [ ] **D8 — Small copies**: `rayToOutline` (`autoLayout.ts:1053`) is `rayToPolygon`
   (`rules.ts:363`); point-in-polygon four times; point-to-segment about ten; `round2` seventeen;
   seven local "style affinity" scales beside `styleAffinity`.
+  *Partly:* in the layout, the matcher, the checks and the geometry `rayToOutline` is gone for
+  `rayToPolygon`, `round2` is one (`lib/design/pieceGeometry.ts`: the matcher's, `planGeometry`'s,
+  the checks' and the AI check's `r2`) and so is the distance to a segment (the checks' `toSegment`
+  is `distanceToSegment`) — every generated flat as it was. Left: the other `round2`s and
+  point-to-segments in files outside this lane (`openings.ts` has its own `distanceToSegment`), the
+  one point-in-polygon of `lib/design` is `planGeometry`'s (the 3D view has its own,
+  `buildStructure.ts`), and the style scales — the matcher's `STYLE_WEIGHT` is a weight per
+  affinity, not a copy of `styleAffinity`; the others are in the builders', the finishes' and the
+  AI designer's files.
 
 ### G. Technical placement and fittings
 
@@ -827,7 +895,7 @@ running the repo's own functions.
   general socket keeps off a kitchen run and a wardrobe however low — `socket_in_radiator` 83 → 0.
   *Left:* a general socket behind a bed's headboard, a sofa's back or another low piece — which
   pieces hide a socket is for the per-room rules (one set, `HIDES_A_SOCKET`).
-- [ ] **T3 (high) — A towel rail is a radiator point that no radiator rule knows.** Hung over the WC
+- [x] **T3 (high) — A towel rail is a radiator point that no radiator rule knows.** Hung over the WC
   (the rulebook's BA-19) it makes that WC `radiator_blocked` (60 of 60), and on the next generation
   its strip is a keep-clear floor: the WC is moved (55 of 60) or dropped (5). Every rail raises
   `radiator_not_exterior`. Placed before the furniture, its 0.58 × 0.375 m strip costs a
@@ -838,6 +906,20 @@ running the repo's own functions.
   60 cm in a bare bathroom still keeps its strip: with the floor freed and no height-aware obstacle
   in `autoLayout.ts`, a basin or a washer's column was generated up into the rail in 7–29 of 40 draws
   (0–4 with the strip).
+  *Fixed:* the floor kept clear has a height (`KeepClear.bottom`, `clearsUnder`): the strip under a
+  rail is given the rail's bottom (`radiatorKeepouts`), and the layout's obstacles (`layoutArea`,
+  `placeAdditional`) and the matcher's keep-clear floor are in the way only of what reaches up to it
+  — a bath or a stool stands under a rail at 60 cm, a basin or a washer's column never does (and
+  the audit's `on_keep_clear` reads the same). A bathroom laid out another way for it may not lose
+  a piece it has with the strip clear to the ceiling: `generateScene` lays out and matches the flat
+  both ways (`laidOutAndMatched`) and keeps the floor under a rail only in the rooms that keep every
+  piece — #405's bathroom, laid out another way in 44 of 48 draws, had its bath slot laid under the
+  rail against the basin in one (industrial, draw 4), where no bath of the style fits (the matcher
+  does not slide a bath wider than its slot along its wall), and lost its bath, its mixer and its box.
+  In the fixture plans (1,440 flats) nothing is lost against the strip clear to the ceiling. With
+  the rails hung first in every bathroom (`suggestRadiators` on the bare plans, 960 bathrooms in 12
+  draws, a lane script): baths 135 → 142, stools 112 → 116, dryers 155 → 159, mirrors 624 → 628,
+  nothing in a rail's way and no piece fewer.
 - [x] **T4 (medium) — A studio kitchen's spots hang in the living half.** The row is put on the
   line through the room's middle, taken for the whole studio (`electrical.ts:516-528`): 2.9 m in
   front of the worktop, one of them 2 cm from the room's own ceiling light. In L-shaped kitchens
@@ -1238,6 +1320,12 @@ the open line 48, none 220; a sofa 208; a run 256; a fridge 224.
   studio's outline, `matcher.ts:390`). Minimum areas are judged per half: a 28 m² studio split 35/65
   passes neither the kitchen's 10 m² nor the living room's 26 m² for a table (none in four studios),
   and no half reaches the island's 17 m².
+  *Partly:* the matcher fits a studio's piece to the half that laid it (`studioHalf`, `partRoom`, as
+  the layout does), and takes the whole studio only where nothing of the slot's fits in the half —
+  pieces of one half across the line 68 → 2 in 1,440 flats (counted in a lane script: a floor piece
+  whose box, 2 cm in, is not inside its half), nothing missing more; a table kept in its half is
+  often a smaller one and seats fewer chairs (the studios' chairs 526 → 520). The minimum areas per
+  half are the owner's (which a studio's half is judged by).
 
 With RS2 and the living-room changes below: sofas 208 → 288, a TV on a real wall 16 → 224.
 
@@ -1309,6 +1397,15 @@ with fewer than two nightstands 135.
 - [ ] **RB3 (high) — Nightstands are dropped beside beds over 2 m wide** (`matcher.ts:568`):
   re-measured from the real bed they move 0.2–0.85 m outward, onto the lamp's, the wardrobe's or
   the plant's unmatched slot: 71 rooms lose one or both.
+  *Partly:* the matcher already tried every nightstand product, and a slot that got no product no
+  longer blocks; what was left was the slot still to be matched — a nightstand side that found no
+  room is tried again once the room stands as matched, the pair's product first, then the narrowest
+  that fits (`completePairs`, then `pairsAlike`): beds over 2 m short of a nightstand 54 → 33 rooms
+  in 720 flats (double beds 156 → 134, nightstands placed +24), nothing lost. The 33 left (measured
+  with the narrowest nightstand, 29 cm, beside the real bed): the floor lamp 14, the plant 11 or a
+  stool 1 the layout stood in the corner where the real bed's nightstand would go, a wall 5, a
+  door's way 4 — which gives way, the decor or the nightstand (or the bed for a narrower one), is the
+  owner's.
 - [ ] **RB4 (medium) — A wide bed is a wide headboard.** The catalogue's width over about 2 m is
   headboard (in one model a throw on the floor), and the nightstands are stood outside it, up to
   75 cm from the mattress: 191 beds.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { matchProducts, type CatalogProduct, type MatchOptions } from '@/lib/design/matcher';
+import { matchProducts, toSceneProduct, type CatalogProduct, type MatchOptions } from '@/lib/design/matcher';
 import { refreshRoom } from '@/lib/design/planGeometry';
 import type { Opening, PlacedItem, PlanRoom } from '@/lib/design/types';
 
@@ -141,6 +141,16 @@ describe('what the layout kept clear', () => {
     expect(match([chest()], [wider, narrower], [plain], { keepClear: { other: [strip] } })[0].product?.productId).toBe(1);
   });
 
+  it('under a hung thing (a towel rail\'s strip, its `bottom`), only what reaches up into it', () => {
+    // The strip before a rail hung 60 cm up, over the chest's slot: a 55 cm chest stands under it,
+    // an 82 cm one does not where the lower one fits.
+    const under = { minX: 0.9, maxX: 2.1, minZ: 0, maxZ: 0.6, bottom: 0.6 };
+    const tall = product(8, 'dresser', 100, 45, 82, { isFeatured: true });
+    const low = product(9, 'dresser', 100, 45, 55);
+    expect(match([chest()], [tall, low], [plain], { keepClear: { r: [under] } })[0].product?.productId).toBe(9);
+    expect(match([chest()], [tall, low], [plain], { keepClear: { r: [{ ...under, bottom: 0.9 }] } })[0].product?.productId).toBe(8);
+  });
+
   it('never costs the room a piece: with no product that keeps clear, the one it would have had', () => {
     const [placed] = match([chest()], [wider], [room], { keepClear: { r: [{ minX: 0, maxX: 0.92, minZ: 0, maxZ: 0.6 }] } });
     expect(placed.product?.productId).toBe(1);
@@ -248,6 +258,131 @@ describe('the working floor in front of a kitchen run', () => {
     const deepShelf = product(15, 'bookshelf', 60, 105, 190, { isFeatured: true });
     const shallowShelf = product(16, 'bookshelf', 60, 65, 190);
     expect(match([run(), shelf], [runProduct, deepShelf, shallowShelf], [kitchen])[1].product?.productId).toBe(16);
+  });
+});
+
+describe('a hanging lamp over what stands under it', () => {
+  // A canopy bed 2.45 m tall in a room 2.8 m high; the lamp's slot hangs from the ceiling over it.
+  const bedroom = rect('b', 'bedroom', 4, 4);
+  const bed = () => slot('bed', 'b', 'bed_double', 'bed', 2, [1.6, 2.05, 1.05]);
+  const canopy = product(40, 'bed_double', 160, 205, 245);
+  const lamp = (x = 2, z = 1) => slot('lamp', 'b', 'pendant', 'pendant', x, [0.52, 0.52, 0.55], { position: { x, z }, elevationM: 2.25 });
+  // 47 cm long, it would hang to 2.33 m — into the canopy; 20 cm long, to 2.6 m — 15 cm over it.
+  const long = product(41, 'pendant', 10, 10, 47);
+  const short = product(42, 'pendant', 30, 30, 20);
+
+  it('hangs clear of it: a shorter one of the slot\'s that does takes it', () => {
+    const [, hung] = match([bed(), lamp()], [canopy, long, short], [bedroom], { picks: { 'pendant|b': 41 } });
+    expect(hung.product?.productId).toBe(42);
+    expect(hung.elevationM).toBeGreaterThanOrEqual(2.45 + 0.12 - 1e-9);
+    expect(hung.elevationM + hung.size.height).toBeLessThanOrEqual(2.8 + 1e-9);
+  });
+
+  it('keeps the lamp drawn where nothing tall stands under it, and where none hangs clear', () => {
+    expect(match([bed(), lamp(2, 3.6)], [canopy, long, short], [bedroom], { picks: { 'pendant|b': 41 } })[1].product?.productId).toBe(41);
+    const [, hung] = match([bed(), lamp()], [canopy, long], [bedroom]);
+    expect(hung.product?.productId).toBe(41);
+    // …never pushed up through the ceiling.
+    expect(hung.elevationM + hung.size.height).toBeLessThanOrEqual(2.8 + 1e-9);
+  });
+});
+
+describe('nightstands beside a bed wider than its slot', () => {
+  // A bed's slot 1.6 m wide on the north wall (x 1.7–3.3), a nightstand's slot either side, and a
+  // floor lamp's in the corner beyond the right one (x 3.89–4.31). The bed drawn is 2.3 m wide
+  // (x 1.35–3.65): a nightstand beside it on the right runs into the lamp's slot as laid; the lamp
+  // drawn is 11 cm wide (x 4.05–4.16) and leaves room for a 29 cm nightstand.
+  const bedroom = rect('b', 'bedroom', 5, 4);
+  const bed = () => slot('bed', 'b', 'bed_double', 'bed', 2.5, [1.6, 2.05, 1.05]);
+  const right = () => slot('ns-r', 'b', 'nightstand', 'nightstand', 3.565, [0.45, 0.4, 0.52]);
+  const left = () => slot('ns-l', 'b', 'nightstand', 'nightstand', 1.435, [0.45, 0.4, 0.52]);
+  const lamp = () => slot('lamp', 'b', 'floor_lamp', 'floor_lamp', 4.1, [0.42, 0.42, 1.62]);
+  const catalog = [product(60, 'bed_double', 230, 205, 105), product(61, 'nightstand', 45, 40, 52), product(62, 'nightstand', 29, 28, 60), product(63, 'floor_lamp', 11, 11, 150)];
+
+  it('a nightstand that found no room beside it as the room was being matched gets the pair\'s narrowest that fits once it stands — both alike', () => {
+    const out = match([bed(), right(), left(), lamp()], catalog, [bedroom], { picks: { 'nightstand|b': 61 } });
+    const stands = out.filter((i) => i.slot === 'nightstand');
+    expect(stands.map((i) => i.product?.productId)).toEqual([62, 62]);
+    // Beside the real bed, clear of the lamp.
+    const r = stands.find((i) => i.id === 'ns-r')!;
+    expect(r.position.x - r.size.width / 2).toBeGreaterThanOrEqual(3.65);
+    expect(r.position.x + r.size.width / 2).toBeLessThanOrEqual(4.05 + 0.02);
+  });
+
+  it('with none that fits there, as before', () => {
+    const wideLamp = product(63, 'floor_lamp', 60, 60, 150);
+    const out = match([bed(), right(), left(), lamp()], [...catalog.slice(0, 3), wideLamp], [bedroom], { picks: { 'nightstand|b': 61 } });
+    expect(out.find((i) => i.id === 'ns-r')?.product).toBeNull();
+  });
+});
+
+describe('a studio\'s half', () => {
+  // A studio 6 × 4 m divided at x 2 (the kitchen half x 0–2, `split`); a bookcase's slot in the
+  // living half on the north wall, its left end 10 cm from the line, a wardrobe standing 25 cm to
+  // its right (x 3.15).
+  const studio = { ...rect('s', 'studio', 6, 4), split: { axis: 'x' as const, t: 2 / 6, parts: ['kitchen', 'living_room'] as ['kitchen', 'living_room'] } };
+  const shelf = () => slot('s-p1-bookshelf-0', 's', 'bookshelf', 'bookshelf', 2.5, [0.8, 0.35, 1.8]);
+  const wardrobe = () => slot('s-p1-wardrobe-1', 's', 'wardrobe', 'wardrobe', 3.65, [1, 0.6, 2], { product: toSceneProduct(product(52, 'wardrobe', 100, 60, 200), 1), pinned: true });
+  // 1.2 m wide, it stands 10 cm across the line into the kitchen half — eased into its own it runs
+  // into the wardrobe; 0.9 m stays in its own.
+  const wide = product(50, 'bookshelf', 120, 35, 180);
+  const narrow = product(51, 'bookshelf', 90, 35, 180);
+
+  it('is the floor a piece of it stands on: a product that stays in it takes the slot', () => {
+    expect(match([wardrobe(), shelf()], [wide, narrow], [studio], { picks: { 'bookshelf|s': 50 } })[1].product?.productId).toBe(51);
+  });
+
+  it('never costs the studio a piece: with none that stays in the half, the one it would have had', () => {
+    expect(match([wardrobe(), shelf()], [wide], [studio])[1].product?.productId).toBe(50);
+  });
+});
+
+describe('what the layout keeps clear round a piece', () => {
+  const bathroom = rect('b', 'bathroom', 3, 2.4);
+  // A WC's slot on the north wall at x 1.2: its 40 cm either side of its centre is x 0.8–1.6.
+  const wc = () => slot('wc', 'b', 'toilet', 'toilet', 1.2, [0.4, 0.68, 0.82]);
+  const wcProduct = product(30, 'toilet', 38, 60, 80);
+
+  it('a WC\'s 40 cm either side: a basin that keeps out of them takes its slot beside it', () => {
+    // The basin's slot 7 cm clear of the WC's 40 cm (x 1.67–2.17); the basin drawn is 22 cm wider
+    // than its slot and reaches 4 cm into them (x 1.56) — 17 cm clear of the WC itself.
+    const basin = slot('basin', 'b', 'sink', 'sink', 1.92, [0.5, 0.45, 0.85]);
+    const wide = product(31, 'sink', 72, 45, 85);
+    const narrow = product(32, 'sink', 50, 45, 85);
+    expect(match([basin], [wide, narrow], [bathroom], { picks: { 'sink|b': 31 } })[0].product?.productId).toBe(31);
+    expect(match([wc(), basin], [wcProduct, wide, narrow], [bathroom], { picks: { 'sink|b': 31 } })[1].product?.productId).toBe(32);
+    // …a WC matched after the basin keeps them too: the wide basin stands, a WC that keeps 40 cm
+    // from it either side does not fit there, so the WC the room would have had stands.
+    expect(match([basin, wc()], [wide, wcProduct], [bathroom], { picks: { 'sink|b': 31 } })[1].product?.productId).toBe(30);
+    // With no basin that keeps out of them, the one the room would have had.
+    expect(match([wc(), basin], [wcProduct, wide], [bathroom])[1].product?.productId).toBe(31);
+  });
+
+  it('a WC\'s 40 cm either side are as deep as the WC, as the layout keeps them — not its cistern\'s box besides', () => {
+    // The WC at x 0.7 on wall 0 (60 cm deep): its 40 cm either side are x 0.3–1.1, z 0–0.6. A basin on
+    // wall 3 (x 0) 60 cm wide, its middle at z 1.0, starts 10 cm past them (z 0.7) — inside the 20 cm the
+    // box behind the WC stands it out, which is no part of the layout's rule (\`stand\` in autoLayout).
+    const basin = slot('basin', 'b', 'sink', 'sink', 0, [0.6, 0.45, 0.85], { position: { x: 0.225, z: 1 }, rotation: Math.PI / 2 });
+    const wide = product(38, 'sink', 60, 45, 85);
+    const slim = product(39, 'sink', 20, 45, 85);
+    expect(match([slot('wc', 'b', 'toilet', 'toilet', 0.7, [0.4, 0.68, 0.82]), basin], [wcProduct, wide, slim], [bathroom], { picks: { 'sink|b': 38 } })[1].product?.productId).toBe(38);
+  });
+
+  it('an island\'s 1.2 m all round: a table that keeps out of it takes its slot', () => {
+    const kitchen = rect('k', 'kitchen', 6, 6);
+    // The island's slot in the middle (x 2.1–3.9, z 2.55–3.45); its 1.2 m reaches z 1.35 to the north.
+    const island = slot('island', 'k', 'kitchen_island', 'kitchen_island', 3, [1.8, 0.9, 0.94], { position: { x: 3, z: 3 } });
+    // A table's slot on the north wall, z 0–0.82; the one drawn is 1.4 m deep and reaches z 1.4 — clear
+    // of the island by 1.15 m.
+    const table = slot('table', 'k', 'dining_table', 'dining_table', 3, [1.2, 0.82, 0.75]);
+    const deep = product(34, 'dining_table', 120, 140, 75);
+    const shallow = product(35, 'dining_table', 120, 80, 75);
+    const islandProduct = product(36, 'kitchen_island', 180, 90, 94);
+    expect(match([table, island], [deep, shallow, islandProduct], [kitchen], { picks: { 'dining_table|k': 34 } })[0].product?.productId).toBe(35);
+    expect(match([table, island], [deep, islandProduct], [kitchen])[0].product?.productId).toBe(34);
+    // The island drawn keeps its ring clear of what stands: a 2.4 m island would come within 1.2 m of the table.
+    const long = product(37, 'kitchen_island', 180, 210, 94);
+    expect(match([{ ...table, position: { x: 3, z: 0.41 } }, island], [shallow, long, islandProduct], [kitchen], { picks: { 'kitchen_island|k': 37 } })[1].product?.productId).toBe(36);
   });
 });
 

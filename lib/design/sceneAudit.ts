@@ -12,7 +12,7 @@ import { arrangedOff } from './arrangedOff';
 import { getArchetype } from './catalog';
 import { decorFootprint } from './decor/joinery';
 import { isLampOutlet } from './electrical';
-import { blocksWindow, footprintInRoom, footprintOf, inDoorway, pieceWall, tucksUnder, type Footprint } from './manipulate';
+import { blocksWindow, clearsUnder, footprintInRoom, footprintOf, inDoorway, pieceWall, tucksUnder, type Footprint } from './manipulate';
 import { isOpenEdge, roomEdges } from './planGeometry';
 import { DEFAULT_SECTION_WIDTH_M, radiatorPoints, radiatorSections, radiatorWallSpot } from './radiators';
 import { RADIATOR_HEIGHT_M, radiatorKeepouts, ruleViolations, type RuleCode } from './ruleChecks';
@@ -268,7 +268,7 @@ export function auditScene(scene: AuditedScene): SceneIssue[] {
       if (inDoorway(item, room)) say('door_zone', item.kind, item.id);
       if (!getArchetype(item.kind)?.ghost && !footprintInRoom(box(item), room.polygon)) say('out_of_room', item.kind, item.id);
       if (blocksWindow(item, room)) say('across_window', item.kind, item.id);
-      if (keepClear.some((k) => depthIn(k, box(item)) > TOUCH_M * 2)) say('on_keep_clear', item.kind, item.id);
+      if (keepClear.some((k) => !clearsUnder(k, item.size.height) && depthIn(k, box(item)) > TOUCH_M * 2)) say('on_keep_clear', item.kind, item.id);
     }
 
     // --- hung pieces: into each other, into what stands under them

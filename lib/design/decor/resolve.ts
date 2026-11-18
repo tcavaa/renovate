@@ -9,6 +9,7 @@
 
 import { WALL_UNIT_BOTTOM_M } from '@/lib/design/rules';
 import { roomEdges, wallEdges, type PlanEdge } from '@/lib/design/planGeometry';
+import { wallBehind as pieceWallBehind } from '@/lib/design/pieceGeometry';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import { toSceneProduct } from '@/lib/design/matcher';
 import type { DecorFamily, DecorMaterial, DecorParams, DecorPiece, DecorSlot, Opening, PlacedItem, PlanRoom, SlotKind } from '@/lib/design/types';
@@ -118,21 +119,12 @@ export function sanitizeParams(family: DecorFamily, params: DecorParams | null |
   return out;
 }
 
-/** The wall a piece of furniture stands with its back to: the wall edge nearest its back. */
+/**
+ * The wall a piece of furniture stands with its back to: of the walls it faces away from (their
+ * inward normal within about 45° of the way it looks), the one nearest its back, within 1.2 m.
+ */
 export function wallBehind(item: Pick<PlacedItem, 'position' | 'rotation' | 'size'>, room: PlanRoom): PlanEdge | null {
-  const facing = { x: Math.sin(item.rotation), z: Math.cos(item.rotation) };
-  const back = { x: item.position.x - facing.x * (item.size.depth / 2), z: item.position.z - facing.z * (item.size.depth / 2) };
-  let best: { edge: PlanEdge; d: number } | null = null;
-  for (const edge of wallEdges(room)) {
-    const t = clamp(((back.x - edge.a.x) * edge.dir.x + (back.z - edge.a.z) * edge.dir.z) / edge.length, 0, 1);
-    const px = edge.a.x + edge.dir.x * edge.length * t;
-    const pz = edge.a.z + edge.dir.z * edge.length * t;
-    // Only a wall the piece faces away from: its inward normal points the way the piece looks.
-    const aligned = edge.inward.x * facing.x + edge.inward.z * facing.z;
-    const d = Math.hypot(back.x - px, back.z - pz) + (aligned > 0.7 ? 0 : 10);
-    if (!best || d < best.d) best = { edge, d };
-  }
-  return best && best.d < 1.2 ? best.edge : null;
+  return pieceWallBehind(item, wallEdges(room), { facing: 0.7, by: 'distance', max: 1.2 })?.edge ?? null;
 }
 
 /** Where along an edge a point falls, metres from its first corner. */

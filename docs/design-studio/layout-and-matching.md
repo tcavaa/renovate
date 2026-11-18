@@ -16,11 +16,12 @@ as products).
 | File | Responsibility |
 |---|---|
 | `lib/design/catalog.ts` | `ARCHETYPES` (every placeable kind: real size, category, placement rule, labels in three languages), `ROOM_PROGRAMS` (which slots each room type gets), `SHELF_ROOMS` / `kindsForRoom` / `unroomedKinds` (which kinds belong in which room — the studio rooms' starting point; the shelf itself is admin's, [../categories.md](../categories.md)) |
-| `lib/design/autoLayout.ts` | `layoutPlan` / `layoutRoom` (rule-based placement, collision-checked; a studio half by half — `partRoom`; `LayoutOptions.anchors` from technical points, `obstacles` for columns and the strip in front of every radiator — `radiatorKeepouts`, [design-rules.md](design-rules.md)), `placeAdditional` (a free spot for one more piece), `FURNISHABLE_ROOM_TYPES` |
+| `lib/design/autoLayout.ts` | `layoutPlan` / `layoutRoom` (rule-based placement, collision-checked; a studio half by half — `partRoom`; `LayoutOptions.anchors` from technical points, `obstacles` for columns and the strip in front of every radiator — `radiatorKeepouts`, [design-rules.md](design-rules.md); an obstacle with a `bottom`, the strip under a towel rail, is in the way only of what reaches up to it — `KeepClear`, `clearsUnder`), `placeAdditional` (a free spot for one more piece), `FURNISHABLE_ROOM_TYPES` |
 | `lib/design/matcher.ts` | `matchProducts` (client-side; drops products without `model3dUrl`, scores style tag + budget tier, checks the fit), `candidatesFor` (the swap list), `toSceneProduct`, `applySwap` |
 | `lib/design/arrangedOff.ts` | `arrangedOff` (which piece a kind is arranged off, read from the archetypes' rules), `withoutOrphans` (a piece that is gone takes what was arranged off it) |
 | `lib/design/random.ts` | seeded randomness for generating (`seededRng`, `randomSeed`, a stream per key — `streamRng`, `rngStreams`, `roomStreams` — `weightedPick`, `weightedOrder`, `pickNearBest`) |
 | `lib/design/clearance.ts` | `tightSpots`, `tightSpotsByItem` |
+| `lib/design/pieceGeometry.ts` | a piece's geometry written once for the engine, the matcher, the studio, the checks, the wiring and the decor: `wallBehind` (the wall a piece has its back to — by its gap or its distance, square to it or not, each caller's own tolerances: `pieceWall`, `backWallOf`, the matcher's `backOnWall` / `backGap`, the wiring's `backWall`, the decor's `wallBehind`, the layout's TV-over-unit and beside-a-piece spots), the floor a piece covers — `axisBox` (squared at right angles for the studio and the matcher, `footprintOf`; as the cosine comes for the engine, `boxFor`) and `boxesOverlap`, `turnedQuad` (the checks' `footprintQuad`) and `quadsOverlap`, the tolerance passed at each call (the engine 0, two pieces 2 cm — `PIECE_TOUCH_M`, the checks 1 cm — `QUAD_TOUCH_M`) — `doorFloor` (the floor in front of a door or an archway, each caller's depth and width: the engine's `doorKeepouts`, `inDoorway`, the check's door swing, `tightSpots`), `backMiddle`, `distanceToSegment`, `round2` |
 | `lib/design/footprintMasks.ts` | a model's real footprint when it is not its box (filled by `lib/design3d/modelLoader.ts`) |
 | `lib/design/styles.ts`, `styleQuiz.ts` | the style a design is matched to |
 | `store/designStore.ts` → `generate` | layout + matching + fittings + openings' products, the hinge of the journey ([overview.md](overview.md)) |
@@ -47,6 +48,13 @@ scene ──tightSpots──▶ amber warnings (not a rule)
   whatever lies on the room's own separators marked open (`PlanRoom.open`), so nothing stands
   against the line, runs along it or hangs on it. The halves were once handed no openings and the
   line as a wall: a gallery of prints hung on the line in mid-air, and the TV across a window.
+  **The matcher fits a studio's piece to its half too** (`placeFitting`'s `within`, `studioHalf`:
+  the half whose program laid it, by its id): a product stands inside the half's outline, eased
+  into it, the studio's doors, windows and walls tested as they are; only where nothing of the
+  slot's fits in the half — any seat of a chair, any product, any pass — is the whole studio's
+  outline taken, as before. It tested the whole studio, and pieces stood across the line: 68 in
+  1,440 flats (dining tables bigger than their slots and the chairs round them, bookcases), now 2.
+  A table that now stays in its half is often a smaller one, and seats fewer chairs.
   **An opening that reaches across the line** is the half's its middle is in, whole, and the other
   half is told of the stretch on its own wall (`Opening.reachesIn`, never stored): nothing tall
   stands or hangs over it there (`coversOpening`), and a kitchen run counts that wall as one with a
@@ -395,14 +403,31 @@ window.
 tried first): a door's way (`inDoorway`: 90 cm into the room, the opening's width), the floor the
 layout was told to keep clear (`MatchOptions.keepClear`, which `generateScene` fills with the
 layout's own `obstacles` — the strip before each radiator, the columns, the floor behind a
-partition) and, for anything but the kitchen's own furniture (the run, the wall cabinets, the
+partition; under a towel rail, only for a product that reaches up to the rail's bottom) and, for anything but the kitchen's own furniture (the run, the wall cabinets, the
 island, the fridge), the working floor in front of a kitchen run (`KITCHEN_CIRCULATION_M`,
-`workingFloor`). The engine keeps all of that free of its slots, but a product is rarely its slot's
+`workingFloor`), and what the layout keeps clear round a piece (`keptRound`, as the layout's
+`stand` keeps it: a WC's 40 cm either side of its centre, `WC_SIDE_M`, as deep as the WC — not its
+cistern's box besides —, an island's 1.2 m all round, `ISLAND_CLEAR_M`) — a product stands in no
+other's, has none in its own, and its own is inside the room. The engine keeps all of that free of its slots, but a product is rarely its slot's
 size — a third of the double beds placed are over a quarter wider — and the fit test knew only the
-room, the windows and the pieces. So each slot is gone through twice: first only a product that
-also keeps those clear, through every step of the slot's order (above: another style's bed that
-keeps out of a door's way before the style's own that stands in it); and when none does, by the
-room, the windows and the pieces alone, so that no room loses a piece for it. **The AI designer's
+room, the windows and the pieces. So each slot is gone through four times (`fitPasses`): first
+only a product that also keeps those clear, through every step of the slot's order (above:
+another style's bed that keeps out of a door's way before the style's own that stands in it); when
+none does, by the room, the windows and the pieces alone; and when none does either, the two
+again as the matcher had them, each piece its own box and nothing kept round a WC or an island —
+what the layout kept clear first, then the room and the pieces alone — so that no room loses a
+piece for it, and one none of whose products keeps out of a tray still keeps a door's way where it
+did. **Every piece is the floor it takes once generation has built round it** (`builtFloor`) in
+the first two: a shower its tray and glass
+(`floorTaken`), not the column at its back — both a shower in a product's way and a shower product
+tested itself — and a WC with its back on a wall the box of its concealed cistern behind it too
+(`WC_BOX_DEPTH_M`, which `wcBoxes` builds behind every WC and which stands the WC that much further
+out, `clearOfDecor`). The fit test measured the column and the WC as matched: a WC across a
+narrow bathroom from the shower was pushed into the tray by its box (or, where that push was
+refused, stood inside its own box). A WC that fits only into a tray still stands there in the last
+passes rather than not at all. A calculator pick is fitted by the old two (`fitPick` passes
+`asBuilt` false): a pick is not measured against a shower's tray or with its WC's box, nor kept
+round a WC or an island. **The AI designer's
 pick is held to the same** (`MatchOptions.picks`): a pick that fits its slot only by standing in a
 door's way, on keep-clear floor or on a run's working floor gives way to a product that keeps them
 clear — the room's other candidates, then the slot's ways out — and takes the slot only when no
@@ -477,6 +502,13 @@ own. The matcher re-measures every piece from the product it got, so the room st
   room's product did not fit one side and that side got another, each product the pair got is tried
   on both — the one most of it has first, then the narrowest — and the first that fits both, each
   beside the bed, takes the pair. The designer's check replaces both or neither (`applyReviewFixes`).
+  **A nightstand that found no room beside the real bed is tried again once the room stands**
+  (`completePairs`, before `pairsAlike`): matched before the pieces laid after it, it was refused by
+  their slots at the archetypes' sizes — a bed wider than its slot stands its nightstand into the
+  floor lamp's or the plant's slot in the corner, whose product then turns out 11 cm wide. The
+  pair's product first, then the slot's others from the narrowest, through the same passes; with
+  none that fits beside the bed among the pieces as matched, the side stays without. Nothing is
+  drawn for it, so no other piece changes.
   **A room's dining chairs are one product too**: once its first chair is placed, a seat that chair
   does not fit is left empty rather than given another — a step stool stood among six dining chairs.
   A piece the check replaces is re-measured as the matcher would (`settledPosition`): a wider fridge
@@ -548,7 +580,10 @@ own. The matcher re-measures every piece from the product it got, so the room st
   wall-hung, under `COUNTERTOP_BASIN_MAX_M`) is lifted, its top at a basin's height (`BASIN_TOP_M`, 85 cm). **A hanging lamp hangs from the ceiling by its own
   length**, its bottom no lower than 1.9 m (1.45 m over a table): every pendant used to hang at
   2.25 m whatever its length, so a 0.9 m one went through the ceiling; the slot takes only lamps
-  short enough (`slotPool`).
+  short enough (`slotPool`) — and, where any of them is, one whose bottom also hangs clear of what
+  stands under it by 12 cm (`MATCHED_ABOVE_GAP_M`): a lamp hung into a canopy bed 2.45 m tall
+  gives way to a shorter one. With none that clears, the lamps it had (a 2.7 m room over a canopy
+  bed leaves 13 cm, and the catalogue has no lamp that short).
 - **No tall product stands across a window** (`blocksWindow`, `lib/design/manipulate.ts`: a piece
   with its back to the window's wall, taller than the sill by 5 cm, across its width): the matcher
   passes over one (a wardrobe for a dresser slot under a window), and a shop's kitchen unit with

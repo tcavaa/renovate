@@ -45,7 +45,8 @@ import {
 } from './planGeometry';
 import type { Opening, PlacedItem, PlanRoom, StyleId, Vec2 } from './types';
 import { isLargeSize, isTightPassage, longSideGaps } from './clearance';
-import { blocksWindow, pieceWall } from './manipulate';
+import { blocksWindow, clearsUnder, pieceWall, type KeepClear } from './manipulate';
+import { axisBox, backMiddle, boxesOverlap, doorFloor, QUAD_TOUCH_M, wallBehind } from './pieceGeometry';
 import { kitchenCornerFloor } from './kitchenCorner';
 import { anchorsFor, type TechnicalAnchor } from './technical';
 import { pickNearBest, weightedOrder, type RoomRng, type Rng } from './random';
@@ -81,12 +82,13 @@ import {
   type Quad,
 } from './rules';
 
-/** Axis-aligned box in the ground plane. */
+/** Axis-aligned box in the ground plane — for floor kept clear under a hung thing, with the height its bottom is at (`KeepClear`). */
 interface Box {
   minX: number;
   maxX: number;
   minZ: number;
   maxZ: number;
+  bottom?: number;
 }
 
 interface Pose {
@@ -103,8 +105,11 @@ export interface LayoutOptions {
   skipDecor?: boolean;
   /** Per room, the technical points fixtures want to be near (the sewer for the toilet). */
   anchors?: Record<string, TechnicalAnchor[]>;
-  /** Per room, floor boxes nothing may stand on — the columns. */
-  obstacles?: Record<string, Box[]>;
+  /**
+   * Per room, floor boxes nothing may stand on — the columns, the strip before each radiator — or,
+   * under a hung thing (a towel rail's strip, `KeepClear.bottom`), nothing that reaches up to it.
+   */
+  obstacles?: Record<string, KeepClear[]>;
   /** Seeded randomness (`lib/design/random`): another good spot, optional decor or not. None: the same room every time. */
   rng?: Rng;
   /**
@@ -211,7 +216,7 @@ const MIN_DINING_TABLE_M = 1.2;
 /** A living room's dining table stands this far from the sofa, its coffee table, the armchair and the TV unit. */
 const DINING_LOUNGE_GAP_M = 1.0;
 /** Free floor all round a kitchen island (K-6). */
-const ISLAND_CLEAR_M = 1.2;
+export const ISLAND_CLEAR_M = 1.2;
 
 /** How far below the best spot's score a spot may be and still be drawn (`pickNearBest`). */
 const SPOT_SPREAD = 10;
@@ -423,7 +428,7 @@ function layoutArea(room: PlanRoom, options: LayoutOptions, idPrefix: string, do
 
     for (let i = 0; i < count; i++) {
       const rules: RuleContext = { doorBands, entranceBands: options.entranceSight?.[room.id] ?? [], placed, passages, screenFor };
-      const pose = resolvePose(archetype, i, room, edges, placed, occupied, { anchors: anchorsFor(kind, anchors), rng: options.rng, rules });
+      const pose = resolvePose(archetype, i, room, edges, placed, inTheWay(occupied, archetype.size.height), { anchors: anchorsFor(kind, anchors), rng: options.rng, rules });
       // A ring of seats keeps going past a slot that hits a wall; anything else stops at the
       // first failure, because its second copy has no better chance than its first.
       if (!pose && entry.count === 'fill') continue;
@@ -506,7 +511,7 @@ function additionalPiece(room: PlanRoom, kind: string, existing: PlacedItem[], s
   const placed = existing.filter((i) => i.roomId === room.id);
   const occupied: Box[] = [
     ...doorKeepouts(room, edges),
-    ...obstacles,
+    ...inTheWay(obstacles, archetype.size.height),
     ...placed
       .filter((i) => !ARCHETYPES[i.kind]?.ghost)
       .map((i) => boxFor({ position: i.position, rotation: i.rotation, size: i.size, elevationM: i.elevationM })),
@@ -655,7 +660,7 @@ function placeInNiche(archetype: Archetype, room: PlanRoom, occupied: Box[]): Po
 function inSight(pose: Pose, bands: Quad[]): boolean {
   if (bands.length === 0) return false;
   const quad = footprintQuad(pose);
-  return bands.some((band) => quadsOverlap(quad, band));
+  return bands.some((band) => quadsOverlap(quad, band, QUAD_TOUCH_M));
 }
 
 /** Whether a wall faces this way (within a few degrees). */
@@ -818,7 +823,7 @@ function bestAlongWalls(
           // Nobody walks between the sofa and the TV to get through the room (the rulebook, L-5):
           // the floor between them stays off the way from one door to another.
           const view = viewingQuad(centre, edge.facing, width, depth, ahead);
-          if (passagePaths(doorPoints).some((path) => quadsOverlap(path, view))) worth -= 25;
+          if (passagePaths(doorPoints).some((path) => quadsOverlap(path, view, QUAD_TOUCH_M))) worth -= 25;
           return worth;
         };
         const unit = rules?.screenFor?.(pose) ?? null;
@@ -964,12 +969,8 @@ function placeWallRunOnce(
  * apart), as positions along the edge — none when `piece` does not stand against this wall.
  */
 function besideSpots(edge: PlanEdge, piece: PlacedItem, width: number): number[] {
-  const turn = edge.facing - piece.rotation;
-  if (Math.abs(Math.atan2(Math.sin(turn), Math.cos(turn))) > 0.05) return [];
-  const forward = { x: Math.sin(piece.rotation), z: Math.cos(piece.rotation) };
-  const back = { x: piece.position.x - forward.x * (piece.size.depth / 2), z: piece.position.z - forward.z * (piece.size.depth / 2) };
-  const off = (back.x - edge.a.x) * edge.inward.x + (back.z - edge.a.z) * edge.inward.z;
-  if (Math.abs(off) > 0.1) return [];
+  // Its back within 10 cm of this wall's line, square to it within 0.05 rad.
+  if (!wallBehind(piece, [edge], { facing: Math.cos(0.05), by: 'gap', min: -0.1, max: 0.1 })) return [];
   const along = (piece.position.x - edge.a.x) * edge.dir.x + (piece.position.z - edge.a.z) * edge.dir.z;
   const reach = piece.size.width / 2 + 0.02 + width / 2;
   return [along - reach, along + reach].map((a) => a / edge.length).filter((t) => t - width / 2 / edge.length >= -1e-6 && t + width / 2 / edge.length <= 1 + 1e-6);
@@ -1155,7 +1156,7 @@ function relativeSpots(
     // (`bestAlongWalls`); in a room with none, what it faces may be a room separator's open line,
     // and the unit stands there as it always did — until the room has a rule of its own for it.
     const forward = { x: Math.sin(anchor.rotation), z: Math.cos(anchor.rotation) };
-    const reach = rayToOutline(anchor.position, forward, room.polygon);
+    const reach = rayToPolygon(anchor.position, forward, room.polygon);
     if (reach != null) {
       const ahead = reach - size.depth / 2 - 0.02;
       const clear = ahead - size.depth / 2 - anchor.size.depth / 2;
@@ -1188,23 +1189,6 @@ function standingWall(piece: Pick<PlacedItem, 'position' | 'rotation' | 'size'>,
   const run = wallRun(wall.edge, walls);
   if (wall.along - piece.size.width / 2 < run.from - ON_LINE_M || wall.along + piece.size.width / 2 > run.to + ON_LINE_M) return null;
   return wall;
-}
-
-/** How far from `from`, along the unit direction `dir`, the ray first meets the outline; null if never. */
-function rayToOutline(from: Vec2, dir: Vec2, polygon: Vec2[]): number | null {
-  let best: number | null = null;
-  for (let i = 0; i < polygon.length; i++) {
-    const a = polygon[i];
-    const b = polygon[(i + 1) % polygon.length];
-    const ex = b.x - a.x;
-    const ez = b.z - a.z;
-    const denom = dir.x * ez - dir.z * ex;
-    if (Math.abs(denom) < 1e-9) continue;
-    const t = ((a.x - from.x) * ez - (a.z - from.z) * ex) / denom;
-    const u = ((a.x - from.x) * dir.z - (a.z - from.z) * dir.x) / denom;
-    if (t > 1e-6 && u >= -1e-6 && u <= 1 + 1e-6 && (best == null || t < best)) best = t;
-  }
-  return best;
 }
 
 /** Seats spaced around a table, each turned to face it. */
@@ -1491,21 +1475,12 @@ function placeAbove(
   if (!under) return null;
   const { depth, height } = archetype.size;
   const middle = Math.max(rule.aboveHeightM ?? rule.heightM, rule.stretch ? 0 : under.size.height + (rule.aboveGapM ?? 0.15) + height / 2);
-  const forward = { x: Math.sin(under.rotation), z: Math.cos(under.rotation) };
-  const back = { x: under.position.x - forward.x * (under.size.depth / 2), z: under.position.z - forward.z * (under.size.depth / 2) };
-  // The wall it stands against: one that faces as it does, the nearest to its back.
-  let wall: { edge: PlanEdge; t: number; distance: number } | null = null;
-  for (const edge of edges) {
-    const turn = edge.facing - under.rotation;
-    if (Math.abs(Math.atan2(Math.sin(turn), Math.cos(turn))) > 0.1) continue;
-    const dx = edge.b.x - edge.a.x;
-    const dz = edge.b.z - edge.a.z;
-    const t = ((back.x - edge.a.x) * dx + (back.z - edge.a.z) * dz) / (edge.length * edge.length);
-    const at = pointOnEdge(edge, Math.min(1, Math.max(0, t)));
-    const distance = Math.hypot(back.x - at.x, back.z - at.z);
-    if (!wall || distance < wall.distance) wall = { edge, t, distance };
-  }
-  if (!wall || wall.distance > 0.3) {
+  // The wall it stands against: one that faces as it does (within 0.1 rad), the nearest to its back, within 30 cm.
+  const behind = wallBehind(under, edges, { facing: Math.cos(0.1), by: 'distance', max: 0.3 });
+  // Where along it the back's middle is, as a share of its length — measured as the slots along it are.
+  const back = backMiddle(under);
+  const wall = behind && { edge: behind.edge, t: ((back.x - behind.edge.a.x) * (behind.edge.b.x - behind.edge.a.x) + (back.z - behind.edge.a.z) * (behind.edge.b.z - behind.edge.a.z)) / (behind.edge.length * behind.edge.length) };
+  if (!wall) {
     // A TV unit standing free in the room (its back to no wall, facing a sofa across a big room): a
     // TV on its stand on its top, in the middle — the matcher gives such a slot only a TV on a stand.
     if (!rule.onlyAbove) return null;
@@ -1681,19 +1656,9 @@ function sampleAlong(edge: PlanEdge, itemWidth: number): number[] {
 }
 
 function boxFor(pose: Pose): Box {
-  const { width, depth } = pose.size;
-  // The bounding box of the turned footprint: exact at right angles (rooms are rectilinear), and
-  // the whole of an armchair turned 45° towards the TV.
-  const c = Math.abs(Math.cos(pose.rotation));
-  const sn = Math.abs(Math.sin(pose.rotation));
-  const halfX = (c * width + sn * depth) / 2;
-  const halfZ = (sn * width + c * depth) / 2;
-  return {
-    minX: pose.position.x - halfX,
-    maxX: pose.position.x + halfX,
-    minZ: pose.position.z - halfZ,
-    maxZ: pose.position.z + halfZ,
-  };
+  // The bounding box of the turned footprint (`axisBox`, the cosine and sine as they come): exact
+  // at right angles (rooms are rectilinear), and the whole of an armchair turned 45° towards the TV.
+  return axisBox(pose.position, pose.size, pose.rotation, false);
 }
 
 /** The walking space an item needs in front of it. */
@@ -1731,8 +1696,14 @@ function inflate(box: Box, by: number): Box {
   };
 }
 
+/** The floor in the way of a piece `height` tall: all of it but what it stands under (`clearsUnder` — the strip before a towel rail hung higher than the piece). */
+function inTheWay(boxes: Box[], height: number): Box[] {
+  return boxes.some((box) => box.bottom != null) ? boxes.filter((box) => !clearsUnder(box, height)) : boxes;
+}
+
+/** Two boxes reaching into each other at all (`boxesOverlap`, no tolerance: touching is none). */
 function overlaps(a: Box, b: Box): boolean {
-  return a.minX < b.maxX && a.maxX > b.minX && a.minZ < b.maxZ && a.maxZ > b.minZ;
+  return boxesOverlap(a, b, 0);
 }
 
 function overlapsAny(box: Box, boxes: Box[]): boolean {
@@ -1757,12 +1728,10 @@ function doorKeepouts(room: PlanRoom, edges: PlanEdge[]): Box[] {
     const edge = edges.find((e) => e.index === opening.wallIndex);
     if (!edge) continue;
 
-    const anchor = pointOnEdge(edge, opening.t);
+    // 95 cm into the room (an archway 55), the door's width and 10 cm either side (`doorFloor`),
+    // squared onto the room's axes by the way the wall runs.
     const swingDepth = opening.kind === 'archway' ? 0.55 : 0.95;
-    const centre = {
-      x: anchor.x + edge.inward.x * (swingDepth / 2),
-      z: anchor.z + edge.inward.z * (swingDepth / 2),
-    };
+    const centre = doorFloor(edge, opening.t, opening.widthM + 0.2, 0, swingDepth).ahead(swingDepth / 2);
 
     const halfAlong = (opening.widthM + 0.2) / 2;
     const sideways = Math.abs(edge.dir.x) > 0.5;

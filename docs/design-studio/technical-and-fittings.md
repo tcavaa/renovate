@@ -467,8 +467,14 @@ stands up into it where it hangs (`radiator_blocked` — a washer's column throu
 under it), it need not be on an outside wall (no `radiator_not_exterior` hint), and one hung over a
 WC (its bottom at `TOWEL_RAIL_OVER_WC_MIN_M`, 90 cm, or higher) takes no floor: generating again
 leaves the WC under it. Under a rail hung lower — the usual 60 cm, in a bathroom not furnished yet —
-the layout still keeps the radiator's strip clear, because its obstacles are boxes on the floor and
-cannot tell a stool from a vanity (Known gaps). A bathroom's and a toilet's main light is spots, at least three, evenly down its length
+the strip is kept clear of what reaches up to the rail's bottom (`radiatorKeepouts` gives the strip
+the rail's bottom, `KeepClear.bottom`; the layout's obstacles and the matcher's keep-clear floor
+honour it, `clearsUnder`): a bath 58 cm tall or a stool stands under it, a basin, a vanity or the
+washer's column does not. A bathroom laid out another way for that may not lose a piece it has
+with the strip kept clear to the ceiling (`laidOutAndMatched` in `generateScene` lays out and
+matches the flat both ways and keeps, room by room, the floor under the rail only where the room
+keeps every piece — a bath laid under the rail against the basin, where no bath of the style fits,
+had cost #405's bathroom its bath). A bathroom's and a toilet's main light is spots, at least three, evenly down its length
 (`wetRoomSpots`, [design-rules.md](design-rules.md#the-third-round-the-rulebook-nini-6-nov-2026)).
 
 A radiator is a `technical` point of kind `radiator` that carries a product, and the product
@@ -809,14 +815,6 @@ have no tests of their own.
   (`openingEstimate`, `ENTRANCE_DOOR_GEL`), a balcony's included, in the calculation's sheet and the
   design's budget alike, though only the front door is bought as an entrance door. Estimating the
   others as doors changes the calculator's estimate, which is the calculator's to decide.
-
-- **A towel rail hung low still costs its floor.** The layout engine's obstacles are boxes on the
-  floor (`LayoutOptions.obstacles`), so under a rail at the usual 60 cm — hung by the button in a
-  bathroom with no furniture yet — it keeps the whole strip clear, as for a radiator, though a piece
-  lower than the rail's bottom could stand there. Freeing that floor without height-aware obstacles
-  was measured (16 Nov 2026): a basin, a mirror or the washer's column was then generated up into the
-  rail in 7–29 of 40 draws of four small bathrooms, against 0–4 with the strip kept. It needs an
-  obstacle that says how high the floor under it is free (`autoLayout.ts`).
 
 - **A cupboard the room has no clear wall for.** In a hall whose walls are furnished the Vintage
   boiler's 1.4 m cupboard can have no clear stretch: it is then placed where a default boiler's

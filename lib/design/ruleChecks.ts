@@ -33,7 +33,9 @@ import {
   roomSightBands,
   type Quad,
 } from './rules';
-import { showerArea } from './shower';
+import { floorTaken, showerArea } from './shower';
+import { distanceToSegment, doorFloor, QUAD_TOUCH_M, round2 } from './pieceGeometry';
+import type { KeepClear } from './manipulate';
 import type { ElectricalPoint, FloorPlan, PlacedItem, TechnicalPoint, Vec2 } from './types';
 
 export type RuleCode =
@@ -88,8 +90,8 @@ interface Strip {
  * its depth plus 30 cm — from the floor to its top. A heated towel rail hangs up the wall
  * (`TOWEL_RAIL_*`): in its way is only what stands up into it where it hangs — the WC it is hung
  * over stands under it. One hung over a WC (`TOWEL_RAIL_OVER_WC_MIN_M` or higher) takes no floor at
- * all; under a lower one the layout still keeps the strip clear, because it cannot tell a piece that
- * fits under the rail from one that reaches into it.
+ * all; under a lower one the layout keeps the strip clear of what reaches up to the rail's bottom
+ * (`radiatorKeepouts`' `bottom`) — a bath stands under it, a basin does not.
  */
 function radiatorStrips(plan: FloorPlan): Strip[] {
   const out: Strip[] = [];
@@ -112,14 +114,18 @@ function radiatorStrips(plan: FloorPlan): Strip[] {
 /** Kept clear past each end of a radiator. */
 const RADIATOR_END_CLEAR_M = 0.05;
 
-/** The strips in front of the radiators as boxes per room, for the layout engine's obstacles — a towel rail hung over a WC has none. */
-export function radiatorKeepouts(plan: FloorPlan): Record<string, Array<{ minX: number; maxX: number; minZ: number; maxZ: number }>> {
-  const out: Record<string, Array<{ minX: number; maxX: number; minZ: number; maxZ: number }>> = {};
+/**
+ * The strips in front of the radiators as boxes per room, for the layout engine's obstacles — a
+ * towel rail hung over a WC has none, and a lower one's strip says the height its bottom is at
+ * (`KeepClear.bottom`): what stays lower than the rail stands under it.
+ */
+export function radiatorKeepouts(plan: FloorPlan): Record<string, KeepClear[]> {
+  const out: Record<string, KeepClear[]> = {};
   for (const strip of radiatorStrips(plan)) {
     if (!strip.floor) continue;
     const xs = strip.floor.map((c) => c.x);
     const zs = strip.floor.map((c) => c.z);
-    (out[strip.roomId] ??= []).push({ minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs) });
+    (out[strip.roomId] ??= []).push({ minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs), ...(strip.point.towelRail ? { bottom: strip.bottom } : {}) });
   }
   return out;
 }
@@ -138,7 +144,7 @@ export function ruleViolations(plan: FloorPlan, items: PlacedItem[], electrical:
       if (item.roomId !== strip.roomId || item.slot === 'curtain') return false;
       if (getArchetype(item.kind)?.ghost) return false;
       if (item.elevationM >= strip.top || item.elevationM + item.size.height <= strip.bottom) return false;
-      return quadsOverlap(footprintQuad(item), strip.corners);
+      return quadsOverlap(footprintQuad(item), strip.corners, QUAD_TOUCH_M);
     });
     if (blocker) out.push({ code: 'radiator_blocked', roomId: strip.roomId, pointId: strip.point.id, itemId: blocker.id });
   }
@@ -158,9 +164,12 @@ export function ruleViolations(plan: FloorPlan, items: PlacedItem[], electrical:
     if (point.kind !== 'boiler') continue;
     const room = plan.rooms.find((r) => r.id === point.roomId);
     if (!room) continue;
-    const wet = items.some(
-      (i) => i.roomId === room.id && (i.slot === 'shower' || i.slot === 'bathtub') && pointInPolygon(point.position, footprintQuad({ ...i, size: { ...i.size, width: i.size.width + 2 * BOILER_WET_CLEAR_M, depth: i.size.depth + 2 * BOILER_WET_CLEAR_M } }))
-    );
+    // A shower is the floor it takes — its tray and glass (`floorTaken`), not the column at its back.
+    const wet = items.some((i) => {
+      if (i.roomId !== room.id || (i.slot !== 'shower' && i.slot !== 'bathtub')) return false;
+      const taken = floorTaken(i);
+      return pointInPolygon(point.position, footprintQuad({ ...taken, size: { ...taken.size, width: taken.size.width + 2 * BOILER_WET_CLEAR_M, depth: taken.size.depth + 2 * BOILER_WET_CLEAR_M } }));
+    });
     if (wet) out.push({ code: 'boiler_by_bath', roomId: room.id, pointId: point.id });
     const wall = nearestWall(wallEdges(room), point.position);
     if (!wall || wall.distance > 0.5) continue;
@@ -212,16 +221,14 @@ function doorSwings(plan: FloorPlan, items: PlacedItem[]): RuleViolation[] {
       if (door.kind !== 'door' || door.swing === 'out') return [];
       const edge = edges.find((e) => e.index === door.wallIndex);
       if (!edge) return [];
-      const c = pointOnEdge(edge, door.t);
-      const half = door.widthM / 2;
-      const at = (s: number, d: number): Vec2 => ({ x: c.x + edge.dir.x * s + edge.inward.x * d, z: c.z + edge.dir.z * s + edge.inward.z * d });
-      return [{ door, quad: [at(-half, 0.02), at(half, 0.02), at(half, door.widthM), at(-half, door.widthM)] as Quad }];
+      // The leaf's square: the door's width across, from 2 cm in to the door's width in (`doorFloor`).
+      return [{ door, quad: doorFloor(edge, door.t, door.widthM, 0.02, door.widthM).quad }];
     });
     for (let i = 0; i < swings.length; i++) {
       for (let j = i + 1; j < swings.length; j++) {
-        if (quadsOverlap(swings[i].quad, swings[j].quad)) out.push({ code: 'door_swing_clash', roomId: room.id, openingId: swings[i].door.id });
+        if (quadsOverlap(swings[i].quad, swings[j].quad, QUAD_TOUCH_M)) out.push({ code: 'door_swing_clash', roomId: room.id, openingId: swings[i].door.id });
       }
-      const blocker = items.find((item) => item.roomId === room.id && solid(item) && quadsOverlap(footprintQuad(item), swings[i].quad));
+      const blocker = items.find((item) => item.roomId === room.id && solid(item) && quadsOverlap(footprintQuad(item), swings[i].quad, QUAD_TOUCH_M));
       if (blocker) out.push({ code: 'door_swing_blocked', roomId: room.id, openingId: swings[i].door.id, itemId: blocker.id });
     }
   }
@@ -247,13 +254,13 @@ function layoutRules(plan: FloorPlan, items: PlacedItem[]): RuleViolation[] {
 
       if (item.slot === 'toilet') {
         // Opening the door, one sees the basin, the shower or the bath — not the WC.
-        if (doors.some((band) => quadsOverlap(quad, band))) out.push({ code: 'wc_faces_door', roomId: room.id, itemId: item.id });
+        if (doors.some((band) => quadsOverlap(quad, band, QUAD_TOUCH_M))) out.push({ code: 'wc_faces_door', roomId: room.id, itemId: item.id });
         // 40 cm from its centre to whatever is either side.
         const side = Math.min(free(item.position, right, others(item)), free(item.position, left, others(item)));
         if (side < WC_SIDE_M - 0.01) out.push({ code: 'wc_side_tight', roomId: room.id, itemId: item.id, valueM: round2(side), limitM: WC_SIDE_M });
       }
 
-      if (item.slot === 'kitchen_run' && entrance.some((band) => band.roomId === room.id && quadsOverlap(quad, band.quad))) {
+      if (item.slot === 'kitchen_run' && entrance.some((band) => band.roomId === room.id && quadsOverlap(quad, band.quad, QUAD_TOUCH_M))) {
         out.push({ code: 'kitchen_faces_entrance', roomId: room.id, itemId: item.id });
       }
 
@@ -335,14 +342,6 @@ function splashZones(items: PlacedItem[], electrical: ElectricalPoint[]): RuleVi
   return out;
 }
 
-function toSegment(p: Vec2, s: Vec2, e: Vec2): number {
-  const dx = e.x - s.x;
-  const dz = e.z - s.z;
-  const len = dx * dx + dz * dz;
-  const t = len === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - s.x) * dx + (p.z - s.z) * dz) / len));
-  return Math.hypot(p.x - (s.x + dx * t), p.z - (s.z + dz * t));
-}
-
 /** How far a point is from a convex outline: 0 inside it. */
 function distanceToQuad(p: Vec2, quad: Vec2[]): number {
   const sides = quad.map((a, i) => {
@@ -350,18 +349,18 @@ function distanceToQuad(p: Vec2, quad: Vec2[]): number {
     return (b.x - a.x) * (p.z - a.z) - (b.z - a.z) * (p.x - a.x);
   });
   if (sides.every((s) => s >= 0) || sides.every((s) => s <= 0)) return 0;
-  return Math.min(...quad.map((a, i) => toSegment(p, a, quad[(i + 1) % quad.length])));
+  return Math.min(...quad.map((a, i) => distanceToSegment(p, a, quad[(i + 1) % quad.length])));
 }
 
 /** The gap between two convex outlines that do not overlap: the nearest corner of one to a side of the other. */
 function quadGap(a: Vec2[], b: Vec2[]): number {
-  if (quadsOverlap(a, b)) return 0;
+  if (quadsOverlap(a, b, QUAD_TOUCH_M)) return 0;
   let best = Infinity;
   for (const [from, to] of [
     [a, b],
     [b, a],
   ]) {
-    for (const p of from) for (let i = 0; i < to.length; i++) best = Math.min(best, toSegment(p, to[i], to[(i + 1) % to.length]));
+    for (const p of from) for (let i = 0; i < to.length; i++) best = Math.min(best, distanceToSegment(p, to[i], to[(i + 1) % to.length]));
   }
   return best;
 }
@@ -374,10 +373,6 @@ function nearestWall(edges: PlanEdge[], point: Vec2): { edge: PlanEdge; distance
     if (!best || distance < best.distance) best = { edge, distance };
   }
   return best;
-}
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
 }
 
 /**

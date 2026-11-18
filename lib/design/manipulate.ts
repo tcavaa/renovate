@@ -25,14 +25,25 @@ import {
 } from './planGeometry';
 import { getArchetype } from './catalog';
 import { footprintMaskFor } from './footprintMasks';
+import { floorTaken } from './shower';
+import { axisBox, boxesOverlap, doorFloor, rightAngleTrig, wallBehind, type Box } from './pieceGeometry';
 import type { PlacedItem, PlanRoom, Vec2 } from './types';
 
-/** Axis-aligned box in the ground plane. */
-export interface Footprint {
-  minX: number;
-  maxX: number;
-  minZ: number;
-  maxZ: number;
+/** Axis-aligned box in the ground plane (`pieceGeometry`'s `Box`). */
+export type Footprint = Box;
+
+/**
+ * Floor kept clear (`LayoutOptions.obstacles`, `MatchOptions.keepClear`): a box on the floor, and —
+ * for the floor under a hung thing, a heated towel rail — the height its bottom is at: what stays
+ * lower than that stands under it (`clearsUnder`); with none, the box is clear from the floor up.
+ */
+export interface KeepClear extends Footprint {
+  bottom?: number;
+}
+
+/** Whether a piece `height` tall standing on the floor stays under what keeps this floor clear (`KeepClear.bottom`). */
+export function clearsUnder(box: KeepClear, height: number): boolean {
+  return box.bottom != null && height <= box.bottom;
 }
 
 export interface Placement {
@@ -55,8 +66,6 @@ const WALL_SNAP_M = 0.35;
 const ANGLE_SNAP_RAD = (14 * Math.PI) / 180;
 /** Dragged positions land on a 5 cm grid, which is how furniture is actually measured. */
 const GRID_M = 0.05;
-/** A rotation's cosine or sine this small is a right angle's floating-point noise, not a turn. */
-const RIGHT_ANGLE_EPS = 1e-9;
 /** How far past its room's outline a piece may reach and still be in it: floating-point noise, not a wall. */
 const OUTLINE_NOISE_M = 1e-9;
 
@@ -65,56 +74,21 @@ const OUTLINE_NOISE_M = 1e-9;
 // ---------------------------------------------------------------------------
 
 /**
- * The cosine and sine of a rotation, exact at the right angles furniture stands at.
- * `Math.cos(-Math.PI / 2)` is 6e-17, not 0: a bed the layout engine had pushed flush into a
- * corner at −π/2 got a box reaching 1e-16 m past the wall, and `boxInPolygon`'s exact corner
- * test called it outside the room. The engine's own box (`boxFor`) squares the rotation and
- * never had the error.
+ * World-space footprint of an item: its axis box with a right angle's floating-point noise taken
+ * out (`axisBox`, squared). Rooms are rectilinear and everything ends up square to a wall, so it is
+ * exact for the usual case; at an odd angle it is the bounding box of the rotated rectangle, which
+ * is conservative — it will refuse a placement slightly before things actually touch.
  */
-function trigOf(rotation: number): { cos: number; sin: number } {
-  const cos = Math.cos(rotation);
-  const sin = Math.sin(rotation);
-  if (Math.abs(cos) < RIGHT_ANGLE_EPS) return { cos: 0, sin: Math.sign(sin) };
-  if (Math.abs(sin) < RIGHT_ANGLE_EPS) return { cos: Math.sign(cos), sin: 0 };
-  return { cos, sin };
-}
-
-/**
- * World-space footprint of an item.
- *
- * Rooms are rectilinear and everything ends up square to a wall, so an axis-aligned box is
- * exact for the usual case — to the last bit, as the layout engine's is (`trigOf`). At an odd
- * angle it is the bounding box of the rotated rectangle, which is conservative — it will
- * refuse a placement slightly before things actually touch.
- */
-export function footprintOf(
-  position: Vec2,
-  size: { width: number; depth: number },
-  rotation: number
-): Footprint {
-  const trig = trigOf(rotation);
-  const cos = Math.abs(trig.cos);
-  const sin = Math.abs(trig.sin);
-  const halfX = (size.width * cos + size.depth * sin) / 2;
-  const halfZ = (size.width * sin + size.depth * cos) / 2;
-  return {
-    minX: position.x - halfX,
-    maxX: position.x + halfX,
-    minZ: position.z - halfZ,
-    maxZ: position.z + halfZ,
-  };
+export function footprintOf(position: Vec2, size: { width: number; depth: number }, rotation: number): Footprint {
+  return axisBox(position, size, rotation, true);
 }
 
 /** How far two pieces may reach into each other and still only touch. */
 export const PIECE_TOUCH_M = 0.02;
 
+/** Whether two footprints overlap by more than `tolerance` — two pieces' 2 cm unless a caller says otherwise (`boxesOverlap`). */
 export function footprintsOverlap(a: Footprint, b: Footprint, tolerance = PIECE_TOUCH_M): boolean {
-  return (
-    a.minX < b.maxX - tolerance &&
-    a.maxX > b.minX + tolerance &&
-    a.minZ < b.maxZ - tolerance &&
-    a.maxZ > b.minZ + tolerance
-  );
+  return boxesOverlap(a, b, tolerance);
 }
 
 /**
@@ -232,17 +206,29 @@ export function tucksUnder(a: Pick<PlacedItem, 'kind'>, b: Pick<PlacedItem, 'kin
 }
 
 /**
+ * The floor a piece takes (`floorTaken`: a shower its tray and glass, anything else its box) as an
+ * axis box where it stands.
+ */
+export function floorFootprint(item: Pick<PlacedItem, 'slot' | 'areaM' | 'position' | 'rotation' | 'size'>): Footprint {
+  const taken = floorTaken(item);
+  return footprintOf(taken.position, taken.size, taken.rotation);
+}
+
+/**
  * The floor an item really covers: its bounding box, or — when its model is known to leave
  * part of that box empty (`footprintMasks`: a corner sofa, an L-shaped desk) — the parts it
  * does cover. Each part is turned with the item and boxed on the axes, which is exact at the
- * right angles furniture stands at and conservative in between, like `footprintOf`.
+ * right angles furniture stands at and conservative in between, like `footprintOf`. A shower
+ * covers its tray and glass (`floorFootprint`), not the column at its back: a chair dragged into
+ * the tray is refused like any overlap.
  */
-export function itemFootprints(item: Pick<PlacedItem, 'position' | 'size' | 'rotation' | 'mirrored' | 'product'>, pose?: Placement): Footprint[] {
+export function itemFootprints(item: Pick<PlacedItem, 'position' | 'size' | 'rotation' | 'mirrored' | 'product'> & Partial<Pick<PlacedItem, 'slot' | 'areaM'>>, pose?: Placement): Footprint[] {
   const position = pose?.position ?? item.position;
   const rotation = pose?.rotation ?? item.rotation;
+  if (item.slot === 'shower' && item.areaM) return [floorFootprint({ slot: item.slot, areaM: item.areaM, position, rotation, size: item.size })];
   const mask = footprintMaskFor(item.product?.model3dUrl);
   if (!mask) return [footprintOf(position, item.size, rotation)];
-  const { cos, sin } = trigOf(rotation);
+  const { cos, sin } = rightAngleTrig(rotation);
   return mask.map((rect) => {
     // A mirrored piece is the same model flipped across its facing axis.
     const x0 = item.mirrored ? 1 - rect.x1 : rect.x0;
@@ -776,18 +762,9 @@ export function fitSwapped(room: PlanRoom, swapped: PlacedItem, others: PlacedIt
  * middle is. Null when its back is to no wall.
  */
 export function pieceWall(item: Pick<PlacedItem, 'position' | 'rotation' | 'size'>, room: PlanRoom, slack = 0.06): { edge: PlanEdge; gap: number; along: number } | null {
-  const forward = { x: Math.sin(item.rotation), z: Math.cos(item.rotation) };
-  const back = { x: item.position.x - forward.x * (item.size.depth / 2), z: item.position.z - forward.z * (item.size.depth / 2) };
-  let best: { edge: PlanEdge; gap: number; along: number } | null = null;
-  for (const edge of roomEdges(room.polygon)) {
-    if (Math.abs(angleDifference(edge.facing, item.rotation)) > 0.05) continue;
-    const along = (back.x - edge.a.x) * edge.dir.x + (back.z - edge.a.z) * edge.dir.z;
-    if (along < -0.05 || along > edge.length + 0.05) continue;
-    const gap = (back.x - edge.a.x) * edge.inward.x + (back.z - edge.a.z) * edge.inward.z;
-    if (gap < -0.05 || gap > slack) continue;
-    if (!best || gap < best.gap) best = { edge, gap: Math.max(0, gap), along };
-  }
-  return best;
+  // Square to it within 0.05 rad, its back's middle no more than 5 cm past either end, 5 cm behind its line to `slack` in front.
+  const wall = wallBehind(item, roomEdges(room.polygon), { facing: Math.cos(0.05), by: 'gap', min: -0.05, max: slack, past: 0.05 });
+  return wall && { edge: wall.edge, gap: Math.max(0, wall.gap), along: wall.along };
 }
 
 /**
@@ -817,16 +794,8 @@ export function inDoorway(item: Pick<PlacedItem, 'position' | 'rotation' | 'size
     if (!isPassage(o)) return false;
     const edge = edges.find((e) => e.index === o.wallIndex);
     if (!edge) return false;
-    const c = { x: edge.a.x + (edge.b.x - edge.a.x) * o.t, z: edge.a.z + (edge.b.z - edge.a.z) * o.t };
-    const half = o.widthM / 2;
-    const far = { x: c.x + edge.inward.x * 0.9, z: c.z + edge.inward.z * 0.9 };
-    const keepout = {
-      minX: Math.min(c.x - Math.abs(edge.dir.x) * half, far.x - Math.abs(edge.dir.x) * half),
-      maxX: Math.max(c.x + Math.abs(edge.dir.x) * half, far.x + Math.abs(edge.dir.x) * half),
-      minZ: Math.min(c.z - Math.abs(edge.dir.z) * half, far.z - Math.abs(edge.dir.z) * half),
-      maxZ: Math.max(c.z + Math.abs(edge.dir.z) * half, far.z + Math.abs(edge.dir.z) * half),
-    };
-    return footprintsOverlap(box, keepout, 0);
+    // The door's width, 90 cm into the room (`doorFloor`'s axis box).
+    return footprintsOverlap(box, doorFloor(edge, o.t, o.widthM, 0, 0.9).box, 0);
   });
 }
 

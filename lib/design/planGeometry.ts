@@ -9,6 +9,7 @@
  */
 
 import { doorWidthFor } from './rules';
+import { round2 } from './pieceGeometry';
 import type { Room, RoomPart, RoomType } from '@/lib/calculator/types';
 import { DEFAULT_CEILING_M, WATER_ROOM_TYPES } from '@/lib/calculator/constants';
 import { effectiveSplit, partAt, roomPartsFor } from './studio';
@@ -1008,10 +1009,6 @@ export function refreshRoom(room: PlanRoom): PlanRoom {
 
 export function totalFloorAreaM2(plan: FloorPlan): number {
   return round2(plan.rooms.reduce((s, r) => s + r.areaM2, 0));
-}
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
 }
 
 function clamp01(n: number): number {

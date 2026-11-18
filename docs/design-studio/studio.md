@@ -413,11 +413,15 @@ merged into at most eight rectangles, as fractions of the box (so `fitToItem`'s 
 not matter). A model that fills its box (less than 12 % empty) or is too ragged registers
 `null` and stays a box. `itemFootprints` turns and mirrors the parts with the item;
 `snapPlacement`, `rotateItem` and `isPlacementValid` test piece against piece with them and
-the *walls* against the whole box (the outside of an L is the outside of its box). The
+the *walls* against the whole box (the outside of an L is the outside of its box). **A shower
+covers its tray and glass** (`floorTaken`), not the 50 cm column standing at its back: a chair
+dragged into the tray is refused (outlined red) like any overlap, and a shower dragged so its
+tray stands on a piece is too — the drag test once measured the column and let a stool stand in
+the shower. The
 registry is plain data filled when a model loads (`lib/design3d/modelLoader.ts`), so
 `lib/design` stays free of three.js; until a
 model has loaded, and everywhere else (`placeFitting`, `placeAdditional`, `tightSpots`), a
-piece is its box, which only ever errs on the side of keeping things apart.
+piece is its box (a shower its tray), which only ever errs on the side of keeping things apart.
 `tests/unit/design3d/footprintFromModel.test.ts` runs a real corner sofa through it (a Kenney GLB kept as a fixture, `tests/fixtures/models/`).
 
 **Any angle.** The card's angle row (`SwapPanel.onRotateTo`: a slider and a number, degrees

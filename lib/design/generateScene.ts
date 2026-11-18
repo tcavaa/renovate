@@ -16,7 +16,7 @@ import type { AiReview } from './aiReview';
 import { layoutPlan } from './autoLayout';
 import { suggestElectrical, withFixtureProducts } from './electrical';
 import { applyBoardPicks, applyFinishPicks, applyFurniturePicks, type CalculatorPicks } from './fromCalculator';
-import { budgetLevel, matchProducts, type CatalogProduct } from './matcher';
+import { budgetLevel, matchProducts, type CatalogProduct, type MatchOptions } from './matcher';
 import { fitBathrooms } from './bathroom';
 import { fitHall } from './hall';
 import { fitWardrobes } from './bedroom';
@@ -30,7 +30,7 @@ import { withGeneratedPartitions } from './autoPartitions';
 import { radiatorKeepouts } from './ruleChecks';
 import { radiatorBodies } from './radiators';
 import { entranceSightBands, underCeiling, type Quad } from './rules';
-import type { Footprint } from './manipulate';
+import type { Footprint, KeepClear } from './manipulate';
 import { isBaseFinish } from './zones';
 import type { DecorPiece, ElectricalPoint, FloorPlan, GenerationRecord, PlacedItem, StyleId, SurfaceFinish } from './types';
 import { wcBoxes } from './decor/wcBox';
@@ -85,16 +85,21 @@ export function generateScene(input: GenerateSceneInput): GeneratedScene {
   for (const band of entranceSightBands(plan.rooms)) (entranceSight[band.roomId] ??= []).push(band.quad);
   // Laid out under the ceiling: a pendant hangs from a new ceiling, a curtain runs from just under it.
   const underCeilings = plan.rooms.map((r) => underCeiling(r, plan));
-  const placed = layoutPlan(underCeilings, { anchors: technicalAnchors(plan), obstacles, roomRng: roomStreams(streams, 'layout'), entranceSight, styleId });
   // A slot no partner product can fill is dropped rather than shown as a stand-in — and with it
   // what the engine arranged off it (`withoutOrphans`: no coffee table before a sofa that is not
   // there). The AI designer's product picks go in where they fit their slot (`MatchOptions.picks`).
-  const matchOptions = { styleId, budgetGel, rooms: underCeilings, roomRng: roomStreams(streams, 'match'), picks: proposalPicks(proposal), keepClear: obstacles };
-  let items = withoutOrphans(placed, placeableOnly(matchProducts(placed, catalog, matchOptions)), underCeilings);
+  const { placed, matchOptions, items: matched, kept } = laidOutAndMatched(obstacles, (clear) => {
+    // Each try draws afresh from the seed's own streams (`layout`, `match`): the one kept is the flat's draw.
+    const draws = rngStreams(input.seed);
+    const laid = layoutPlan(underCeilings, { anchors: technicalAnchors(plan), obstacles: clear, roomRng: roomStreams(draws, 'layout'), entranceSight, styleId });
+    const options = { styleId, budgetGel, rooms: underCeilings, roomRng: roomStreams(draws, 'match'), picks: proposalPicks(proposal), keepClear: clear };
+    return { kept: clear, placed: laid, matchOptions: options, items: withoutOrphans(laid, placeableOnly(matchProducts(laid, catalog, options)), underCeilings) };
+  });
+  let items = matched;
   // The bathrooms finished as a joiner and a plumber would (the rulebook): a vanity made to measure
   // under the basin, a tap on it, the washer's column (a dryer on the machine at the top budget), the
   // bath boxed or enclosed and its mixer at its head.
-  const fitted = fitBathrooms({ rooms: underCeilings, items, catalog, styleId, level: budgetLevel(placed, catalog, matchOptions), roomRng: roomStreams(streams, 'bathroom'), keepClear: obstacles, radiators: radiatorBodies(plan) });
+  const fitted = fitBathrooms({ rooms: underCeilings, items, catalog, styleId, level: budgetLevel(placed, catalog, matchOptions), roomRng: roomStreams(streams, 'bathroom'), keepClear: kept, radiators: radiatorBodies(plan) });
   items = fitted.items;
   // The hall's built-in wardrobe by the front door (coats, the boiler's cupboard, shoes) and the
   // full-height mirror across from it.
@@ -112,7 +117,7 @@ export function generateScene(input: GenerateSceneInput): GeneratedScene {
   // replace the style's own draw.
   let finishes = withFlatFinish(withProposalFinishes(keepChosen(defaultFinishes(plan, styleId, catalog, undefined, roomStreams(streams, 'finish')), input.finishes), plan, proposal, styleId, catalog), plan.rooms, catalog);
   if (calculatorPicks) {
-    items = withoutOrphans(items, placeableOnly(applyFurniturePicks(items, plan, calculatorPicks, catalog, obstacles)), plan.rooms);
+    items = withoutOrphans(items, placeableOnly(applyFurniturePicks(items, plan, calculatorPicks, catalog, kept)), plan.rooms);
     finishes = applyFinishPicks(finishes, plan, calculatorPicks, catalog);
   }
   // The wiring follows the furniture; a room the person wired by hand — on this board or on the
@@ -252,6 +257,47 @@ function keptClear(plan: FloorPlan, styleId: StyleId | null): Record<string, Foo
   const partitions = withGeneratedPartitions(plan, styleId);
   const behind = partitions.added.length === 0 ? partitions.keepouts : {};
   return Object.fromEntries(plan.rooms.map((r) => [r.id, [...columnFootprints(plan, r.id), ...(radiators[r.id] ?? []), ...(behind[r.id] ?? [])]]));
+}
+
+/** The flat laid out and its products matched (`layoutPlan`, `matchProducts`, `withoutOrphans`). */
+interface LaidOut {
+  /** The floor kept clear it was laid out with, per room — what the later passes keep clear too. */
+  kept: Record<string, KeepClear[]>;
+  placed: PlacedItem[];
+  matchOptions: MatchOptions;
+  items: PlacedItem[];
+}
+
+/**
+ * The flat laid out and matched (`run`) with the floor kept clear as given: the floor under a towel
+ * rail hung low free for what stays lower than the rail (`KeepClear.bottom`) — a bath or a stool
+ * laid under it. A room laid out another way for that may not lose a piece it has with that floor
+ * kept clear to the ceiling, as it was: the slot laid under the rail can get no product that fits
+ * (a bath of the style wider than its slot, laid against the basin), the room's other pieces
+ * another way round can lose one (its mirror). Such a room is laid out and matched with its strips
+ * clear from the floor up; every other room keeps the floor under its rail.
+ */
+function laidOutAndMatched(obstacles: Record<string, KeepClear[]>, run: (kept: Record<string, KeepClear[]>) => LaidOut): LaidOut {
+  const under = run(obstacles);
+  const low = Object.keys(obstacles).filter((id) => obstacles[id].some((box) => box.bottom != null));
+  if (low.length === 0) return under;
+  const toCeiling = (ids: string[]) =>
+    Object.fromEntries(Object.entries(obstacles).map(([id, boxes]) => [id, ids.includes(id) ? boxes.map(({ minX, maxX, minZ, maxZ }) => ({ minX, maxX, minZ, maxZ })) : boxes]));
+  const clear = run(toCeiling(low));
+  const losing = low.filter((id) => losesPiece(under.items, clear.items, id));
+  if (losing.length === 0) return under;
+  return losing.length === low.length ? clear : run(toCeiling(losing));
+}
+
+/** Whether a room has fewer pieces of a slot in `items` than in `before` (pieces with a product). */
+function losesPiece(items: PlacedItem[], before: PlacedItem[], roomId: string): boolean {
+  const count = (list: PlacedItem[]) => {
+    const bySlot = new Map<string, number>();
+    for (const item of list) if (item.roomId === roomId && item.product) bySlot.set(item.slot, (bySlot.get(item.slot) ?? 0) + 1);
+    return bySlot;
+  };
+  const now = count(items);
+  return [...count(before)].some(([slot, n]) => (now.get(slot) ?? 0) < n);
 }
 
 /**

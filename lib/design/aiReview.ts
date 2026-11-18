@@ -16,10 +16,11 @@ import Anthropic from '@anthropic-ai/sdk';
 import { ARCHETYPES, getArchetype } from './catalog';
 import { generationWeight, type CatalogProduct } from './matcher';
 import { fitsRoom, pickPool, productLine, side, DESIGN_MODEL, PRICE_PER_MTOK } from './aiDesign';
-import { blocksWindow, footprintInRoom, footprintOf, footprintsOverlap, pieceWall, PIECE_TOUCH_M, tucksUnder } from './manipulate';
+import { blocksWindow, floorFootprint, footprintInRoom, footprintOf, footprintsOverlap, pieceWall, PIECE_TOUCH_M, tucksUnder } from './manipulate';
 import { decorDepth } from './decor/layout';
 import { adoptHoused, companionsOf, housedIds } from './decor/housing';
-import { roomEdges, wallEdges, type PlanEdge } from './planGeometry';
+import { wallEdges } from './planGeometry';
+import { round2 } from './pieceGeometry';
 import { tightSpotsByItem } from './clearance';
 import { randomSeed, seededRng, weightedOrder } from './random';
 import type { DecorPiece, FloorPlan, PlacedItem, PlanRoom, StyleId } from './types';
@@ -93,29 +94,11 @@ const ENGINE_DECOR = (d: Pick<DecorPiece, 'family' | 'anchor'>) => d.family === 
 const WIDE_KINDS = new Set(['wardrobe', 'dresser', 'sofa_3seat', 'tv_unit', 'console_table', 'bookshelf', 'storage_shelf', 'shoe_cabinet', 'desk', 'bathtub', 'kitchen_run']);
 const ALTERNATIVES = 5;
 
-const r2 = (n: number) => Math.round(n * 100) / 100;
 const cm = (m: number) => Math.round(m * 100);
 
 function axes(rotation: number) {
   const forward = { x: Math.sin(rotation), z: Math.cos(rotation) };
   return { forward, right: { x: forward.z, z: -forward.x } };
-}
-
-/** The wall a piece's back stands on (within `slack`), how far along it its middle is, and the gap. */
-function wallBehind(item: PlacedItem, room: PlanRoom, slack = 1): { edge: PlanEdge; along: number; gap: number } | null {
-  const { forward } = axes(item.rotation);
-  const back = { x: item.position.x - forward.x * (item.size.depth / 2), z: item.position.z - forward.z * (item.size.depth / 2) };
-  let best: { edge: PlanEdge; along: number; gap: number } | null = null;
-  for (const edge of roomEdges(room.polygon)) {
-    const turn = edge.facing - item.rotation;
-    if (Math.abs(Math.atan2(Math.sin(turn), Math.cos(turn))) > 0.05) continue;
-    const along = (back.x - edge.a.x) * edge.dir.x + (back.z - edge.a.z) * edge.dir.z;
-    if (along < -0.05 || along > edge.length + 0.05) continue;
-    const gap = (back.x - edge.a.x) * edge.inward.x + (back.z - edge.a.z) * edge.inward.z;
-    if (gap < -0.05 || gap > slack) continue;
-    if (!best || gap < best.gap) best = { edge, along, gap: Math.max(0, gap) };
-  }
-  return best;
 }
 
 /**
@@ -193,7 +176,8 @@ export function reviewFindings(plan: FloorPlan, items: PlacedItem[], decor: Deco
         const a = floor[i];
         const b = floor[j];
         if (tucksUnder(a, b)) continue;
-        if (footprintsOverlap(footprintOf(a.position, a.size, a.rotation), footprintOf(b.position, b.size, b.rotation), PIECE_TOUCH_M)) {
+        // A shower is the floor it takes — its tray and glass (`floorTaken`), not the column at its back.
+        if (footprintsOverlap(floorFootprint(a), floorFootprint(b), PIECE_TOUCH_M)) {
           say(a.id, `overlaps the ${b.kind.replace(/_/g, ' ')} (${b.id})`);
           say(b.id, `overlaps the ${a.kind.replace(/_/g, ' ')} (${a.id})`);
         }
@@ -216,7 +200,7 @@ export function reviewFindings(plan: FloorPlan, items: PlacedItem[], decor: Deco
 function offItsWall(item: PlacedItem, room: PlanRoom, own: Map<string, DecorPiece[]>): number | null {
   const rule = getArchetype(item.kind)?.placement;
   if ((rule?.type !== 'wall' && rule?.type !== 'wall-run') || item.elevationM >= 0.05) return null;
-  const wall = wallBehind(item, room);
+  const wall = pieceWall(item, room, 1);
   if (!wall) return null;
   // A WC stands with its back on its box's face: how far off the wall it stands is measured from there.
   const face = Math.max(0, ...(own.get(item.id) ?? []).filter((d) => d.family === 'box' && d.wallIndex === wall.edge.index && wall.gap >= decorDepth(d) - 0.01).map(decorDepth));
@@ -242,10 +226,10 @@ export function builtFor(items: PlacedItem[], decor: DecorPiece[], rooms: readon
 
 /** How a piece stands, in words: against which wall and where, or free in the room; at what height if hung. */
 function whereItStands(item: PlacedItem, room: PlanRoom): string {
-  const wall = wallBehind(item, room, 0.35);
+  const wall = pieceWall(item, room, 0.35);
   if (wall) {
-    const at = `back to wall ${wall.edge.index} (${side(wall.edge)}), its middle ${r2(wall.along)} m along ${r2(wall.edge.length)} m`;
-    return item.elevationM >= 0.05 ? `${at}, hung ${r2(item.elevationM)}–${r2(item.elevationM + item.size.height)} m up` : at;
+    const at = `back to wall ${wall.edge.index} (${side(wall.edge)}), its middle ${round2(wall.along)} m along ${round2(wall.edge.length)} m`;
+    return item.elevationM >= 0.05 ? `${at}, hung ${round2(item.elevationM)}–${round2(item.elevationM + item.size.height)} m up` : at;
   }
   return `free-standing, facing ${['bottom', 'right', 'top', 'left'][((Math.round(item.rotation / (Math.PI / 2)) % 4) + 4) % 4]}`;
 }
@@ -279,17 +263,17 @@ export function buildReviewBrief(request: AiReviewRequest): { text: string; offe
   for (const room of plan.rooms) {
     const inRoom = items.filter((i) => i.roomId === room.id && i.product);
     if (inRoom.length === 0) continue;
-    lines.push(`\n## Room ${room.id} — "${room.name}" (${room.type}), ${r2(room.areaM2)} m², ceiling ${r2(room.heightM)} m`);
+    lines.push(`\n## Room ${room.id} — "${room.name}" (${room.type}), ${round2(room.areaM2)} m², ceiling ${round2(room.heightM)} m`);
     wallEdges(room).forEach((edge) => {
       const openings = room.openings
         .filter((o) => o.wallIndex === edge.index)
         .map((o) => {
           const at = o.t * edge.length;
-          const span = `${r2(at - o.widthM / 2)}–${r2(at + o.widthM / 2)} m`;
+          const span = `${round2(at - o.widthM / 2)}–${round2(at + o.widthM / 2)} m`;
           const to = o.connectsToRoomId ? ` to "${roomName.get(o.connectsToRoomId) ?? 'another room'}"` : o.exterior && o.kind === 'door' ? ' (entrance)' : '';
           return `${o.kind} ${span}${to}`;
         });
-      lines.push(`- wall ${edge.index} (${side(edge)}), ${r2(edge.length)} m${openings.length ? `: ${openings.join('; ')}` : ''}`);
+      lines.push(`- wall ${edge.index} (${side(edge)}), ${round2(edge.length)} m${openings.length ? `: ${openings.join('; ')}` : ''}`);
     });
     // Pieces of one kind in a room are one set (two nightstands): offered once, replaced together.
     const sets = new Map<string, PlacedItem[]>();
@@ -332,7 +316,7 @@ export function buildReviewBrief(request: AiReviewRequest): { text: string; offe
         continue;
       }
       decorIds.set(d.id, room.id);
-      lines.push(`- ${d.id}: built-in decor, ${d.family}${d.wallIndex == null ? ' — a lowered ceiling panel with a light cove' : ` on wall ${d.wallIndex}, ${r2(d.span.from)}–${r2(d.span.to)} m along, ${r2(d.height.from)}–${r2(d.height.to)} m high, ${Math.round(decorDepth(d) * 100)} cm deep`}${problems.length ? ` — PROBLEMS: ${problems.join('; ')}` : ''}`);
+      lines.push(`- ${d.id}: built-in decor, ${d.family}${d.wallIndex == null ? ' — a lowered ceiling panel with a light cove' : ` on wall ${d.wallIndex}, ${round2(d.span.from)}–${round2(d.span.to)} m along, ${round2(d.height.from)}–${round2(d.height.to)} m high, ${Math.round(decorDepth(d) * 100)} cm deep`}${problems.length ? ` — PROBLEMS: ${problems.join('; ')}` : ''}`);
     }
   }
 
