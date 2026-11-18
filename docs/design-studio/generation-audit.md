@@ -85,10 +85,10 @@ there is the owner's choice ([decor.md](decor.md#known-gaps)).
 ## Where it stands (18 Nov 2026)
 
 Two rounds are on `main`: the bugs of sections A–O that need no rule choice (four batches, 16–18
-Nov), then the clean-ups and the rest of what needs none (three batches, 18 Nov: one set of
+Nov), then the clean-ups and the rest of what needs none (four batches, 18 Nov: one set of
 builders for what is built round a piece, one answer to each geometry question and the shower read
 by its tray everywhere, one number per rule and one list per name, tests that can see generation,
-the AI designer briefed from the laid-out flat, one table of who belongs to whom). 65 of the 133
+the AI designer briefed from the laid-out flat, one table of who belongs to whom). 68 of the 133
 items are ticked; each says *Fixed*, *Partly* or nothing. `pnpm audit:generation --seeds 6` on the
 30 original plans, 720 flats, before (16 Nov) → now — the draws differ (one stream then, a stream
 per room now), so a count the fixes did not touch moves only within the draw's noise:
@@ -121,13 +121,11 @@ untouched generated flat on the first drag of any piece 83 of 360 → 0; WCs wit
 bought; carpet offered to the designer for a balcony in 97 of 100 briefs → 0; and in the tests, the
 branches that never ran run and sixteen step-overs past a missing piece are hard expectations.
 
-Left of the clean-ups, each said at its item: D4 (the studio's own swap still fits a product its own
-way), the copies of "the wall behind a piece" in the builders' files (D1), the numbers the prompts
-still carry where `rules.ts` has none (A7), and four defects pinned as skipped tests for the owner
-or a later round — a dining table drawn smaller than its slot when a larger one fits (M8), the AI
-check's move of a bed standing its nightstand in a door's way (V3), wall cabinets left off beside a
-wide window though 1.38 m of the run is clear (V4), dining chairs on the floor behind an entrance
-screen in 6 of the 60 flats with one (Q4).
+Left of the clean-ups: four defects pinned as skipped tests for the owner or a later round — a
+dining table drawn smaller than its slot when a larger one fits (M8), the AI check's move of a bed
+standing its nightstand in a door's way (V3), wall cabinets left off beside a wide window though
+1.38 m of the run is clear (V4), dining chairs on the floor behind an entrance screen in 6 of the
+60 flats with one (Q4).
 
 Still as before, because each is a matter of which piece gives way (the owner's per-room rules):
 bathrooms with no shower or bath 36 %, no mirror about 30 %, no WC 11 %; studios with no TV unit
@@ -167,6 +165,10 @@ bathrooms with no shower or bath 36 %, no mirror about 30 %, no WC 11 %; studios
 12. *A door's clear floor* (X5) is one function now, but five callers still pass five sets of numbers
     (the engine's 0.95 m × the door + 20 cm, the matcher's 0.90 m × the door, the check's leaf, the
     passage check's 45 cm, the joinery's 0.90 m): which one is the rule?
+13. *A calculator pick that fits nowhere* (Q1, D4) keeps its slot at its own size, as it always
+    did, so the person's choice is never lost: in 264 fixture flats with 4,053 picks that leaves 135
+    pieces out of the room and 127 overlapping (the engine's own flats have none). Should it stay
+    there for the person to move, or be left out with a word that it did not fit?
 
 ## How it was audited
 
@@ -740,7 +742,7 @@ pieces a room has, the kitchen, the joinery, taps, lamps on the wiring, radiator
   `generateScene` wires (a room wired by hand kept, the calculation's choices applied), leaves the
   other rooms' fittings as they were and changes none when the check changed nothing; `finishFlat`
   writes the fittings it returns.
-- [ ] **A7 (medium) — The rules are restated in two prompts**, numbers and all (85 cm basin, 80 × 80
+- [x] **A7 (medium) — The rules are restated in two prompts**, numbers and all (85 cm basin, 80 × 80
   shower, 60 cm wardrobe, 1.2 m in front of the run, decor heights; `aiDesign.ts:266-289`,
   `aiReview.ts:291-315`) — a third copy to keep in step. "At most one decor piece in a hall, kitchen
   or bathroom" is in the prompt only: the code allows three (`aiDesign.ts:446`).
@@ -749,11 +751,13 @@ pieces a room has, the kitchen, the joinery, taps, lamps on the wiring, radiator
   clear floor from `rules.ts`, the decor's default heights from `defaultHeight` and the niche's depth
   from `DECOR_FAMILIES` — and a generated flat keeps one decor piece in a hallway, a kitchen or a
   bathroom and three elsewhere (`maxDecor`, held by `proposalDecor` on what can be built: the first
-  asked that fits), as the prompt says. *Left* (why A7 stays open): numbers still literal in the
-  prompt and the code, not constants of a rule — the backsplash's 1.8 m (`isBacksplash` in
-  `resolve.ts`), the mantel's 3.2 m wall, the params' design ranges (`slatWidthMm 20–45` and the
-  rest), the review's "at most six fixes" (`validateReview`), the 1.2 m whole stretch a niche or a
-  panel needs (`resolve.ts`) and `resolveRoomDecor`'s own cap of four.
+  asked that fits), as the prompt says. The decor's own limits are named where the code reads them
+  and the prompts are written from them: the backsplash's band (`BACKSPLASH_TOP_M`), the mantel's
+  wall (`MANTEL_MIN_WALL_M`), each knob's advised range (`DESIGN_RANGES`, `PANEL_MODULE_MM` — inside
+  what `sanitizeParams` keeps, which a test holds), the check's six fixes (`MAX_FIXES_PER_ROOM`);
+  the 1.2 m stretch a moulding, a niche or a panel needs (`WHOLE_WALL_MIN_M`) and
+  `resolveRoomDecor`'s guard of four (`RESOLVED_DECOR_MAX`, above the designer's three, so it never
+  binds on a checked answer) are named in `resolve.ts` — both prompts' text byte for byte as it was.
 - [ ] **A8 (medium) — What the engine draws ignores the designer's palette**: the kitchen's
   material, the joinery's, the taps, the lamps on the wiring.
 - [x] **A9 (low)** — The brief calls every room that is not four-cornered "L-shaped"
@@ -851,21 +855,25 @@ pieces a room has, the kitchen, the joinery, taps, lamps on the wiring, radiator
 
 ### F. The same thing written more than once
 
-- [ ] **D1 — "Which wall is behind this piece": twelve implementations, six tolerances.**
+- [x] **D1 — "Which wall is behind this piece": twelve implementations, six tolerances.**
   `backWallOf` (`rules.ts:571`, no facing test, 45 cm), `pieceWall` (`manipulate.ts:761`, 6 cm) and
   its line-for-line copy `wallBehind` (`aiReview.ts:89`), another `wallBehind`
   (`decor/resolve.ts:122`, 1.2 m), `wallOf` (`decor/joinery.ts:243`, 15 cm), `backWall`
   (`decor/housing.ts:91`, 30 cm; `electrical.ts:155`), `backOnWall` and `backGap`
   (`matcher.ts:535`, `:600`), `hungWall` (`manipulate.ts:371`) and two inline
   (`autoLayout.ts:842`, `:1356`). One generation runs nearly all of them on the same piece.
-  *Partly:* one function answers it (`wallBehind`, `lib/design/pieceGeometry.ts`: the wall a piece
+  *Fixed:* one function answers it (`wallBehind`, `lib/design/pieceGeometry.ts`: the wall a piece
   has its back to by its gap or by its distance, square to it within a caller's angle or any way,
-  within a caller's range, past an end by metres or a share of the wall) and `pieceWall`,
+  within a caller's range, past an end by metres or a share of the wall, measured along from its
+  back's middle or its own middle, the nearest by the caller's measure) and `pieceWall`,
   `backWallOf`, the matcher's `backOnWall` and `backGap`, the wiring's `backWall`, the decor's
-  `wallBehind` and the layout's two inline ones are it, each with its own tolerances (the AI check's
-  copy is `pieceWall` itself) — every generated flat as it was (360 flats compared field by field).
-  Left for the builders' files: `wallOf` (`decor/joinery.ts`), `backWall` (`decor/housing.ts`);
-  and `hungWall` (`manipulate.ts`, a hung piece's wall read from where it is, not which way it faces).
+  `wallBehind`, the layout's two inline ones and the builders' `wallOf` (`decor/joinery.ts`) and
+  `backWall` (`decor/housing.ts`) are it, each with its own tolerances (the AI check's copy is
+  `pieceWall` itself) — every generated flat as it was (360 flats compared field by field, then the
+  builders' two on 409,555 calls — every piece of 396 flats and random pieces at every wall of every
+  fixture room — and the 396 flats byte for byte). `hungWall` (`manipulate.ts`) is not a copy: it
+  reads a hung piece's wall from where it is, whatever way it faces (a piece turned off its wall
+  still finds the wall it was on), which a test of which way a piece faces cannot.
 - [x] **D2 — Three footprints and three overlap tests**: the engine's `boxFor` + `overlaps` (no
   tolerance), the matcher's and the studio's `footprintOf` + `footprintsOverlap` (2 cm), the checks'
   `footprintQuad` + `quadsOverlap` (the turned quad, 1 cm). A chair turned 45° is one thing to the
@@ -882,9 +890,20 @@ pieces a room has, the kitchen, the joinery, taps, lamps on the wiring, radiator
   bath's box in `bathroom.ts:279` and `boxFor` (`:489`, without Vintage's surround); the WC's box in
   `decor/wcBox.ts` and `housing.ts`. Generation uses the first of each, the studio the second.
   *Fixed:* one set of builders for both (W10).
-- [ ] **D4 — "A product takes a slot", four ways**: the matcher (`matcher.ts:281-302`), the AI
+- [x] **D4 — "A product takes a slot", four ways**: the matcher (`matcher.ts:281-302`), the AI
   check (`aiProposal.ts:385-392`), the studio's swap (`store/designStore.ts`), the calculator's picks
   (`fromCalculator.ts:109-116`, with no fit and no height) *(the last two not re-checked)*.
+  *Fixed:* two ways now, for two questions. A slot's product is fitted by the matcher's own test
+  (`placeFitting`) — the matcher's and the calculator's picks (Q1: a pick as its own box, the
+  matcher's last two passes, hung by `rehung`); a swap keeps the piece where it is (`applySwap` +
+  `fitSwapped`) — the AI check's (a hung piece re-hung clear of what hangs under it, `rehungClear`;
+  a standing one re-seated as the matcher would) and the studio's (only a TV re-hung: another hung
+  piece keeps its bottom where the person hung it, a taller one growing upwards; a piece that no
+  longer fits rides on the pointer). Fitting the picks as built first and hanging them clear, as
+  the matcher does, changed no count in 264 fixture flats with 4,053 picks (one hung clash more)
+  and was not kept: the picks' clashes there (135 out of the room, 127 overlaps, where the engine's
+  own flats have none) are those Q1 leaves — a pick that fits nowhere keeps its slot, and one moved
+  to a free spot leaves what was laid off its old slot behind.
 - [x] **D5 — "What stands in front of this wall", twice**: `wallBlocks` + `clearOf`
   (`wallClear.ts`) and `freeStretch`'s own loop (`decor/joinery.ts:207-230`), with different lists of
   what does not count; the margin round an opening is 0, 5, 8 or 10 cm by caller.

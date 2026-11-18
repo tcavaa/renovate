@@ -331,7 +331,11 @@ export function buildReviewBrief(request: AiReviewRequest): { text: string; offe
   return { text, offer: { alternatives, itemsById, decorIds, offWall }, seed };
 }
 
-/** The check's rules, the numbers in them read from `lib/design/rules.ts`. */
+/** The most fixes the check may make in a room (what its prompt says; `validateReview` holds it). */
+export const MAX_FIXES_PER_ROOM = 6;
+const inWords = (n: number) => ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'][n] ?? String(n);
+
+/** The check's rules, the numbers in them read from `lib/design/rules.ts` and the check's own limits. */
 export const REVIEW_PROMPT = `You are the interior designer of a Georgian home renovation platform, checking a flat the layout engine has just furnished from real shop products. You see each room as built: its walls with doors and windows, every piece with its product, real size and where it stands, the built-in decor with its wall, size and depth, and what measuring the room found wrong (PROBLEMS).
 
 Walk through every room as a designer would and fix what is wrong:
@@ -354,7 +358,7 @@ Actions (one per fix; "target" is the piece's or the decor's id as listed):
 product is 0 and wall is -1 where an action does not use them.
 
 Rules:
-- Fix only what is wrong; most pieces should stay. A room with nothing wrong gets no fixes. At most six fixes a room.
+- Fix only what is wrong; most pieces should stay. A room with nothing wrong gets no fixes. At most ${inWords(MAX_FIXES_PER_ROOM)} fixes a room.
 - A problem you cannot fix with these actions: leave it (the person will).
 - reason: one short sentence the person reads, saying what was wrong. note: one sentence per room on how it reads now.`;
 
@@ -406,7 +410,8 @@ interface RawReview {
  * face, not a lamp, a rug or a curtain, which no wall holds); a move to another wall only of a piece
  * that leaves nothing behind (`heldByMove`) and stands against a wall at all (`movable`: not made
  * to measure or sized to its place — the kitchen's cabinets, a rug — nor hung at a window or from
- * the ceiling, nor standing free); a wall that is one of the room's; at most six fixes a room.
+ * the ceiling, nor standing free); a wall that is one of the room's; at most `MAX_FIXES_PER_ROOM`
+ * fixes a room.
  * Anything else is dropped.
  */
 export function validateReview(raw: RawReview, plan: FloorPlan, offer: ReviewOffer, model: string): AiReview {
@@ -421,7 +426,7 @@ export function validateReview(raw: RawReview, plan: FloorPlan, offer: ReviewOff
     const walls = new Set(wallEdges(planRoom).map((e) => e.index));
     let count = 0;
     for (const fix of room.fixes ?? []) {
-      if (count >= 6 || !fix.target || seen.has(fix.target)) continue;
+      if (count >= MAX_FIXES_PER_ROOM || !fix.target || seen.has(fix.target)) continue;
       const reason = typeof fix.reason === 'string' ? fix.reason.trim().slice(0, 300) : '';
       const wall = typeof fix.wall === 'number' && walls.has(fix.wall) ? fix.wall : null;
       if (fix.action === 'remove_decor' || fix.action === 'decor_to_wall') {

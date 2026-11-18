@@ -24,6 +24,7 @@
 
 import { isPlacementValid } from '@/lib/design/manipulate';
 import { roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
+import { wallBehind } from '@/lib/design/pieceGeometry';
 import { companionId, companionsOf, hostIdOf } from '@/lib/design/relations';
 import { BASIN_TOP_M } from '@/lib/design/rules';
 import type { CabinetSection, DecorMaterial, DecorPiece, DecorSlot, PlacedItem, PlanRoom, SlotKind } from '@/lib/design/types';
@@ -81,21 +82,13 @@ export function isKitchenLeg(piece: Pick<DecorPiece, 'family' | 'params'>): bool
 
 /**
  * The wall a piece stands with its back to — within `reach` of it, facing away from it — where
- * along it its middle is and how far off it its back stands.
+ * along it its middle is and how far off it its back stands (`wallBehind`: square to it within
+ * about 25°, its back from 10 cm behind the wall's line to `reach` in front, its middle no more than
+ * 5 cm past an end).
  */
 export function backWall(item: Pick<PlacedItem, 'position' | 'rotation' | 'size'>, room: Pick<PlanRoom, 'polygon'>, reach = 0.3): { edge: PlanEdge; along: number; gap: number } | null {
-  const f = { x: Math.sin(item.rotation), z: Math.cos(item.rotation) };
-  const back = { x: item.position.x - f.x * (item.size.depth / 2), z: item.position.z - f.z * (item.size.depth / 2) };
-  let best: { edge: PlanEdge; along: number; gap: number } | null = null;
-  for (const edge of roomEdges(room.polygon)) {
-    if (edge.inward.x * f.x + edge.inward.z * f.z < 0.9) continue;
-    const along = alongOf(edge, item.position);
-    if (along < -0.05 || along > edge.length + 0.05) continue;
-    const gap = offOf(edge, back);
-    if (gap < -0.1 || gap > reach) continue;
-    if (!best || gap < best.gap) best = { edge, along, gap };
-  }
-  return best;
+  const wall = wallBehind(item, roomEdges(room.polygon), { facing: 0.9, by: 'gap', min: -0.1, max: reach, past: 0.05, at: 'middle', rank: 'signed' });
+  return wall && { edge: wall.edge, along: wall.along, gap: wall.gap };
 }
 
 /**

@@ -196,11 +196,14 @@ function openingPerimeter(n: NicheOpening): number {
   return 2 * (n.h - r) + Math.PI * r;
 }
 
+/** The shortest wall a pair of niches takes a decorative mantel between them on, metres. */
+export const MANTEL_MIN_WALL_M = 3.2;
+
 /** Niches spaced evenly along the build-out (a pair either side of a mantel when there is one), shelves inside. */
 export function fitNiche(params: DecorParams, wall: DecorWall): NicheFit {
   const depth = Math.min(0.45, Math.max(0.12, mm(params.depthMm, 300)));
   const count = Math.max(1, Math.min(4, Math.round(params.count ?? 2)));
-  const mantel = !!params.mantel && count === 2 && wall.width >= 3.2;
+  const mantel = !!params.mantel && count === 2 && wall.width >= MANTEL_MIN_WALL_M;
   const arch = params.shape !== 'rect';
   const fireW = 0.92;
   const fireH = 0.72;

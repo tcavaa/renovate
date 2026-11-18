@@ -15,6 +15,7 @@
 import { isKitchenMaterial } from '@/lib/design/catalog';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import { isPassage, ONTO_WINDOW_M, roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
+import { wallBehind } from '@/lib/design/pieceGeometry';
 import type { CabinetSection, DecorMaterial, DecorPiece, Opening, PlacedItem, PlanRoom, StyleId } from '@/lib/design/types';
 import { decorDepth, freeSpans } from './layout';
 import { WC_BOX_DEPTH_M, WC_BOX_WIDTH_M, WC_SIDE_M } from '@/lib/design/rules';
@@ -377,17 +378,14 @@ function footprint(item: Pick<PlacedItem, 'position' | 'rotation' | 'size'>): Ar
   return floorCorners(item.position, item.rotation, item.size.width, item.size.depth);
 }
 
-/** The wall a piece stands with its back against (within 15 cm), and how far along it its middle is. */
+/**
+ * The wall a piece stands with its back against (`wallBehind`: square to it within about 25°, its
+ * back's middle within 15 cm either side of the wall's line and no more than 5 cm past an end, the
+ * nearest either side), and how far along it its middle is.
+ */
 export function wallOf(item: Pick<PlacedItem, 'position' | 'rotation' | 'size'>, room: PlanRoom): { edge: PlanEdge; along: number } | null {
-  const f = { x: Math.sin(item.rotation), z: Math.cos(item.rotation) };
-  const back = { x: item.position.x - f.x * (item.size.depth / 2), z: item.position.z - f.z * (item.size.depth / 2) };
-  let best: { edge: PlanEdge; along: number; d: number } | null = null;
-  for (const edge of roomEdges(room.polygon)) {
-    if (edge.inward.x * f.x + edge.inward.z * f.z < 0.9) continue;
-    const along = (back.x - edge.a.x) * edge.dir.x + (back.z - edge.a.z) * edge.dir.z;
-    if (along < -0.05 || along > edge.length + 0.05) continue;
-    const d = Math.abs((back.x - edge.a.x) * edge.inward.x + (back.z - edge.a.z) * edge.inward.z);
-    if (d <= 0.15 && (!best || d < best.d)) best = { edge, along: (item.position.x - edge.a.x) * edge.dir.x + (item.position.z - edge.a.z) * edge.dir.z, d };
-  }
-  return best ? { edge: best.edge, along: best.along } : null;
+  const wall = wallBehind(item, roomEdges(room.polygon), { facing: 0.9, by: 'gap', min: -0.15, max: 0.15, past: 0.05, rank: 'abs' });
+  if (!wall) return null;
+  const { edge } = wall;
+  return { edge, along: (item.position.x - edge.a.x) * edge.dir.x + (item.position.z - edge.a.z) * edge.dir.z };
 }

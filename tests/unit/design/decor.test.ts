@@ -4,16 +4,16 @@ import type { CatalogProduct } from '@/lib/design/matcher';
 import { matchProducts } from '@/lib/design/matcher';
 import { priceScene } from '@/lib/design/pricing';
 import type { DecorPiece, DesignScene, FloorPlan, PlacedItem, PlanRoom } from '@/lib/design/types';
-import { decorWall, fitMoulding, fitNiche, fitSlats, freeSpans } from '@/lib/design/decor/layout';
+import { decorWall, fitMoulding, fitNiche, fitSlats, freeSpans, MANTEL_MIN_WALL_M } from '@/lib/design/decor/layout';
 import { decorPurchases, decorUses, piecePurchases, quantityIn } from '@/lib/design/decor/quantities';
-import { decorMaterialFrom, defaultHeight, resolveDecor, resolveRoomDecor, sanitizeParams, wallBehind } from '@/lib/design/decor/resolve';
+import { BACKSPLASH_TOP_M, decorMaterialFrom, defaultHeight, DESIGN_RANGES, PANEL_MODULE_MM, resolveDecor, resolveRoomDecor, sanitizeParams, wallBehind } from '@/lib/design/decor/resolve';
 import { decorMaterialKind, isDecorMaterial } from '@/lib/design/decor/materials';
 import { proposalDecor, proposalFinish, proposalPicks } from '@/lib/design/aiProposal';
 import { generateScene } from '@/lib/design/generateScene';
 import { getStyle } from '@/lib/design/styles';
 import { tickFor } from '@/lib/design/ticks';
 import { buildBrief, DESIGN_PROMPT, listText, MAX_DECOR_PER_ROOM, maxDecor, validateProposal, type Offer } from '@/lib/design/aiDesign';
-import { REVIEW_PROMPT } from '@/lib/design/aiReview';
+import { MAX_FIXES_PER_ROOM, REVIEW_PROMPT } from '@/lib/design/aiReview';
 import { BASIN_TOP_M, BLIND_ROOMS, KITCHEN_CIRCULATION_M, NEUTRAL_LIGHT_K, SHALLOW_WARDROBE_DEPTH_M, SHOWER_MIN_M, WARDROBE_DEPTH_M, WARM_LIGHT_K } from '@/lib/design/rules';
 
 function room(openings: PlanRoom['openings'] = [], polygon = [{ x: 0, z: 0 }, { x: 4, z: 0 }, { x: 4, z: 3.5 }, { x: 0, z: 3.5 }]): PlanRoom {
@@ -389,8 +389,30 @@ describe('the designer’s prompts read their numbers from the rules (A7)', () =
     expect(DESIGN_PROMPT).toContain(`a tiled field up to ${defaultHeight('tile', 'wall', Infinity).to} m`);
   });
 
-  it('tells the check the kitchen’s clear floor', () => {
+  it('tells the check the kitchen’s clear floor and how many fixes a room takes', () => {
     expect(REVIEW_PROMPT).toContain(`${KITCHEN_CIRCULATION_M} m in front of the run stays clear`);
+    expect(MAX_FIXES_PER_ROOM).toBe(6);
+    expect(REVIEW_PROMPT).toContain('At most six fixes a room.');
+  });
+
+  it('tells the designer the decor’s own limits: the backsplash’s band, the mantel’s wall, each knob’s range', () => {
+    expect(DESIGN_PROMPT).toContain(`no higher than ${BACKSPLASH_TOP_M} m`);
+    expect(DESIGN_PROMPT).toContain(`on a wall of at least ${MANTEL_MIN_WALL_M} m`);
+    for (const ranges of Object.values(DESIGN_RANGES)) {
+      for (const [knob, [lo, hi]] of Object.entries(ranges)) expect(DESIGN_PROMPT).toContain(`${knob} ${lo}–${hi}`);
+    }
+    expect(DESIGN_PROMPT).toContain(`upholstered channels ${PANEL_MODULE_MM.upholstered.join('–')}, flutes ${PANEL_MODULE_MM.fluted.join('–')}`);
+  });
+
+  it('advises only knobs that can be built: each range lies inside what the builder keeps', () => {
+    for (const [family, ranges] of Object.entries(DESIGN_RANGES) as Array<[keyof typeof DESIGN_RANGES, Record<string, readonly [number, number]>]>) {
+      for (const [knob, ends] of Object.entries(ranges)) {
+        for (const value of ends) expect(sanitizeParams(family, { [knob]: value })[knob as keyof ReturnType<typeof sanitizeParams>], `${family}.${knob} ${value}`).toBe(value);
+      }
+    }
+    for (const [style, ends] of Object.entries(PANEL_MODULE_MM) as Array<['upholstered' | 'fluted', readonly [number, number]]>) {
+      for (const value of ends) expect(sanitizeParams('panel', { style, moduleWidthMm: value }).moduleWidthMm, `${style} ${value}`).toBe(value);
+    }
   });
 });
 

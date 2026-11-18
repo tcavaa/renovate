@@ -62,6 +62,20 @@ const HEX = /^#[0-9a-f]{6}$/i;
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
+/**
+ * The ranges the designer is told to set a family's knobs in (the prompt's "params", in this order).
+ * They lie inside what `sanitizeParams` keeps — its clamps are what can be built, these what looks
+ * right; a test holds the one inside the other.
+ */
+export const DESIGN_RANGES = {
+  slats: { slatWidthMm: [20, 45], gapMm: [10, 25], depthMm: [10, 30] },
+  moulding: { dadoMm: [900, 1100], bayWidthMm: [600, 1000] },
+  niche: { count: [1, 3], nicheWidthMm: [500, 1000], nicheHeightMm: [1200, 2200], shelves: [0, 4] },
+} as const satisfies { [F in DecorFamily]?: Partial<Record<keyof DecorParams, readonly [number, number]>> };
+
+/** A wall panel's module as the designer is told to set it: an upholstered panel's channels, a fluted one's flutes (`moduleWidthMm`). */
+export const PANEL_MODULE_MM = { upholstered: [120, 300], fluted: [40, 80] } as const;
+
 /** Knobs kept inside the reference library's ranges (and what can be built); unknown ones dropped. */
 export function sanitizeParams(family: DecorFamily, params: DecorParams | null | undefined): DecorParams {
   const p = params ?? {};
@@ -217,6 +231,10 @@ export function defaultHeight(family: DecorFamily, anchor: DecorAnchor, roomHeig
 /** Families that take a whole wall: they are built along it, around its doors and windows. */
 /** Families that take their whole clear stretch: a wall panel too — never a small panel on its own (the rulebook, G-23). */
 const WHOLE_WALL: DecorFamily[] = ['moulding', 'niche', 'panel'];
+/** The clear stretch a family that takes its whole stretch needs to be built at all, metres. */
+const WHOLE_WALL_MIN_M = 1.2;
+/** A slab asked for in a kitchen as a band no higher than this is the run's backsplash (`isBacksplash`), metres. */
+export const BACKSPLASH_TOP_M = 1.8;
 
 /**
  * The materials of a piece: the designer's where they are real decor materials of a kind the
@@ -254,7 +272,7 @@ export function resolveMaterials(
 /**
  * Whether a tile or slab asked for in a kitchen is its backsplash — worktop to wall cabinets,
  * the length of the run (the `kitchen` anchor): tiles always, whichever wall was named; a slab
- * asked for behind the run, on the run's wall, or as a band no higher than 1.8 m. A slab
+ * asked for behind the run, on the run's wall, or as a band no higher than `BACKSPLASH_TOP_M`. A slab
  * floor to ceiling on another wall stays the feature wall it was asked to be.
  */
 function isBacksplash(intent: DecorIntent, runWall: PlanEdge | null): boolean {
@@ -263,7 +281,7 @@ function isBacksplash(intent: DecorIntent, runWall: PlanEdge | null): boolean {
   if (intent.anchor === 'kitchen') return true;
   if (runWall && intent.anchor === 'wall' && intent.wallIndex === runWall.index) return true;
   const top = num(intent.heightToM);
-  return top != null && top <= 1.8;
+  return top != null && top <= BACKSPLASH_TOP_M;
 }
 
 /**
@@ -349,7 +367,7 @@ export function resolveDecor(intent: DecorIntent, room: PlanRoom, items: PlacedI
     const c = centre ?? (a + b) / 2;
     from = clamp(c - width / 2, a, b - width);
     to = from + width;
-    if (WHOLE_WALL.includes(family) && clear < 1.2) return null;
+    if (WHOLE_WALL.includes(family) && clear < WHOLE_WALL_MIN_M) return null;
   }
 
 
@@ -373,13 +391,20 @@ export function overlaps(a: DecorPiece, b: DecorPiece): boolean {
 }
 
 /**
- * A room's intents made pieces: at most four, none on top of another (the first asked wins),
- * one cove. Ids are the room's and a count.
+ * The most pieces a room's intents are made into (`resolveRoomDecor`): a guard above the designer's
+ * own cap (`MAX_DECOR_PER_ROOM`, three, held by `validateProposal` and cut to by `proposalDecor`),
+ * so it never binds on a checked answer.
+ */
+const RESOLVED_DECOR_MAX = 4;
+
+/**
+ * A room's intents made pieces: at most `RESOLVED_DECOR_MAX`, none on top of another (the first
+ * asked wins), one cove. Ids are the room's and a count.
  */
 export function resolveRoomDecor(intents: DecorIntent[], room: PlanRoom, items: PlacedItem[], catalog: CatalogProduct[]): DecorPiece[] {
   const pieces: DecorPiece[] = [];
   for (const intent of intents) {
-    if (pieces.length >= 4) break;
+    if (pieces.length >= RESOLVED_DECOR_MAX) break;
     const piece = resolveDecor(intent, room, items, catalog, `decor-${room.id}-${pieces.length + 1}`);
     if (!piece) continue;
     if (piece.wallIndex == null && pieces.some((p) => p.wallIndex == null)) continue;

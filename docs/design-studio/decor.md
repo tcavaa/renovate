@@ -81,7 +81,8 @@ piece whose room went is dropped (`reconcile`).
 
 The reference library's rules, as code:
 
-- **slats** — a real section (20–45 mm, gap 10–25, depth 10–30) repeated a whole number of times,
+- **slats** — a real section (20–45 mm, gap 10–25, depth 10–30: the ranges the designer is told,
+  `DESIGN_RANGES` in `resolve.ts`, inside what `sanitizeParams` keeps) repeated a whole number of times,
   the remainder centred; a board behind (`backing`, felt or MDF) or none (a see-through screen); a
   light line under, over or both (`led`). Slots: face (wood / board), backing (board), led.
 - **moulding** — picture frames on every clear stretch between doors and windows, a whole number
@@ -90,7 +91,7 @@ The reference library's rules, as code:
   stretched profile. Slot: profile (moulding, tintable).
 - **niche** — a plasterboard build-out the whole stretch and height of the piece, `count` arched
   or square niches spaced evenly in it (a pair either side of a decorative mantel with its firebox
-  when `mantel` and the wall is 3.2 m or more), shelves inside, a light inside. Built out because a
+  when `mantel` and the wall is 3.2 m or more, `MANTEL_MIN_WALL_M`), shelves inside, a light inside. Built out because a
   wall's construction is unknown. Slots: body (gypsum, tintable), shelf (wood), surround (stone),
   led.
 - **slab / panel / cladding / mural / tile** — a field (`fitField`): its thickness, a stand-off
@@ -519,7 +520,7 @@ the project opens furnished afterwards.
    stands in front of it is moved off it by its depth (`clearOfDecor`, `decorDepth`). **Tiles in a
    kitchen are its backsplash** (anchor `kitchen`): behind the run, from the worktop to the bottom
    of the wall cabinets (or 1.5 m), whatever wall was named — and so is a slab asked for behind the
-   run, on the run's wall or as a band no higher than 1.8 m (`isBacksplash`; a slab floor to
+   run, on the run's wall or as a band no higher than 1.8 m (`isBacksplash`, `BACKSPLASH_TOP_M`; a slab floor to
    ceiling on another wall stays a feature wall). **A backsplash is as long as the run**, whatever
    width was asked: a 1.2 m strip of marble behind a 2.5 m worktop looked unfinished. Every piece records what it was centred
    on (`DecorPiece.anchor`) and follows that piece to its wall when a swap or the check moves it
@@ -555,7 +556,7 @@ the project opens furnished afterwards.
    alternatives, or `remove`. `validateReview` keeps an item of that room, a replacement it was
    offered — applied to every piece of its set (both nightstands) — a removal only of what the room
    can do without (never the bed, the sofa, the desk, the dining table, the toilet, the basin or the
-   kitchen), at most six fixes a room. `reviewedScene` → `applyReviewFixes`: a replacement
+   kitchen), at most six fixes a room (`MAX_FIXES_PER_ROOM`, which its prompt is written from). `reviewedScene` → `applyReviewFixes`: a replacement
    goes where the old piece stood, its back on the same wall (`fitSwapped`), a hung one at the height
    it should hang (`settledElevation`) and clear of what hangs under it on its wall, as the matcher
    hangs one (`rehungClear` — a print swapped in over a TV on its unit), only if it fits; the nightstands, coffee table or desk chair

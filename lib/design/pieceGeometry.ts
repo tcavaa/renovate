@@ -169,12 +169,18 @@ export interface WallBehind {
  * What counts as the wall behind a piece — every caller's own:
  * - `facing`: the least cosine between the way the piece looks and the way the wall faces into the
  *   room (1: square to it; `Math.cos(0.05)`: within 0.05 rad); null — any wall, whichever way.
- * - `by`: which wall is nearest — by `gap` (the back's distance out from the wall's line; a back
- *   a hair behind a wall counts as on it, so of two on it the first stays) or by `distance` (from
- *   the wall itself, its ends included).
+ * - `by`: which wall is nearest — by `gap` (the back's distance out from the wall's line, the least
+ *   first; a back behind a wall's line counts as on it, and of the walls it is behind the last in
+ *   the room's order is taken) or by `distance` (from the wall itself, its ends included).
  * - `min`, `max`: the range of that measure a wall is taken within (inclusive).
- * - `past`: how far past either end of the wall the back's middle may be — metres, or a share of
- *   the wall's length; null — anywhere along its line.
+ * - `past`: how far past either end of the wall the point `at` names may be — metres, or a share
+ *   of the wall's length; null — anywhere along its line.
+ * - `at`: the point of the piece `past` tests and `along` gives — its back's middle (the default)
+ *   or its own middle (the builders': a vanity or a WC's box is laid along the wall from where the
+ *   piece's middle is).
+ * - `rank`: which of the walls that pass is taken when not by `by`'s own order — `abs` the least
+ *   gap either side of the line (the first of equals), `signed` the least gap (the wall the back
+ *   is furthest behind).
  */
 export interface WallTest {
   facing: number | null;
@@ -182,26 +188,33 @@ export interface WallTest {
   min?: number;
   max: number;
   past?: number | { share: number } | null;
+  at?: 'back' | 'middle';
+  rank?: 'abs' | 'signed';
 }
 
 /** Of `edges`, the wall a piece has its back to by `test`, nearest first; null when none passes. */
 export function wallBehind(item: Pick<PlacedItem, 'position' | 'rotation' | 'size'>, edges: readonly PlanEdge[], test: WallTest): WallBehind | null {
   const forward = { x: Math.sin(item.rotation), z: Math.cos(item.rotation) };
   const back = backMiddle(item);
+  const point = test.at === 'middle' ? item.position : back;
   let best: (WallBehind & { key: number }) | null = null;
   for (const edge of edges) {
     if (test.facing != null && edge.inward.x * forward.x + edge.inward.z * forward.z < test.facing) continue;
-    const along = (back.x - edge.a.x) * edge.dir.x + (back.z - edge.a.z) * edge.dir.z;
+    const along = (point.x - edge.a.x) * edge.dir.x + (point.z - edge.a.z) * edge.dir.z;
     if (test.past != null) {
       const past = typeof test.past === 'number' ? test.past : test.past.share * edge.length;
       if (along < -past || along > edge.length + past) continue;
     }
     const gap = (back.x - edge.a.x) * edge.inward.x + (back.z - edge.a.z) * edge.inward.z;
-    const s = Math.max(0, Math.min(edge.length, along));
+    const backAlong = point === back ? along : (back.x - edge.a.x) * edge.dir.x + (back.z - edge.a.z) * edge.dir.z;
+    const s = Math.max(0, Math.min(edge.length, backAlong));
     const distance = Math.hypot(back.x - (edge.a.x + edge.dir.x * s), back.z - (edge.a.z + edge.dir.z * s));
     const value = test.by === 'gap' ? gap : distance;
     if (value < (test.min ?? -Infinity) || value > test.max) continue;
-    if (!best || value < best.key) best = { edge, along, gap, distance, key: test.by === 'gap' ? Math.max(0, gap) : distance };
+    if (test.rank) {
+      const key = test.rank === 'abs' ? Math.abs(gap) : gap;
+      if (!best || key < best.key) best = { edge, along, gap, distance, key };
+    } else if (!best || value < best.key) best = { edge, along, gap, distance, key: test.by === 'gap' ? Math.max(0, gap) : distance };
   }
   return best && { edge: best.edge, along: best.along, gap: best.gap, distance: best.distance };
 }
