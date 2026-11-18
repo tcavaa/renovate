@@ -136,7 +136,12 @@ scene ──tightSpots──▶ amber warnings (not a rule)
   `generateScene`): a front door into a living room or a studio gets a screen 1.3 m in front of it
   (`ENTRY_DEPTH_M`), an en-suite's door a lobby 1.1 m deep in its bedroom (`ENSUITE_DEPTH_M`, a
   bedroom from 12 m²) — parallel to the door's wall, across the door and 30 cm past it, an end
-  within 90 cm of a wall run on to it (`PASSAGE_M`), the other end leaving a way through. The room
+  within 90 cm of a wall run on to it (`PASSAGE_M`), the other end leaving a way through. An end is
+  never run on into an opening of the wall it would join (`joinable`): not into a door's or an
+  archway's width at all, not onto a window further than a piece may stand onto one
+  (`ONTO_WINDOW_M`); such an end can be neither closed nor left a way through, so the door gets no
+  screen, as one with no way past either side. An end that meets a room separator's open line is
+  run on to that line and ends free there (it has no opening to build into). The room
   stays one (`keepWhole`) and the floor behind the screen is an obstacle for the layout. A flat laid
   out again keeps its screens and adds none twice — and the floor behind every screen that stands
   is kept free again, read off the wall as it is (`standingScreens`, `floorBehind`: between the
@@ -281,8 +286,10 @@ rooms a fix never touched. What still reads another room is not a draw, and is m
   none of today's 40 does, since its name must say it has a sink and a hob (`hasSinkAndHob`), so
   every generated run is made to measure ([generation-audit.md](generation-audit.md), P1). **The wall cabinets**
   (`kitchen_wall`, in the kitchen's program after the run and the fridge) hang over it: `placeAbove` puts them on
-  the run's wall, as long as the run, shortened and slid along it to keep a window or a door clear
-  — and on the longest clear wall when the room has no run; made to measure in the run's
+  the run's wall, as long as the run, shortened (to three quarters or half of it, no shorter than
+  60 cm) and slid along it to keep a window or a door clear — so a wide window over the middle of
+  the run leaves it with none, though a stretch beside the window is clear (an open test in
+  `generationRandom.test.ts`) — and on the longest clear wall when the room has no run; made to measure in the run's
   material's wall version, none over a shop's run ([../budget.md](../budget.md#kitchens-a-shops-units-or-made-to-measure-libdesignkitchents)).
 
 The seed is kept in the generation record (`GenerationRecord.seed`) — how a flat is drawn again
@@ -685,9 +692,10 @@ rule: the layout is still saved as arranged.
 `tests/unit/design/showerGlass.test.ts` (the tray found from the piece, the glass off the walls
 and round the matched column, following the shower, resized with its wall side kept),
 `tests/unit/design/autoPartitions.test.ts` (the entrance screen run to the corner, a free one, none
-into a hall or a shallow room, an en-suite's lobby, nothing added twice and the floor behind a
-screen that stands — the entrance's and the en-suite's — kept free when the flat is laid out
-again),
+into a hall or a shallow room, none run on into a window, a door or an archway, an en-suite's
+lobby, nothing added twice and the floor behind a screen that stands — the entrance's and the
+en-suite's — kept free when the flat is laid out again; the fixture plans altered to qualify
+generated with their screens),
 `tests/unit/design/styleRules.test.ts` (the flat's one floor and wall, an open kitchen and a
 floor chosen by hand; no black in a Scandinavian flat; a picture's height; blinds or curtains by
 style and room, a blind's size and height, sold one a window),

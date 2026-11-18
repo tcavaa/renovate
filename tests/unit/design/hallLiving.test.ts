@@ -143,6 +143,8 @@ describe('the hall\'s mirror', () => {
     expect(mirror.elevationM).toBeCloseTo(0.3);
   });
 
+  // Kept, though the full-height mirror hung 30 cm off the floor then runs into the console under
+  // it: the hall keeps its mirror rather than lose it — which gives way is the owner's (O4).
   it('is kept where the catalogue has none that fits over the console', () => {
     const matched = matchProducts([consoleSlot, mirrorSlot], [consoleTable, fullHeight], { styleId: 'modern', rooms: [plainHall] });
     expect(matched.find((i) => i.slot === 'mirror')!.product?.productId).toBe(61);
@@ -189,9 +191,11 @@ describe('the living room', () => {
     // Doors on both long walls, near the same end: the way through runs across that end.
     const living = room('p', 'living_room', 6, 4.6, [door(0, 0.2), door(2, 0.8)]);
     const items = layoutRoom(living, {});
-    const sofa = items.find((i) => i.slot === 'sofa');
-    const tv = items.find((i) => i.slot === 'tv_unit');
-    if (!sofa || !tv) return;
+    const found = { sofa: items.find((i) => i.slot === 'sofa'), tv: items.find((i) => i.slot === 'tv_unit') };
+    expect(found.sofa).toBeDefined();
+    expect(found.tv).toBeDefined();
+    const sofa = found.sofa!;
+    const tv = found.tv!;
     const edges = roomEdges(living.polygon);
     const doors = living.openings.map((o) => {
       const e = edges.find((x) => x.index === o.wallIndex)!;

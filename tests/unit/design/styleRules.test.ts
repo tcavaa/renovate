@@ -95,15 +95,18 @@ describe('pictures', () => {
     const art = items.find((i) => i.slot === 'artwork');
     const bed = items.find((i) => i.slot === 'bed')!;
     expect(art).toBeDefined();
-    // A wall piece's elevation is its bottom.
-    const overBed = Math.hypot(art!.position.x - bed.position.x, art!.position.z - bed.position.z) < bed.size.depth;
-    if (overBed) {
-      const gap = art!.elevationM - bed.size.height;
-      expect(gap).toBeGreaterThanOrEqual(0.2 - 1e-6);
-      expect(gap).toBeLessThanOrEqual(0.3 + 1e-6);
-    } else {
-      expect(art!.elevationM + art!.size.height / 2).toBeCloseTo(1.5, 2);
-    }
+    // A wall piece's elevation is its bottom. The bedroom's print is the one over the bed…
+    expect(Math.hypot(art!.position.x - bed.position.x, art!.position.z - bed.position.z)).toBeLessThan(bed.size.depth);
+    const gap = art!.elevationM - bed.size.height;
+    expect(gap).toBeGreaterThanOrEqual(0.2 - 1e-6);
+    expect(gap).toBeLessThanOrEqual(0.3 + 1e-6);
+    // …an office's hangs on a wall with nothing under it, its middle at gallery height.
+    const office = layoutRoom(room('o', 'office', 3.4, 3, [door(2), window(0)]));
+    const print = office.find((i) => i.slot === 'artwork');
+    expect(print).toBeDefined();
+    const under = office.filter((i) => i.elevationM < 0.05 && !['rug', 'curtain'].includes(i.slot) && Math.hypot(i.position.x - print!.position.x, i.position.z - print!.position.z) < (i.size.width + print!.size.width) / 2);
+    expect(under).toEqual([]);
+    expect(print!.elevationM + print!.size.height / 2).toBeCloseTo(1.5, 2);
   });
 });
 

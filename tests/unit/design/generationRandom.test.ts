@@ -319,13 +319,38 @@ describe('wall cabinets over the kitchen run', () => {
   });
 
   it('leave the window over the run clear', () => {
-    // A window in the middle of every wall: the run goes under one, the cabinets keep off it.
-    const window = (wallIndex: number) => ({ id: `w${wallIndex}`, kind: 'window', wallIndex, t: 0.5, widthM: 1.2, heightM: 1.4, sillM: 0.9 });
-    const windowed = refreshRoom({ ...kitchen, openings: [0, 1, 2, 3].map(window) } as PlanRoom);
-    const items = layoutRoom(windowed);
+    // A narrow window near the start of every wall: the run goes under one (wall 0's, x 0.5–1.1),
+    // the cabinets hang beside it, over the rest of the run.
+    const window = (wallIndex: number, t: number, widthM: number) => ({ id: `w${wallIndex}`, kind: 'window', wallIndex, t, widthM, heightM: 1.4, sillM: 0.9 });
+    const narrow = refreshRoom({ ...kitchen, openings: [0, 1, 2, 3].map((i) => window(i, 0.2, 0.6)) } as PlanRoom);
+    const items = layoutRoom(narrow);
     const run = items.find((i) => i.slot === 'kitchen_run')!;
     const wall = items.find((i) => i.slot === 'kitchen_wall');
-    if (wall) expect(wall.size.width).toBeLessThan(run.size.width);
+    expect(run.rotation).toBeCloseTo(0, 6);
+    expect(run.position.x - run.size.width / 2).toBeLessThan(0.5);
+    expect(wall).toBeDefined();
+    expect(wall!.size.width).toBeLessThan(run.size.width);
+    expect(wall!.position.x - wall!.size.width / 2).toBeGreaterThanOrEqual(1.1 - 1e-6);
+  });
+
+  // A wide window in the middle of every wall (wall 0's at x 1.40–2.60) leaves the 3.2 m run
+  // (x 0.02–3.22) 1.38 m clear left of it and 0.62 m right of it, but no cabinets are hung: the
+  // layout (autoLayout.ts placeAbove) tries only 1, 0.75 and 0.5 of the run's length (3.2, 2.4 and
+  // 1.6 m), each of which crosses the window, never the clear stretch beside it. A limit of the
+  // search, not a rule — open until the layout tries the stretch (lib/, not this lane's).
+  it.skip('hang beside a wide window over the run, on the clear stretch it leaves (placeAbove tries only fixed shares of the run)', () => {
+    const window = (wallIndex: number) => ({ id: `w${wallIndex}`, kind: 'window', wallIndex, t: 0.5, widthM: 1.2, heightM: 1.4, sillM: 0.9 });
+    const wide = refreshRoom({ ...kitchen, openings: [0, 1, 2, 3].map(window) } as PlanRoom);
+    const laid = layoutRoom(wide);
+    const run = laid.find((i) => i.slot === 'kitchen_run')!;
+    const wall = laid.find((i) => i.slot === 'kitchen_wall');
+    expect(run.rotation).toBeCloseTo(0, 6);
+    expect(wall).toBeDefined();
+    // Over the run and off the window.
+    const [from, to] = [wall!.position.x - wall!.size.width / 2, wall!.position.x + wall!.size.width / 2];
+    expect(from).toBeGreaterThanOrEqual(run.position.x - run.size.width / 2 - 1e-6);
+    expect(to).toBeLessThanOrEqual(run.position.x + run.size.width / 2 + 1e-6);
+    expect(to <= 1.4 + 1e-6 || from >= 2.6 - 1e-6).toBe(true);
   });
 
   it('take the wall with no window when the room has one', () => {
@@ -348,12 +373,24 @@ describe('wall cabinets over the kitchen run', () => {
     expect(run.custom).toBe(true);
     expect(wall.custom).toBe(true);
     expect(wall.kitchenMaterial?.slug).toBe('kitchen-wall-material-mdf');
-    // A shop's run (height 90, depth 60): no wall cabinets over it.
-    const shopRun = product(9, { slug: 'shop-run', model3dKind: 'kitchen_run', widthCm: 200, depthCm: 60, heightCm: 90, categorySlug: 'kitchen-units' });
+    // A shop's run that can take the run's slot (the run is 3.2 m): its sink and hob in its name,
+    // 3 m long, worktop-high, a cabinet's depth. No wall cabinets over it.
+    const shopRun = product(9, { slug: 'shop-run', nameKa: 'p9', nameEn: 'Kitchen unit with sink and hob', model3dKind: 'kitchen_run', widthCm: 300, depthCm: 60, heightCm: 90, categorySlug: 'kitchen-units' });
+    expect(run.size.width).toBeCloseTo(3.2, 6);
+    const drawn = { shop: 0, made: 0 };
     for (let seed = 1; seed <= 40; seed++) {
       const [r, w] = matchProducts(slots, [...catalog, shopRun], { styleId: 'scandinavian', rooms: [kitchen], rng: seededRng(seed) });
-      if (r.custom === false) expect(w.product).toBeNull();
-      else expect(w.kitchenMaterial?.slug.startsWith('kitchen-wall-material-')).toBe(true);
+      if (r.custom === false) {
+        drawn.shop++;
+        expect(r.product?.productId).toBe(9);
+        expect(w.product).toBeNull();
+      } else {
+        drawn.made++;
+        expect(w.kitchenMaterial?.slug.startsWith('kitchen-wall-material-')).toBe(true);
+      }
     }
+    // Both ways are drawn: the made-to-measure run most often, the shop's now and then.
+    expect(drawn.shop).toBeGreaterThan(0);
+    expect(drawn.made).toBeGreaterThan(drawn.shop);
   });
 });

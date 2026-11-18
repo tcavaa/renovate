@@ -6,7 +6,6 @@ import { cornerClearance, freeStretch, sectionSpans } from '@/lib/design/decor/j
 import { isMovable, moveDecor, resizeDecor } from '@/lib/design/decor/resize';
 import { wcBoxes } from '@/lib/design/decor/wcBox';
 import { lacksHousing, settleFitted, takesHousing, withFitted } from '@/lib/design/fitted';
-import { generateScene } from '@/lib/design/generateScene';
 import { matchProducts, toSceneProduct, type CatalogProduct } from '@/lib/design/matcher';
 import { clearOfDecor } from '@/lib/design/aiProposal';
 import { refreshRoom, roomEdges } from '@/lib/design/planGeometry';
@@ -14,7 +13,8 @@ import { showerGlass, withShowerArea } from '@/lib/design/shower';
 import { radiatorBodies } from '@/lib/design/radiators';
 import { BASIN_TOP_M } from '@/lib/design/rules';
 import type { DecorPiece, FloorPlan, Opening, PlacedItem, PlanRoom, TechnicalPoint, Vec2 } from '@/lib/design/types';
-import { GENERATION_CATALOG, generationPlan } from '../../helpers/generation';
+import { generatedFlat } from '../../helpers/generationAudit';
+import { fixtureCatalog, fixturePlans } from '../../helpers/generationFixtures';
 
 /**
  * Furniture and what is built for it travel together (`lib/design/decor/housing`, the owner's notes
@@ -408,10 +408,21 @@ describe('a shower set down from the catalogue', () => {
 
 describe('a generated flat', () => {
   it('is left as it is by the pass that keeps housings with their furniture', () => {
-    const scene = generateScene({ plan: generationPlan(), styleId: 'modern', budgetGel: null, catalog: GENERATION_CATALOG, proposal: null, finishes: [], electrical: [], seed: 4242, at: '2026-11-13T00:00:00.000Z', aiCount: 0 });
-    const settled = settleFitted(scene.decor, scene.items, scene.plan.rooms);
-    expect(settled.items).toEqual(scene.items);
-    expect(settled.decor).toEqual(scene.decor);
+    // Real plans with the real catalogue: their bathrooms and halls get vanities, columns, boxes
+    // and wardrobes built round their pieces (the small flat of the other tests gets no joinery,
+    // so a pass that moved every one of them would leave it as it was).
+    const catalog = fixtureCatalog();
+    let built = 0;
+    for (const { id, plan } of fixturePlans().slice(0, 4)) {
+      for (const styleId of ['modern', 'vintage'] as const) {
+        const scene = generatedFlat(id, plan, catalog, styleId, 1);
+        built += scene.decor.filter((d) => d.family === 'cabinet' || d.family === 'box').length;
+        const settled = settleFitted(scene.decor, scene.items, scene.plan.rooms);
+        expect(settled.items, `${id}/${styleId}`).toEqual(scene.items);
+        expect(settled.decor, `${id}/${styleId}`).toEqual(scene.decor);
+      }
+    }
+    expect(built).toBeGreaterThan(4);
   });
 
   it('is left as generation built it by the studio’s own settling — a WC’s box run on to the wall’s end, a bath’s box, a Vintage surround, a column with its dryer', () => {

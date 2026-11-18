@@ -14,6 +14,7 @@ import { includesTap, refinedKind } from '@/lib/design/productRoles';
 import { suggestRadiators } from '@/lib/design/radiators';
 import type { FloorPlan, Opening, PlacedItem, PlanRoom } from '@/lib/design/types';
 import type { RoomType } from '@/lib/calculator/types';
+import { sceneDefects } from '../../helpers/sceneChecks';
 
 function room(id: string, type: RoomType, w: number, d: number, openings: Array<Omit<Opening, 'roomId' | 'id'>> = []): PlanRoom {
   return refreshRoom({
@@ -213,8 +214,8 @@ describe('the bathroom pass', () => {
     const items = matched(big, 'modern').filter((i) => i.slot !== 'shower');
     const sink = items.find((i) => i.slot === 'sink')!;
     const washer = items.find((i) => i.slot === 'washer')!;
-    // The washer on the basin's wall, away from it, as the engine might leave it.
-    const { decor } = fitBathrooms({ rooms: [big], items: items.map((i) => (i.id === washer.id ? { ...washer, position: { x: sink.position.x + 1.2, z: sink.position.z }, rotation: sink.rotation } : i)), catalog: CATALOG, styleId: 'modern', level: 'balanced' });
+    // The washer on the basin's wall (wall 0), away from it, as the engine might leave it — its back on the wall.
+    const { decor } = fitBathrooms({ rooms: [big], items: items.map((i) => (i.id === washer.id ? { ...washer, position: { x: sink.position.x + 1.2, z: washer.size.depth / 2 + 0.02 }, rotation: sink.rotation } : i)), catalog: CATALOG, styleId: 'modern', level: 'balanced' });
     const joined = decor.find((d) => d.family === 'cabinet' && (d.params.sections ?? []).some((s) => s.kind === 'basin') && (d.params.sections ?? []).some((s) => s.kind === 'washer'));
     expect(joined, JSON.stringify(decor.map((d) => [d.family, d.params.sections?.map((s) => s.kind)]))).toBeDefined();
     const kinds = joined!.params.sections!.map((s) => s.kind);
@@ -232,7 +233,8 @@ describe('the bathroom pass', () => {
       const { items: out, decor } = fitBathrooms({ rooms: [big], items, catalog: CATALOG, styleId: 'modern', level });
       for (const d of decor) {
         const corners = decorFootprint(d, big);
-        if (corners) expect(quadsOverlap(shrink(corners, 0.02), footprintQuad(tray)), d.id).toBe(false);
+        expect(corners, d.id).toBeTruthy();
+        expect(quadsOverlap(shrink(corners!, 0.02), footprintQuad(tray)), d.id).toBe(false);
       }
       for (const i of out.filter((x) => x.elevationM < 0.05 && x.id !== shower.id && x.slot !== 'bath_mixer')) expect(quadsOverlap(footprintQuad(i), footprintQuad(tray)), i.id).toBe(false);
     }
@@ -263,7 +265,10 @@ describe('the bathroom pass', () => {
     const items = matched(big, 'modern').filter((i) => i.slot !== 'shower');
     const sink = items.find((i) => i.slot === 'sink')!;
     const washer = items.find((i) => i.slot === 'washer')!;
-    const moved = items.map((i) => (i.id === washer.id ? { ...washer, position: { x: sink.position.x + 1.2, z: sink.position.z }, rotation: sink.rotation } : i));
+    // The basin's wall is wall 0 (z = 0): the machine 1.2 m along it from the basin, its back 2 cm
+    // off the wall (at the basin's own z its back went 5 cm through the wall, and the column with it).
+    expect(sink.rotation).toBeCloseTo(0, 6);
+    const moved = items.map((i) => (i.id === washer.id ? { ...washer, position: { x: sink.position.x + 1.2, z: washer.size.depth / 2 + 0.02 }, rotation: sink.rotation } : i));
     // The floor before a radiator at the far end of the basin's wall, where the column would go.
     const strip = { minX: 3.25, maxX: 3.4, minZ: 0, maxZ: 0.45 };
     const { items: out, decor } = fitBathrooms({ rooms: [big], items: moved, catalog: CATALOG, styleId: 'modern', level: 'balanced', keepClear: { j: [strip] } });
@@ -271,6 +276,8 @@ describe('the bathroom pass', () => {
     const placed = out.find((i) => i.slot === 'washer')!;
     expect(placed.position).toEqual(moved.find((i) => i.id === washer.id)!.position);
     expect(decor.some((d) => (d.params.sections ?? []).some((s) => s.kind === 'washer' && s.itemId === washer.id))).toBe(true);
+    // The basin waits for its vanity in the air only until the pass builds it: the room as fitted is whole.
+    expect(sceneDefects({ plan: [big], items: out, decor })).toEqual([]);
   });
 
   it('never builds a washer\'s own column into the vanity planned beside it: the column stays, the vanity stops at it', () => {
@@ -366,7 +373,9 @@ describe('the bathroom pass', () => {
     const stool: PlacedItem = { id: 't-stool', roomId: 't', slot: 'stool', kind: 'stool', position: first.position, rotation: 0, elevationM: 0, size: { width: 0.35, depth: 0.35, height: 0.45 }, product: toSceneProduct(product(30, 'stool', 35, 35, 45, 'Wooden stool'), 1), origin: 'style' };
     const out = fitBathrooms({ rooms: [roomy], items: [...modern, stool], catalog: CATALOG, styleId: 'modern', level: 'balanced' }).items;
     const mixer = out.find((i) => i.slot === 'bath_mixer')!;
-    if (mixer.elevationM < 0.05) expect(quadsOverlap(shrink(footprintQuad(mixer), 0.03), footprintQuad(stool))).toBe(false);
+    // Still on the floor, at the bath's other end.
+    expect(mixer.elevationM).toBeLessThan(0.05);
+    expect(quadsOverlap(shrink(footprintQuad(mixer), 0.03), footprintQuad(stool))).toBe(false);
     expect(Math.hypot(mixer.position.x - first.position.x, mixer.position.z - first.position.z)).toBeGreaterThan(0.3);
   });
 
@@ -406,10 +415,16 @@ describe('a basin lifted for a vanity stands on something', () => {
   });
 
   it('leaves the basin as it was where no standing basin fits either', () => {
-    const { items } = fitBathrooms({ rooms: [r], items: squeezed(0.5), catalog: CATALOG, styleId: 'modern', level: 'balanced' });
+    // A 46 cm countertop basin between racks 47 cm apart: its vanity (51 cm) and the 55 cm pedestal
+    // do not fit. (A 60 cm basin between racks 50 cm apart stood 5 cm into each.)
+    const small = product(41, 'sink', 46, 40, 14, 'Small countertop basin');
+    const basin = { ...placed('s', 'sink', 1.2, 0.46, 0.4, 0.14, 0.72, 2), product: toSceneProduct(small, 1) };
+    const { items, decor } = fitBathrooms({ rooms: [r], items: squeezed(0.47, basin), catalog: [...CATALOG, small], styleId: 'modern', level: 'balanced' });
     const sink = items.find((i) => i.id === 's')!;
-    expect(sink.product?.productId).toBe(2);
+    expect(sink.product?.productId).toBe(41);
     expect(sink.elevationM).toBe(0.72);
+    // Kept in the air rather than lost: the one defect of the room, and the case the pass leaves.
+    expect(sceneDefects({ plan: [r], items, decor })).toEqual(['basin_in_air a: sink at 72 cm']);
   });
 
   it('keeps a basin too tall for any vanity on the vanity that can be built: it stands on something, and it is not swapped', () => {

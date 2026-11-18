@@ -60,9 +60,9 @@ describe('bathrooms', () => {
       const items = layoutRoom(room('m', 'bathroom', 2.4, 2, [door(2, 0.7)]), { rng: seededRng(seed) });
       const mirror = items.find((i) => i.slot === 'mirror');
       const sink = items.find((i) => i.slot === 'sink');
-      if (!mirror) continue;
-      expect(sink).toBeDefined();
-      expect(Math.hypot(mirror.position.x - sink!.position.x, mirror.position.z - sink!.position.z)).toBeLessThan(0.6);
+      expect(mirror, `seed ${seed}`).toBeDefined();
+      expect(sink, `seed ${seed}`).toBeDefined();
+      expect(Math.hypot(mirror!.position.x - sink!.position.x, mirror!.position.z - sink!.position.z)).toBeLessThan(0.6);
     }
   });
 
@@ -185,9 +185,10 @@ describe('living rooms', () => {
       const items = layoutRoom(room('l', 'living_room', 4.6, 3.6, [door(1, 0.85), window(0)]), { rng: seededRng(seed) });
       const unit = items.find((i) => i.slot === 'tv_unit');
       const table = items.find((i) => i.slot === 'coffee_table');
-      if (!unit || !table) continue;
+      expect(unit, `seed ${seed}`).toBeDefined();
+      expect(table, `seed ${seed}`).toBeDefined();
       const grow = (i: PlacedItem, by: number) => footprintQuad({ ...i, size: { ...i.size, width: i.size.width + 2 * by, depth: i.size.depth + 2 * by } });
-      expect(quadsOverlap(grow(unit, 0.29), grow(table, 0.29)), `seed ${seed}`).toBe(false);
+      expect(quadsOverlap(grow(unit!, 0.29), grow(table!, 0.29)), `seed ${seed}`).toBe(false);
     }
   });
 });
@@ -303,8 +304,8 @@ describe('kitchens', () => {
     for (const seed of SEEDS) {
       const items = layoutRoom(room('k', 'kitchen', 4.8, 3.2, [door(2, 0.8), window(0, 0.3)]), { rng: seededRng(seed) });
       const run = items.find((i) => i.slot === 'kitchen_run');
-      if (!run) continue;
-      const zone = frontOf(run, 1.15);
+      expect(run, `seed ${seed}`).toBeDefined();
+      const zone = frontOf(run!, 1.15);
       for (const piece of items.filter((i) => i.slot === 'dining_table' || i.slot === 'dining_chair')) {
         expect(quadsOverlap(zone, footprintQuad(piece)), `${piece.slot} in the run's floor (seed ${seed})`).toBe(false);
       }

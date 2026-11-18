@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { layoutRoom } from '@/lib/design/autoLayout';
 import { blocksWindow } from '@/lib/design/manipulate';
-import { matchProducts, type CatalogProduct } from '@/lib/design/matcher';
+import { fitBathrooms } from '@/lib/design/bathroom';
+import { MATCHED_ABOVE_GAP_M, matchProducts, type CatalogProduct } from '@/lib/design/matcher';
+import { seededRng } from '@/lib/design/random';
 import { refreshRoom, roomEdges as roomEdgesOf } from '@/lib/design/planGeometry';
 import { reviewFindings, validateReview, type ReviewOffer } from '@/lib/design/aiReview';
 import { applyReviewFixes, withoutArtOverDecor } from '@/lib/design/aiProposal';
@@ -120,18 +122,35 @@ describe('mirrors and basins', () => {
     expect(sink.product?.productId).toBe(11);
     expect(mirror.product?.productId).toBe(13);
     expect(Math.hypot(mirror.position.x - sink.position.x, mirror.position.z - sink.position.z)).toBeLessThan(0.6);
-    // Its middle at 1.5 m, its bottom over the basin.
+    // Its middle at 1.5 m — which leaves it clear of the basin by more than the matcher's gap.
     expect(mirror.elevationM + mirror.size.height / 2).toBeCloseTo(1.5, 5);
-    expect(mirror.elevationM).toBeGreaterThan(sink.size.height);
+    expect(mirror.elevationM).toBeGreaterThanOrEqual(sink.size.height + MATCHED_ABOVE_GAP_M - 1e-6);
+  });
+
+  it('hangs a tall mirror clear of the basin, not at eye level into it, and the bathroom pass clear of the tap it puts on', () => {
+    // A 1.2 m mirror at eye level would start at 0.9 m, 5 cm over an 85 cm basin.
+    const catalog = [product(10, 'toilet', 36, 54, 45), product(11, 'sink', 60, 45, 85), product(13, 'mirror', 60, 3, 120), product(15, 'tap', 5, 15, 30)];
+    const matched = matchProducts(layoutRoom(bathroom), catalog, { styleId: 'vintage', rooms: [bathroom] });
+    const sink = matched.find((i) => i.slot === 'sink')!;
+    const hung = matched.find((i) => i.slot === 'mirror')!;
+    expect(hung.elevationM).toBeCloseTo(sink.size.height + MATCHED_ABOVE_GAP_M, 5);
+    // The tap goes on after the matcher hung the mirror, at the basin's rim and over it.
+    const { items } = fitBathrooms({ rooms: [bathroom], items: matched, catalog, styleId: 'vintage', level: 'balanced', rng: seededRng(1) });
+    const tap = items.find((i) => i.slot === 'tap')!;
+    const mirror = items.find((i) => i.slot === 'mirror')!;
+    expect(tap).toBeTruthy();
+    expect(tap.elevationM + tap.size.height).toBeGreaterThan(hung.elevationM);
+    expect(mirror.elevationM).toBeGreaterThanOrEqual(tap.elevationM + tap.size.height + MATCHED_ABOVE_GAP_M - 1e-6);
+    expect(mirror.elevationM + mirror.size.height).toBeLessThanOrEqual(bathroom.heightM);
   });
 
   it('stands a floor mirror on the floor in the hallway, out from the wall by its stand', () => {
     const hallway = room('h', 'hallway', 4, 1.8);
     const catalog = [product(14, 'mirror', 59, 50, 164)];
     const mirror = matchProducts(layoutRoom(hallway), catalog, { styleId: 'scandinavian', rooms: [hallway] }).find((i) => i.slot === 'mirror' && i.product);
-    if (!mirror) return; // the hallway had no wall for it in this draw
-    expect(mirror.elevationM).toBe(0);
-    expect(backGap(mirror, 4, 1.8)).toBeLessThan(0.03);
+    expect(mirror).toBeDefined();
+    expect(mirror!.elevationM).toBe(0);
+    expect(backGap(mirror!, 4, 1.8)).toBeLessThan(0.03);
   });
 });
 
@@ -226,12 +245,29 @@ describe('dining chairs round the table as matched', () => {
     const matched = matchProducts(laid, catalog, { styleId: 'scandinavian', rooms: [kitchen] });
     const table = matched.find((i) => i.slot === 'dining_table' && i.product)!;
     const chairs = matched.filter((i) => i.slot === 'dining_chair' && i.product);
-    // A 0.8 m round table seats two, one each side.
+    // The catalogue's one table is 80 × 80: 60 cm a person along each of its sides (`DINING_SEAT_M`)
+    // seats one there, and a table under 82 cm deep has no seat at its ends — two chairs.
+    expect(table.product?.productId).toBe(22);
     expect(chairs).toHaveLength(2);
     for (const chair of chairs) {
       const d = Math.hypot(chair.position.x - table.position.x, chair.position.z - table.position.z);
       expect(d).toBeLessThan(table.size.depth / 2 + chair.size.depth / 2 + 0.01);
       expect(d).toBeGreaterThan(table.size.depth / 2 - 0.2);
+    }
+  });
+
+  // M8 (1) in docs/design-studio/generation-audit.md: the table's 1.2 m minimum (the owner's K-10)
+  // is held on the slot, not the product, and the draw penalises only products wider than the
+  // slot. A 1.6 m slot laid with six chairs takes the 80 × 80 table in 23 of 40 draws though a
+  // 160 × 90 one fits it, and the room keeps two of its six chairs.
+  it.skip('takes a table that seats the chairs laid round the slot when the catalogue has one that fits (M8: the table is drawn under the slot)', () => {
+    const kitchen = room('k', 'kitchen', 6, 5);
+    const catalog = [product(20, 'kitchen_run', 300, 62, 92), product(21, 'fridge', 70, 70, 190), product(22, 'dining_table', 80, 80, 75), product(24, 'dining_table', 160, 90, 75), product(23, 'dining_chair', 45, 50, 85)];
+    const laid = layoutRoom(kitchen);
+    const seats = laid.filter((i) => i.slot === 'dining_chair').length;
+    for (let seed = 1; seed <= 40; seed++) {
+      const matched = matchProducts(laid, catalog, { styleId: 'scandinavian', rooms: [kitchen], rng: seededRng(seed) });
+      expect(matched.filter((i) => i.slot === 'dining_chair' && i.product), `seed ${seed}`).toHaveLength(seats);
     }
   });
 });
@@ -325,8 +361,9 @@ describe('the room tidied after generating and after the check', () => {
     const r = room('b', 'bathroom', 4.4, 2.2);
     const bath = piece('bath', 'bathtub', 'bathtub', 1.2, 0.02 + 0.375, 0, 1.7, 0.75, 0.55);
     const niche = resolveDecor({ family: 'niche', anchor: 'wall', wallIndex: 0 } as never, r, [bath], [], 'n1');
-    // The bath takes 0.35–2.05 m along wall 0 (5 cm aside): the niche stands clear of it, or not at all.
-    if (niche) expect(niche.span.from >= 2.05 - 1e-6 || niche.span.to <= 0.35 + 1e-6).toBe(true);
+    // The bath takes 0.35–2.05 m along wall 0 (5 cm aside): the niche stands clear of it, beside it.
+    expect(niche).toBeTruthy();
+    expect(niche!.span.from >= 2.05 - 1e-6 || niche!.span.to <= 0.35 + 1e-6).toBe(true);
   });
 
   it('lays kitchen tiles behind the run, from the worktop to the wall cabinets, and moves them with it', async () => {
@@ -721,22 +758,25 @@ describe('what the generation of 20 Oct got wrong', () => {
       openings: [
         { id: 'd', kind: 'door', wallIndex: 1, t: 0.85, widthM: 0.85, heightM: 2.05, sillM: 0, roomId: 'l', exterior: true },
         // On the wall the TV unit goes on (z = 4.4), just left of its middle.
-        { id: 'w', kind: 'window', wallIndex: 2, t: 0.72, widthM: 1.4, heightM: 1.4, sillM: 0.9, roomId: 'l', exterior: true },
+        { id: 'w', kind: 'window', wallIndex: 2, t: 0.6, widthM: 1.4, heightM: 1.4, sillM: 0.9, roomId: 'l', exterior: true },
+        // And one in the middle of the wall across (z = 0): the sofa, which looks for a wall to face
+        // that is not a window wall (the owner's notes), finds none, and the TV goes on wall 2.
+        { id: 'w0', kind: 'window', wallIndex: 0, t: 0.5, widthM: 1.4, heightM: 1.4, sillM: 0.9, roomId: 'l', exterior: true },
       ],
     });
     const items = layoutRoom(living);
-    const unit = items.find((i) => i.slot === 'tv_unit')!;
-    const tv = items.find((i) => i.slot === 'tv')!;
+    const unit = items.find((i) => i.slot === 'tv_unit');
+    const tv = items.find((i) => i.slot === 'tv');
     expect(unit).toBeDefined();
     expect(tv).toBeDefined();
-    // Wall 2 runs from (5.2, 4.4) to (0, 4.4): the window takes x 0.756–2.156. The sofa now looks
-    // for a wall to face that is not a window wall (the owner's notes), so the TV is on that wall
-    // only when nothing better was found — and then off the window.
-    if (Math.abs(tv.position.z - 4.4) < 0.3) {
-      expect(tv.position.x - tv.size.width / 2 >= 2.156 - 1e-6 || tv.position.x + tv.size.width / 2 <= 0.756 + 1e-6).toBe(true);
-      expect(Math.abs(tv.position.x - unit.position.x) + tv.size.width / 2).toBeLessThanOrEqual(unit.size.width / 2 + 1e-6);
-    }
-    expect(blocksWindow({ ...tv, size: { ...tv.size, height: 1.5 } }, living)).toBe(false);
+    // Wall 2 runs from (5.2, 4.4) to (0, 4.4): the window takes x 1.38–2.78, over the unit's left
+    // end; the TV is on that wall, slid or shrunk along its unit off the window, and on the unit.
+    expect(Math.abs(tv!.position.z - 4.4)).toBeLessThan(0.3);
+    expect(unit!.position.x - unit!.size.width / 2).toBeLessThan(2.78);
+    expect(tv!.size.width < 1.45 - 1e-6 || Math.abs(tv!.position.x - unit!.position.x) > 0.01).toBe(true);
+    expect(tv!.position.x - tv!.size.width / 2 >= 2.78 - 1e-6 || tv!.position.x + tv!.size.width / 2 <= 1.38 + 1e-6).toBe(true);
+    expect(Math.abs(tv!.position.x - unit!.position.x) + tv!.size.width / 2).toBeLessThanOrEqual(unit!.size.width / 2 + 1e-6);
+    expect(blocksWindow({ ...tv!, size: { ...tv!.size, height: 1.5 } }, living)).toBe(false);
   });
 
   it('never takes a range cooker for the kitchen run', async () => {

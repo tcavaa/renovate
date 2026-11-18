@@ -216,8 +216,9 @@ there, floor to ceiling.
 **The partitions the app adds when it lays a flat out** (`lib/design/autoPartitions.ts`): a screen
 in front of a front door that opens into the living room, a lobby in front of an en-suite's door —
 ordinary walls of the plan (10 cm plasterboard, `origin: 'generated'`, ids `partition-entry-…` /
-`partition-ensuite-…`), each joined to one wall at most so the room stays whole (`keepWhole`).
-See [layout-and-matching.md](layout-and-matching.md).
+`partition-ensuite-…`), each joined to one wall at most so the room stays whole (`keepWhole`),
+never into a window, a door or an archway of the wall it joins (`joinable` — then the door gets no
+screen). See [layout-and-matching.md](layout-and-matching.md).
 
 **A shower's glass is drawn as thin walls of glass** (`drawShowerGlass`, on the board and the plan
 PDF): its tray dashed, and a pale blue pane its thickness to scale on each side of the tray off

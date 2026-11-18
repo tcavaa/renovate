@@ -30,12 +30,13 @@ Decided with the owner on 16 Nov 2026:
 - **In batches**, each tested, measured and pushed to `main` on its own.
 
 **How a fix is measured.** `pnpm audit:generation` generates every fixture plan
-(`tests/fixtures/generation`: the app's sample flat and 29 plans of the team's test projects, with
-the catalogue as it was on 16 Nov — 1,341 products) in each style, several draws, and checks each
+(`tests/fixtures/generation`: the app's sample flat and 29 plans of the team's test projects, three
+of them also altered so the partitions the app adds are built (Q4), with the catalogue as it was on
+16 Nov — 1,341 products) in each style, several draws, and checks each
 finished flat as a whole (`lib/design/sceneAudit.ts` → `auditScene`): what each room ends without,
 what no rule allows, and which of the app's own rule checks the flat fails. `--examples` says where
 to look and `--flat '#412/modern/1' [--room r2]` prints one flat. The first draw of every plan and
-style (120 flats) is the baseline (`tests/fixtures/generation/baseline.json`), and
+style (132 flats; 120 before the altered plans) is the baseline (`tests/fixtures/generation/baseline.json`), and
 `tests/unit/design/generationInvariants.test.ts` fails when any count rises — or falls without
 being recorded (`--write-baseline`, which refuses a baseline that is worse). So each fix lowers a
 number in its own commit, and nothing slides back.
@@ -141,6 +142,12 @@ bathrooms with no shower or bath 36 %, no mirror about 30 %, no WC 11 %; studios
    kitchens never generated (their names do not say sink and hob) — admin's, or a rule.
 10. *An AI start refused by the plan's locks* is told as a failure (subscriptions), and *a row or
     track of spots* loses the one under a hanging lamp (the one-light rule, O5).
+11. *An entrance screen or a lobby whose end would run into a window or a doorway* (Q4) is not
+    built now, as a door with no way past gets none (about one screen in six of those a door slid
+    along every wall of the fixtures would get) — the other ways (a shorter screen with a leftover
+    by the window, a shallower screen) would change the screen's own numbers. And a screen whose
+    short end meets a room separator's open line is still run on to that line and ends free there,
+    as before: whether it should, or be left short with the way through the separator, is a rule.
 
 ## How it was audited
 
@@ -1515,6 +1522,22 @@ no table in 60 of the 416 runs of 10 m² or more; an island 0 of 96.
   hall, or the studio is under 30 m², or the bedroom under 12 m²), so the stage is exercised only by
   its unit tests. On plans altered to qualify, a screen's joined end lands in a window or an archway
   in 10 of 58, and the matcher stands pieces in the lobby (53 of 348 flats).
+  *Partly:* three fixture plans are altered to qualify (`ALTERED_PLANS` in
+  `tests/helpers/generationFixtures.ts`: `#393+front`, `#394+front` — the front door their drawing
+  lacks, into a studio and a living room of 35 m² — and `#373+ensuite`, its bathroom's door moved to
+  a bedroom of 14.75 m²), so whole flats are generated with an entrance screen (but in Industrial)
+  and an en-suite's lobby in every style; and a screen's end is never run on into a window, a door
+  or an archway of the wall it would join (`joinable`) — such a door gets no screen, as one with no
+  way past: with a 0.9 m door slid every 5 cm along every wall of 1.2 m or more of every living
+  room, studio and bedroom of the 33 fixture plans, 3,784 screens → 3,129, the 655 not built each
+  one whose joined end ran into a window (547), a door (85) or an archway (23), and none left with
+  an end in one. An end that meets a room separator's open line is run on to it as before (no
+  opening there; whether it should is the owner's, item 11 of the decisions). The fix changes no
+  flat of the fixtures (the altered plans' screens do not meet an opening): only its unit tests
+  exercise it. Left: on the altered plans (four styles, six
+  draws) a dining chair stands on the floor behind the entrance screen in 6 of the 60 flats with a
+  screen, one 10 cm through it — the layout's or the matcher's, an open test in
+  `autoPartitions.test.ts`; and the whole-flat check does not read a piece through a partition.
 - [x] **Q5 (medium) — Doors and windows never follow a change of style** (`openings.ts:584`: any
   product already on an opening is kept — a style's own choice is not told from a person's, as it is
   for finishes): of 1,219 that should have changed, none did.
@@ -1627,13 +1650,21 @@ them, **none has a test that would notice its fix**.
   bed and no TV; the real plans with the real catalogue lose 14 % and 23 %. *Fixed:*
   `generationInvariants.test.ts` generates 120 whole flats from real plans with the real catalogue
   and holds them to a baseline (above).
-- [ ] **V2 (high) — Three tests assert today's defects as right**: six chairs laid and two kept at
+- [x] **V2 (high) — Three tests assert today's defects as right**: six chairs laid and two kept at
   an 80 cm table (`placementSettle.test.ts:230`, `:334`); the brief "rarely offers again" what the
   last design used, which holds only because the offer is wider than the matcher's pool
   (`decor.test.ts:363`); the mirror's 1.5 m (`placementSettle.test.ts:124`, `:370`).
   *Partly:* `decor.test.ts`'s "rarely offers again" draws from 40 sofas of the flat's style (the
   matcher's pool), with 20 of another style that are never offered (A1).
-- [ ] **V3 (high) — Defects stand inside the tests' own scenes and pass**: the washer and its
+  *Fixed:* the bathroom mirror's test holds it clear of the basin by the matcher's 12 cm, and a
+  1.2 m one raised clear of the basin and, after the bathroom pass, of its tap rather than at eye
+  level into them; two chairs at the 80 × 80 table are what that table seats (one a side, no ends
+  under 82 cm deep) and stay, with the table drawn under a slot laid for six — 23 of 40 draws though
+  a 160 × 90 one fits — an open test of M8; the bistro table the check swaps in seating two of three
+  chairs is right as it was, and so is the hall's wall mirror at 1.5 m with nothing under it;
+  "rarely offers again" is measured against the same draws told nothing of the last design (about
+  3.6 a time against under 1.5).
+- [x] **V3 (high) — Defects stand inside the tests' own scenes and pass**: the washer and its
   column 55–64 cm inside the shower's tray (`bathroom.test.ts:170`); the TV unit on the studio's
   line on 30 of 30 seeds (`studioLayout.test.ts:89` looks at hung pieces only); a bed with one
   nightstand in `generateScene.test.ts`'s own flat.
@@ -1641,7 +1672,20 @@ them, **none has a test that would notice its fix**.
   never on the line or the separator, on 30 of 30 seeds (O7, RB6). `bathroom.test.ts` joins the
   vanity and the washer's column in its room with the shower taken out, and in the room as laid
   out holds that nothing is built or moved into the tray (O2).
-- [ ] **V4 (medium) — Tests that cannot fail**: `housing.test.ts:306` (its flat has no joinery to
+  *Fixed:* every scene the design tests make (`generateScene`, `layoutRoom`, `matchProducts`, the
+  bathroom and hall passes, the check's fixes) was run through the whole-flat check, and each
+  defect it found in a test's own scene was traced: the washer a bathroom test moves stood 5 cm
+  through the wall (at the basin's z, not its own depth's), the basin left in the air stood 5 cm into
+  each towel rack, the check's bath mixer stood 8 cm in the bath — each scene corrected — and the
+  check moving a bed to the far wall stands its nightstand in a door's way, an open test
+  (`aiCheck.test.ts`). `generateScene.test.ts`'s flat is checked whole on 20 seeds with a nightstand
+  either side of the bed (it has two on every seed now). What is left in
+  the tests' scenes is what they mean to keep: a piece kept in a door's way, a shower's tray or the
+  air because no product keeps out and none is dropped (the matcher's and the bathroom pass's "never
+  costs the room a piece"), the layout's print slot over its TV before the matcher hangs it clear,
+  and a dining chair 19 cm into a kitchen archway's 90 cm (the engine keeps 55 cm before an archway,
+  X5). `tests/helpers/sceneChecks.ts` (`sceneDefects`) is the check for a test's own scene.
+- [x] **V4 (medium) — Tests that cannot fail**: `housing.test.ts:306` (its flat has no joinery to
   settle — W1), `generationRandom.test.ts:167` and `:194` and `placementSettle.test.ts:668`
   (branches that never run — P1), and seven assertions that are always true.
   *Partly:* the check's settling has a test that can fail (`aiCheck.test.ts`, W1: a bathroom whose WC
@@ -1650,11 +1694,26 @@ them, **none has a test that would notice its fix**.
   Vintage surround, a column with its dryer — it failed before W10), and on the real plans the
   studio's own `settleFitted` (no changed pieces given) changes 0 of 360 untouched flats. The other
   tests named here are not changed.
-- [ ] **V5 (medium) — Fixtures.** Each file types a few products at the slot's own size and one
+  *Fixed:* the shop's kitchen is drawn in `generationRandom.test.ts` for a run it can take (its sink
+  and hob in its name, P1), so the branch of what hangs over it runs, both ways counted; the wall
+  cabinets keep off a narrow window they hang beside (beside a wide one none hang, though 1.38 m of
+  the run is clear: `placeAbove` tries only 1, 0.75 and 0.5 of the run's length — an open test,
+  not held as right); the TV slides along its unit off a window on its wall (`placementSettle.test.ts`, the
+  window across making that wall the TV's); `housing.test.ts`'s "left as it is" settles real flats
+  with their vanities, columns and boxes; a print on a free wall is tested beside the one over the
+  bed; and sixteen step-overs (`if (!x) return`, `if (x) expect`, a loop's `continue`) are hard
+  expectations, or a count that the loop's branch ran.
+- [x] **V5 (medium) — Fixtures.** Each file types a few products at the slot's own size and one
   style: 89 % are within 10 % of the slot's width, against 39 % in the real catalogue; 27 of 42
   kinds have a product in some test. Of 58 rooms laid out, 54 are rectangles and 42 have no window;
   a toilet, a balcony, a closet and a storage room never. A missing piece is stepped over
   (`if (!x) return`) in ten places.
+  *Fixed:* `fixtureProducts(kind, style)` and `fixtureProductsFor(roomType, style)` give a test real
+  products from the fixture catalogue as the matcher takes them, and `everyRoom.test.ts` lays out,
+  matches with the style's real products and generates whole in every style a room of every type
+  the program knows — an L-shaped living room, rooms with windows and doors, a toilet, a balcony, a
+  closet and a storage room among them — each held to the whole-flat check, its essentials and the
+  save route; the step-overs are V4's.
 
 What is needed: `generateScene` on real plans with invariants — no essential missing, nothing on a
 door's floor or in a tray, no piece arranged off one that is gone — would cover 11 of the 18; a

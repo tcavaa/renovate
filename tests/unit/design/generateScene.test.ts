@@ -3,6 +3,7 @@ import { generateScene, reviewedScene, type GeneratedScene } from '@/lib/design/
 import type { AiProposal } from '@/lib/design/aiProposal';
 import type { DesignStoreHook } from '@/store/designStore';
 import { GENERATION_CATALOG, generationPlan, generationProposal } from '../../helpers/generation';
+import { sceneDefects } from '../../helpers/sceneChecks';
 
 /**
  * Laying the flat out as one pure function (`lib/design/generateScene`): the browser's store and
@@ -104,6 +105,21 @@ describe('generateScene', () => {
     expect(engine.items.length).toBeGreaterThan(0);
     const layouts = new Set(Array.from({ length: 8 }, (_, seed) => JSON.stringify(generateLike(seed, null).items.map((i) => [i.kind, i.position, i.product?.productId]))));
     expect(layouts.size).toBeGreaterThan(1);
+  });
+
+  it('lays out a flat the whole-flat check finds nothing wrong in, with a nightstand either side of the bed', () => {
+    for (const proposal of [generationProposal(), null]) {
+      for (let seed = 0; seed < 20; seed++) {
+        const laid = generateLike(seed, proposal);
+        expect(sceneDefects(laid), `seed ${seed}${proposal ? ', designer' : ''}`).toEqual([]);
+        const bed = laid.items.find((i) => i.slot === 'bed')!;
+        const stands = laid.items.filter((i) => i.slot === 'nightstand');
+        expect(stands, `seed ${seed}`).toHaveLength(2);
+        // One each side of it.
+        const side = (i: { position: { x: number; z: number } }) => Math.sign((i.position.x - bed.position.x) * Math.cos(bed.rotation) - (i.position.z - bed.position.z) * Math.sin(bed.rotation));
+        expect(new Set(stands.map(side))).toEqual(new Set([-1, 1]));
+      }
+    }
   });
 });
 

@@ -29,19 +29,23 @@ function box(i: PlacedItem) {
 describe('the kitchen island', () => {
   it('never stands against a wall: 1.2 m of floor on every side', () => {
     const kitchen = room('k', 'kitchen', 6.5, 5.5, [door(3, 0.2)]);
+    let islands = 0;
     for (let seed = 1; seed <= 10; seed++) {
       const items = layoutRoom(kitchen, { rng: seededRng(seed) });
       const island = items.find((i) => i.slot === 'kitchen_island');
       if (!island) continue;
+      islands++;
       const b = box(island);
       expect(Math.min(b.minX, b.minZ, 6.5 - b.maxX, 5.5 - b.maxZ), `seed ${seed}`).toBeGreaterThanOrEqual(1.19);
     }
+    // The room has floor for one in most draws (nine of the ten): the rule is of something.
+    expect(islands).toBeGreaterThan(5);
   });
 
   it('is not a second hob and oven beside a run that has them', () => {
     const kitchen = room('k', 'kitchen', 6.5, 5.5, [door(3, 0.2)]);
     const items = layoutRoom(kitchen, {});
-    if (!items.some((i) => i.slot === 'kitchen_island')) return;
+    expect(items.some((i) => i.slot === 'kitchen_island')).toBe(true);
     const catalog = [product(1, 'kitchen_run', 'Kitchen run', { widthCm: 300 }), product(2, 'kitchen_island', 'Dark kitchen island with sink, hob and oven', { widthCm: 180, depthCm: 90 })];
     const matched = matchProducts(items, catalog, { styleId: 'modern', rooms: [kitchen] });
     expect(matched.find((i) => i.slot === 'kitchen_island')?.product).toBeNull();
@@ -70,10 +74,11 @@ describe('the dining table', () => {
     const items = layoutRoom(living, {});
     const table = items.find((i) => i.slot === 'dining_table');
     const sofa = items.find((i) => i.slot === 'sofa');
-    if (!table || !sofa) return;
-    expect(Math.max(table.size.width, table.size.depth)).toBeGreaterThanOrEqual(1.2);
-    const t = box(table);
-    const s = box(sofa);
+    expect(table).toBeDefined();
+    expect(sofa).toBeDefined();
+    expect(Math.max(table!.size.width, table!.size.depth)).toBeGreaterThanOrEqual(1.2);
+    const t = box(table!);
+    const s = box(sofa!);
     const gap = Math.max(s.minX - t.maxX, t.minX - s.maxX, s.minZ - t.maxZ, t.minZ - s.maxZ);
     expect(gap).toBeGreaterThanOrEqual(0.99);
   });

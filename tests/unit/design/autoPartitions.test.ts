@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { ENSUITE_DEPTH_M, ENTRY_DEPTH_M, PASSAGE_M, withGeneratedPartitions } from '@/lib/design/autoPartitions';
+import { footprintOf } from '@/lib/design/manipulate';
 import { roomEdges } from '@/lib/design/planGeometry';
+import { STYLE_IDS } from '@/lib/design/styles';
 import { roomsFromWalls } from '@/lib/design/walls';
-import type { FloorPlan, Opening, PlanRoom, Wall } from '@/lib/design/types';
+import type { FloorPlan, Opening, PlacedItem, PlanRoom, Wall } from '@/lib/design/types';
+import { generatedFlat } from '../../helpers/generationAudit';
+import { ALTERED_PLANS, fixtureCatalog, fixturePlans } from '../../helpers/generationFixtures';
 
 /** The partitions the app adds at generation (lib/design/autoPartitions.ts). */
 
@@ -91,11 +95,95 @@ describe('the entrance out of the living room\'s sight', () => {
     expect(Math.abs(screen.b.x - screen.a.x)).toBeCloseTo(0.9 + 0.6, 2);
   });
 
+  /** The room with an opening on its west edge (x = 0.15), its middle at `z`. */
+  const onWest = (plan: FloorPlan, z: number, extra: Partial<Opening>): FloorPlan => ({
+    ...plan,
+    rooms: plan.rooms.map((room) => {
+      const edge = roomEdges(room.polygon)[edgeAtX(0.15)(room)];
+      const along = (z - edge.a.z) / edge.dir.z;
+      const opening: Opening = { id: `${room.id}-west-${room.openings.length}`, roomId: room.id, kind: 'window', wallIndex: edge.index, t: along / edge.length, widthM: 1.2, heightM: 1.4, sillM: 0.9, exterior: true, ...extra };
+      return { ...room, openings: [...room.openings, opening] };
+    }),
+  });
+
+  it('never runs a screen on into a window, a door or an archway on the wall it would join: with no other way to close that end, there is none', () => {
+    // The front door 0.6 m along the north wall: its screen, 1.35 m in, would join the west wall
+    // at z 1.5 (its 10 cm across z 1.45–1.55).
+    const door = withDoor(living, roomId, edgeAtZ(0.15), 0.6, { exterior: true });
+    expect(withGeneratedPartitions(door).added).toHaveLength(1);
+    for (const extra of [{ kind: 'window' as const }, { kind: 'archway' as const, sillM: 0, heightM: 2.1, exterior: false }, { kind: 'door' as const, widthM: 0.8, sillM: 0, heightM: 2.05, exterior: false }]) {
+      expect(withGeneratedPartitions(onWest(door, 1.6, extra)).added, extra.kind).toHaveLength(0);
+    }
+    // A window whose frame it would only touch (4 cm of it, within `ONTO_WINDOW_M`), or one further
+    // along the wall, leaves it joined as before.
+    const touching = withGeneratedPartitions(onWest(door, 1.55 - 0.04 + 0.6, { kind: 'window' })).added;
+    expect(touching).toHaveLength(1);
+    const along = withGeneratedPartitions(onWest(door, 3.5, { kind: 'window' })).added;
+    expect(along).toHaveLength(1);
+    expect(Math.min(along[0].a.x, along[0].b.x)).toBeCloseTo(0, 2);
+  });
+
+  it('still runs a screen on to a room separator\'s open line, as before: no opening is walled across there', () => {
+    // The west wall is a separator (the room open to the next one there): the screen's short end
+    // meets its line, which has no window, door or archway to build into — it is run on to it as
+    // the module always did (whether a screen should end free on an open line is the owner's call).
+    const door = withDoor(living, roomId, edgeAtZ(0.15), 0.6, { exterior: true });
+    const west = edgeAtX(0.15)(door.rooms[0]);
+    const open: FloorPlan = {
+      ...door,
+      walls: door.walls!.map((w) => (w.id === 'w' ? { ...w, separator: true } : w)),
+      rooms: door.rooms.map((r) => ({ ...r, open: [west] })),
+    };
+    const added = withGeneratedPartitions(open).added;
+    expect(added).toHaveLength(1);
+    // Its end on the open line (the separator is no wall to run into the middle of).
+    expect(Math.min(added[0].a.x, added[0].b.x)).toBeCloseTo(0.15, 2);
+  });
+
   it('adds nothing when the front door opens into a hall, or the room is too shallow', () => {
     const hall = planOf(box, () => 'hallway');
     expect(withGeneratedPartitions(withDoor(hall, hall.rooms[0].id, edgeAtZ(0.15), 0.6, { exterior: true })).added).toHaveLength(0);
     const shallow = planOf([wall('n', 0, 0, 6, 0), wall('e', 6, 0, 6, 2.8), wall('s', 6, 2.8, 0, 2.8), wall('w', 0, 2.8, 0, 0)], () => 'living_room');
     expect(withGeneratedPartitions(withDoor(shallow, shallow.rooms[0].id, edgeAtZ(0.15), 0.6, { exterior: true })).added).toHaveLength(0);
+  });
+});
+
+describe('on whole flats: the fixture plans altered to qualify (tests/helpers/generationFixtures, ALTERED_PLANS)', () => {
+  const catalog = fixtureCatalog();
+  const plans = fixturePlans().filter((p) => ALTERED_PLANS.some((a) => a.id === p.id));
+  const floorPiece = (i: PlacedItem) => i.elevationM < 0.05 && !['rug', 'door_mat', 'curtain'].includes(i.slot);
+  const overlaps = (a: { minX: number; maxX: number; minZ: number; maxZ: number }, b: typeof a, by: number) => a.minX < b.maxX - by && a.maxX > b.minX + by && a.minZ < b.maxZ - by && a.maxZ > b.minZ + by;
+
+  it('are in the fixtures, and each is generated with its screen: the entrance\'s but in Industrial, the en-suite\'s lobby in every style', () => {
+    expect(plans.map((p) => p.id).sort()).toEqual(ALTERED_PLANS.map((a) => a.id).sort());
+    for (const { id, plan } of plans) {
+      for (const styleId of STYLE_IDS) {
+        const scene = generatedFlat(id, plan, catalog, styleId, 1);
+        const screens = (scene.plan.walls ?? []).filter((w) => w.origin === 'generated').map((w) => w.id);
+        const entrance = id.endsWith('+front');
+        expect(screens.some((w) => w.startsWith(entrance ? 'partition-entry-' : 'partition-ensuite-')), `${id}/${styleId}`).toBe(!entrance || styleId !== 'industrial');
+      }
+    }
+  });
+
+  // The floor behind a screen is handed to the layout and the matcher as floor to keep clear, but
+  // the dining chairs are not kept off it: on these plans (four styles, six draws) a chair stands
+  // on the floor behind the entrance screen in 6 of the 60 flats with a screen, one 10 cm through
+  // the screen itself (#394+front/vintage/4). The fix is the layout's or the matcher's (lib/), not
+  // the partitions'.
+  it.skip('never stands a floor piece on the floor behind a screen (dining chairs do)', () => {
+    for (const { id, plan } of plans) {
+      for (const styleId of STYLE_IDS) {
+        for (let n = 1; n <= 6; n++) {
+          const scene = generatedFlat(id, plan, catalog, styleId, n);
+          const { keepouts } = withGeneratedPartitions(scene.plan, styleId);
+          for (const item of scene.items.filter(floorPiece)) {
+            const box = footprintOf(item.position, item.size, item.rotation);
+            for (const behind of keepouts[item.roomId] ?? []) expect(overlaps(box, behind, 0.02), `${id}/${styleId}/${n} ${item.id}`).toBe(false);
+          }
+        }
+      }
+    }
   });
 });
 

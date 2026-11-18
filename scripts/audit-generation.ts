@@ -15,6 +15,8 @@
  *                                               (refused when anything got worse; --allow-worse to record it anyway)
  *   pnpm audit:generation --refresh-catalog     save the catalogue of the database in the environment as the fixture
  *   pnpm audit:generation --import <dir>        write both fixtures from <dir>/catalog.json and <dir>/plans.json
+ *                                               (and the altered plans made from those, `ALTERED_PLANS`)
+ *   pnpm audit:generation --alter               make the altered plans again from the saved ones
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -24,7 +26,7 @@ import { auditScene, issueMetric } from '../lib/design/sceneAudit';
 import type { CatalogProduct } from '../lib/design/matcher';
 import type { FloorPlan, PlacedItem, PlanRoom, StyleId } from '../lib/design/types';
 import { compareWithBaseline, generatedFlat, measureGeneration, sortedCounts, type GenerationBaseline } from '../tests/helpers/generationAudit';
-import { catalogFixtureText, fixtureCatalog, fixturePlans, GENERATION_FIXTURES_DIR, plansFixtureText, type FixturePlan } from '../tests/helpers/generationFixtures';
+import { ALTERED_PLANS, alteredPlans, catalogFixtureText, fixtureCatalog, fixturePlans, GENERATION_FIXTURES_DIR, plansFixtureText, type FixturePlan } from '../tests/helpers/generationFixtures';
 
 const args = process.argv.slice(2);
 const flag = (name: string) => args.includes(name);
@@ -52,13 +54,25 @@ function writeCatalog(products: CatalogProduct[]) {
   console.log(`${products.length} products → ${path.relative(process.cwd(), file)}`);
 }
 
+/** The plans file: the plans given, then the altered plans made from them (`ALTERED_PLANS`). */
+function writePlans(plans: FixturePlan[]) {
+  const altered = alteredPlans(plans);
+  const file = path.join(GENERATION_FIXTURES_DIR, 'plans.json');
+  writeFileSync(file, plansFixtureText([...plans, ...altered]));
+  console.log(`${plans.length} plans and ${altered.length} altered → ${path.relative(process.cwd(), file)}`);
+}
+
 function importFixtures(dir: string) {
   writeCatalog(JSON.parse(readFileSync(path.join(dir, 'catalog.json'), 'utf8')) as CatalogProduct[]);
   const stored = JSON.parse(readFileSync(path.join(dir, 'plans.json'), 'utf8')) as Array<{ id: number; plan: FloorPlan }>;
-  const plans: FixturePlan[] = stored.filter((p) => p.plan.rooms.reduce((sum, r) => sum + r.areaM2, 0) >= MIN_FLAT_M2).map((p) => ({ id: `#${p.id}`, plan: p.plan }));
-  const file = path.join(GENERATION_FIXTURES_DIR, 'plans.json');
-  writeFileSync(file, plansFixtureText(plans));
-  console.log(`${plans.length} plans → ${path.relative(process.cwd(), file)}`);
+  writePlans(stored.filter((p) => p.plan.rooms.reduce((sum, r) => sum + r.areaM2, 0) >= MIN_FLAT_M2).map((p) => ({ id: `#${p.id}`, plan: p.plan })));
+}
+
+/** The altered plans made again from the saved plans they come from (after a change to `ALTERED_PLANS`). */
+function alterFixtures() {
+  const saved = JSON.parse(readFileSync(path.join(GENERATION_FIXTURES_DIR, 'plans.json'), 'utf8')) as { plans: FixturePlan[] };
+  const ids = new Set(ALTERED_PLANS.map((a) => a.id));
+  writePlans(saved.plans.filter((p) => !ids.has(p.id)));
 }
 
 async function refreshCatalog() {
@@ -150,6 +164,7 @@ function report(seeds: number, only: Set<string> | null) {
 async function main() {
   const dir = value('--import');
   if (dir) return importFixtures(dir);
+  if (flag('--alter')) return alterFixtures();
   if (flag('--refresh-catalog')) return refreshCatalog();
   const flat = value('--flat');
   if (flat) return showFlat(flat, value('--room'));

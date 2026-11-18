@@ -13,8 +13,11 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { samplePlan } from '../../lib/design/samplePlan';
 import { ensureWalls } from '../../lib/design/walls';
-import type { CatalogProduct } from '../../lib/design/matcher';
-import type { FloorPlan, SceneProduct } from '../../lib/design/types';
+import { isKitchenMaterial, ROOM_PROGRAMS } from '../../lib/design/catalog';
+import { candidatesFor, type CatalogProduct } from '../../lib/design/matcher';
+import { roomEdges } from '../../lib/design/planGeometry';
+import type { RoomType } from '../../lib/calculator/types';
+import type { FloorPlan, SceneProduct, StyleId } from '../../lib/design/types';
 
 export const GENERATION_FIXTURES_DIR = path.join(__dirname, '..', 'fixtures', 'generation');
 
@@ -109,6 +112,95 @@ export function fixtureCatalog(): CatalogProduct[] {
     catalog = saved.products.map(fullProduct);
   }
   return catalog;
+}
+
+/**
+ * Real products of a kind for a unit test, from the fixture catalogue: those the matcher would
+ * take for the kind (a model of exactly that kind — `candidatesFor` — not a kitchen maker's
+ * material), and with a style the ones tagged with it, or every one of the kind when the style has
+ * none. Their sizes and styles are the catalogue's, not a test's few products typed at the slot's
+ * own size in one style.
+ */
+export function fixtureProducts(kind: string, styleId?: StyleId): CatalogProduct[] {
+  const all = candidatesFor(kind, fixtureCatalog(), styleId ?? 'modern');
+  if (!styleId) return all;
+  const own = all.filter((p) => Array.isArray(p.styleTags) && p.styleTags.includes(styleId));
+  return own.length > 0 ? own : all;
+}
+
+/**
+ * The products of every kind a room's program lays (`ROOM_PROGRAMS`; a studio's two parts'
+ * together), for a style — with the kitchen maker's materials a run and its wall cabinets are
+ * made to measure in.
+ */
+export function fixtureProductsFor(type: RoomType, styleId?: StyleId): CatalogProduct[] {
+  const program = type === 'studio' ? [...ROOM_PROGRAMS.kitchen, ...ROOM_PROGRAMS.living_room] : ROOM_PROGRAMS[type];
+  const kinds = [...new Set(program.map((entry) => entry.kind))];
+  const materials = kinds.includes('kitchen_run') ? fixtureCatalog().filter(isKitchenMaterial) : [];
+  return [...kinds.flatMap((kind) => fixtureProducts(kind, styleId)), ...materials];
+}
+
+/** A front door (outside, 90 cm) on a room's wall: a plan drawn without its flat's front door, given one. */
+function withFrontDoor(plan: FloorPlan, roomId: string, wallIndex: number, t: number): FloorPlan {
+  return {
+    ...plan,
+    rooms: plan.rooms.map((room) =>
+      room.id !== roomId ? room : { ...room, openings: [...room.openings, { id: `${roomId}-front`, roomId, kind: 'door' as const, wallIndex, t, widthM: 0.9, heightM: 2.05, sillM: 0, exterior: true }] }
+    ),
+  };
+}
+
+/**
+ * A bathroom's door moved to the wall it shares with a bedroom: its doors (and their halves in the
+ * rooms they opened into) taken out, one cut in both rooms on the shared wall instead, its middle
+ * `t` along the bathroom's edge — the bathroom made the bedroom's en-suite.
+ */
+function withEnsuite(plan: FloorPlan, bathId: string, bedroomId: string, bathEdge: number, t: number, widthM: number): FloorPlan {
+  const bath = plan.rooms.find((r) => r.id === bathId)!;
+  const bedroom = plan.rooms.find((r) => r.id === bedroomId)!;
+  const edge = roomEdges(bath.polygon).find((e) => e.index === bathEdge)!;
+  const middle = { x: edge.a.x + edge.dir.x * t * edge.length, z: edge.a.z + edge.dir.z * t * edge.length };
+  // The bedroom's face of the same wall: the edge facing it, a wall's thickness across, the door's middle on it.
+  const across = roomEdges(bedroom.polygon).find((f) => {
+    if (f.dir.x * edge.dir.x + f.dir.z * edge.dir.z > -0.99) return false;
+    const off = (middle.x - f.a.x) * f.inward.x + (middle.z - f.a.z) * f.inward.z;
+    const along = (middle.x - f.a.x) * f.dir.x + (middle.z - f.a.z) * f.dir.z;
+    return off < 0 && off > -0.4 && along > widthM / 2 && along < f.length - widthM / 2;
+  })!;
+  const acrossT = ((middle.x - across.a.x) * across.dir.x + (middle.z - across.a.z) * across.dir.z) / across.length;
+  const door = (roomId: string, wallIndex: number, at: number, to: string) => ({ id: `${roomId}-ensuite-${to}`, roomId, kind: 'door' as const, wallIndex, t: at, widthM, heightM: 2.05, sillM: 0, exterior: false, connectsToRoomId: to });
+  return {
+    ...plan,
+    rooms: plan.rooms.map((room) => {
+      const kept = room.openings.filter((o) => (room.id === bathId ? o.kind !== 'door' : !(o.kind === 'door' && o.connectsToRoomId === bathId)));
+      if (room.id === bathId) return { ...room, openings: [...kept, door(bathId, bathEdge, t, bedroomId)] };
+      if (room.id === bedroomId) return { ...room, openings: [...kept, door(bedroomId, across.index, acrossT, bathId)] };
+      return { ...room, openings: kept };
+    }),
+  };
+}
+
+/**
+ * Fixture plans altered so the partitions stage runs on them (docs/design-studio/generation-audit.md,
+ * Q4): no plan of the team's test projects qualifies as drawn — the front door opens into a hall, or
+ * the studio is under 30 m², or the bedroom under 12 m². `--import` writes them again after the
+ * plans it imports, from the plans they are made from.
+ */
+export const ALTERED_PLANS: ReadonlyArray<{ id: string; from: string; alter: (plan: FloorPlan) => FloorPlan }> = [
+  // A studio of 35 m² drawn with no front door: given one on its outside wall, it opens into the studio.
+  { id: '#393+front', from: '#393', alter: (plan) => withFrontDoor(plan, 'r4', 9, 0.85) },
+  // A living room of 35 m² drawn with no front door: the same.
+  { id: '#394+front', from: '#394', alter: (plan) => withFrontDoor(plan, 'r5', 13, 0.85) },
+  // The bathroom between the hall and a bedroom of 14.75 m², its door moved to the bedroom's wall.
+  { id: '#373+ensuite', from: '#373', alter: (plan) => withEnsuite(plan, 'r2', 'r3', 1, 0.75, 0.7) },
+];
+
+/** The altered plans made from the plans given. */
+export function alteredPlans(base: readonly FixturePlan[]): FixturePlan[] {
+  return ALTERED_PLANS.flatMap(({ id, from, alter }) => {
+    const source = base.find((p) => p.id === from);
+    return source ? [{ id, plan: alter(source.plan) }] : [];
+  });
 }
 
 /** The app's sample flat and the saved plans, each with its walls. */

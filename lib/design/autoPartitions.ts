@@ -20,7 +20,7 @@
  * Pure: no React, no DOM.
  */
 
-import { pointInPolygon, roomEdges, type PlanEdge } from './planGeometry';
+import { isPassage, ONTO_WINDOW_M, pointInPolygon, roomEdges, type PlanEdge } from './planGeometry';
 import { addWalls, rebuildRooms, splitAtJunctions } from './walls';
 import type { FloorPlan, Opening, PlanRoom, Vec2, Wall, StyleId } from './types';
 
@@ -69,11 +69,15 @@ function depthInto(room: PlanRoom, edge: PlanEdge, along: number): number {
   return best;
 }
 
-/** How far along a line parallel to the edge, `inward` in, the floor runs from `along` towards `sign` before it meets a wall. */
-function runTo(room: PlanRoom, edge: PlanEdge, along: number, inward: number, sign: 1 | -1): number {
+/**
+ * How far along a line parallel to the edge, `inward` in, the floor runs from `along` towards
+ * `sign` before it meets the room's outline — and the edge it meets there, with how far along that
+ * edge (where a screen run on to it would join it). Null when it meets none.
+ */
+function runTo(room: PlanRoom, edge: PlanEdge, along: number, inward: number, sign: 1 | -1): { distance: number; edge: PlanEdge; along: number } | null {
   const from = at(edge, along, inward);
   const dir = { x: edge.dir.x * sign, z: edge.dir.z * sign };
-  let best = Infinity;
+  let best: { distance: number; edge: PlanEdge; along: number } | null = null;
   for (const other of roomEdges(room.polygon)) {
     const ex = other.b.x - other.a.x;
     const ez = other.b.z - other.a.z;
@@ -81,9 +85,28 @@ function runTo(room: PlanRoom, edge: PlanEdge, along: number, inward: number, si
     if (Math.abs(denom) < 1e-9) continue;
     const t = ((other.a.x - from.x) * ez - (other.a.z - from.z) * ex) / denom;
     const u = ((other.a.x - from.x) * dir.z - (other.a.z - from.z) * dir.x) / denom;
-    if (t > 1e-6 && u >= -1e-6 && u <= 1 + 1e-6) best = Math.min(best, t);
+    if (t > 1e-6 && u >= -1e-6 && u <= 1 + 1e-6 && (!best || t < best.distance)) best = { distance: t, edge: other, along: u * other.length };
   }
   return best;
+}
+
+/**
+ * Whether a screen can be run on to the edge it meets, at that spot: its end — its thickness
+ * across that edge — lands in none of the edge's openings: not in a door's or an archway's width
+ * at all, and not onto a window further than a piece may stand onto one (`ONTO_WINDOW_M`,
+ * `blocksWindow`'s and the joinery's margin). A wall cannot be built into a window, and a doorway
+ * walled across is no way through. A room separator's open line has no opening to build into: a
+ * screen is run on to it as before (whether it should end free there is the owner's call).
+ */
+function joinable(room: PlanRoom, meets: { edge: PlanEdge; along: number }): boolean {
+  const from = meets.along - PARTITION_THICKNESS_M / 2;
+  const to = meets.along + PARTITION_THICKNESS_M / 2;
+  return !room.openings.some((o) => {
+    if (o.wallIndex !== meets.edge.index) return false;
+    const middle = o.t * meets.edge.length;
+    const overlap = Math.min(to, middle + o.widthM / 2) - Math.max(from, middle - o.widthM / 2);
+    return overlap > (isPassage(o) ? 1e-6 : ONTO_WINDOW_M);
+  });
 }
 
 /** Where a line from `from` along `dir` first crosses a wall's centreline, within `reach` metres. */
@@ -116,9 +139,11 @@ export function doorScreen(plan: FloorPlan, room: PlanRoom, door: Opening, depth
   let from = centre - door.widthM / 2 - SCREEN_PAST_DOOR_M;
   let to = centre + door.widthM / 2 + SCREEN_PAST_DOOR_M;
   // The floor the screen's line has either side of the door before a wall.
-  const left = centre - runTo(room, edge, centre, inward, -1);
-  const right = centre + runTo(room, edge, centre, inward, 1);
-  if (!Number.isFinite(left) || !Number.isFinite(right)) return null;
+  const leftMeets = runTo(room, edge, centre, inward, -1);
+  const rightMeets = runTo(room, edge, centre, inward, 1);
+  if (!leftMeets || !rightMeets) return null;
+  const left = centre - leftMeets.distance;
+  const right = centre + rightMeets.distance;
   from = Math.max(from, left);
   to = Math.min(to, right);
   const gapLeft = from - left;
@@ -128,6 +153,9 @@ export function doorScreen(plan: FloorPlan, room: PlanRoom, door: Opening, depth
   if (gapLeft < PASSAGE_M && gapRight < PASSAGE_M) return null;
   if (gapLeft < PASSAGE_M) joins = -1;
   else if (gapRight < PASSAGE_M) joins = 1;
+  // A side that would run on into a window or a doorway can be neither closed nor left with a way
+  // through: as with a door with no way past, no screen.
+  if ((joins === -1 && !joinable(room, leftMeets)) || (joins === 1 && !joinable(room, rightMeets))) return null;
   const walls = (plan.walls ?? []).filter((w) => !w.separator);
   let a = at(edge, from, inward);
   let b = at(edge, to, inward);

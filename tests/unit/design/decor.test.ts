@@ -216,7 +216,8 @@ describe('decor intents made pieces', () => {
   it('keeps a field centred on its anchor off a window beside it', () => {
     const piece = resolveDecor({ family: 'slats', anchor: 'bed' }, r, [bed(r)], CATALOG, 'x')!;
     const edge = roomEdges(r.polygon).find((e) => e.index === piece.wallIndex)!;
-    if (edge.index === 0) expect(piece.span.to).toBeLessThanOrEqual(0.8 * edge.length - 0.6 + 1e-6);
+    expect(edge.index).toBe(0);
+    expect(piece.span.to).toBeLessThanOrEqual(0.8 * edge.length - 0.6 + 1e-6);
   });
 
   it('keeps a stretch off a window, and drops what the room cannot have', () => {
@@ -364,8 +365,14 @@ describe('every generation is offered a fresh draw', () => {
   it('rarely offers again what the last design used', () => {
     const last = offered(5);
     let again = 0;
-    for (let seed = 100; seed < 130; seed++) again += offered(seed, last).filter((id) => last.includes(id)).length;
-    // 12 of 40 used last time: an even draw would bring back ~3.6 a time; the penalty brings back far fewer.
+    let unpenalised = 0;
+    for (let seed = 100; seed < 130; seed++) {
+      again += offered(seed, last).filter((id) => last.includes(id)).length;
+      unpenalised += offered(seed).filter((id) => last.includes(id)).length;
+    }
+    // 12 of the 40 the matcher would take were used last time: the same draws told nothing bring
+    // back about 3.6 of them a time (12 × 12 / 40), the penalty far fewer.
+    expect(unpenalised / 30).toBeGreaterThan(2.5);
     expect(again / 30).toBeLessThan(1.5);
   });
 
