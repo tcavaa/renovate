@@ -282,13 +282,16 @@ describe('the empty start', () => {
 describe('the style’s floors and walls', () => {
   // The modern style's own laminate, plaster and tiles: the products its look is made of.
   const look = getStyle('modern').surfaces;
-  const finish = (id: number, textureUrl: string | undefined, surfaces: Array<'floor' | 'wall'>, wet = false): CatalogProduct =>
-    ({ ...paint(id), textureUrl: textureUrl ?? null, pricePerUnit: 10 + id, specs: { surfaces, wet } }) as CatalogProduct;
+  // A wet room's floor and walls are tiles, as in the real catalogue: a dry room's draw stays in its
+  // own finish's category (`generatedFinish`), so a generation lays the style's own laminate and paint
+  // whatever the seed — a wet-flagged paint would be a dry room's draw too.
+  const finish = (id: number, textureUrl: string | undefined, surfaces: Array<'floor' | 'wall'>, wet = false, categorySlug = 'paint'): CatalogProduct =>
+    ({ ...paint(id), categorySlug, textureUrl: textureUrl ?? null, pricePerUnit: 10 + id, specs: { surfaces, wet } }) as CatalogProduct;
   const catalog = [
     finish(21, look.floor.textureUrl, ['floor']),
     finish(22, look.wall.textureUrl, ['wall']),
-    finish(23, look.wetFloor.textureUrl, ['floor'], true),
-    finish(24, look.wetWall.textureUrl, ['wall'], true),
+    finish(23, look.wetFloor.textureUrl, ['floor'], true, 'floor-tiles'),
+    finish(24, look.wetWall.textureUrl, ['wall'], true, 'wall-tiles'),
   ];
   const onRoom = (surface: 'floor' | 'wall') => useDesignStore.getState().finishes.find((f) => f.roomId === 'r1' && f.surface === surface && f.wallIndex == null && !f.cells);
 
