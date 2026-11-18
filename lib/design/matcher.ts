@@ -11,11 +11,13 @@
  */
 
 import { isBuiltInBath, isRectangularBath, isShowerDoor } from './productRoles';
-import { blockingItems, blocksWindow, clampInsideRoom, clearsUnder, floorFootprint, footprintInRoom, footprintOf, footprintsOverlap, inDoorway, isPlacementValid, pieceWall, PIECE_TOUCH_M, TUCKS_UNDER, tucksUnder, type Footprint, type KeepClear } from './manipulate';
+import { blockingItems, blocksWindow, clampInsideRoom, clearsUnder, floorFootprint, footprintInRoom, footprintOf, footprintsOverlap, inDoorway, isPlacementValid, pieceWall, PIECE_TOUCH_M, type Footprint, type KeepClear } from './manipulate';
+import { followsWhenMatched, isTuckingChair, measuredRule, seatedTogether, tucksUnder } from './relations';
 import { getArchetype, isKitchenMaterial, type Archetype } from './catalog';
 import { roomEdges } from './planGeometry';
 import { ISLAND_CLEAR_M, seatSlots } from './autoLayout';
-import { asPlacedKitchen, CUSTOM_KITCHEN_SLOTS, kitchenMaterialCandidates } from './kitchen';
+import { asPlacedKitchen, kitchenMaterialCandidates } from './kitchen';
+import { isCustomKitchenSlot, LAID_TO_ANOTHER, SIZED_BY_LAYOUT } from './kinds';
 import { BASIN_TOP_M, KITCHEN_CIRCULATION_M, WC_BOX_DEPTH_M, WC_SIDE_M } from './rules';
 import { round2, wallBehind } from './pieceGeometry';
 import { styleAffinity } from './styles';
@@ -155,7 +157,7 @@ export function generationWeight(product: CatalogProduct, styleId: StyleId, leve
   const price = product.pricePerUnit;
   const suits = level === 'value' ? 1 / (1 + price / 1500) : level === 'premium' ? Math.min(1, price / 3000) : 1 / (1 + Math.abs(price - 1200) / 1200);
   weight *= 0.5 + suits;
-  if (slot && product.widthCm && slot.slot !== 'kitchen_run' && slot.slot !== 'rug' && slot.slot !== 'curtain' && product.widthCm / 100 / slot.size.width > 1.12) weight *= 0.15;
+  if (slot && product.widthCm && !SIZED_BY_LAYOUT.has(slot.slot) && product.widthCm / 100 / slot.size.width > 1.12) weight *= 0.15;
   if (usedElsewhere) weight *= 0.35;
   return weight;
 }
@@ -576,7 +578,7 @@ export function pairsAlike(items: PlacedItem[], catalog: CatalogProduct[], rooms
 
 /** Slots the layout engine sizes itself, or that float above the floor — size is not a fit question there. */
 function fitMatters(item: PlacedItem): boolean {
-  if (item.slot === 'kitchen_run' || item.slot === 'rug' || item.slot === 'curtain') return false;
+  if (SIZED_BY_LAYOUT.has(item.slot)) return false;
   if (getArchetype(item.kind)?.ghost) return false;
   return item.elevationM < 0.05;
 }
@@ -592,7 +594,7 @@ function liesWithinRoom(item: PlacedItem): boolean {
 
 /** The kitchen's own pieces: the run, what hangs over it and what stands at its end or before it. */
 export function isKitchenFurniture(item: Pick<PlacedItem, 'slot'>): boolean {
-  return item.slot === 'fridge' || (CUSTOM_KITCHEN_SLOTS as readonly string[]).includes(item.slot);
+  return item.slot === 'fridge' || isCustomKitchenSlot(item.slot);
 }
 
 /** The working floor in front of a kitchen run: as wide as the run, `KITCHEN_CIRCULATION_M` deep (the layout's `clearanceBox`). */
@@ -652,12 +654,7 @@ export function placeFitting(
   // it once it is matched: they do not stand in its way.
   // The chairs round a table are seated again round the table as matched (`seatsAtTable`): the
   // ones still to come are in neither the table's way nor one another's.
-  const followers = (other: PlacedItem) => {
-    if (settled.includes(other)) return false;
-    if (item.slot === 'dining_chair' && other.slot === 'dining_chair') return true;
-    const rule = getArchetype(other.kind)?.placement;
-    return rule?.type === 'relative' && rule.to === item.slot && (rule.beside != null || rule.gapM != null || other.slot === 'dining_chair');
-  };
+  const followers = (other: PlacedItem) => !settled.includes(other) && (seatedTogether(item, other) || followsWhenMatched(other, item.slot));
   // A basin the engine laid on the floor and this matcher lifted to washing height (`settledElevation`)
   // still takes its floor — its vanity is built under it (`fitBathrooms`): a shower cabin matched
   // after it stood under it, and the vanity could not be built.
@@ -765,8 +762,7 @@ function boxPose(box: Footprint): Pick<PlacedItem, 'position' | 'rotation' | 'si
  */
 function tuckedChair(a: PlacedItem, b: PlacedItem, slots: ReadonlyMap<string, PlacedItem>): PlacedItem | null {
   if (!tucksUnder(a, b)) return null;
-  const slot = getArchetype(a.kind)?.slot;
-  const chair = slot != null && TUCKS_UNDER[slot] ? a : b;
+  const chair = isTuckingChair(a.kind) ? a : b;
   // A chair seated round the table as matched (`seatsAtTable`) is tucked in by its seat ring.
   const seated = slots.get(chair.id);
   if (seated && (seated.position.x !== chair.position.x || seated.position.z !== chair.position.z)) return chair;
@@ -967,15 +963,16 @@ function backOnWall(item: PlacedItem, room: PlanRoom, slack: number): boolean {
  */
 export function settledPosition(item: PlacedItem, size: PlacedItem['size'], room: PlanRoom, settled: PlacedItem[]): Vec2 {
   const rule: Archetype['placement'] | undefined = getArchetype(item.kind)?.placement;
-  if (rule?.type === 'relative' && (rule.beside != null || rule.gapM != null)) {
-    const anchors = settled.filter((p) => p.roomId === item.roomId && p.slot === rule.to);
+  const measured = measuredRule(item.kind);
+  if (measured) {
+    const anchors = settled.filter((p) => p.roomId === item.roomId && p.slot === measured.to);
     const anchor = anchors.sort((a, b) => Math.hypot(a.position.x - item.position.x, a.position.z - item.position.z) - Math.hypot(b.position.x - item.position.x, b.position.z - item.position.z))[0];
     if (anchor) {
       const { forward, right } = axes(anchor.rotation);
       const off = { x: item.position.x - anchor.position.x, z: item.position.z - anchor.position.z };
       const across = off.x * right.x + off.z * right.z;
-      const ahead = rule.beside != null ? -anchor.size.depth / 2 + size.depth / 2 : anchor.size.depth / 2 + rule.gapM! + size.depth / 2;
-      const lateral = rule.beside != null ? Math.sign(across || 1) * (anchor.size.width / 2 + size.width / 2 + rule.beside) : across;
+      const ahead = measured.beside != null ? -anchor.size.depth / 2 + size.depth / 2 : anchor.size.depth / 2 + measured.gapM! + size.depth / 2;
+      const lateral = measured.beside != null ? Math.sign(across || 1) * (anchor.size.width / 2 + size.width / 2 + measured.beside) : across;
       return { x: anchor.position.x + forward.x * ahead + right.x * lateral, z: anchor.position.z + forward.z * ahead + right.z * lateral };
     }
   }
@@ -1154,7 +1151,7 @@ function scoreProduct(product: CatalogProduct, styleId: StyleId, level: BudgetLe
   // The layout engine may have found only a narrow wall for this slot. A product that is
   // much wider than the slot would overlap the door the slot was squeezed beside, so it drops
   // below anything that fits — but stays available in the swap panel.
-  if (slot && product.widthCm && slot.slot !== 'kitchen_run' && slot.slot !== 'rug' && slot.slot !== 'curtain') {
+  if (slot && product.widthCm && !SIZED_BY_LAYOUT.has(slot.slot)) {
     const over = product.widthCm / 100 / slot.size.width;
     if (over > 1.12) score -= 60 + Math.min(60, (over - 1.12) * 100);
   }
@@ -1230,7 +1227,7 @@ export function quantityFor(item: PlacedItem): number {
 export function sizeFromProduct(product: CatalogProduct, item: PlacedItem): PlacedItem['size'] {
   // Rugs and curtains are sized to the room by the layout engine, not by the SKU, and so is a
   // kitchen made to measure (its product a kitchen maker's material). A shop's kitchen unit is its own size.
-  if (item.slot === 'rug' || item.slot === 'curtain' || ((item.slot === 'kitchen_run' || item.slot === 'kitchen_wall' || item.slot === 'kitchen_island') && isKitchenMaterial(product))) {
+  if (LAID_TO_ANOTHER.has(item.slot) || (isCustomKitchenSlot(item.slot) && isKitchenMaterial(product))) {
     return item.size;
   }
   if (!product.widthCm || !product.depthCm || !product.heightCm) return item.size;

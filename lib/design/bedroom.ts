@@ -16,6 +16,7 @@ import type { CabinetSection, DecorPiece, PlacedItem, PlanRoom, SlotKind, StyleI
 import { footprintQuad, quadsOverlap, WARDROBE_DEPTH_M, SHALLOW_WARDROBE_DEPTH_M } from './rules';
 import { cabinetPiece, freeStretch, joineryFace, joineryMaterial, wallOf } from './decor/joinery';
 import type { RadiatorBody } from './radiators';
+import { LIES_FLAT } from './kinds';
 
 /** The share of the wall the free stretch must take to count as "the whole side". */
 const WHOLE_SIDE = 0.85;
@@ -61,8 +62,8 @@ export function fitWardrobes(input: BedroomInput): { items: PlacedItem[]; decor:
   return { items, decor };
 }
 
-/** What lies on the floor or hangs over it, in nobody's way before a wardrobe's doors — and the chest of drawers, which gives way to the wall of wardrobe. */
-const OUT_OF_THE_WAY = new Set<SlotKind>(['rug', 'door_mat', 'curtain', 'dresser']);
+/** What lies flat or hangs at a window (`LIES_FLAT`), in nobody's way before a wardrobe's doors — and the chest of drawers, which gives way to the wall of wardrobe. */
+const OUT_OF_THE_WAY = new Set<SlotKind>([...LIES_FLAT, 'dresser']);
 
 /**
  * Whether the floor in front of joinery `depth` deep on `edge` over `stretch` is clear for its

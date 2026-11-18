@@ -16,7 +16,8 @@
  */
 
 import type { RoomType } from '@/lib/calculator/types';
-import { kindsForRoom } from './catalog';
+import { getArchetype, kindsForRoom } from './catalog';
+import { CUSTOM_KITCHEN_KINDS } from './kinds';
 import type { CatalogProduct } from './matcher';
 
 /** The little flat's rooms, in the order the board lays them out. */
@@ -54,16 +55,18 @@ export interface GamePiece {
 }
 
 /**
- * Kinds that are not a piece to pick up: a kitchen run is sold as its material (a veneer, a
- * lacquer) and measured to the wall, so its name and photo are a swatch, not furniture.
+ * Kinds that are not a piece to pick up: the kitchen made to measure (`CUSTOM_KITCHEN_KINDS`) but
+ * the island. A kitchen run and its wall cabinets are sold as their material (a veneer, a lacquer)
+ * and measured to the wall, so their name and photo are a swatch, not furniture; the island stands
+ * free as one piece with its own model, so the game plays it.
  */
-const NOT_PIECES: readonly string[] = ['kitchen_run', 'kitchen_wall'];
+const NOT_PIECES: ReadonlySet<string> = new Set([...CUSTOM_KITCHEN_KINDS].filter((kind) => getArchetype(kind)?.slot !== 'kitchen_island'));
 
 /** The products the game can use: a ready 3D model of a kind with one right room. */
 export function playablePieces(products: CatalogProduct[]): GamePiece[] {
   const out: GamePiece[] = [];
   for (const product of products) {
-    if (!product.model3dUrl || !product.model3dKind || product.own || NOT_PIECES.includes(product.model3dKind)) continue;
+    if (!product.model3dUrl || !product.model3dKind || product.own || NOT_PIECES.has(product.model3dKind)) continue;
     const room = roomForKind(product.model3dKind);
     if (room) out.push({ product, room });
   }

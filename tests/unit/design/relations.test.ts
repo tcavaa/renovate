@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { arrangedOff, withoutOrphans } from '@/lib/design/arrangedOff';
+import { describe, expect, it, vi } from 'vitest';
+import { arrangedOff, companionId, companionsOf, COMPANION_KINDS, followsWhenMatched, hostIdOf, hostOf, inFrontOf, isTuckingChair, laidOffSlots, measuredOff, placedOff, seatedTogether, tucksUnder, withoutOrphans } from '@/lib/design/relations';
 import { ARCHETYPES } from '@/lib/design/catalog';
 import { generateScene, reviewedScene } from '@/lib/design/generateScene';
 import { layoutRoom } from '@/lib/design/autoLayout';
@@ -246,5 +246,113 @@ describe('generating a room whose sofa or bed no product fits', () => {
     expect(reviewed.items.some((i) => i.id === unit.id)).toBe(false);
     expect(reviewed.items.some((i) => i.slot === 'tv')).toBe(false);
     expect(reviewed.items.some((i) => i.slot === 'sofa')).toBe(true);
+  });
+});
+
+describe('who belongs to whom, each relation from the one source', () => {
+  const kinds = [...Object.keys(ARCHETYPES), 'spaceship'];
+  const of = (pick: (kind: string) => string | null) => Object.fromEntries(kinds.flatMap((kind) => (pick(kind) ? [[kind, pick(kind)]] : [])));
+
+  it('stands by measure off its anchor what is beside it or a gap in front of it', () => {
+    expect(of(measuredOff)).toEqual({ nightstand: 'bed', coffee_table: 'sofa', office_chair: 'desk', bath_mixer: 'bathtub' });
+  });
+
+  it('stands by its anchor again, after the AI check\'s fixes, what is measured off it and is not a companion', () => {
+    // What the check's own table held: the nightstands, the coffee table, the desk chair.
+    expect(of(placedOff)).toEqual({ nightstand: 'bed', coffee_table: 'sofa', office_chair: 'desk' });
+  });
+
+  it('moves with its anchor what stands a gap in front of it — not the nightstands beside the bed', () => {
+    expect(of(inFrontOf)).toEqual({ coffee_table: 'sofa', office_chair: 'desk' });
+  });
+
+  it('keeps out of a piece\'s way, until it is matched, what follows it there', () => {
+    const p = (kind: string) => ({ kind, slot: ARCHETYPES[kind].slot });
+    const followers = (anchor: PlacedItem['slot']) => kinds.filter((kind) => ARCHETYPES[kind] && followsWhenMatched(p(kind), anchor)).sort();
+    expect(followers('bed')).toEqual(['nightstand']);
+    expect(followers('sofa')).toEqual(['coffee_table']);
+    expect(followers('desk')).toEqual(['office_chair']);
+    expect(followers('dining_table')).toEqual(['dining_chair']);
+    expect(followers('bathtub')).toEqual(['bath_mixer']);
+    // The TV unit and the armchair are laid off the sofa by fixed metres, not measured: they do not follow it.
+    expect(followsWhenMatched(p('tv_unit'), 'sofa')).toBe(false);
+    expect(seatedTogether(p('dining_chair'), p('dining_chair'))).toBe(true);
+    expect(seatedTogether(p('nightstand'), p('nightstand'))).toBe(false);
+  });
+
+  it('lets a chair and the top its seat slides under overlap, either way round', () => {
+    expect(tucksUnder({ kind: 'dining_chair' }, { kind: 'dining_table' })).toBe(true);
+    expect(tucksUnder({ kind: 'desk' }, { kind: 'office_chair' })).toBe(true);
+    expect(tucksUnder({ kind: 'office_chair' }, { kind: 'dining_table' })).toBe(false);
+    expect(kinds.filter(isTuckingChair).sort()).toEqual(['dining_chair', 'office_chair']);
+  });
+
+  it('names every slot a rule names as laid off, the ones a piece merely prefers included', () => {
+    expect(laidOffSlots('fridge')).toEqual(['kitchen_run']);
+    expect(laidOffSlots('kitchen_wall')).toEqual(['kitchen_run']);
+    expect(laidOffSlots('artwork')).toEqual(['bed', 'sofa']);
+    expect(laidOffSlots('rug', 'living_room')).toEqual(['coffee_table', 'sofa']);
+    expect(laidOffSlots('wardrobe')).toEqual([]);
+  });
+
+  it('links a companion to its host by its id, not by its kind', () => {
+    expect([...COMPANION_KINDS].sort()).toEqual(['bath_mixer', 'dryer', 'tap']);
+    expect(companionId('r3-sink-1', 'tap')).toBe('r3-sink-1-tap');
+    expect(companionId('r3-washer-2', 'dryer')).toBe('r3-washer-2-dryer');
+    expect(companionId('r3-bathtub-0', 'bath_mixer')).toBe('r3-bathtub-0-mixer');
+    expect(hostIdOf('r3-bathtub-0-mixer')).toBe('r3-bathtub-0');
+    expect(hostIdOf('r3-sink-1')).toBeNull();
+    const sink = piece('r3-sink-1', 'sink', 'r3');
+    const tap = piece(companionId(sink.id, 'tap'), 'tap', 'r3');
+    const stray = piece('r3-tap-9', 'tap', 'r3');
+    expect(ids(companionsOf(sink.id, [sink, tap, stray]))).toEqual([tap.id]);
+    expect(hostOf(tap, [sink, tap, stray])?.id).toBe(sink.id);
+    expect(hostOf(stray, [sink, tap, stray])).toBeNull();
+    // A host in another room is no host.
+    expect(hostOf({ ...tap, roomId: 'r4' }, [sink, tap])).toBeNull();
+  });
+});
+
+describe('the chairs\' partners, read off the chairs\' own rules', () => {
+  it('seats a chair at, and tucks it under, the piece its placement rule names — a rule changed, both follow it', async () => {
+    vi.resetModules();
+    vi.doMock('@/lib/design/catalog', async (importOriginal) => {
+      const actual = await importOriginal<typeof import('@/lib/design/catalog')>();
+      const moved = (kind: string, to: PlacedItem['slot']) => {
+        const archetype = actual.ARCHETYPES[kind];
+        if (archetype.placement.type !== 'relative') throw new Error(`${kind} is not placed relative to another piece`);
+        return { ...archetype, placement: { ...archetype.placement, to } };
+      };
+      const ARCHETYPES: typeof actual.ARCHETYPES = { ...actual.ARCHETYPES, dining_chair: moved('dining_chair', 'kitchen_island'), office_chair: moved('office_chair', 'dining_table') };
+      return {
+        ...actual,
+        ARCHETYPES,
+        getArchetype: (kind: string) => ARCHETYPES[kind] ?? null,
+        kindsOfSlot: (slot: PlacedItem['slot']) => Object.keys(ARCHETYPES).filter((kind) => ARCHETYPES[kind].slot === slot),
+      };
+    });
+    try {
+      const r = await import('@/lib/design/relations');
+      const p = (kind: string, slot: PlacedItem['slot'] = kind as PlacedItem['slot']) => ({ kind, slot });
+      // Seated round the piece its rule names, and following it until it is matched.
+      expect(r.seatedAt('dining_chair')).toBe('kitchen_island');
+      expect(r.followsWhenMatched(p('dining_chair'), 'kitchen_island')).toBe(true);
+      expect(r.followsWhenMatched(p('dining_chair'), 'dining_table')).toBe(false);
+      // Slid under the top its rule names, and no longer under the one the old table wrote.
+      expect(r.tucksUnder({ kind: 'dining_chair' }, { kind: 'kitchen_island' })).toBe(true);
+      expect(r.tucksUnder({ kind: 'dining_chair' }, { kind: 'dining_table' })).toBe(false);
+      expect(r.tucksUnder({ kind: 'dining_table' }, { kind: 'office_chair' })).toBe(true);
+      expect(r.tucksUnder({ kind: 'office_chair' }, { kind: 'desk' })).toBe(false);
+    } finally {
+      vi.doUnmock('@/lib/design/catalog');
+      vi.resetModules();
+    }
+  });
+
+  it('seats only the dining chair round its table; the desk chair is measured off its desk', async () => {
+    const { seatedAt } = await import('@/lib/design/relations');
+    expect(seatedAt('dining_chair')).toBe('dining_table');
+    expect(seatedAt('office_chair')).toBeNull();
+    expect(seatedAt('nightstand')).toBeNull();
   });
 });

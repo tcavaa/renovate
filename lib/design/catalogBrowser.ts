@@ -18,6 +18,7 @@ import type { CatalogProduct } from './matcher';
 import { isOpeningProductKind } from './openings';
 import { isRadiatorProductKind } from './radiators';
 import { isEquipmentProductKind } from './equipment';
+import { isCustomKitchenSlot } from './kinds';
 import { inCategory, inShelfRoom, roomCategories, shelfRoomCounts, shelfRoomForType, shelfTrail, subcategoryCounts, type ShelfIndex, type ShelfRoomId } from './shelf';
 import type { SceneStore, StyleId } from './types';
 
@@ -71,7 +72,7 @@ export function isFurnitureProduct(p: CatalogProduct): boolean {
  * it is that piece in that material, stretched in the studio and bought by its façade (`asPlacedKitchen`).
  */
 export function isMadeToMeasureKitchen(p: CatalogProduct): boolean {
-  return isKitchenMaterial(p) && !!p.model3dUrl && (p.model3dKind === 'kitchen_run' || p.model3dKind === 'kitchen_wall' || p.model3dKind === 'kitchen_island');
+  return isKitchenMaterial(p) && !!p.model3dUrl && isCustomKitchenSlot(p.model3dKind);
 }
 
 export function productStyles(p: Pick<CatalogProduct, 'styleTags'>): StyleId[] {

@@ -8,11 +8,12 @@
  * Pure: it reads a scene and returns what it found.
  */
 
-import { arrangedOff } from './arrangedOff';
+import { arrangedOff, tucksUnder } from './relations';
+import { LIES_FLAT } from './kinds';
 import { getArchetype } from './catalog';
 import { decorFootprint } from './decor/joinery';
 import { isLampOutlet } from './electrical';
-import { blocksWindow, clearsUnder, footprintInRoom, footprintOf, inDoorway, pieceWall, tucksUnder, type Footprint } from './manipulate';
+import { blocksWindow, clearsUnder, footprintInRoom, footprintOf, inDoorway, pieceWall, type Footprint } from './manipulate';
 import { isOpenEdge, roomEdges } from './planGeometry';
 import { DEFAULT_SECTION_WIDTH_M, radiatorPoints, radiatorSections, radiatorWallSpot } from './radiators';
 import { RADIATOR_HEIGHT_M, radiatorKeepouts, ruleViolations, type RuleCode } from './ruleChecks';
@@ -91,8 +92,6 @@ export interface AuditedScene {
 const TOUCH_M = 0.03;
 /** Joinery is measured to the millimetre (`cabinetPiece` rounds its span to it). */
 const JOINERY_MM = 0.001;
-/** Lying on the floor or hanging at a window: in nobody's way. */
-const FLAT_SLOTS: ReadonlySet<SlotKind> = new Set<SlotKind>(['rug', 'door_mat', 'curtain']);
 
 /**
  * What a room is furnished for, by its type — any one slot of a group will do. Not a rule of the
@@ -126,7 +125,7 @@ const boxOf = (corners: readonly Vec2[]): Footprint => ({ minX: Math.min(...corn
 const shrunk = (item: Pick<PlacedItem, 'position' | 'size' | 'rotation'>, by: number) =>
   footprintQuad({ position: item.position, rotation: item.rotation, size: { width: Math.max(0.01, item.size.width - 2 * by), depth: Math.max(0.01, item.size.depth - 2 * by), height: item.size.height } });
 const cm = (m: number) => `${Math.round(m * 100)} cm`;
-const onFloor = (item: PlacedItem) => item.elevationM < 0.05 && !FLAT_SLOTS.has(item.slot);
+const onFloor = (item: PlacedItem) => item.elevationM < 0.05 && !LIES_FLAT.has(item.slot);
 
 /** The pieces a piece of joinery or a box was built for: they stand in it by design. */
 function builtFor(piece: DecorPiece): Set<string> {

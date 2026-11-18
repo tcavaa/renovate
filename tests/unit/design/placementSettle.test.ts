@@ -503,7 +503,8 @@ describe('decor that follows a piece the check moved', () => {
 
 describe('the desk chair under the desk', () => {
   it('lays it out and matches it with its seat under the desk, and the studio lets it stand there', async () => {
-    const { isPlacementValid, tucksUnder } = await import('@/lib/design/manipulate');
+    const { isPlacementValid } = await import('@/lib/design/manipulate');
+    const { tucksUnder } = await import('@/lib/design/relations');
     expect(tucksUnder({ kind: 'office_chair' }, { kind: 'desk' })).toBe(true);
     expect(tucksUnder({ kind: 'desk' }, { kind: 'office_chair' })).toBe(true);
     expect(tucksUnder({ kind: 'office_chair' }, { kind: 'dining_table' })).toBe(false);

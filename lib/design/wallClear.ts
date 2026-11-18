@@ -15,6 +15,7 @@
 import { decorFootprint } from './decor/joinery';
 import type { PlanEdge } from './planGeometry';
 import { floorTaken, showerArea } from './shower';
+import { NOT_IN_THE_WAY } from './kinds';
 import type { DecorPiece, PlacedItem, PlanRoom } from './types';
 
 export interface WallBlock {
@@ -30,13 +31,6 @@ export interface WallBlock {
   built?: boolean;
 }
 
-/**
- * What never stands in front of a wall: it lies on the floor, hangs from the ceiling or dresses a
- * window. One list for every reader of what stands before a wall — `wallBlocks` here (the fittings,
- * the radiators, the technical points) and the joinery's `freeStretch` (`decor/joinery.ts`, which
- * leaves out more of its own: what hangs over joinery and what rides on a piece).
- */
-export const NOT_IN_THE_WAY: ReadonlySet<string> = new Set(['rug', 'door_mat', 'pendant', 'curtain', 'blind']);
 /** How near a wall a piece stands to be in front of it. */
 export const WALL_REACH_M = 0.45;
 /** How far behind a wall's line a footprint may reach and still be read as standing before it (a wall drawn a little off). */

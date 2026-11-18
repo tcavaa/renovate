@@ -15,8 +15,9 @@ import type { HomeState, RoomType } from '@/lib/calculator/types';
 import { CEILING_PHASE, FLOOR_PHASE, HOME_STATES } from '@/lib/calculator/constants';
 import { pointInPolygon, roomEdges, wallEdges } from './planGeometry';
 import { closestOnSegment, DEFAULT_WALL_HEIGHT_M } from './walls';
+import { BATH_OR_SHOWER } from './kinds';
 import { COLD_WATER_SLOTS, HOT_WATER_SLOTS, RADIATOR_FLOOR_GAP_M, SHAFT_FIXTURES, SHAFT_MAX_DISTANCE_M, WET_ROOM_TYPES, kitchenRunZones } from './rules';
-import type { DesignMode, FloorPlan, PlacedItem, PlanRoom, TechnicalKind, TechnicalPoint, Vec2 } from './types';
+import type { DesignMode, FloorPlan, PlacedItem, PlanRoom, SlotKind, TechnicalKind, TechnicalPoint, Vec2 } from './types';
 
 export interface TechnicalKindInfo {
   /** Where it sits: on a wall, on the floor, or either. */
@@ -268,8 +269,8 @@ export const MAX_FIXTURE_DISTANCE_M = 1.6;
  * against their drain (`far_from_sewer`); a basin, a kitchen run and a washer against the water
  * (`far_from_water`) — a WC, fed cold too, is checked by its shaft instead (`SHAFT_FIXTURES`).
  */
-const CHECKED_BY_DRAIN: readonly string[] = ['shower', 'bathtub'];
-const CHECKED_BY_WATER: readonly string[] = COLD_WATER_SLOTS.filter((slot) => !CHECKED_BY_DRAIN.includes(slot) && slot !== 'toilet');
+const CHECKED_BY_DRAIN: ReadonlySet<SlotKind> = BATH_OR_SHOWER;
+const CHECKED_BY_WATER: readonly string[] = COLD_WATER_SLOTS.filter((slot) => !CHECKED_BY_DRAIN.has(slot) && slot !== 'toilet');
 
 /**
  * What the technical setup says about the design as it stands: a toilet far from the sewer,
@@ -286,7 +287,7 @@ export function technicalSuggestions(plan: FloorPlan, items: PlacedItem[]): Tech
     const water = here.filter((a) => a.kind === 'water_supply' || a.kind === 'water_hot');
     // A corner kitchen's leg (`legOf`) is part of its run: the sink is the run's, and so are its hints.
     for (const item of items.filter((i) => i.roomId === room.id && !i.legOf)) {
-      if (CHECKED_BY_DRAIN.includes(item.slot) && sewer.length > 0) {
+      if (CHECKED_BY_DRAIN.has(item.slot) && sewer.length > 0) {
         const d = nearest(item.position, sewer);
         if (d > MAX_FIXTURE_DISTANCE_M) out.push({ code: 'far_from_sewer', roomId: room.id, itemId: item.id, distanceM: round1(d) });
       }

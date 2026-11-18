@@ -50,6 +50,7 @@ import { axisBox, backMiddle, boxesOverlap, doorFloor, QUAD_TOUCH_M, wallBehind 
 import { kitchenCornerFloor } from './kitchenCorner';
 import { anchorsFor, type TechnicalAnchor } from './technical';
 import { pickNearBest, weightedOrder, type RoomRng, type Rng } from './random';
+import { LAID_TO_ANOTHER } from './kinds';
 import {
   ARMCHAIR_DINING_GAP_M,
   BATH_PASSAGE_M,
@@ -503,7 +504,7 @@ function additionalPiece(room: PlanRoom, kind: string, existing: PlacedItem[], s
   // The spot is found for the real product when its size is known, not for the archetype's
   // typical one: a 1.9 m cabinet dropped where a 1 m one fits overlapped its neighbours and
   // came up red the moment it landed. Runs and rugs keep being sized to the room.
-  const exact = !!size && registered.placement.type !== 'wall-run' && registered.slot !== 'rug' && registered.slot !== 'curtain';
+  const exact = !!size && registered.placement.type !== 'wall-run' && !LAID_TO_ANOTHER.has(registered.slot);
   const archetype = exact ? { ...registered, size: size! } : registered;
   const edges = roomEdges(room.polygon);
   if (edges.length === 0) return null;

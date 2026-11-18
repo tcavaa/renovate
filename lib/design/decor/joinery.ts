@@ -20,7 +20,8 @@ import { decorDepth, freeSpans } from './layout';
 import { WC_BOX_DEPTH_M, WC_BOX_WIDTH_M, WC_SIDE_M } from '@/lib/design/rules';
 import { floorTaken } from '@/lib/design/shower';
 import type { RadiatorBody } from '@/lib/design/radiators';
-import { alongWall, floorCorners, NOT_IN_THE_WAY } from '@/lib/design/wallClear';
+import { alongWall, floorCorners } from '@/lib/design/wallClear';
+import { COMPANION_SLOTS, NOT_IN_THE_WAY } from '@/lib/design/kinds';
 import { decorMaterialFrom } from './resolve';
 
 /** A column's side panels and the gap round a machine, metres. */
@@ -256,7 +257,7 @@ const FACE_GAP_M = 0.05;
  * what rides on a piece (a basin's tap, a bath's mixer, the dryer on the machine). `wallBlocks`
  * reads these as blocks of their own height instead: a socket or a radiator is in their way.
  */
-const OVER_JOINERY: ReadonlySet<string> = new Set(['artwork', 'mirror', 'tap', 'bath_mixer', 'dryer']);
+const OVER_JOINERY: ReadonlySet<string> = new Set(['artwork', 'mirror', ...COMPANION_SLOTS]);
 const HUNG_OVER_JOINERY_M = 1.2;
 
 /**

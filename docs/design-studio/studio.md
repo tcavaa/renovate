@@ -390,8 +390,8 @@ person picked that rug up there was no floor in the room to put it down on again
 every spot worth a rug has furniture on it. A moving ghost now has no blockers; the walls
 still hold it in.
 
-**A dining chair tucks under its table, a desk chair under its desk** (`tucksUnder` and
-`TUCKS_UNDER`, in `blockersFor`). When a room is tight
+**A dining chair tucks under its table, a desk chair under its desk** (`tucksUnder` in
+`lib/design/relations.ts`, read in `blockersFor`; the top is the chair's own rule's `to`). When a room is tight
 the layout engine pushes a seat 12 or 24 cm in towards its table — up to 15 cm of it under the
 table's edge — and tests it against everything but the table (`placeSeatAroundTable`); adding a
 chair from the shelf seats it the same way (`placeAdditional`). The studio kept the two apart, so

@@ -24,6 +24,7 @@
 
 import { isPlacementValid } from '@/lib/design/manipulate';
 import { roomEdges, type PlanEdge } from '@/lib/design/planGeometry';
+import { companionId, companionsOf, hostIdOf } from '@/lib/design/relations';
 import { BASIN_TOP_M } from '@/lib/design/rules';
 import type { CabinetSection, DecorMaterial, DecorPiece, DecorSlot, PlacedItem, PlanRoom, SlotKind } from '@/lib/design/types';
 import { CARCASS_M, JOINERY_SLIVER_M, VANITY_DEPTH_M, VANITY_MAX_M, VANITY_MIN_M, WASHER_COLUMN_DEPTH_M, freeStretch, sectionSpans, sectionsWidth, wallOf, type StretchOptions } from './joinery';
@@ -41,8 +42,6 @@ const VANITY_ELBOW_M = 0.4;
 /** The narrowest and lowest a section of joinery is made. */
 const SECTION_MIN_WIDTH_M = 0.2;
 const SECTION_MIN_HEIGHT_M = 0.3;
-/** The pieces that go where their host goes: the basin's tap, the dryer on the machine, the bath's mixer. */
-const COMPANIONS = ['tap', 'dryer', 'mixer'] as const;
 
 const round3 = (n: number) => Math.round(n * 1000) / 1000;
 const mm = (m: number) => Math.round(m * 1000);
@@ -78,20 +77,6 @@ export function housedIds(piece: Pick<DecorPiece, 'family' | 'itemId' | 'params'
 /** A corner leg is its kitchen run's: it is not housing, and it stays at its corner (`lib/design/kitchenCorner`). */
 export function isKitchenLeg(piece: Pick<DecorPiece, 'family' | 'params'>): boolean {
   return piece.family === 'cabinet' && !!piece.params.corner;
-}
-
-/** The pieces that travel with a host: its tap, its dryer, its mixer. */
-export function companionsOf(itemId: string, items: readonly PlacedItem[]): PlacedItem[] {
-  const ids = new Set(COMPANIONS.map((c) => `${itemId}-${c}`));
-  return items.filter((i) => ids.has(i.id));
-}
-
-/** The host a companion travels with (the basin of its tap, the machine of its dryer, the bath of its mixer), or null. */
-export function hostOf(item: Pick<PlacedItem, 'id' | 'roomId'>, items: readonly PlacedItem[]): PlacedItem | null {
-  const suffix = COMPANIONS.find((c) => item.id.endsWith(`-${c}`));
-  if (!suffix) return null;
-  const hostId = item.id.slice(0, -(suffix.length + 1));
-  return items.find((i) => i.id === hostId && i.roomId === item.roomId) ?? null;
 }
 
 /**
@@ -360,7 +345,7 @@ export interface BuildOptions {
  */
 export function bathBoxFor(bath: PlacedItem, room: PlanRoom, wall: { edge: PlanEdge; along: number }, items: readonly PlacedItem[], surround: boolean, materials: DecorPiece['materials'], id: string, options: BuildOptions = {}): DecorPiece | null {
   const { edge, along } = wall;
-  const stretch = freeStretch(room, edge, along, items, [bath.id, `${bath.id}-mixer`], bath.size.depth + 0.1, options.decor ?? [], options.exceptDecor ?? [], options.stretch ?? {});
+  const stretch = freeStretch(room, edge, along, items, [bath.id, companionId(bath.id, 'bath_mixer')], bath.size.depth + 0.1, options.decor ?? [], options.exceptDecor ?? [], options.stretch ?? {});
   if (!stretch) return null;
   const extra = surround ? BATH_SURROUND_M : 0.02;
   let from = Math.max(stretch[0], along - bath.size.width / 2 - extra);
@@ -399,7 +384,7 @@ function isSurround(box: DecorPiece, bath: PlacedItem): boolean {
 function columnFor(washer: PlacedItem, room: PlanRoom, items: readonly PlacedItem[], decor: readonly DecorPiece[], face: Partial<Record<DecorSlot, DecorMaterial>>, like?: CabinetSection, id = housingId(washer), stretchOptions: StretchOptions = {}): Built | null {
   const wall = backWall(washer, room, 0.4);
   if (!wall) return null;
-  const dryer = items.find((i) => i.id === `${washer.id}-dryer`);
+  const dryer = items.find((i) => i.id === companionId(washer.id, 'dryer'));
   const section = columnSection(washer, dryer ? dryer.size.height : null, room.heightM, like);
   const width = section.widthMm / 1000;
   const stretch = freeStretch(room, wall.edge, wall.along, items, [washer.id, ...companionsOf(washer.id, items).map((c) => c.id)], section.depthMm / 1000, decor, [id], stretchOptions);
@@ -660,7 +645,7 @@ export function cabinetAtExtent(piece: DecorPiece, extent: DecorExtent, items: r
   const byId = new Map(items.map((i) => [i.id, i]));
   const least = spans.map(({ section }) => {
     const housed = section.itemId ? byId.get(section.itemId) : undefined;
-    const dryer = housed ? byId.get(`${housed.id}-dryer`) : undefined;
+    const dryer = housed ? byId.get(companionId(housed.id, 'dryer')) : undefined;
     if (!housed) return { width: SECTION_MIN_WIDTH_M, height: SECTION_MIN_HEIGHT_M };
     if (section.kind === 'washer') return { width: housed.size.width + 2 * CARCASS_M + 0.02, height: housed.size.height + 0.03 + (dryer ? dryer.size.height + 0.03 : 0) };
     return { width: housed.size.width + 0.05, height: SECTION_MIN_HEIGHT_M };
@@ -817,7 +802,7 @@ export function joineryObstacles(decor: readonly DecorPiece[], rooms: readonly P
 /** The furniture and, with it, the joinery a piece being moved has to keep out of — all but what is built for it (or for the piece it rides on). */
 export function withJoinery(items: PlacedItem[], obstacles: readonly JoineryObstacle[], movingId: string): PlacedItem[] {
   if (obstacles.length === 0) return items;
-  const host = COMPANIONS.reduce((id, c) => (id.endsWith(`-${c}`) ? id.slice(0, -c.length - 1) : id), movingId);
+  const host = hostIdOf(movingId) ?? movingId;
   return [...items, ...obstacles.filter((o) => !o.houses.includes(movingId) && !o.houses.includes(host)).map((o) => o.item)];
 }
 

@@ -298,6 +298,11 @@ All shared route vocabulary is in `lib/api/route.ts`:
 7. Three.js code must be in `'use client'` components and dynamically imported with
    `ssr: false` — the geometry/layout libs under `lib/` stay isomorphic and testable.
 8. Run `pnpm type-check` before considering a change complete.
+9. A list of furniture slots or kinds that more than one reader means lives once, under a name
+   that says what it is: `lib/design/kinds.ts` (a rug and a curtain are `LAID_TO_ANOTHER`, what
+   lies flat is `LIES_FLAT`…), and who belongs to whom in `lib/design/relations.ts`. Two lists that
+   differ on purpose get two names, each built on the other where it can be; a single comparison
+   that reads clearly where it stands ("a TV hangs over its unit") stays a literal.
 
 ## Dates in client components
 

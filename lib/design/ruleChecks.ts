@@ -36,6 +36,7 @@ import {
 import { floorTaken, showerArea } from './shower';
 import { distanceToSegment, doorFloor, QUAD_TOUCH_M, round2 } from './pieceGeometry';
 import type { KeepClear } from './manipulate';
+import { BATH_OR_SHOWER, LIES_FLAT } from './kinds';
 import type { ElectricalPoint, FloorPlan, PlacedItem, TechnicalPoint, Vec2 } from './types';
 
 export type RuleCode =
@@ -166,7 +167,7 @@ export function ruleViolations(plan: FloorPlan, items: PlacedItem[], electrical:
     if (!room) continue;
     // A shower is the floor it takes — its tray and glass (`floorTaken`), not the column at its back.
     const wet = items.some((i) => {
-      if (i.roomId !== room.id || (i.slot !== 'shower' && i.slot !== 'bathtub')) return false;
+      if (i.roomId !== room.id || !BATH_OR_SHOWER.has(i.slot)) return false;
       const taken = floorTaken(i);
       return pointInPolygon(point.position, footprintQuad({ ...taken, size: { ...taken.size, width: taken.size.width + 2 * BOILER_WET_CLEAR_M, depth: taken.size.depth + 2 * BOILER_WET_CLEAR_M } }));
     });
@@ -203,9 +204,13 @@ export function ruleViolations(plan: FloorPlan, items: PlacedItem[], electrical:
   return out;
 }
 
-/** Pieces that stand on the floor and are in the way (not a rug, a curtain or a lamp hung up). */
+/**
+ * Pieces that stand on the floor and are in the way: not what lies flat or dresses a window
+ * (`LIES_FLAT`: a rug, a curtain, the door mat) nor a lamp hung up. Every one of those is a ghost
+ * too, so the ghost test alone already passes over them.
+ */
 function solid(item: PlacedItem): boolean {
-  return item.elevationM < 0.05 && !getArchetype(item.kind)?.ghost && item.slot !== 'curtain' && item.slot !== 'rug';
+  return item.elevationM < 0.05 && !getArchetype(item.kind)?.ghost && !LIES_FLAT.has(item.slot);
 }
 
 /**
@@ -317,7 +322,7 @@ function layoutRules(plan: FloorPlan, items: PlacedItem[]): RuleViolation[] {
  */
 export function wetFootprints(items: readonly PlacedItem[], roomId: string): Array<{ item: PlacedItem; quad: Quad }> {
   return items
-    .filter((i) => i.roomId === roomId && (i.slot === 'shower' || i.slot === 'bathtub'))
+    .filter((i) => i.roomId === roomId && BATH_OR_SHOWER.has(i.slot))
     .map((item) => {
       const area = showerArea(item);
       return { item, quad: area ? footprintQuad({ position: area.centre, rotation: area.rotation, size: { width: area.width, depth: area.depth, height: item.size.height } }) : footprintQuad(item) };

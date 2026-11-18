@@ -44,6 +44,11 @@ describe('a round', () => {
     expect(pieces.every((p) => p.product.model3dUrl && GAME_ROOMS.includes(p.room))).toBe(true);
   });
 
+  it('plays the kitchen island, not the run or the wall cabinets measured to the wall', () => {
+    const kinds = playablePieces([product('kitchen_run'), product('kitchen_wall'), product('kitchen_island')]).map((p) => p.product.model3dKind);
+    expect(kinds).toEqual(['kitchen_island']);
+  });
+
   it('covers every room before giving one a second piece, with no kind twice', () => {
     const round = pickRound(pieces, new Set(), 8, seeded(7));
     expect(round).toHaveLength(8);

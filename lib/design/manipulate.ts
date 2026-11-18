@@ -26,6 +26,8 @@ import {
 import { getArchetype } from './catalog';
 import { footprintMaskFor } from './footprintMasks';
 import { floorTaken } from './shower';
+import { tucksUnder } from './relations';
+import { LAID_TO_ANOTHER, LIES_FLAT } from './kinds';
 import { axisBox, boxesOverlap, doorFloor, rightAngleTrig, wallBehind, type Box } from './pieceGeometry';
 import type { PlacedItem, PlanRoom, Vec2 } from './types';
 
@@ -188,21 +190,6 @@ function blockersFor(item: PlacedItem, others: PlacedItem[], floor: readonly Pla
   return blockingItems(others, floor.map((room) => room.id), item.id, solid).filter(
     (other) => !tucksUnder(item, other) && (!hung || other.size.height > item.elevationM + 0.02)
   );
-}
-
-/** The chairs whose seat slides under a top, and the top each goes under. */
-export const TUCKS_UNDER: Readonly<Record<string, string>> = { dining_chair: 'dining_table', office_chair: 'desk' };
-
-/**
- * A chair and the top it slides under — a dining chair and a dining table, a desk chair and a
- * desk — either way round. The studio lets such a pair overlap freely; the matcher, which puts
- * real products of other sizes into the engine's slots, only for a chair the engine tucked under
- * its top, and only up to half the chair (`placeFitting`).
- */
-export function tucksUnder(a: Pick<PlacedItem, 'kind'>, b: Pick<PlacedItem, 'kind'>): boolean {
-  const p = getArchetype(a.kind)?.slot;
-  const q = getArchetype(b.kind)?.slot;
-  return (p != null && TUCKS_UNDER[p] === q) || (q != null && TUCKS_UNDER[q] === p);
 }
 
 /**
@@ -718,10 +705,7 @@ export function isPlacementValid(room: PlanRoom, item: PlacedItem, others: Place
   return !blockersFor(item, others, floor, solid).some((other) => coverOverlaps(cover, itemFootprints(other)));
 }
 
-/** Pieces that lie flat (a rug, a door mat) or hang at a window: nothing to walk or stand into, solid or not. */
-const LIES_FLAT: ReadonlySet<string> = new Set(['rug', 'door_mat', 'curtain']);
-
-/** A piece standing on the floor as a real object (not hung, not from the ceiling, not lying flat), ghost archetype or not. */
+/** A piece standing on the floor as a real object (not hung, not from the ceiling, not lying flat: `LIES_FLAT`), ghost archetype or not. */
 export function standsSolid(item: Pick<PlacedItem, 'kind' | 'slot' | 'elevationM'>): boolean {
   return item.elevationM < 0.05 && !LIES_FLAT.has(item.slot) && getArchetype(item.kind)?.placement.type !== 'ceiling';
 }
@@ -773,7 +757,7 @@ export function pieceWall(item: Pick<PlacedItem, 'position' | 'rotation' | 'size
  * width. Curtains and rugs never do.
  */
 export function blocksWindow(item: Pick<PlacedItem, 'position' | 'rotation' | 'size' | 'elevationM' | 'slot'>, room: PlanRoom): boolean {
-  if (item.slot === 'curtain' || item.slot === 'rug') return false;
+  if (LAID_TO_ANOTHER.has(item.slot)) return false;
   const wall = pieceWall(item, room, 0.3);
   if (!wall) return false;
   const top = item.elevationM + item.size.height;

@@ -8,7 +8,7 @@
  * Isomorphic: no React, no `window`, no clock but the `at` it is handed.
  */
 
-import { withoutOrphans } from './arrangedOff';
+import { withoutOrphans } from './relations';
 import { settleFitted } from './fitted';
 import { fitKitchenCorners } from './kitchenCorner';
 import { applyReviewFixes, clearOfDecor, proposalDecor, proposalNotes, proposalPicks, settleToWalls, standsAfterMove, underCeilingDecor, withoutArtOverDecor, withProposalFinishes, type AiProposal } from './aiProposal';
@@ -340,7 +340,7 @@ function losesPiece(items: PlacedItem[], before: PlacedItem[], roomId: string): 
 
 /**
  * Keeps only the items that ended up with a real partner model behind them. What was arranged off
- * one that did not goes too: `withoutOrphans` (`lib/design/arrangedOff`), wherever generation drops
+ * one that did not goes too: `withoutOrphans` (`lib/design/relations`), wherever generation drops
  * pieces — after matching, after the calculation's picks, after the designer's check.
  */
 export function placeableOnly(items: PlacedItem[]): PlacedItem[] {

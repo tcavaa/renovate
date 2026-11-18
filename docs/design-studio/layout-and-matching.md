@@ -18,7 +18,8 @@ as products).
 | `lib/design/catalog.ts` | `ARCHETYPES` (every placeable kind: real size, category, placement rule, labels in three languages), `ROOM_PROGRAMS` (which slots each room type gets), `SHELF_ROOMS` / `kindsForRoom` / `unroomedKinds` (which kinds belong in which room — the studio rooms' starting point; the shelf itself is admin's, [../categories.md](../categories.md)) |
 | `lib/design/autoLayout.ts` | `layoutPlan` / `layoutRoom` (rule-based placement, collision-checked; a studio half by half — `partRoom`; `LayoutOptions.anchors` from technical points, `obstacles` for columns and the strip in front of every radiator — `radiatorKeepouts`, [design-rules.md](design-rules.md); an obstacle with a `bottom`, the strip under a towel rail, is in the way only of what reaches up to it — `KeepClear`, `clearsUnder`), `placeAdditional` (a free spot for one more piece), `FURNISHABLE_ROOM_TYPES` |
 | `lib/design/matcher.ts` | `matchProducts` (client-side; drops products without `model3dUrl`, scores style tag + budget tier, checks the fit), `candidatesFor` (the swap list), `toSceneProduct`, `applySwap` |
-| `lib/design/arrangedOff.ts` | `arrangedOff` (which piece a kind is arranged off, read from the archetypes' rules), `withoutOrphans` (a piece that is gone takes what was arranged off it) |
+| `lib/design/kinds.ts` | the named sets of slots and kinds — each list that means one thing, once: `LAID_TO_ANOTHER` (the rug and the curtain, laid to another thing), `SIZED_BY_LAYOUT` (those and the run), `LIES_FLAT` (those and the door mat), `NOT_IN_THE_WAY` (those and the pendant: before no wall), `CUSTOM_KITCHEN_SLOTS` / `CUSTOM_KITCHEN_KINDS` / `isCustomKitchenSlot`, `COMPANION_SLOTS`, `BATH_OR_SHOWER` |
+| `lib/design/relations.ts` | who belongs to whom, every relation between two pieces from one source (the archetypes' rules): `arrangedOff` (which piece a kind is arranged off), `withoutOrphans` (a piece that is gone takes what was arranged off it), `laidOffSlots`, `measuredOff` / `placedOff` / `inFrontOf` (what is stood again off, moved with, its anchor), `seatedAt` (the table a dining chair is seated round), `tucksUnder` (a chair and the top it slides under) — which chairs are seated or tuck is written there, the piece each goes with read off the chair's own rule, the bathroom pass's companions (`companionId`, `companionsOf`, `hostOf`) |
 | `lib/design/random.ts` | seeded randomness for generating (`seededRng`, `randomSeed`, a stream per key — `streamRng`, `rngStreams`, `roomStreams` — `weightedPick`, `weightedOrder`, `pickNearBest`) |
 | `lib/design/clearance.ts` | `tightSpots`, `tightSpotsByItem` |
 | `lib/design/pieceGeometry.ts` | a piece's geometry written once for the engine, the matcher, the studio, the checks, the wiring and the decor: `wallBehind` (the wall a piece has its back to — by its gap or its distance, square to it or not, each caller's own tolerances: `pieceWall`, `backWallOf`, the matcher's `backOnWall` / `backGap`, the wiring's `backWall`, the decor's `wallBehind`, the layout's TV-over-unit and beside-a-piece spots), the floor a piece covers — `axisBox` (squared at right angles for the studio and the matcher, `footprintOf`; as the cosine comes for the engine, `boxFor`) and `boxesOverlap`, `turnedQuad` (the checks' `footprintQuad`) and `quadsOverlap`, the tolerance passed at each call (the engine 0, two pieces 2 cm — `PIECE_TOUCH_M`, the checks 1 cm — `QUAD_TOUCH_M`) — `doorFloor` (the floor in front of a door or an archway, each caller's depth and width: the engine's `doorKeepouts`, `inDoorway`, the check's door swing, `tightSpots`), `backMiddle`, `distanceToSegment`, `round2` |
@@ -314,8 +315,9 @@ from it is in [overview.md](overview.md#generation-versions-and-undo).
   edge, from the chair's own depth (`seatSlots`): a ring standing clear of the edge looked set out
   for a photograph — and tucks in further when the room is tight (10 or 18 cm more), tested
   against everything but the table. **A desk chair stands with its seat under the desk** too
-  (`gapM` −0.18, tested against everything but the desk). `TUCKS_UNDER` in `manipulate.ts` names
-  each chair and the top it slides under; the matcher lets the products of such a chair and its
+  (`gapM` −0.18, tested against everything but the desk). `tucksUnder` in `relations.ts` names
+  each chair that slides under a top (`TUCKING_SLOTS`), the top read off the chair's own rule (its
+  `to`); the matcher lets the products of such a chair and its
   top overlap (below), and the studio lets a chair stand under its table or desk for the same
   reason ([studio.md](studio.md#direct-manipulation-libdesignmanipulatets)).
 
@@ -370,7 +372,33 @@ Generating, a way out is drawn like the slot's own (`weightedOrder`), but with a
 begun from its last number): the pieces matched after it get the products they would have had, and
 a flat whose own pieces all fit is the flat it was.
 
-## A piece that is gone takes what was arranged off it (`lib/design/arrangedOff.ts`)
+## Who belongs to whom (`lib/design/relations.ts`)
+
+Every question of what goes with what is answered in one module, read off the archetypes' placement
+rules where they mean the same thing. They are different questions on purpose:
+
+| Relation | Pieces | Read by |
+|---|---|---|
+| arranged off (`arrangedOff`) — cannot stand without it | the table below | `withoutOrphans` (generation), the whole-flat check |
+| laid off (`laidOffSlots`) — every piece its rule names, preferred ones too | the above, and the fridge (run), the wall cabinets (run), a print (bed, sofa) | the AI check's `heldByMove`: a move that would leave one behind is refused |
+| measured off (`measuredRule`, `measuredOff`) — `beside` or `gapM` | nightstand (bed), coffee table (sofa), desk chair (desk), bath mixer (bath) | the matcher's `settledPosition` (stood again off the real anchor) and `followsWhenMatched` (not in the anchor's way until then) |
+| placed off (`placedOff`) — measured off, not a companion | nightstand, coffee table, desk chair | the AI check: stood by its anchor again after a fix, not in a replaced anchor's way |
+| in front (`inFrontOf`) — `gapM` | coffee table (sofa), desk chair (desk) | the AI check's `settleToWalls` and `clearOfDecor` (through `shiftWithFront`): moves with its anchor |
+| seated at (`seatedAt`) — which chairs, by hand (`SEATED_SLOTS`); the table, the chair's rule's `to` | dining chairs (table) | the matcher (seated again round the matched table), the AI check (`reseatChairs`) |
+| tucks under (`tucksUnder`) — which chairs, by hand (`TUCKING_SLOTS`); the top, the chair's rule's `to` | dining chair under the table, desk chair under the desk | the studio's `blockersFor`, the matcher's `tuckedChair`, the checks |
+| companions (`companionId`, `companionsOf`, `hostOf`) — linked by id | tap (basin), dryer (machine), bath mixer (bath), as the bathroom pass builds them | `carryCompanions`, `withJoinery`, `settleToWalls`, the joinery's stretches |
+
+What a move carries is not what a removal takes: a move carries the companions, what rides on the
+piece (`carryRiders`) and, in the AI check, what is placed off it; a removal takes what is arranged
+off it — the TV unit and the armchair off the sofa, the rug under the coffee table — and nothing that
+merely stood on its top. The bath's mixer is measured off its bath but is no "placed off" piece: it
+is its bath's companion, carried by its id. Which chairs tuck is not read off the rules: the dining chair is
+pushed in by its seat ring, the desk chair by a gap below zero. Which chairs are seated round a table
+is not either (the dining chair's rule has no gap or side). In both, only the membership is written
+by hand: the piece a chair is seated at or tucks under is its own rule's `to`, so a rule that sets
+the chair by another piece takes its partner with it.
+
+### A piece that is gone takes what was arranged off it
 
 A slot no product fits is dropped (`placeableOnly`) — and so is what the engine arranged off it
 (`withoutOrphans`): with no sofa there is no coffee table, armchair or TV unit, with no TV unit no
@@ -711,8 +739,9 @@ kind with no product takes its slot's other kinds'),
 way, the keep-clear floor and a run's working floor kept clear wherever a product does, and the
 piece kept where none does; a door mat and a hanging lamp within the room; the chairs of a table
 against a wall at their own seats, at a free one where theirs is not there or does not fit),
-`tests/unit/design/arrangedOff.test.ts` (which piece each kind is arranged off, what goes with a
-piece that is gone and what stays, a generated room whose sofa or bed no product fits),
+`tests/unit/design/relations.test.ts` (which piece each kind is arranged off, what goes with a
+piece that is gone and what stays, a generated room whose sofa or bed no product fits; each
+relation's members, read from the one source),
 `tests/unit/design/hallLiving.test.ts` (the hall's mirror over the console and the full-height one
 on a free wall or across from the built wardrobe),
 `tests/unit/design/autoLayout.test.ts` (`boxInPolygon` — the gap of a U, touching a wall — `wallRun`

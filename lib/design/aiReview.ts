@@ -13,12 +13,14 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
-import { ARCHETYPES, getArchetype } from './catalog';
+import { ARCHETYPES, getArchetype, kindsOfSlot } from './catalog';
+import { CUSTOM_KITCHEN_KINDS, LAID_TO_ANOTHER } from './kinds';
 import { generationWeight, type CatalogProduct } from './matcher';
 import { fitsRoom, pickPool, productLine, side, DESIGN_MODEL, PRICE_PER_MTOK } from './aiDesign';
-import { blocksWindow, floorFootprint, footprintInRoom, footprintOf, footprintsOverlap, pieceWall, PIECE_TOUCH_M, tucksUnder } from './manipulate';
+import { blocksWindow, floorFootprint, footprintInRoom, footprintOf, footprintsOverlap, pieceWall, PIECE_TOUCH_M } from './manipulate';
 import { decorDepth } from './decor/layout';
-import { adoptHoused, companionsOf, housedIds } from './decor/housing';
+import { adoptHoused, housedIds } from './decor/housing';
+import { COMPANION_KINDS, companionsOf, tucksUnder } from './relations';
 import { wallEdges } from './planGeometry';
 import { round2 } from './pieceGeometry';
 import { tightSpotsByItem } from './clearance';
@@ -70,7 +72,7 @@ const KEEP_KINDS = new Set(['bed_double', 'bed_single', 'sofa_3seat', 'sofa_corn
 /** What dresses every window and the room's main light (the rulebook: every window dressed, one main light): replaced, never taken out. */
 const NEVER_REMOVED_SLOTS = new Set(['curtain', 'pendant']);
 /** Kinds made to measure or sized to the room: nothing to swap them for here, and not moved. */
-const NOT_REVIEWED = new Set(['kitchen_run', 'kitchen_wall', 'kitchen_island', 'rug', 'rug_bed', 'tap', 'bath_mixer', 'dryer', 'door_mat']);
+const NOT_REVIEWED: ReadonlySet<string> = new Set([...CUSTOM_KITCHEN_KINDS, ...kindsOfSlot('rug'), ...COMPANION_KINDS, 'door_mat']);
 /**
  * Placements that put a piece somewhere other than against a wall (catalog.ts): at a window, from
  * the ceiling, under another piece, free in the room, inside the front door. Moved to a wall, the
@@ -88,7 +90,7 @@ function movable(item: PlacedItem): boolean {
  * passes): a basin on its vanity, the washer and dryer in their column, the taps, the bath's mixer,
  * the door mat. The check neither moves nor removes them — moved, they would leave their cabinet.
  */
-const FITTED_KINDS = new Set(['tap', 'bath_mixer', 'dryer', 'washer', 'door_mat']);
+const FITTED_KINDS: ReadonlySet<string> = new Set([...COMPANION_KINDS, 'washer', 'door_mat']);
 /** Decor the engine built (a WC's box, a bath's enclosure, the joinery): shown, never the check's to change. */
 const ENGINE_DECOR = (d: Pick<DecorPiece, 'family' | 'anchor'>) => d.family === 'cabinet' || d.family === 'box' || d.anchor === 'joinery' || d.anchor === 'bath' || d.anchor === 'wc';
 /** Kinds wider than deep by nature: one deeper than wide is a model turned sideways or a wrong product. */
@@ -122,7 +124,7 @@ export function reviewFindings(plan: FloorPlan, items: PlacedItem[], decor: Deco
     for (const piece of roomDecor) {
       // What stands in decor on its wall (deeper than the gap it was left), and tiles away from the run.
       for (const item of floor) {
-        if (item.slot === 'rug' || item.slot === 'curtain' || own.get(item.id)?.some((d) => d.id === piece.id)) continue;
+        if (LAID_TO_ANOTHER.has(item.slot) || own.get(item.id)?.some((d) => d.id === piece.id)) continue;
         const wall = pieceWall(item, room, 0.5);
         if (!wall || wall.edge.index !== piece.wallIndex) continue;
         if (wall.along + item.size.width / 2 <= piece.span.from + 0.02 || wall.along - item.size.width / 2 >= piece.span.to - 0.02) continue;

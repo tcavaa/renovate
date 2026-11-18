@@ -24,14 +24,10 @@ import { KITCHEN_MATERIAL_CATEGORY, isKitchenMaterial } from './catalog';
 import type { PlacedItem, PlanRoom, SceneProduct, StyleId } from './types';
 import { clampInsideRoom, footprintInRoom, footprintOf, footprintsOverlap } from './manipulate';
 import { getArchetype } from './catalog';
+import { CUSTOM_KITCHEN_SLOTS, isCustomKitchenSlot, type KitchenSlot } from './kinds';
 import { polygonBounds } from './planGeometry';
 
-export { KITCHEN_MATERIAL_CATEGORY, isKitchenMaterial };
-
-/** The archetypes that are made to measure. */
-export const CUSTOM_KITCHEN_SLOTS = ['kitchen_run', 'kitchen_wall', 'kitchen_island'] as const;
-
-export type KitchenSlot = (typeof CUSTOM_KITCHEN_SLOTS)[number];
+export { KITCHEN_MATERIAL_CATEGORY, isKitchenMaterial, CUSTOM_KITCHEN_SLOTS };
 
 /**
  * A kitchen piece made to measure ("ავეჯის დამზადება"): stretched to its wall, made in one of the
@@ -41,7 +37,7 @@ export type KitchenSlot = (typeof CUSTOM_KITCHEN_SLOTS)[number];
  * material (every kitchen was given one then) or its product is a kitchen maker's material.
  */
 export function isCustomKitchenItem(item: Pick<PlacedItem, 'slot' | 'custom'> & { product?: PlacedItem['product']; kitchenMaterial?: PlacedItem['kitchenMaterial'] }): boolean {
-  if (!(CUSTOM_KITCHEN_SLOTS as readonly string[]).includes(item.slot)) return false;
+  if (!isCustomKitchenSlot(item.slot)) return false;
   if (item.custom != null) return item.custom;
   return !!item.kitchenMaterial || (!!item.product && isKitchenMaterial(item.product));
 }
@@ -52,7 +48,7 @@ export function isCustomKitchenItem(item: Pick<PlacedItem, 'slot' | 'custom'> & 
  * makes it that unit (`custom: false`, no material). Anything else, or a piece of another slot, as it is.
  */
 export function asPlacedKitchen(item: PlacedItem, product: CatalogProduct): PlacedItem {
-  if (!(CUSTOM_KITCHEN_SLOTS as readonly string[]).includes(item.slot)) return item;
+  if (!isCustomKitchenSlot(item.slot)) return item;
   if (isKitchenMaterial(product)) return withKitchenMaterial({ ...item, custom: true }, product, true);
   const { kitchenMaterial: _material, kitchenMaterialChosen: _chosen, ...unit } = item;
   return { ...unit, custom: false };

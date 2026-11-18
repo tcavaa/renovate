@@ -32,6 +32,7 @@ import { dividerSegments, partRoom, studioParts } from './studio';
 import { outsideEdges } from './radiators';
 import { freeSpans } from './decor/layout';
 import { clearOf, wallBlocks, type WallBlock } from './wallClear';
+import { BATH_OR_SHOWER } from './kinds';
 import { BOILER_CUPBOARD_M, BOILER_HALL_MIN_WIDTH_M, BOILER_PIPES_BELOW_M, BOILER_ROOMS, BOILER_WET_CLEAR_M, DISHWASHER_WATER, footprintQuad, KITCHEN_SINK_WATER, WATER_NEEDS, WATER_HEIGHT_REACH_M, WATER_PAIR_SPACING_M, WATER_POINT_REACH_M, alongWall, kitchenRunZones, underCeiling, type WaterNeed } from './rules';
 import type { FloorPlan, PlacedItem, PlanRoom, StyleId, TechnicalKind, TechnicalPoint, Vec2, DecorPiece } from './types';
 
@@ -364,7 +365,7 @@ function hallCupboardSpot(room: PlanRoom, tiers: ReadonlyArray<CupboardBlocks | 
  * clear of the openings and the wet alone only when it has none. Null when no wall has a spot.
  */
 function clearOfWet(room: PlanRoom, items: PlacedItem[], tiers: ReadonlyArray<CupboardBlocks | null> = [null], bareWidthM = CLEAR_WALL_M): Vec2 | null {
-  const wet = items.filter((i) => i.roomId === room.id && (i.slot === 'shower' || i.slot === 'bathtub'));
+  const wet = items.filter((i) => i.roomId === room.id && BATH_OR_SHOWER.has(i.slot));
   const near = (p: Vec2) =>
     wet.some((item) => pointInPolygon(p, footprintQuad({ ...item, size: { ...item.size, width: item.size.width + 2 * BOILER_WET_CLEAR_M, depth: item.size.depth + 2 * BOILER_WET_CLEAR_M } })));
   const distance = (p: Vec2) => Math.min(Infinity, ...wet.map((i) => Math.hypot(i.position.x - p.x, i.position.z - p.z)));

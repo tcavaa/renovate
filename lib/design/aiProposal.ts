@@ -10,9 +10,10 @@
  */
 
 import { applySwap, isKitchenFurniture, PAIRED_SLOTS, rehungClear, settledPosition, workingFloor, type CatalogProduct } from './matcher';
-import { arrangedOff } from './arrangedOff';
+import { arrangedOff, companionsOf, hostOf, inFrontOf, laidOffSlots, placedOff, seatedAt } from './relations';
 import { getArchetype } from './catalog';
-import { carryCompanions, carryRiders, companionsOf, hostOf, housedIds } from './decor/housing';
+import { LAID_TO_ANOTHER } from './kinds';
+import { carryCompanions, carryRiders, housedIds } from './decor/housing';
 import { seatSlots } from './autoLayout';
 import { decorDepth, fitLight, paramsOf } from './decor/layout';
 import { blocksWindow, clampInsideRoom, fitSwapped, footprintInRoom, footprintOf, footprintsOverlap, inDoorway, isPlacementValid, pieceWall, type Footprint } from './manipulate';
@@ -183,15 +184,12 @@ export function proposalNotes(proposal: AiProposal | null | undefined): Record<s
 /** How many AI generations a design may have before it is laid out by the engine alone. */
 export const MAX_AI_GENERATIONS = 5;
 
-/** Pieces placed off another (nightstands off the bed, the coffee table off the sofa, the desk chair off the desk). */
-const PLACED_OFF: Record<string, string> = { nightstand: 'bed', coffee_table: 'sofa', office_chair: 'desk' };
-
 /** Families of decor furniture in front of has to stand clear of (`clearOfDecor`). */
 const STANDS_OUT = new Set(['slats', 'slab', 'panel', 'cladding', 'mural', 'tile', 'niche', 'moulding', 'box']);
 
 /** A floor piece that stands against a wall in the engine's layout (not a rug, curtains or a free-standing table). */
 function wallPiece(item: PlacedItem): boolean {
-  if (item.elevationM >= 0.05 || item.slot === 'rug' || item.slot === 'curtain') return false;
+  if (item.elevationM >= 0.05 || LAID_TO_ANOTHER.has(item.slot)) return false;
   const rule = getArchetype(item.kind)?.placement;
   return rule?.type === 'wall' || rule?.type === 'wall-run' || rule?.type === 'corner' || (rule?.type === 'relative' && (rule.beside != null || !!rule.toWall));
 }
@@ -210,20 +208,6 @@ function standsWell(room: PlanRoom, item: PlacedItem, others: PlacedItem[], room
   return !clear.some((box) => footprintsOverlap(footprint, box));
 }
 
-/**
- * The slots a kind is laid out off by its placement rule — every one the rule names: the TV unit
- * off the sofa, the rug under the coffee table (or the sofa), the wall cabinets over the run, the
- * fridge at its end, a print over the bed — not only those it cannot stand without (`arrangedOff`).
- */
-function laidOffSlots(kind: string, roomType?: RoomType): SlotKind[] {
-  const rule = getArchetype(kind)?.placement;
-  const slots = new Set<SlotKind>(arrangedOff(kind, roomType)?.slots ?? []);
-  if (rule?.type === 'relative' || rule?.type === 'under') slots.add(rule.to);
-  if (rule?.type === 'wall-mounted' && rule.above) for (const slot of [rule.above].flat()) slots.add(slot);
-  if (rule?.type === 'wall' && rule.beside) slots.add(rule.beside);
-  return [...slots];
-}
-
 /** The nearest piece of a slot in `item`'s room, other than itself. */
 function nearestOf(item: PlacedItem, slot: SlotKind, items: readonly PlacedItem[]): PlacedItem | undefined {
   const distance = (p: PlacedItem) => Math.hypot(p.position.x - item.position.x, p.position.z - item.position.z);
@@ -234,12 +218,12 @@ function nearestOf(item: PlacedItem, slot: SlotKind, items: readonly PlacedItem[
  * What a move of `item` takes along (the studio's own movers): what rides on it — its tap, its
  * dryer, its mixer (`carryCompanions`), what stands on its top or hangs over it as a TV over its
  * unit (`carryRiders`) — and the pieces placed off it that the check stands by it again after the
- * fixes (`PLACED_OFF`: the nightstands, the coffee table, the desk chair).
+ * fixes (`placedOff`: the nightstands, the coffee table, the desk chair).
  */
 function takenAlong(item: PlacedItem, items: readonly PlacedItem[]): Set<string> {
   const probe = items.map((i) => (i.id === item.id ? { ...i, position: { x: i.position.x + 1, z: i.position.z } } : i));
   const riders = carryRiders(probe, item).filter((i, k) => i !== probe[k] && i.id !== item.id);
-  return new Set([...companionsOf(item.id, items), ...riders, ...items.filter((i) => i.roomId === item.roomId && PLACED_OFF[i.kind] === item.slot)].map((i) => i.id));
+  return new Set([...companionsOf(item.id, items), ...riders, ...items.filter((i) => i.roomId === item.roomId && placedOff(i.kind) === item.slot)].map((i) => i.id));
 }
 
 /**
@@ -326,9 +310,6 @@ export function reseatChairs(items: PlacedItem[], roomIds: Iterable<string>, roo
   return out;
 }
 
-/** Pieces standing in front of another, arranged off it: they move with it (the desk chair, the coffee table). */
-const IN_FRONT: Record<string, string> = { office_chair: 'desk', coffee_table: 'sofa' };
-
 /**
  * `item` moved by `step` along its facing, with the pieces arranged in front of it moved the same,
  * when all of them stand well there (judged without one another); null when they do not. A piece
@@ -346,7 +327,7 @@ function shiftWithFront(item: PlacedItem, step: number, out: PlacedItem[], room:
     return inRoom(kept) ? kept : moved;
   };
   // …and a TV standing on a TV unit, with it.
-  const front = out.filter((p) => p.roomId === item.roomId && !p.locked && (IN_FRONT[p.kind] === item.slot || (item.slot === 'tv_unit' && p.slot === 'tv' && Math.abs(p.elevationM - item.size.height) < 0.02)));
+  const front = out.filter((p) => p.roomId === item.roomId && !p.locked && (inFrontOf(p.kind) === item.slot || (item.slot === 'tv_unit' && p.slot === 'tv' && Math.abs(p.elevationM - item.size.height) < 0.02)));
   const group = [item, ...front];
   const moved = group.map(move);
   const ids = new Set(group.map((p) => p.id));
@@ -390,7 +371,7 @@ export function clearOfDecor(items: PlacedItem[], decor: DecorPiece[], plan: Flo
   out.forEach((item, index) => {
     // A TV on the wall is hung on the slab behind it, not inside it; other hung pieces keep off decor when it is fitted.
     const hung = item.elevationM >= 0.05;
-    if (item.locked || (hung && item.slot !== 'tv') || item.slot === 'rug' || item.slot === 'curtain' || (only && !only(item))) return;
+    if (item.locked || (hung && item.slot !== 'tv') || LAID_TO_ANOTHER.has(item.slot) || (only && !only(item))) return;
     const room = plan.rooms.find((r) => r.id === item.roomId);
     const wall = room && pieceWall(out[index], room, 0.3);
     if (!room || !wall) return;
@@ -510,7 +491,7 @@ export function applyReviewFixes(items: PlacedItem[], decor: DecorPiece[], revie
       continue;
     }
     // The pieces placed off it (the nightstands off a bed, the chairs round a table) follow it below: they are not in its way.
-    const others = out.filter((i) => i.id !== item.id && !(i.roomId === item.roomId && (PLACED_OFF[i.kind] === item.slot || (item.slot === 'dining_table' && i.slot === 'dining_chair'))));
+    const others = out.filter((i) => i.id !== item.id && !(i.roomId === item.roomId && (placedOff(i.kind) === item.slot || seatedAt(i.slot) === item.slot)));
     let placed: PlacedItem | null = null;
     if (fix.action === 'replace') {
       const product = fix.productId != null ? byId.get(fix.productId) : undefined;
@@ -562,7 +543,7 @@ export function applyReviewFixes(items: PlacedItem[], decor: DecorPiece[], revie
   // A nightstand stands by the bed the room has now, not where the old bed's side was; one with no
   // room beside the new bed goes rather than stand in it.
   out = out.flatMap((item) => {
-    const anchorSlot = PLACED_OFF[item.kind];
+    const anchorSlot = placedOff(item.kind);
     if (!anchorSlot || item.locked || !changed.has(`${item.roomId}|${anchorSlot}`)) return [item];
     const room = rooms.get(item.roomId);
     if (!room) return [item];
@@ -585,7 +566,7 @@ export function applyReviewFixes(items: PlacedItem[], decor: DecorPiece[], revie
     if ((now ? JSON.stringify(now) : undefined) === asLaid.get(d.id)) return [d];
     return now ? [now] : [];
   });
-  const touched = (i: PlacedItem) => changed.has(`${i.roomId}|${i.slot}`) || changed.has(`${i.roomId}|${PLACED_OFF[i.kind]}`) || (i.slot === 'dining_chair' && changed.has(`${i.roomId}|dining_table`));
+  const touched = (i: PlacedItem) => changed.has(`${i.roomId}|${i.slot}`) || changed.has(`${i.roomId}|${placedOff(i.kind)}`) || changed.has(`${i.roomId}|${seatedAt(i.slot)}`);
   out = clearOfDecor(settleToWalls(out, plan, touched), pieces, plan, (i) => touched(i) || decorRooms.has(i.roomId));
   return { items: out, decor: pieces };
 }

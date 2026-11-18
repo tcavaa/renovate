@@ -376,7 +376,7 @@ Severity: **high** = seen by anyone who generates; **medium** = wrong in some ro
   (`generateScene.ts:160`) removes a slot with no product and nothing else. In 720 flats: a coffee
   table with no sofa 60 times, a rug 87, an armchair 53, a TV unit 41, a TV 40; nightstands with no
   bed 34; a fridge or wall cabinets with no run 24. *Fixed:* what the engine arranged off a piece
-  goes with it (`withoutOrphans`, `lib/design/arrangedOff.ts`, read from the archetypes' rules),
+  goes with it (`withoutOrphans`, `lib/design/relations.ts`, read from the archetypes' rules),
   after matching, after the calculation's picks and after the designer's check. The whole-flat
   check reads the same rules, so it no longer counts what the engine stands on its own when the
   other piece was never laid — a fridge in a kitchen with no run (a missing run). A rug is arranged
@@ -697,8 +697,9 @@ pieces a room has, the kitchen, the joinery, taps, lamps on the wiring, radiator
   suggests it) and leaves the wall cabinets and the fridge on the old wall; on the sofa it leaves the
   coffee table, TV unit, TV, armchair and rug round empty floor; `remove` on the TV unit leaves the TV
   on the wall; `remove` on a blind and on a pendant is accepted, against "every window dressed" and
-  "one main light". Only three relations are hand-listed (`PLACED_OFF`, `IN_FRONT`,
-  `aiProposal.ts:113`, `:196`). Its moves test doors and windows but not radiators or columns.
+  "one main light". Only three relations were hand-listed (`PLACED_OFF`, `IN_FRONT`,
+  `aiProposal.ts:113`, `:196` — now read off the rules in `relations.ts` as `placedOff` and
+  `inFrontOf`, D6). Its moves test doors and windows but not radiators or columns.
   *Fixed:* a removal takes what was laid out off the piece with it (`withoutOrphans`, now tested
   through `reviewedScene`) and a curtain, a blind or the ceiling lamp is never removed; a move takes
   along what rides and stands on the piece (`carryCompanions`, `carryRiders`) and is tested against
@@ -876,13 +877,32 @@ pieces a room has, the kitchen, the joinery, taps, lamps on the wiring, radiator
   flats: `wallBlocks` read a shower by its tray (`showerArea`) and now by `floorTaken`, the tray or
   the cabin, whichever is larger — a cabin the studio's resize left larger than its tray
   (`resizedShower` clamps the tray whatever the cabin) is now a block as wide as the cabin.
-- [ ] **D6 — Who belongs to whom, five tables**: `placement.to` in `catalog.ts`; `PLACED_OFF` and
+- [x] **D6 — Who belongs to whom, five tables**: `placement.to` in `catalog.ts`; `PLACED_OFF` and
   `IN_FRONT` (`aiProposal.ts`); `TUCKS_UNDER` (`manipulate.ts:217`); `COMPANIONS`
   (`decor/housing.ts:43`); the matcher's `followers` (`matcher.ts:377-382`).
-- [ ] **D7 — About 240 `slot === '…'` / `kind === '…'` comparisons** outside `catalog.ts` (matcher
+  *Fixed:* one module, `lib/design/relations.ts`, answers every relation: what a piece is arranged
+  off and laid off, what is measured off, placed off and in front of its anchor (read off the
+  archetypes' rules — the AI check's `PLACED_OFF` and `IN_FRONT` and the matcher's followers were
+  each a subset of them), the chairs seated at a table and the chairs that tuck under a top (which
+  chairs, written by hand; the piece each goes with, its own rule's `to`), and the
+  bathroom pass's companions (linked by id, written and read by `companionId`, `companionsOf`,
+  `hostOf`); it says for each relation that differs from another how and why — every flat of 396
+  and the studio's and the AI check's paths on 132 unchanged, byte for byte.
+- [x] **D7 — About 240 `slot === '…'` / `kind === '…'` comparisons** outside `catalog.ts` (matcher
   48, autoLayout 45, aiProposal 18, ruleChecks 17, housing 17…) and more than twenty named sets of kinds; "not in the
   way on the floor" is listed five times with five memberships, two of which test `'blind'` as a
   slot, which it is not (`wallClear.ts:34`, `decor/joinery.ts:209`).
+  *Fixed:* the lists that mean one thing are named once in `lib/design/kinds.ts`, each wider one
+  built on the narrower: a rug and a curtain (`LAID_TO_ANOTHER`, eleven readers that listed the two),
+  with the run what the layout sizes (`SIZED_BY_LAYOUT`), with the door mat what lies flat
+  (`LIES_FLAT`: the studio's and the whole-flat check's lists, the wardrobe wall's with the chest of
+  drawers), with the pendant what stands before no wall (`NOT_IN_THE_WAY`, which no longer holds
+  `'blind'`: a slot no piece has, so the test never matched — dead, and every flat unchanged without
+  it); the kitchen made to measure (`CUSTOM_KITCHEN_SLOTS`, `CUSTOM_KITCHEN_KINDS`), the companions'
+  slots and a bath or a shower are one set each, and the AI check's own sets are built from them.
+  The sets are typed by slot, so a kind in a slot set is a type error. 243 furniture literals
+  became 203 — the ones left read clearly where they stand; every flat of 396, the studio's paths,
+  the AI check, the rule checks and both briefs on 132 unchanged, byte for byte.
 - [ ] **D8 — Small copies**: `rayToOutline` (`autoLayout.ts:1053`) is `rayToPolygon`
   (`rules.ts:363`); point-in-polygon four times; point-to-segment about ten; `round2` seventeen;
   seven local "style affinity" scales beside `styleAffinity`.

@@ -24,6 +24,7 @@ import { candidatesFor, MATCHED_ABOVE_GAP_M, matchProducts, settledElevation, to
 import { footprintOf, footprintsOverlap, inDoorway, isPlacementValid, type Footprint } from './manipulate';
 import { floorTaken } from './shower';
 import { getArchetype } from './catalog';
+import { companionId } from './relations';
 import { includesTap, isBuiltInBath, isFloorTap, isWallTap } from './productRoles';
 import { weightedPick, type RoomRng, type Rng } from './random';
 import { styleAffinity } from './styles';
@@ -415,7 +416,7 @@ function tapItem(room: PlanRoom, basin: PlacedItem, edge: PlanEdge, product: Cat
   const rim = basin.elevationM + basin.size.height;
   const off = wall ? size.depth / 2 + 0.005 : vanityTop != null ? Math.max(size.depth / 2 + 0.02, deckRoom / 2) : basin.size.depth * 0.18 + 0.02 + Math.max(0, toBasinBack);
   const elevation = wall ? rim + 0.12 : vanityTop != null && deckRoom >= size.depth * 0.6 ? vanityTop : rim - 0.01;
-  return newItem(room, 'tap', `${basin.id}-tap`, product, { x: at.x + edge.inward.x * off, z: at.z + edge.inward.z * off }, edge.facing, elevation, size);
+  return newItem(room, 'tap', companionId(basin.id, 'tap'), product, { x: at.x + edge.inward.x * off, z: at.z + edge.inward.z * off }, edge.facing, elevation, size);
 }
 
 /**
@@ -439,7 +440,7 @@ function stackedDryer(washer: PlacedItem, product: CatalogProduct): PlacedItem {
   // Its back where the washer's is.
   const shift = (size.depth - washer.size.depth) / 2;
   return {
-    id: `${washer.id}-dryer`,
+    id: companionId(washer.id, 'dryer'),
     roomId: washer.roomId,
     slot: 'dryer',
     kind: 'dryer',
@@ -475,10 +476,10 @@ function bathMixerItem(room: PlanRoom, bath: PlacedItem, product: CatalogProduct
   if (onWall && edge) {
     const lateral = head * (bath.size.width / 2 - 0.3);
     const back = -bath.size.depth / 2 + size.depth / 2 + 0.005;
-    return newItem(room, 'bath_mixer', `${bath.id}-mixer`, product, { x: bath.position.x + right.x * lateral + f.x * back, z: bath.position.z + right.z * lateral + f.z * back }, bath.rotation, bath.size.height + 0.15, size);
+    return newItem(room, 'bath_mixer', companionId(bath.id, 'bath_mixer'), product, { x: bath.position.x + right.x * lateral + f.x * back, z: bath.position.z + right.z * lateral + f.z * back }, bath.rotation, bath.size.height + 0.15, size);
   }
   // Freestanding: on the floor at the head, a hand's width off the bath, a little in from its back.
   const lateral = head * (bath.size.width / 2 - Math.min(0.25, bath.size.width * 0.15));
   const ahead = bath.size.depth / 2 + size.depth / 2 + 0.06;
-  return newItem(room, 'bath_mixer', `${bath.id}-mixer`, product, { x: bath.position.x + right.x * lateral + f.x * ahead, z: bath.position.z + right.z * lateral + f.z * ahead }, bath.rotation + Math.PI, 0, size);
+  return newItem(room, 'bath_mixer', companionId(bath.id, 'bath_mixer'), product, { x: bath.position.x + right.x * lateral + f.x * ahead, z: bath.position.z + right.z * lateral + f.z * ahead }, bath.rotation + Math.PI, 0, size);
 }

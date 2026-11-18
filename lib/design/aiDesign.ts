@@ -34,6 +34,7 @@ import type { DecorFamily, DecorParams, DecorPiece, DecorSlot, FloorPlan, Placed
 import type { RoomType } from '@/lib/calculator/types';
 import { MissingApiKeyError } from './aiPlan';
 import { styleGuideText, subStyleFor } from './styleGuide';
+import { CUSTOM_KITCHEN_KINDS } from './kinds';
 import { BASIN_TOP_M, BLIND_ROOMS, BLIND_STYLES, NEUTRAL_LIGHT_K, SHALLOW_WARDROBE_DEPTH_M, SHOWER_MIN_M, SHOWER_SIZES_M, WARDROBE_DEPTH_M, WARM_LIGHT_K, underCeiling } from './rules';
 
 /** The model: the same one that reads plans. A constant, chosen by evaluation, never a guess in code. */
@@ -84,7 +85,8 @@ export interface AiDesignUsage {
 // What the model is offered
 // ---------------------------------------------------------------------------
 
-const KINDS_FURNISHED_BY_ENGINE = new Set(['kitchen_run', 'kitchen_wall', 'kitchen_island']);
+/** What the engine furnishes itself and the designer is never offered: the kitchen made to measure (`CUSTOM_KITCHEN_KINDS`). */
+const KINDS_FURNISHED_BY_ENGINE: ReadonlySet<string> = CUSTOM_KITCHEN_KINDS;
 /** Products offered per piece and finishes per surface: a random draw from the whole catalogue each time, not the same top few. */
 const CANDIDATES_PER_KIND = 12;
 const FINISHES_PER_SURFACE = 10;

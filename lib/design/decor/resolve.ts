@@ -15,6 +15,7 @@ import { toSceneProduct } from '@/lib/design/matcher';
 import type { DecorFamily, DecorMaterial, DecorParams, DecorPiece, DecorSlot, Opening, PlacedItem, PlanRoom, SlotKind } from '@/lib/design/types';
 import { DECOR_FAMILIES, DECOR_FAMILY_LIST, decorSlots, slotTakes } from './families';
 import { freeSpans } from './layout';
+import { LAID_TO_ANOTHER } from '@/lib/design/kinds';
 import { decorMaterialKind, decorSpecs, defaultDecorMaterial, isDecorMaterial } from './materials';
 
 export const DECOR_ANCHORS = ['bed', 'tv', 'sofa', 'desk', 'dining', 'kitchen', 'wall', 'room'] as const;
@@ -155,7 +156,7 @@ const BUILT_OUT = new Set<string>(['niche']);
 /** What stands against this wall on the floor (the bath, the washing machine, a cabinet), as openings for `freeSpans`. */
 function floorPiecesOnWall(edge: PlanEdge, room: PlanRoom, items: PlacedItem[]): Opening[] {
   return items
-    .filter((i) => i.roomId === room.id && i.elevationM < 0.05 && i.slot !== 'rug' && i.slot !== 'curtain')
+    .filter((i) => i.roomId === room.id && i.elevationM < 0.05 && !LAID_TO_ANOTHER.has(i.slot))
     .filter((i) => wallBehind(i, room)?.index === edge.index)
     .map((i) => ({ id: `piece-${i.id}`, kind: 'window' as const, wallIndex: edge.index, t: along(edge, i.position) / edge.length, widthM: i.size.width + 0.1, heightM: i.size.height, sillM: 0, roomId: room.id, exterior: false }));
 }

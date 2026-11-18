@@ -401,7 +401,7 @@ its own there (`cabinet: null`) — the wardrobe is its cupboard (the rulebook, 
 vanity). A wall is read as blocks (`wallBlocks`): every piece standing within 45 cm of it, from its
 bottom to its top (each as the floor it takes, `floorTaken` — a shower as its tray and glass), every
 piece of joinery, box or niche wall, and the slats and panels flat on it — but what stands before no
-wall (`NOT_IN_THE_WAY`: a rug, a door mat, a pendant, a curtain, and `blind`, which is no slot). The joinery reads a wall the same
+wall (`NOT_IN_THE_WAY` in `lib/design/kinds.ts`: a rug, a door mat, a curtain — `LIES_FLAT` — and a pendant). The joinery reads a wall the same
 way (`freeStretch`: the same list, the same floor of each piece, the same test of what stands in
 front of a wall, `alongWall`, with its own depth for the reach), and leaves out besides what hangs
 over it or rides on a piece (`OVER_JOINERY`: a picture, a mirror, anything hung over 1.2 m, a tap,

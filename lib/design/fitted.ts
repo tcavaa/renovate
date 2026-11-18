@@ -7,8 +7,9 @@
  * Pure: no React, no three.js.
  */
 
-import { adoptHoused, companionsOf, houseItem, housedIds, housingOf, followHoused, HOUSING_OF_SLOT } from './decor/housing';
+import { adoptHoused, houseItem, housedIds, housingOf, followHoused, HOUSING_OF_SLOT } from './decor/housing';
 import { withoutOrphanLegs } from './kitchenCorner';
+import { companionsOf } from './relations';
 import { isBuiltInBath } from './productRoles';
 import { COUNTERTOP_BASIN_MAX_M, WET_ROOM_TYPES } from './rules';
 import { withShowerArea } from './shower';

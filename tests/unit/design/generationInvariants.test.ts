@@ -60,7 +60,7 @@ describe('generating whole flats', () => {
     ];
     const counts = sortedCounts(measure.counts);
     for (const metric of fixed) expect(counts[metric] ?? 0, metric).toBe(0);
-    // Nothing is left arranged round a piece that is not there (`lib/design/arrangedOff`).
+    // Nothing is left arranged round a piece that is not there (`lib/design/relations`).
     expect(Object.keys(counts).filter((metric) => metric.startsWith('orphan:'))).toEqual([]);
   });
 });
