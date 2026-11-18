@@ -6,7 +6,7 @@ the AI designer and the engine disagree, rules stated twice with different numbe
 more than once. This is the list to work from, before the owner's per-room rules are written in:
 an item is ticked (`[x]`) in the commit that fixes it, with the new behaviour described in the topic
 document, and the numbers in section 3 are as measured on 16 Nov 2026, before any fix —
-`pnpm audit:generation` gives today's.
+`pnpm audit:generation` gives today's; "Where it stands" compares the two.
 
 Related: [layout-and-matching.md](layout-and-matching.md) (the engine and the matcher) ·
 [decor.md](decor.md) (the AI designer, its check, the joinery) · [design-rules.md](design-rules.md)
@@ -74,6 +74,67 @@ five at 0. At 12 draws (1,440 flats) two kinds are left, of other causes and not
 washer's own column built into the vanity planned for the basin beside it (`in_joinery` 5 — the
 column's stretch does not read the vanities still to be built) and a WC in a shower's tray
 (`in_shower_tray` 1) — [roadmap](../roadmap.md).
+
+## Where it stands (18 Nov 2026)
+
+Four batches are on `main` (the bugs of sections A–O that need no rule choice; each item says
+*Fixed*, *Partly* or nothing). `pnpm audit:generation --seeds 6`, 720 flats, before (16 Nov) →
+now — the draws differ (one stream then, a stream per room now), so a count the fixes did not
+touch moves only within the draw's noise:
+
+| What | Before | Now |
+|---|---|---|
+| Living rooms with no sofa | 48 | 0 |
+| Bedrooms with no bed | 158 | 96 |
+| Living rooms with no TV unit | 92 | 72 |
+| Flats with a bathroom and no washing machine | 192 | 48 |
+| Pieces arranged round a piece that is gone (every orphan) | 343 | 0 |
+| A piece within 90 cm in front of a door | 292 | 56 |
+| A TV unit on a room separator's line / free of every wall | 217 / 83 | 124 / 48 |
+| A hung piece into what stands below (now canopy beds' pendants) | 369 | 102 |
+| A hung piece into another (the mirror into the tap) | 274 | 0 |
+| A basin hanging in the air | 106 | 0 |
+| Joinery or a piece in a shower's tray | 58 / 19 | 0 / 0 |
+| Joinery in a door's way / before a wall of wardrobe's doors | 157 / 129 | 0 / 0 |
+| A socket inside a radiator · two main lights at one spot | 516 · 1,246 | 0 · 0 |
+| The app's own checks: door swing blocked · radiator blocked · socket in a splash zone | 161 · 98 · 51 | 56 · 19 · 0 |
+| A flat the save route would refuse | (not counted) | 0 |
+
+Measured outside the command, in the lanes' scripts: Modern balconies in laminate 150 of 150 → 0;
+flats with doors of two products 48 of 360 → 0 (one door and one window through a flat); calculator picks
+out of the room, in a piece or on a door's floor 45 % → 14 %; the AI designer's picks the engine
+ignored 1,009 of 3,465 → 494; the AI check shown the engine's own work as problems 481 times in 360
+flats → 0, and an empty check changing 122 of 360 flats → 0.
+
+Still as before, because each is a matter of which piece gives way (the owner's per-room rules):
+bathrooms with no shower or bath 36 %, no mirror about 30 %, no WC 11 %; studios with no TV unit
+76 %, no sofa 22 %, no fridge 22 %.
+
+**Waiting for the owner** — decisions the fixes ran into, each written at its item:
+
+1. *The TV on a real wall beyond 3.5 m* (O7, RL1): the sofa is now placed where its TV unit gets a
+   real wall, at any distance the unit's rule allows; where that wall is 3.7–4.8 m off (#357, #365,
+   #397, #399) the sofa–TV check fires (67 → 160 in 720 flats), and studio #399 gives up its
+   bookcase, plant and lamp for it. Keep it, or prefer the open line, or something else?
+2. *Rooms where no sofa spot gives the TV unit a wall* (15, listed under O7): left as they were —
+   a sofa with its back to the open side, the unit as a divider, or no TV?
+3. *The per-room ladders* (M1, RS1–RS3, RL2–RL5, RB1, RK1–RK4): what gives way when an essential
+   does not fit — the numbers above.
+4. *A wall of wardrobe needs its 75 cm clear in front* (W3): built ones fell from 213 to 54 in 360
+   flats, the shop's wardrobe standing instead, and the bed-side check fires where it stands
+   beside the bed (255 → 305, more beds placed counted in it too).
+5. *The hall wardrobe's boiler section* (W6, E-4) is never built now that every boiler gets its own
+   cupboard: which should win?
+6. *A style's own floor in dry rooms* (F3): with wet-flagged tiles allowed in dry rooms an Industrial
+   balcony takes the style's own floor 33 times in 150 (106 before); Industrial's bathroom slate is
+   flagged dry, so no bathroom gets it — catalogue data.
+7. *A calculation's entrance-door pick* still goes on every outside door (Q7b; the calculator's own
+   sheet shares the function).
+8. *Decor beside low joinery* loses the wall above it (W4).
+9. *Catalogue data* (K1–K4, P1): products filed under the wrong kind or with wrong sizes, and shop
+   kitchens never generated (their names do not say sink and hob) — admin's, or a rule.
+10. *An AI start refused by the plan's locks* is told as a failure (subscriptions), and *a row or
+    track of spots* loses the one under a hanging lamp (the one-light rule, O5).
 
 ## How it was audited
 
