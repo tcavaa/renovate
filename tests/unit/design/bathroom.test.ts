@@ -262,6 +262,49 @@ describe('the bathroom pass', () => {
     expect(decor.some((d) => (d.params.sections ?? []).some((s) => s.kind === 'washer' && s.itemId === washer.id))).toBe(true);
   });
 
+  it('builds the washer\'s column and its dryer clear of the mirror over the basin where any spot is, else hangs a mirror the catalogue has that clears the dryer', () => {
+    const big = room('j', 'bathroom', 3.4, 2.6, [door(3, 0.8)]);
+    const items = matched(big, 'modern').filter((i) => i.slot !== 'shower');
+    const sink = items.find((i) => i.slot === 'sink')!;
+    const washer = items.find((i) => i.slot === 'washer')!;
+    const mirror = items.find((i) => i.slot === 'mirror')!;
+    // A mirror 2.4 m wide over the basin, as the matcher may hang one (1.29 m over a 55 cm basin), out
+    // over the wall's end where the column would go beside the vanity; the washer on the WC's wall,
+    // past the WC and clear of the bath.
+    const wide = { ...mirror, size: { ...mirror.size, width: 2.4 } };
+    const away = { ...washer, position: { x: 3.4 - 0.02 - washer.size.depth / 2, z: 2.2 }, rotation: -Math.PI / 2 };
+    const { items: out, decor } = fitBathrooms({ rooms: [big], items: items.map((i) => (i.id === washer.id ? away : i.id === mirror.id ? wide : i)), catalog: CATALOG, styleId: 'modern', level: 'premium' });
+    const hung = out.find((i) => i.slot === 'mirror')!;
+    const dryer = out.find((i) => i.slot === 'dryer')!;
+    expect(dryer).toBeDefined();
+    const inEachOther = quadsOverlap(shrink(footprintQuad({ ...hung, size: { ...hung.size, depth: Math.max(hung.size.depth, 0.05) } }), 0.01), footprintQuad(dryer)) && hung.elevationM < dryer.elevationM + dryer.size.height && dryer.elevationM < hung.elevationM + hung.size.height;
+    expect(inEachOther).toBe(false);
+    // The column is built round the machine on its own wall.
+    expect(out.find((i) => i.slot === 'washer')!.rotation).toBeCloseTo(-Math.PI / 2);
+    expect(decor.some((d) => (d.params.sections ?? []).some((s) => s.kind === 'washer' && s.dryer))).toBe(true);
+
+    // The machine already under the mirror, at the end of the basin's wall: its column is built there,
+    // and the wide mirror gives way to the catalogue's mirror (60 cm) that hangs clear of the dryer,
+    // at a mirror's height over the basin — not lifted over the dryer, out of a person's sight.
+    const under = { ...washer, position: { x: 3.4 - 0.02 - washer.size.width / 2, z: 0.02 + washer.size.depth / 2 }, rotation: sink.rotation };
+    const wideProduct = product(14, 'mirror', 240, 3, 80, 'Wide wall mirror', { categorySlug: 'decor' });
+    const wider = { ...wide, product: toSceneProduct(wideProduct, 1) };
+    const swapped = fitBathrooms({ rooms: [big], items: items.map((i) => (i.id === washer.id ? under : i.id === mirror.id ? wider : i)), catalog: [...CATALOG, wideProduct], styleId: 'modern', level: 'premium' }).items;
+    const over = swapped.find((i) => i.slot === 'mirror')!;
+    const stacked = swapped.find((i) => i.slot === 'dryer')!;
+    expect(stacked).toBeDefined();
+    const clash = (m: PlacedItem) => quadsOverlap(shrink(footprintQuad({ ...m, size: { ...m.size, depth: Math.max(m.size.depth, 0.05) } }), 0.01), footprintQuad(stacked)) && m.elevationM < stacked.elevationM + stacked.size.height && stacked.elevationM < m.elevationM + m.size.height;
+    expect(over.product?.productId).toBe(13);
+    expect(clash(over)).toBe(false);
+    expect(over.elevationM).toBeLessThan(stacked.elevationM + stacked.size.height);
+    // With no mirror in the catalogue that clears the dryer, the mirror is kept as it hung (today's
+    // clash, the owner's to rule on), never lifted out of sight.
+    const kept = fitBathrooms({ rooms: [big], items: items.map((i) => (i.id === washer.id ? under : i.id === mirror.id ? wider : i)), catalog: [...CATALOG.filter((p) => p.id !== 13), wideProduct], styleId: 'modern', level: 'premium' }).items;
+    const still = kept.find((i) => i.slot === 'mirror')!;
+    expect(still.product?.productId).toBe(14);
+    expect(still.elevationM).toBeLessThan(kept.find((i) => i.slot === 'dryer')!.elevationM + kept.find((i) => i.slot === 'dryer')!.size.height);
+  });
+
   it('stands a freestanding bath\'s floor mixer clear: at its head, else at its other end, else a mixer on the wall', () => {
     const roomy = room('t', 'bathroom', 3.6, 2.8, [door(3, 0.8)]);
     const modern = matched(roomy, 'modern');
@@ -275,6 +318,18 @@ describe('the bathroom pass', () => {
     const third = fitBathrooms({ rooms: [roomy], items: modern, catalog: CATALOG, styleId: 'modern', level: 'balanced', keepClear: { t: [around(first), around(second)] } }).items.find((i) => i.slot === 'bath_mixer')!;
     expect(third.product?.productId).toBe(11);
     expect(third.elevationM).toBeGreaterThan(0);
+  });
+
+  it('never stands the floor mixer on a piece standing at the bath\'s head: it is tested as the solid it is', () => {
+    const roomy = room('t', 'bathroom', 3.6, 2.8, [door(3, 0.8)]);
+    const modern = matched(roomy, 'modern');
+    const first = fitBathrooms({ rooms: [roomy], items: modern, catalog: CATALOG, styleId: 'modern', level: 'balanced' }).items.find((i) => i.slot === 'bath_mixer')!;
+    // A stool where the mixer would stand.
+    const stool: PlacedItem = { id: 't-stool', roomId: 't', slot: 'stool', kind: 'stool', position: first.position, rotation: 0, elevationM: 0, size: { width: 0.35, depth: 0.35, height: 0.45 }, product: toSceneProduct(product(30, 'stool', 35, 35, 45, 'Wooden stool'), 1), origin: 'style' };
+    const out = fitBathrooms({ rooms: [roomy], items: [...modern, stool], catalog: CATALOG, styleId: 'modern', level: 'balanced' }).items;
+    const mixer = out.find((i) => i.slot === 'bath_mixer')!;
+    if (mixer.elevationM < 0.05) expect(quadsOverlap(shrink(footprintQuad(mixer), 0.03), footprintQuad(stool))).toBe(false);
+    expect(Math.hypot(mixer.position.x - first.position.x, mixer.position.z - first.position.z)).toBeGreaterThan(0.3);
   });
 
   it('gives a Vintage bath its tiled enclosure, wider than the bath and over its rim', () => {

@@ -8,7 +8,10 @@
  */
 
 import type { CatalogProduct } from '@/lib/design/matcher';
-import { WC_BOX_DEPTH_M, WC_BOX_HALF_M, WC_BOX_WIDTH_M } from '@/lib/design/rules';
+import { footprintQuad, WC_BOX_DEPTH_M, WC_BOX_HALF_M, WC_BOX_WIDTH_M } from '@/lib/design/rules';
+import { standsSolid } from '@/lib/design/manipulate';
+import { floorTaken } from '@/lib/design/shower';
+import type { PlanEdge } from '@/lib/design/planGeometry';
 import type { DecorPiece, PlacedItem, PlanRoom } from '@/lib/design/types';
 import { freeSpans } from './layout';
 import { defaultDecorMaterial } from './materials';
@@ -49,6 +52,10 @@ export function wcBoxes(rooms: readonly PlanRoom[], items: PlacedItem[], catalog
     let to = Math.min(b, centre + WC_BOX_WIDTH_M / 2);
     if (from - a < SLIVER_M) from = a;
     if (b - to < SLIVER_M) to = b;
+    // …and never into what stands beside the WC on that wall.
+    const [lo, hi] = besideWc(stretch, edge, centre, wc, room, items);
+    from = Math.max(from, lo);
+    to = Math.min(to, hi);
     out.push({
       id: `decor-${room.id}-wc-${wc.id}`,
       roomId: room.id,
@@ -63,4 +70,29 @@ export function wcBoxes(rooms: readonly PlanRoom[], items: PlacedItem[], catalog
     });
   }
   return out;
+}
+
+/**
+ * The stretch a WC's box may take, stopped at what stands on its wall within the box's depth on
+ * either side of the WC (a basin, a washer's column, a bath beside it), as it is stopped at a door
+ * or a window: a box built after the basin stood ran into it. A piece standing across the WC's
+ * middle (in its way, not beside it) does not cut it; nor is the box cut short of the WC's own
+ * width — there the stretch as the openings leave it.
+ */
+function besideWc(stretch: [number, number], edge: PlanEdge, centre: number, wc: PlacedItem, room: PlanRoom, items: readonly PlacedItem[]): [number, number] {
+  let [a, b] = stretch;
+  for (const item of items) {
+    if (item.roomId !== room.id || item.id === wc.id || !standsSolid(item)) continue;
+    const corners = footprintQuad(floorTaken(item));
+    const off = corners.map((p) => (p.x - edge.a.x) * edge.inward.x + (p.z - edge.a.z) * edge.inward.z);
+    if (Math.min(...off) >= WC_BOX_DEPTH_M - 1e-6 || Math.max(...off) <= 0) continue;
+    const along = corners.map((p) => (p.x - edge.a.x) * edge.dir.x + (p.z - edge.a.z) * edge.dir.z);
+    const lo = Math.min(...along);
+    const hi = Math.max(...along);
+    if (hi <= a || lo >= b) continue;
+    if (hi <= centre) a = Math.max(a, hi);
+    else if (lo >= centre) b = Math.min(b, lo);
+  }
+  const half = wc.size.width / 2;
+  return a <= centre - half + 1e-6 && b >= centre + half - 1e-6 ? [a, b] : stretch;
 }

@@ -169,6 +169,24 @@ export function clampT(room: Pick<PlanRoom, 'polygon'>, axis: RoomSplit['axis'],
   return Math.round(Math.max(a, Math.min(b, t)) * 10000) / 10000;
 }
 
+/**
+ * The name of a studio's half in what is drawn for it — its pieces' ids (`s-p0-sofa-0`) and its
+ * own streams when generating (`layout:s:p0`, `match:s:p0`): `p0`, `p1`.
+ */
+export function partName(part: Pick<StudioPart, 'index'>): string {
+  return `p${part.index}`;
+}
+
+/**
+ * The half a studio's piece was laid in, read from its id (`${room}-p0-…`, as `partName` names it):
+ * the half whose program laid it, wherever it has come to stand. Null for an id with no half in it.
+ */
+export function partOfId(roomId: string, itemId: string): 0 | 1 | null {
+  if (itemId.startsWith(`${roomId}-${partName({ index: 0 })}-`)) return 0;
+  if (itemId.startsWith(`${roomId}-${partName({ index: 1 })}-`)) return 1;
+  return null;
+}
+
 /** The two parts of a studio, measured. Null for any other room. */
 export function studioParts(room: Outline): [StudioPart, StudioPart] | null {
   if (!isStudio(room) || room.polygon.length < 3) return null;

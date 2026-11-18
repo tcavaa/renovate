@@ -262,6 +262,55 @@ describe('the room tidied after generating and after the check', () => {
     expect(settled.position.z - settled.size.depth / 2).toBeCloseTo(0.02, 5);
   });
 
+  it('leaves a bath\'s floor mixer by its bath, not pushed back to the wall behind it into a washer', async () => {
+    const { settleToWalls } = await import('@/lib/design/aiProposal');
+    const r = room('b', 'bathroom', 3, 2.4);
+    // A round bath free in the room; its floor mixer at its head facing it, its back 40 cm off wall 2
+    // (z = 2.4), where a washer stands against that wall.
+    const bath = piece('bath', 'bathtub', 'bathtub', 1.5, 1.0, 0, 1.4, 1.4, 0.5);
+    const mixer = piece('bath-mixer', 'bath_mixer', 'bath_mixer', 1.0, 1.9, Math.PI, 0.4, 0.07, 1.0);
+    const washer = piece('washer', 'washer', 'washer', 1.3, 2.4 - 0.02 - 0.24, Math.PI, 0.6, 0.47, 0.86);
+    const out = settleToWalls([bath, mixer, washer], plan1(r));
+    expect(out.find((i) => i.id === 'bath-mixer')!.position).toEqual(mixer.position);
+  });
+
+  it('never pushes a piece back to its wall into a bath\'s floor mixer standing behind it: the mixer is a solid in its way too', async () => {
+    const { settleToWalls } = await import('@/lib/design/aiProposal');
+    const { isPlacementValid } = await import('@/lib/design/manipulate');
+    const r = room('b', 'bathroom', 3, 2.4);
+    // The bath free in the room; its floor mixer stands by wall 0 (z 0.05–0.25), a washer 30 cm off
+    // that wall in front of the mixer.
+    const bath = piece('bath', 'bathtub', 'bathtub', 0.9, 1.2, Math.PI / 2, 1.5, 0.75, 0.55);
+    const mixer = piece('bath-mixer', 'bath_mixer', 'bath_mixer', 2.3, 0.15, 0, 0.2, 0.2, 1.0);
+    const washer = piece('washer', 'washer', 'washer', 2.3, 0.3 + 0.235, 0, 0.6, 0.47, 0.86);
+    const out = settleToWalls([bath, mixer, washer], plan1(r));
+    const settled = out.find((i) => i.id === 'washer')!;
+    expect(settled.position.z - settled.size.depth / 2).toBeGreaterThanOrEqual(0.25 - 1e-6);
+    // Generation's test counts the mixer among what is in the way; the studio's drag, as before, does not.
+    const pushed = { ...washer, position: { x: 2.3, z: 0.255 } };
+    expect(isPlacementValid(r, pushed, [bath, mixer], undefined, true)).toBe(false);
+    expect(isPlacementValid(r, pushed, [bath, mixer])).toBe(true);
+  });
+
+  it('puts a piece in a corner back on its wall without taking it out of its room, the wall a hair off square', async () => {
+    const { settleToWalls } = await import('@/lib/design/aiProposal');
+    const { footprintInRoom, footprintOf, pieceWall } = await import('@/lib/design/manipulate');
+    // Wall 1 runs 3 mm off square over 4 m, as drawn plans do; a room across a separator beside it.
+    const r = refreshRoom({ ...room('b', 'living_room', 4, 4), polygon: [{ x: 0, z: 0 }, { x: 4, z: 0 }, { x: 4.003, z: 4 }, { x: 0, z: 4 }], open: [3] });
+    const next = refreshRoom({ ...room('n', 'kitchen', 3, 4), polygon: [{ x: -3, z: 0 }, { x: 0, z: 0 }, { x: 0, z: 4 }, { x: -3, z: 4 }], open: [1] });
+    const edge = roomEdgesOf(r.polygon).find((e) => e.index === 1)!;
+    // A floor lamp in the corner of walls 0 and 1, its back 7 cm off wall 1, its side a micron in from wall 0.
+    const size = { width: 1.01, depth: 0.3, height: 1.78 };
+    const at = { x: 4 - 0.07 - 0.15, z: 0 };
+    const half = (footprintOf(at, size, edge.facing).maxZ - footprintOf(at, size, edge.facing).minZ) / 2;
+    const lamp = piece('lamp', 'floor_lamp', 'floor_lamp', at.x, half + 1e-6, edge.facing, size.width, size.depth, size.height);
+    expect(footprintInRoom(footprintOf(lamp.position, lamp.size, lamp.rotation), r.polygon)).toBe(true);
+    const plan = { ...plan1(r), rooms: [r, next] };
+    const [settled] = settleToWalls([lamp], plan);
+    expect(pieceWall(settled, r)!.gap).toBeLessThan(0.03);
+    expect(footprintInRoom(footprintOf(settled.position, settled.size, settled.rotation), r.polygon)).toBe(true);
+  });
+
   it('moves a bed off the headboard panel on its wall, by the panel\'s depth', async () => {
     const { clearOfDecor } = await import('@/lib/design/aiProposal');
     const r = room('b', 'bedroom', 4.4, 4.2);
@@ -322,6 +371,22 @@ describe('the check moves pieces and decor, and seats chairs round a new table',
   const r = room('k', 'kitchen', 5, 4);
   const plan: FloorPlan = { rooms: [r], metresPerPixel: null, bounds: { width: 5, depth: 4 }, source: 'sample', imageUrl: null, wallThicknessM: 0.12, wallHeightM: 2.7 };
   const p = (id: string, kind: string, slot: string, x: number, z: number, rotation: number, w: number, d: number, h: number, productId = 1): PlacedItem => ({ id, roomId: 'k', kind, slot: slot as PlacedItem['slot'], position: { x, z }, rotation, elevationM: 0, size: { width: w, depth: d, height: h }, product: { productId, nameKa: 'x', pricePerUnit: 1, unit: 'piece', qty: 1, totalPrice: 1 } as PlacedItem['product'] });
+
+  it('hangs a print it swaps in over the TV clear of the TV on its unit, as the matcher hangs one', () => {
+    const lr = room('l', 'living_room', 5, 4);
+    const planL: FloorPlan = { ...plan, rooms: [lr] };
+    const q = (id: string, kind: string, x: number, z: number, w: number, d: number, h: number, elevationM: number, productId: number): PlacedItem => ({ ...p(id, kind, kind, x, z, 0, w, d, h, productId), roomId: 'l', elevationM });
+    // A TV unit against wall 0, a TV standing on it (0.5–1.4 m), a small print hung clear over the TV.
+    const unit = q('unit', 'tv_unit', 2.5, 0.21, 1.8, 0.42, 0.5, 0, 1);
+    const tv = q('tv', 'tv', 2.5, 0.15, 1.45, 0.26, 0.9, 0.5, 2);
+    const print = q('print', 'artwork', 2.4, 0.025, 0.5, 0.04, 0.4, 1.6, 3);
+    const catalog = [product(4, 'artwork', 90, 4, 60)];
+    const { items } = applyReviewFixes([unit, tv, print], [], { model: 'm', notes: {}, fixes: [{ target: 'print', action: 'replace', productId: 4, wallIndex: null, reason: '' }] }, planL, catalog);
+    const swapped = items.find((i) => i.id === 'print')!;
+    expect(swapped.product?.productId).toBe(4);
+    expect(swapped.elevationM).toBeGreaterThanOrEqual(tv.elevationM + tv.size.height);
+    expect(swapped.elevationM + swapped.size.height).toBeLessThanOrEqual(lr.heightM);
+  });
 
   it('seats the chairs round a replaced bistro table and takes out the one it has no seat for', () => {
     const table = p('t', 'dining_table', 'dining_table', 2.5, 2, 0, 1.6, 0.9, 0.76);

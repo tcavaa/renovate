@@ -8,9 +8,10 @@ import { generateScene, type GeneratedScene } from '@/lib/design/generateScene';
 import { generationRecordSchema } from '@/lib/validations/design.schema';
 import { GENERATION_CATALOG, generationPlan } from '../../helpers/generation';
 import { runSeed } from '../../helpers/generationAudit';
-import { fixturePlans } from '../../helpers/generationFixtures';
+import { fixtureCatalog, fixturePlans } from '../../helpers/generationFixtures';
 import { generatedFinish, styleFinishProduct, surfaceSpecs, withStyleFinishes } from '@/lib/design/surfaces';
 import { getStyle } from '@/lib/design/styles';
+import { studioParts } from '@/lib/design/studio';
 import type { FloorPlan, PlacedItem, PlanRoom } from '@/lib/design/types';
 
 const rect = (id: string, type: PlanRoom['type'], w: number, d: number): PlanRoom =>
@@ -126,6 +127,46 @@ describe('a generated flat draws each room from its own stream', () => {
         for (const id of ['bed', 'living']) expect(roomOf(other, id), `${id}, seed ${seed}, guest ${changed.type}`).toEqual(roomOf(base, id));
       }
     }
+  });
+
+  it('draws each half of a studio from a stream of its own: a change in the kitchen half leaves the living half as it was', () => {
+    // A studio 7 × 4.5 m: the kitchen half x 0–2.45, the living half the rest (`studioParts`).
+    const studio = refreshRoom({ id: 's', type: 'studio', name: 's', polygon: [{ x: 0, z: 0 }, { x: 7, z: 0 }, { x: 7, z: 4.5 }, { x: 0, z: 4.5 }], heightM: 2.8, areaM2: 0, perimeterM: 0, openings: [] });
+    const [kitchenHalf, livingHalf] = studioParts(studio)!;
+    expect([kitchenHalf.type, livingHalf.type]).toEqual(['kitchen', 'living_room']);
+    // A window on the kitchen half's end wall: the kitchen is laid out round it, the living half is not touched.
+    const windowed = refreshRoom({ ...studio, openings: [{ id: 's-w', roomId: 's', kind: 'window', wallIndex: 3, t: 0.5, widthM: 1.2, heightM: 1.4, sillM: 0.9, exterior: true }] });
+    const living = (items: PlacedItem[]) => items.filter((i) => i.id.startsWith(`s-p${livingHalf.index}-`)).map((i) => [i.id, i.kind, i.position, i.rotation, i.product?.productId ?? null]);
+    const kitchen = (items: PlacedItem[]) => items.filter((i) => i.id.startsWith(`s-p${kitchenHalf.index}-`)).map((i) => [i.id, i.position]);
+    // The real catalogue: the kitchen half's pieces draw their products from the same stage as the living half's.
+    const catalog = fixtureCatalog();
+    let kitchenChanged = 0;
+    for (const seed of [1, 2, 3, 4, 5, 6]) {
+      const draw = (room: PlanRoom) => {
+        const streams = rngStreams(seed);
+        const laid = layoutRoom(room, { roomRng: roomStreams(streams, 'layout') });
+        return { laid, matched: matchProducts(laid, catalog, { styleId: 'modern', rooms: [room], roomRng: roomStreams(streams, 'match') }) };
+      };
+      const plain = draw(studio);
+      const lit = draw(windowed);
+      if (JSON.stringify(kitchen(plain.laid)) !== JSON.stringify(kitchen(lit.laid))) kitchenChanged++;
+      expect(living(lit.laid), `seed ${seed}`).toEqual(living(plain.laid));
+      expect(living(lit.matched), `seed ${seed}`).toEqual(living(plain.matched));
+    }
+    // The window did change the kitchen half in some draws: the test is of something.
+    expect(kitchenChanged).toBeGreaterThan(0);
+  });
+
+  it('draws a studio piece\'s product from the half it was laid in, though it stands over the line', () => {
+    const studio = refreshRoom({ id: 's', type: 'studio', name: 's', polygon: [{ x: 0, z: 0 }, { x: 7, z: 0 }, { x: 7, z: 4.5 }, { x: 0, z: 4.5 }], heightM: 2.8, areaM2: 0, perimeterM: 0, openings: [] });
+    const [kitchenHalf, livingHalf] = studioParts(studio)!;
+    // A chair the layout laid in the kitchen half (its id says so), standing just over the line in the living half.
+    const chair: PlacedItem = { id: `s-p${kitchenHalf.index}-dining_chair-4`, roomId: 's', kind: 'dining_chair', slot: 'dining_chair', position: { x: 2.6, z: 2 }, rotation: 0, elevationM: 0, size: { width: 0.45, depth: 0.5, height: 0.85 }, product: null };
+    const asked: Array<string | undefined> = [];
+    const streams = rngStreams(3);
+    matchProducts([chair], fixtureCatalog(), { styleId: 'modern', rooms: [studio], roomRng: (roomId, part) => (asked.push(part), roomStreams(streams, 'match')(roomId, part)) });
+    expect(asked).toContain(`p${kitchenHalf.index}`);
+    expect(asked).not.toContain(`p${livingHalf.index}`);
   });
 
   it('records the seed it was drawn from, and the save route keeps it', () => {

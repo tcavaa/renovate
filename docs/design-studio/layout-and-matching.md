@@ -212,16 +212,21 @@ draws each stage from a stream of its own**. `rngStreams(seed)` gives, for a key
 from a hash of the seed and the key (`streamRng`: the same however many numbers other keys draw and
 in whatever order they are asked for; asking for a key again carries on its stream), and
 `roomStreams(streams, stage)` names a stage's per-room streams: `layout:<room>` (the room's
-placement and decor — both halves of a studio), `match:<room>` (its products, the kitchen run's
-material or unit), `match:<room>:way-out:<slot>` (a slot's way out, below), `bathroom:<room>` (its
-taps, bath mixer and dryer) and `finish:<room>` (its floor and walls). The engine, the matcher and
+placement and decor), `match:<room>` (its products, the kitchen run's material or unit),
+`match:<room>:way-out:<slot>` (a slot's way out, below), `bathroom:<room>` (its taps, bath mixer
+and dryer) and `finish:<room>` (its floor and walls). A studio's halves each lay out and match from
+a stream of their own, keyed by the half's name (`partName`: `p0`, `p1`, as its pieces' ids carry
+it) — `layout:<studio>:p0`, `match:<studio>:p1`; the matcher tells a slot's half by the half that
+laid it (`partOfId`, from the id; `partAt`, where it was laid, only for a piece with no half in its
+id) — so a change in the kitchen half leaves the living half's draw as it was. The engine, the matcher and
 the bathroom pass take them as `roomRng` beside their `rng` (which the tests and other callers
 still pass: one stream for everything they lay out); everything else that lays out or matches
 (adding a piece, a swap, a change of style) passes neither and is deterministic, so a person who
 swaps one product does not have the rest of the flat jump around.
 
 So a change in one room — a piece more or less, a wall moved, the room retyped, a door added —
-leaves every other room's draws as they were. When it once drew from one stream, a room that drew
+leaves every other room's draws as they were, and a change in one half of a studio the other
+half's. When it once drew from one stream, a room that drew
 one number more re-drew every room after it, and every count of `pnpm audit:generation` moved in
 rooms a fix never touched. What still reads another room is not a draw, and is meant to:
 
@@ -415,6 +420,9 @@ other place to stand).
 still to be matched at their archetype's. A slot that got no product is not there — it is in no
 later piece's way, nothing is measured off it and nothing hangs clear of it (`settled` holds the
 matched pieces only; a chair's turn at its table is counted off every slot gone through, `seen`).
+A countertop basin the matcher lifted to washing height still takes its floor for the pieces
+matched after it — the bathroom pass builds its vanity there: a shower cabin wider than its slot
+stood under one, no vanity could be built and the basin hung in the air.
 
 **Two pieces may touch by 2 cm, and a chair the engine tucked under its table may stand under
 it by half its depth** (`tuckedChair`, with the studio's pair rule `tucksUnder`). A seat the
@@ -526,7 +534,11 @@ own. The matcher re-measures every piece from the product it got, so the room st
   middle at 1.55 m, a print over the bed or the sofa, its middle at 1.45 m; each at least 15 cm over
   the piece's top, its own width, centred on it. With none of those pieces, any clear wall as before.
   **Nothing hangs into what stands below it** (`hangsIntoFloorPiece`): a mirror used to hang 45 cm
-  off the floor over the washing machine.
+  off the floor over the washing machine. **Nor into what already hangs under it on its wall**
+  (`hungClearOfHung`): a piece whose slot was laid over another hung piece hangs its own gap over
+  that piece's top — a print laid over the TV was hung 25 cm over the unit, inside the TV standing
+  on it — and stays where it was when that would take it through the ceiling. The AI check's swap
+  hangs its piece the same way (`rehungClear`); the studio's own swap keeps `rehung`.
 - **The height of a hung piece comes from the product and its rule** (`settledElevation`), never
   from the piece it replaces (a wall mirror swapped in for a floor mirror stood on the floor with
   it): a mirror's middle at 1.5 m, a print's at the rule's height (1.45 m over a bed or a sofa),
@@ -558,7 +570,9 @@ own. The matcher re-measures every piece from the product it got, so the room st
 - **Tidied once everything stands** (`designStore.generate`, after the decor is fitted; again
   after the AI check — `lib/design/aiProposal.ts`): every piece the engine stands against a wall
   back against it (`settleToWalls`, with what stands in front of it — the desk chair, the coffee
-  table — moved the same); nothing standing in built decor (`clearOfDecor`: moved off it by the
+  table — moved the same, each tested as the solid it is on the floor and kept inside its own room:
+  a step square to a wall drawn a hair off square is taken back into the room's bounds; a piece
+  that travels with its host, a bath's floor mixer, stays by its bath); nothing standing in built decor (`clearOfDecor`: moved off it by the
   decor's depth, `decorDepth`); the lamps and ceiling points under a cove's lowered panel hung from
   it (`underCeilingDecor`).
 - **What a slot can hold** (`slotPool`, before the draw): a basin that stands on the floor (60 cm or
@@ -682,7 +696,8 @@ chair tucked under its table and its bed flush in a corner at −π/2, both let 
 `tests/unit/design/clearance.test.ts`, `tests/unit/design/shelfRooms.test.ts`,
 `tests/unit/design/generationRandom.test.ts` (a stream per key the same whatever else is drawn;
 the same seed the same flat and seeds apart different flats; a room retyped or resized leaving
-every other room's pieces, products and finishes as they were; the seed recorded and kept by the
+every other room's pieces, products and finishes as they were, a window in a studio's kitchen half
+leaving its living half's pieces and products as they were; the seed recorded and kept by the
 save schema; the audit's seed of its own per fixture plan, so a room id two plans share draws two
 streams; every piece inside its room, a bed in every bedroom, every sofa drawn over 400
 generations and the style's own most often, the best without an `rng`; drawn finishes in their

@@ -42,7 +42,9 @@ number in its own commit, and nothing slides back.
 
 **A fix moves only the rooms it touches.** Each room draws its layout, its products, its bathroom
 pass and its floor and walls from a stream of its own, keyed by the stage and the room
-(`lib/design/random.ts`: `rngStreams`, `roomStreams` — [layout-and-matching.md](layout-and-matching.md#generating-is-random)).
+(`lib/design/random.ts`: `rngStreams`, `roomStreams` — [layout-and-matching.md](layout-and-matching.md#generating-is-random)),
+and each half of a studio its layout and products from one keyed by the half too
+(`layout:<studio>:p0`), so the owner's rules for one half are measured without the other's noise.
 When the flat drew from one stream, a fix that added, dropped or re-sized one piece made its room
 draw a number more or less and re-drew every room after it, so counts moved in rooms the fix never
 touched and the baseline could not be recorded for the noise. Now a count moves where the change
@@ -52,16 +54,26 @@ fallback room, one door and one window product). Because a stream is keyed by th
 the fixture plans reuse ids (175 rooms, 59 ids; r2 is a room in 15 plans, a bathroom in 6), each
 plan's draw *n* has a seed of its own (`runSeed(planId, n)`, the plan's id mixed into *n* × 1000 +
 7): one seed for every plan would draw every room of an id the same numbers in every plan, and the
-audit would sample far fewer draws than it has flats. The new draw needs the baseline recorded
-again, once, with `--allow-worse`: every count is re-drawn, so some rise and some fall on 120 flats
-(not done yet: `baseline.json` is still the per-room streams' draw with one seed for every plan,
-and until it is recorded the invariants test reports 8 counts worse and 7 better —
-[roadmap](../roadmap.md)). On 2,880 flats (24 draws) at two offsets of
+audit would sample far fewer draws than it has flats. Each new draw had the baseline recorded
+again, once, with `--allow-worse` (every count is re-drawn, so some rise and some fall on 120
+flats) — the plans' own seeds, and the studio halves' own streams. On 2,880 flats (24 draws) at two offsets of
 the seeds, the one stream of main and the streams per room, with each plan's own seed, agree within
 the draw's noise: mirror 860 and 864 against 804 and 856, sink 216 and 176 against 240 and 220,
 basin height 471 and 465 against 435 and 466, door zone 220 and 212 against 224 and 237. The sink is
 noise too: it moves in one room, #375's r6, missing its basin 96 and 100 times in 1,200 draws of
 main against 105 and 89 per room (and #392's r6 381 and 370 against 394 and 375 in 600).
+
+**The rare clashes left after three waves are fixed** (O3, O4, W2): on 720 flats `floor_overlap`,
+`hung_clash`, `basin_in_air`, `in_joinery` and `out_of_room` are 0, each case traced to a step
+that placed or moved a piece without testing it again — the bath's floor mixer tested as a ghost
+(neither in a piece's way nor a piece in its) and pushed to the wall into the washer, the dryer
+stacked under a mirror wider than its basin, a print hung inside the TV (by the matcher, and by the
+AI check's swap), a shower cabin under a lifted basin, a WC's box built into the basin beside it, a
+corner piece settled 0.04 mm through a wall drawn off square — and the invariants test holds all
+five at 0. At 12 draws (1,440 flats) two kinds are left, of other causes and not fixed yet: a
+washer's own column built into the vanity planned for the basin beside it (`in_joinery` 5 — the
+column's stretch does not read the vanities still to be built) and a WC in a shower's tray
+(`in_shower_tray` 1) — [roadmap](../roadmap.md).
 
 ## How it was audited
 
@@ -401,6 +413,12 @@ Severity: **high** = seen by anyone who generates; **medium** = wrong in some ro
   wardrobe is as deep as the hall's clear width in front of its wall's free span (`widthInFront`),
   and generation's joinery keeps out of every door's way, across the room too (`freeStretch` with
   `strict`) — `joinery_tight` 3 → 0 in 360 flats; generation's corner no longer allows 25 cm (W7).
+  *Fixed:* the residual cases too — a floor mixer is tested as the solid it is (`isPlacementValid`
+  with `solid`, which `blockingItems` honours too: its archetype is a ghost, so nothing had stood in
+  its way and no piece moved had found it in its own) and the tidy-up leaves it
+  by its bath (`settleToWalls` passes over `hostOf`'s companions) and keeps a settled piece inside
+  its room (`shiftWithFront`), and a WC's box stops at what stands beside the WC on its wall
+  (`wcBoxes`) — `floor_overlap` 3 → 0, `out_of_room` 1 → 0, `in_joinery` 1 → 0 in 720 flats.
 - [ ] **O4 (medium) — Hung pieces.** The bathroom mirror's middle is set at 1.5 m whatever is under
   it but a floor piece (`settledElevation`, `matcher.ts:641-660`); the tap is added later at the rim
   plus 12 cm (`bathroom.ts:219`) — about 1.02 m, under a mirror that starts at 1.12 m: 421 in each
@@ -419,6 +437,13 @@ Severity: **high** = seen by anyone who generates; **medium** = wrong in some ro
   1.75 m 105 → 38 of 308 (4 before the mirror was raised). Of the 38, 22 hang over the 43 cm black
   panel mixer with its wall plate (a wall tap) and the rest are tall mirrors over high basins —
   whether such a tap or mirror goes there is the owner's rule. The pendant is as it was.
+  *Partly:* hung pieces no longer run into one another — the matcher hangs a piece clear of what
+  already hangs under it on its wall (`hungClearOfHung`: a print over a TV on its stand; the AI
+  check's swap the same, `rehungClear`), the washer's column and its dryer go where they stand clear
+  of a mirror over them (`hungOver`), and where none does the mirror gives way to the best mirror of
+  the style that hangs clear of them at a mirror's height (`mirrorClearOfColumn`; with none it stays
+  as it hung — never lifted out of sight) — `hung_clash` 3 → 0 in 720 flats (6 → 0 in 1,440). The
+  matcher still hangs a mirror without a fit test (a 1.29 m mirror over a 55 cm basin's slot).
 - [x] **O5 (low) — Two main lights at one spot.** The program's `pendant` (an item with a product)
   and the wiring's ceiling light (a point with a product) are both put in the middle of the room —
   `electrical.ts` never reads the pendant: 59 % of bedroom pendants, 53 % of living-room ones and
@@ -812,6 +837,9 @@ outputs were read, not re-run.
   granite basin that hung in the air for the window over it and now stands on the vanity built
   under that window's sill, its rim at a metre — like the 11 such basins on a vanity before. What a
   basin too tall for any vanity should become (a lower vanity, another basin) is the owner's rule.
+  *Fixed:* a lifted basin also takes its floor for the pieces the matcher fits after it, so a
+  shower cabin is no longer stood under it and its vanity can be built — the last `basin_in_air`
+  in 720 flats, 1 → 0.
 - [x] **W3 (high) — A wall of wardrobe is built without looking in front of it.** `fitWardrobes`
   asks only for a free stretch as deep as the wardrobe (`bedroom.ts:41`). Of 402 built, 217 have
   something within 60 cm of their doors and 129 within 30 cm — the bed (97) or a nightstand (31).

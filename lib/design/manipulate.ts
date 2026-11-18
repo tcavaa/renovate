@@ -179,15 +179,17 @@ export function footprintOnFloor(footprint: Footprint, floor: readonly PlanRoom[
  * that runs on across room separators).
  *
  * Rugs, pendants, artwork and curtains are excluded: a rug is *meant* to sit under the coffee
- * table, and a ceiling light shares its floor space with everything below it.
+ * table, and a ceiling light shares its floor space with everything below it. With `solid`
+ * (generation's own tests, `isPlacementValid`), a ghost that stands on the floor as a real object —
+ * a bath's floor mixer, a mirror standing on the floor (`standsSolid`) — is in the way too.
  */
-export function blockingItems(items: PlacedItem[], roomId: string | readonly string[], ignoreId: string) {
+export function blockingItems(items: PlacedItem[], roomId: string | readonly string[], ignoreId: string, solid = false) {
   const inRoom = (id: string) => (typeof roomId === 'string' ? id === roomId : roomId.includes(id));
   return items.filter(
     (item) =>
       inRoom(item.roomId) &&
       item.id !== ignoreId &&
-      !getArchetype(item.kind)?.ghost &&
+      (!getArchetype(item.kind)?.ghost || (solid && standsSolid(item))) &&
       item.elevationM < 0.05
   );
 }
@@ -203,13 +205,13 @@ export function blockingItems(items: PlacedItem[], roomId: string | readonly str
  * against everything but the table (`placeSeatAroundTable`), and the studio outlined the chair
  * and the table it had tucked it under red — nor could a person push a chair in themselves.
  */
-function blockersFor(item: PlacedItem, others: PlacedItem[], floor: readonly PlanRoom[]): PlacedItem[] {
-  if (getArchetype(item.kind)?.ghost) return [];
+function blockersFor(item: PlacedItem, others: PlacedItem[], floor: readonly PlanRoom[], solid = false): PlacedItem[] {
+  if (getArchetype(item.kind)?.ghost && !(solid && standsSolid(item))) return [];
   // A hung piece is in the way only of what reaches up to it: wall cabinets hang over the
   // worktop, not over the fridge — the floor pieces under every spot along the run made each one
   // red, and a person could not move the cabinets at all.
   const hung = item.elevationM >= 0.05;
-  return blockingItems(others, floor.map((room) => room.id), item.id).filter(
+  return blockingItems(others, floor.map((room) => room.id), item.id, solid).filter(
     (other) => !tucksUnder(item, other) && (!hung || other.size.height > item.elevationM + 0.02)
   );
 }
@@ -715,13 +717,27 @@ export function rotateItem(
  * Does the item, as it stands, fit — inside its room and clear of everything else? What the
  * selection outline turns red on, and what a drop is judged by. Given the plan's `rooms`, the
  * rooms across its room's separators are floor it may stand on too (`floorOf`).
+ *
+ * `solid`: a piece whose archetype is only a rendering hint (`ghost`) but that stands on the floor
+ * as a real object — a bath's floor mixer, a mirror standing on the floor — is tested against what
+ * stands there like any other piece, and is in the way of any other piece tested. Generation's
+ * passes place and move pieces and ask for this; the studio's drag does not (a person may set a
+ * floor mixer down where they like).
  */
-export function isPlacementValid(room: PlanRoom, item: PlacedItem, others: PlacedItem[], rooms?: readonly PlanRoom[]): boolean {
+export function isPlacementValid(room: PlanRoom, item: PlacedItem, others: PlacedItem[], rooms?: readonly PlanRoom[], solid = false): boolean {
   const floor = floorOf(room, rooms);
   const footprint = footprintOf(item.position, item.size, item.rotation);
   if (!footprintOnFloor(footprint, floor)) return false;
   const cover = itemFootprints(item);
-  return !blockersFor(item, others, floor).some((other) => coverOverlaps(cover, itemFootprints(other)));
+  return !blockersFor(item, others, floor, solid).some((other) => coverOverlaps(cover, itemFootprints(other)));
+}
+
+/** Pieces that lie flat (a rug, a door mat) or hang at a window: nothing to walk or stand into, solid or not. */
+const LIES_FLAT: ReadonlySet<string> = new Set(['rug', 'door_mat', 'curtain']);
+
+/** A piece standing on the floor as a real object (not hung, not from the ceiling, not lying flat), ghost archetype or not. */
+export function standsSolid(item: Pick<PlacedItem, 'kind' | 'slot' | 'elevationM'>): boolean {
+  return item.elevationM < 0.05 && !LIES_FLAT.has(item.slot) && getArchetype(item.kind)?.placement.type !== 'ceiling';
 }
 
 /**

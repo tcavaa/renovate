@@ -103,7 +103,8 @@ The reference library's rules, as code:
   plasterboard).
 - **box** — a wall-hung WC's installation box (`lib/design/decor/wcBox.ts`): plasterboard 20 cm
   deep on the wall behind the WC, 80 cm wide (the whole wall when a sliver under 30 cm would be
-  left beside it), half height (1 m, its top a shelf) or to the ceiling (`params.full`, the card's
+  left beside it; stopped at a piece standing on that wall beside the WC within its depth — a basin,
+  a shower's tray — as at a door), half height (1 m, its top a shelf) or to the ceiling (`params.full`, the card's
   "სიმაღლე"; the store sets the band with it). Slots: body (gypsum), face (tile or stone,
   optional — without it the box is painted, the body's colour). Measured as its front, its two
   sides and, half height, its top. **Not the AI's**: `AI_DECOR_FAMILIES` leaves it out of the
@@ -483,7 +484,8 @@ the project opens furnished afterwards.
    can do without (never the bed, the sofa, the desk, the dining table, the toilet, the basin or the
    kitchen), at most six fixes a room. `reviewedScene` → `applyReviewFixes`: a replacement
    goes where the old piece stood, its back on the same wall (`fitSwapped`), a hung one at the height
-   it should hang (`settledElevation`), only if it fits; the nightstands, coffee table or desk chair
+   it should hang (`settledElevation`) and clear of what hangs under it on its wall, as the matcher
+   hangs one (`rehungClear` — a print swapped in over a TV on its unit), only if it fits; the nightstands, coffee table or desk chair
    of a replaced bed, sofa or desk move to the new one (`settledPosition`), one with no room beside it
    goes. In every room the check changed, the fittings follow the furniture again as at generation
    (`suggestElectrical`, `withFixtureProducts`, the calculation's choices, `underCeilingDecor`; a

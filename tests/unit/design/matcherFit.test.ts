@@ -87,6 +87,36 @@ describe('a slot that got no product', () => {
   });
 });
 
+describe('a basin lifted for its vanity', () => {
+  it('still takes its floor: a piece matched after it does not stand under it', () => {
+    const room = rect('b', 'bathroom', 3, 2.4);
+    // A countertop basin's slot at the wall, and a shower's beside it: the cabin picked for it is
+    // wider than the shower's slot and reaches under the basin, lifted to washing height.
+    const sink = slot('sink', 'b', 'sink', 'sink', 0.6, [0.62, 0.48, 0.88]);
+    const shower = slot('shower', 'b', 'shower', 'shower', 1.35, [0.8, 0.8, 2.05]);
+    const catalog = [product(1, 'sink', 64, 37, 10), product(2, 'shower', 126, 97, 219), product(3, 'shower', 25, 15, 210)];
+    const [basin, placed] = match([sink, shower], catalog, [room], { picks: { 'shower|b': 2 } });
+    expect(basin.product?.productId).toBe(1);
+    expect(basin.elevationM).toBeGreaterThan(0.5);
+    expect(placed.product?.productId).toBe(3);
+  });
+});
+
+describe('a piece hung over another', () => {
+  it('hangs clear of what hangs or stands on the furniture under it, not only of the furniture', () => {
+    const room = rect('l', 'living_room', 5, 4);
+    // A TV unit, the TV slot over it and a print laid over the TV, as the layout lays a TV wall.
+    const unit = slot('unit', 'l', 'tv_unit', 'tv_unit', 2.5, [1.8, 0.42, 0.5]);
+    const tv = slot('tv', 'l', 'tv', 'tv', 2.5, [1.45, 0.08, 0.82], { elevationM: 0.65, position: { x: 2.5, z: 0.04 } });
+    const print = slot('print', 'l', 'artwork', 'artwork', 2.4, [0.95, 0.05, 0.7], { elevationM: 1.15, position: { x: 2.4, z: 0.025 } });
+    // The TV the catalogue has stands on its own feet, on the unit's top, up to 1.4 m.
+    const [, onUnit, hung] = match([unit, tv, print], [product(1, 'tv_unit', 160, 40, 50), product(2, 'tv', 145, 26, 90), product(3, 'artwork', 14, 16, 20)], [room]);
+    expect(onUnit.elevationM).toBeCloseTo(0.5);
+    expect(hung.elevationM).toBeGreaterThanOrEqual(onUnit.elevationM + onUnit.size.height);
+    expect(hung.elevationM + hung.size.height).toBeLessThanOrEqual(room.heightM);
+  });
+});
+
 describe('what the layout kept clear', () => {
   // A door in the west wall by the north-west corner: its way is the floor 90 cm into the room
   // (x 0–0.9), as wide as the door (z 0.15–1.05).

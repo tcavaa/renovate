@@ -55,6 +55,8 @@ describe('generating whole flats', () => {
       'joinery_tight',
       'wardrobe_blocked',
       'in_joinery',
+      'floor_overlap',
+      'out_of_room',
     ];
     const counts = sortedCounts(measure.counts);
     for (const metric of fixed) expect(counts[metric] ?? 0, metric).toBe(0);

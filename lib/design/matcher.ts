@@ -20,6 +20,7 @@ import { KITCHEN_CIRCULATION_M } from './rules';
 import { styleAffinity } from './styles';
 import { guideFit, styleRejects } from './styleGuide';
 import { seededRng, weightedOrder, weightedPick, type RoomRng, type Rng } from './random';
+import { isStudio, partAt, partName, partOfId } from './studio';
 import type { PlacedItem, PlanRoom, SceneProduct, StyleId, Vec2 } from './types';
 
 /** A catalogue row as the client receives it. */
@@ -202,13 +203,19 @@ export function matchProducts(
   // stream per room (`roomRng`), each slot draws from its room's, and a way out from one of its own.
   let lastDraw = 0;
   const flatRng: Rng | undefined = options.rng && (() => (lastDraw = options.rng!()));
-  const rngOf = (roomId: string): Rng | undefined => (options.roomRng ? options.roomRng(roomId) : flatRng);
+  // A studio's half draws from a stream of its own (`partName`), as it is laid out from one: the
+  // half that laid the piece (its id, `partOfId`), else — a piece with no half in its id — the half it stands in.
+  const rngOf = (slot: PlacedItem): Rng | undefined => {
+    if (!options.roomRng) return flatRng;
+    const room = roomsById.get(slot.roomId);
+    return options.roomRng(slot.roomId, room && isStudio(room) ? partName({ index: partOfId(slot.roomId, slot.id) ?? partAt(room, slot.position) }) : undefined);
+  };
   const wayOutOf = (slot: PlacedItem): Rng => (options.roomRng ? options.roomRng(slot.roomId, `way-out:${slot.id}`) : seededRng(lastDraw * 2 ** 32));
   // The rooms whose set of dining chairs has its first chair.
   const setStarted = new Set<string>();
 
   const matched = items.map((slotItem, index) => {
-    const rng = rngOf(slotItem.roomId);
+    const rng = rngOf(slotItem);
     const finish = (matched: PlacedItem) => {
       if (matched.product) settled.push(matched);
       return matched;
@@ -368,7 +375,7 @@ export function matchProducts(
         used.add(placed.product.id);
         usedByKind.set(piece.kind, used);
         const size = sizeFromProduct(placed.product, piece);
-        const elevationM = settledElevation(piece, size, placed.product, settled);
+        const elevationM = hungClearOfHung(piece, size, settledElevation(piece, size, placed.product, settled), settled, room);
         return finish({
           ...piece,
           position: hungPosition(piece, size, elevationM, settled) ?? placed.position,
@@ -570,7 +577,11 @@ export function placeFitting(
     const rule = getArchetype(other.kind)?.placement;
     return rule?.type === 'relative' && rule.to === item.slot && (rule.beside != null || rule.gapM != null || other.slot === 'dining_chair');
   };
-  const blockers = blockingItems(others, room.id, item.id).filter((other) => !followers(other)).map((other) => ({
+  // A basin the engine laid on the floor and this matcher lifted to washing height (`settledElevation`)
+  // still takes its floor — its vanity is built under it (`fitBathrooms`): a shower cabin matched
+  // after it stood under it, and the vanity could not be built.
+  const lifted = others.filter((other) => other.roomId === room.id && other.id !== item.id && other.elevationM >= 0.05 && (slots.get(other.id)?.elevationM ?? 1) < 0.05 && !getArchetype(other.kind)?.ghost);
+  const blockers = [...blockingItems(others, room.id, item.id), ...lifted].filter((other) => !followers(other)).map((other) => ({
     other,
     box: footprintOf(other.position, other.size, other.rotation),
     chair: tuckedChair(item, other, slots),
@@ -899,6 +910,9 @@ function hungPosition(item: PlacedItem, size: PlacedItem['size'], elevationM: nu
   return { x: item.position.x + forward.x * shift, z: item.position.z + forward.z * shift };
 }
 
+/** The gap a hung piece keeps over what is under it once matched, where its archetype names none. */
+export const MATCHED_ABOVE_GAP_M = 0.12;
+
 /**
  * The height a matched piece stands or hangs at. Floor pieces stay on the floor — a basin too
  * short to stand (countertop, wall-hung) is lifted to wash at, its top at 86 cm. A piece on a
@@ -922,8 +936,27 @@ export function settledElevation(item: PlacedItem, size: PlacedItem['size'], pro
   const below = standingBelow(item, size, settled);
   const middle = item.slot === 'mirror' ? 1.5 : below.length > 0 ? (rule.aboveHeightM ?? rule.heightM) : rule.heightM;
   let elevation = middle - size.height / 2;
-  for (const piece of below) elevation = Math.max(elevation, piece.size.height + (rule.aboveGapM ?? 0.12));
+  for (const piece of below) elevation = Math.max(elevation, piece.size.height + (rule.aboveGapM ?? MATCHED_ABOVE_GAP_M));
   return round2(Math.max(0.05, elevation));
+}
+
+/**
+ * A piece hung on a wall raised clear of what already hangs under it on that wall — a TV on its
+ * stand on the unit's top, under the print laid over it (`settledElevation` reads only what stands on
+ * the floor, and hung the print 25 cm over the unit, inside the TV) — by the gap the piece keeps
+ * over what is under it. "Under": what hangs there with its middle below the slot's, as laid. Never
+ * lowered, and left where it is when clearing it would take it through the ceiling. Pure.
+ */
+function hungClearOfHung(item: PlacedItem, size: PlacedItem['size'], elevationM: number, settled: readonly PlacedItem[], room: PlanRoom | undefined): number {
+  const rule = getArchetype(item.kind)?.placement;
+  if (rule?.type !== 'wall-mounted' || rule.stretch || elevationM < 0.05) return elevationM;
+  const box = footprintOf(item.position, { ...size, depth: Math.max(size.depth, 0.05) }, item.rotation);
+  const middle = item.elevationM + item.size.height / 2;
+  const under = settled.filter((p) => p.roomId === item.roomId && p.id !== item.id && p.elevationM >= 0.05 && p.elevationM + p.size.height / 2 < middle && footprintsOverlap(box, footprintOf(p.position, { ...p.size, depth: Math.max(p.size.depth, 0.05) }, p.rotation), 0));
+  const clashing = under.filter((p) => p.elevationM + p.size.height > elevationM + 0.02 && p.elevationM < elevationM + size.height - 0.02);
+  if (clashing.length === 0) return elevationM;
+  const bottom = round2(Math.max(...clashing.map((p) => p.elevationM + p.size.height)) + (rule.aboveGapM ?? MATCHED_ABOVE_GAP_M));
+  return room && bottom + size.height > room.heightM ? elevationM : Math.max(elevationM, bottom);
 }
 
 /** What stands on the floor under a piece hung on a wall, at the size it would have there. */
@@ -956,6 +989,16 @@ function tvUnitUnder(item: PlacedItem, settled: PlacedItem[]): PlacedItem | unde
  */
 export function rehung(original: PlacedItem, swapped: PlacedItem, product: CatalogProduct, settled: PlacedItem[]): PlacedItem {
   const elevationM = settledElevation(original, swapped.size, product, settled);
+  return { ...swapped, elevationM, position: hungPosition(original, swapped.size, elevationM, settled) ?? swapped.position };
+}
+
+/**
+ * `rehung` as the matcher hangs a piece when it generates: clear, too, of what already hangs under
+ * it on its wall (`hungClearOfHung` — a print swapped in over a TV on its unit). The AI check's
+ * swap; the studio's own swap keeps `rehung`.
+ */
+export function rehungClear(original: PlacedItem, swapped: PlacedItem, product: CatalogProduct, settled: PlacedItem[], room: PlanRoom | undefined): PlacedItem {
+  const elevationM = hungClearOfHung(original, swapped.size, settledElevation(original, swapped.size, product, settled), settled, room);
   return { ...swapped, elevationM, position: hungPosition(original, swapped.size, elevationM, settled) ?? swapped.position };
 }
 

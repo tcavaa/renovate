@@ -235,7 +235,11 @@ How stage 1 built it — **the bathroom pass** (`lib/design/bathroom.ts`, `fitBa
   the matcher's gap over a piece (12 cm, `settledElevation`; `hungClearOfBasin`), never lowered and
   never through the ceiling. Over a tall wall tap (the 43 cm black panel mixer with its wall plate)
   or under a tall mirror on a high basin, its middle ends over 1.75 m (38 of 308 bathroom mirrors in
-  360 flats): whether such a tap goes under a mirror at all is a rule still to be decided.
+  360 flats): whether such a tap goes under a mirror at all is a rule still to be decided. Once
+  the washers' columns stand, a mirror the column could stand nowhere clear of (below) gives way to
+  the best mirror of the style that hangs clear of the washer and the dryer at the matcher's height,
+  clear of the basin and the tap (`mirrorClearOfColumn`); with none it stays as it hung — not raised
+  over the dryer out of a person's sight: whether the mirror or the dryer gives way is the owner's.
 - **Taps** (BA-8, BA-18): every basin not sold with its tap (`includesTap`: "…with … tap/mixer")
   gets one — a wall tap 12 cm over the rim, or a deck tap behind the bowl on the vanity or on a
   standing basin's top; where the basin leaves no deck behind it on the vanity the tap goes on the
@@ -251,6 +255,10 @@ How stage 1 built it — **the bathroom pass** (`lib/design/bathroom.ts`, `fitBa
   it (a vanity on the next wall 91 cm from the WC's middle); and a WC with its back on its wall is
   measured where it will stand once its box is built, 20 cm out (`WC_BOX_DEPTH_M`). A **dryer** (`dryer`, the library's tumble dryer) stacked on the
   machine inside the column at the `premium` budget level with a ceiling of 2.2 m or more (G-29).
+  The column goes where it and its dryer stand clear of what hangs on the wall over them (a
+  mirror wider than its basin, `hungOver`): beside the vanity, else round the machine on its own
+  wall; where neither is clear, where it would have gone, and the mirror is raised clear of the
+  dryer (above).
 - **Bath by style** (BA-16–18): Modern a freestanding bath (`slotPool` leaves built-in ones out);
   Scandinavian and Industrial a built-in one (a bath only from 9 m², `SHOWER_FIRST_STYLES`,
   `BATH_WITH_SHOWER_M2` — the shower first), boxed and tiled to just under its rim (a `box` piece,
@@ -258,8 +266,12 @@ How stage 1 built it — **the bathroom pass** (`lib/design/bathroom.ts`, `fitBa
   side and 6 cm over the rim. The **mixer** at the bath's head (the end nearer a corner): on the
   wall over a boxed bath (`isWallTap`), standing on the floor by a freestanding one — where it
   stands clear (`standsClear`: in the room, off the other pieces and a shower's tray, the joinery,
-  a door's way and the floor the layout kept clear), else at the bath's other end, else a wall mixer
-  over the head when the bath has a wall, and only else where it was put.
+  a door's way and the floor the layout kept clear — tested as the solid it is, though its archetype
+  is a ghost, `isPlacementValid(…, solid)`, and in the way of what the pass and the tidy-up move
+  after it), else at the bath's other end, else a wall mixer
+  over the head when the bath has a wall, and only else where it was put. The tidy-up after
+  generating leaves it there (`settleToWalls` passes over a piece that travels with its host,
+  `hostOf`): it had pushed a floor mixer back to the wall behind it, into the washer.
 - **What the pass moves is tested as it is put** (`standsClear`): the washer is moved into a column
   beside the vanity only where it then stands clear, else its column is built where it stands
   (moved to the wall's end only where that is clear too, else round the machine as the engine put it).
@@ -267,7 +279,9 @@ How stage 1 built it — **the bathroom pass** (`lib/design/bathroom.ts`, `fitBa
   along the room's length (`alongLength`); a shower-door product is never taken for the shower
   (`isShowerDoor`) — the glass is built.
 - **WC** (BA-4, BA-5): it stands in the middle of its wall (+8 at the middle); a WC set down in the
-  studio is boxed too (`withWcBoxes`).
+  studio is boxed too (`withWcBoxes`). Its box (`wcBoxes`) stops at what stands on its wall
+  within its depth beside the WC — a basin on a console, a shower's tray — as it stops at a door
+  or a window, never short of the WC's own width; built after the basin stood, it ran into it.
 - **Towel shelf and stool** (BA-19, BA-20): both from 6 m² in the bathroom's program, the stool 60 %
   of the time; the shelf only at the `premium` budget (`slotPool`), else the towels hang on the
   heated rail, which hangs over the WC — centred on it, its bottom 10 cm over the WC's box

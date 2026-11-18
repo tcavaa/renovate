@@ -237,8 +237,9 @@ it out and the overlay says the AI designer could not, and why.
 decor, the products and the floors and walls vary between the good options
 ([layout-and-matching.md](layout-and-matching.md#generating-is-random)); nothing else is random.
 Each room draws each of those from a stream of its own, keyed by the stage and the room
-(`rngStreams`, `roomStreams` in `lib/design/random.ts`), so a change in one room leaves every
-other room's draw as it was; what still reads across rooms (a product used in a room before drawn
+(`rngStreams`, `roomStreams` in `lib/design/random.ts`) — and each half of a studio its layout and
+its products from one keyed by the half too (`layout:<studio>:p0`) — so a change in one room (or
+one half) leaves every other room's draw as it was; what still reads across rooms (a product used in a room before drawn
 less often, the budget level, the flat's one floor from its lead room, the washer's fallback room,
 one door and one window product) is listed there.
 **The seed is recorded**: `generateScene` writes the seed it was given into the generation record
@@ -288,7 +289,7 @@ calculator's picks landing on their surfaces), `budget.test.ts` (what the flat a
 whole flat after generating), `tests/unit/design/generateScene.test.ts` (the store and
 `generateScene` make the same flat for a seed; the seed the browser drew is recorded and draws the
 flat again), `tests/unit/design/generationRandom.test.ts` (a stream per room: a room retyped or
-resized leaves the others' draws as they were; the audit's seed of its own per fixture plan), `tests/unit/design/generationJob.test.ts` and
+resized leaves the others' draws as they were, a window in a studio's kitchen half its living half's; the audit's seed of its own per fixture plan), `tests/unit/design/generationJob.test.ts` and
 `tests/integration/design-job.test.ts` (the server's generation job),
 `e2e/design-studio.spec.ts`. Nothing tests `designStepOrder` / `nextStep`, `generate` clearing
 the versions and history, or `ensureExistingVersion` / `restoreVersion`.

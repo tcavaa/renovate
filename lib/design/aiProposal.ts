@@ -9,13 +9,13 @@
  * actually put the bed, the sofa or the TV unit (`lib/design/decor/resolve`).
  */
 
-import { applySwap, isKitchenFurniture, PAIRED_SLOTS, rehung, settledPosition, workingFloor, type CatalogProduct } from './matcher';
+import { applySwap, isKitchenFurniture, PAIRED_SLOTS, rehungClear, settledPosition, workingFloor, type CatalogProduct } from './matcher';
 import { arrangedOff } from './arrangedOff';
 import { getArchetype } from './catalog';
-import { carryCompanions, carryRiders, companionsOf, housedIds } from './decor/housing';
+import { carryCompanions, carryRiders, companionsOf, hostOf, housedIds } from './decor/housing';
 import { seatSlots } from './autoLayout';
 import { decorDepth, fitLight, paramsOf } from './decor/layout';
-import { blocksWindow, fitSwapped, footprintInRoom, footprintOf, footprintsOverlap, inDoorway, isPlacementValid, pieceWall, type Footprint } from './manipulate';
+import { blocksWindow, clampInsideRoom, fitSwapped, footprintInRoom, footprintOf, footprintsOverlap, inDoorway, isPlacementValid, pieceWall, type Footprint } from './manipulate';
 import { roomEdges, type PlanEdge } from './planGeometry';
 import type { AiReview } from './aiReview';
 import { finishFromProduct, isWetRoom, surfaceOptions, surfaceSpecs } from './surfaces';
@@ -294,30 +294,43 @@ const IN_FRONT: Record<string, string> = { office_chair: 'desk', coffee_table: '
 
 /**
  * `item` moved by `step` along its facing, with the pieces arranged in front of it moved the same,
- * when all of them stand well there (judged without one another); null when they do not.
+ * when all of them stand well there (judged without one another); null when they do not. A piece
+ * that stood inside its own room stays inside it: a step square to a wall drawn a hair off square
+ * drifts along the next wall by as much, and is taken back into the room's bounds
+ * (`clampInsideRoom`) — the tidy-up is no reason to cross a room separator's line or a wall.
  */
 function shiftWithFront(item: PlacedItem, step: number, out: PlacedItem[], room: PlanRoom, rooms: readonly PlanRoom[]): PlacedItem[] | null {
   const forward = { x: Math.sin(item.rotation), z: Math.cos(item.rotation) };
-  const move = (p: PlacedItem) => ({ ...p, position: { x: p.position.x + forward.x * step, z: p.position.z + forward.z * step } });
+  const inRoom = (p: PlacedItem) => footprintInRoom(footprintOf(p.position, p.size, p.rotation), room.polygon);
+  const move = (p: PlacedItem) => {
+    const moved = { ...p, position: { x: p.position.x + forward.x * step, z: p.position.z + forward.z * step } };
+    if (!inRoom(p) || inRoom(moved)) return moved;
+    const kept = { ...moved, position: clampInsideRoom(room, moved.position, moved.size, moved.rotation) };
+    return inRoom(kept) ? kept : moved;
+  };
   // …and a TV standing on a TV unit, with it.
   const front = out.filter((p) => p.roomId === item.roomId && !p.locked && (IN_FRONT[p.kind] === item.slot || (item.slot === 'tv_unit' && p.slot === 'tv' && Math.abs(p.elevationM - item.size.height) < 0.02)));
   const group = [item, ...front];
   const moved = group.map(move);
   const ids = new Set(group.map((p) => p.id));
-  const rest = out.filter((p) => !ids.has(p.id));
-  return moved.every((p) => isPlacementValid(room, p, rest, rooms)) ? moved : null;
+  // What travels with a piece moved (a bath's floor mixer, `hostOf`) is not in its way.
+  const rest = out.filter((p) => !ids.has(p.id) && !ids.has(hostOf(p, out)?.id ?? ''));
+  // Tested as what each is on the floor (`solid`): a ghost's archetype is a rendering hint, not floor
+  // nobody needs — a floor mixer neither stands in a piece nor has a piece pushed into it.
+  return moved.every((p, k) => isPlacementValid(room, p, rest, rooms, true) && (!inRoom(group[k]) || inRoom(p))) ? moved : null;
 }
 
 /**
  * Every piece the engine stands against a wall back against it where it has come to stand off it —
  * a swap, a fit or a check nudged it (a chest of drawers 48 cm off its wall) — if it stands well
  * there; given `only`, only the pieces it picks (and what stands in front of them). A locked piece
- * is left. Pure.
+ * is left, and so is a piece that travels with its host (`hostOf`: a bath's floor mixer stands a
+ * hand's width off its bath where the bathroom pass put it, not against the wall behind it). Pure.
  */
 export function settleToWalls(items: PlacedItem[], plan: FloorPlan, only?: (item: PlacedItem) => boolean): PlacedItem[] {
   const out = [...items];
   out.forEach((item) => {
-    if (item.locked || !wallPiece(item) || (only && !only(item))) return;
+    if (item.locked || !wallPiece(item) || (only && !only(item)) || hostOf(item, out)) return;
     const room = plan.rooms.find((r) => r.id === item.roomId);
     const wall = room && pieceWall(item, room, 0.7);
     if (!room || !wall || wall.gap <= 0.03) return;
@@ -491,7 +504,7 @@ export function applyReviewFixes(items: PlacedItem[], decor: DecorPiece[], revie
       // end of the run, not 2 cm under its wall cabinets.
       // A basin on its vanity stays on the vanity's top, where it stands (the rulebook's bathroom pass).
       const onVanity = item.slot === 'sink' && item.elevationM > 0.3;
-      const hung = onVanity ? { ...swapped, elevationM: item.elevationM, position: item.position } : rehung(item, swapped, product, others);
+      const hung = onVanity ? { ...swapped, elevationM: item.elevationM, position: item.position } : rehungClear(item, swapped, product, others, room);
       placed = hung.elevationM >= 0.05 ? hung : fitSwapped(room, { ...hung, position: settledPosition(item, hung.size, room, others) }, others, plan.rooms);
     } else if (fix.action === 'to_wall' || fix.action === 'move_to_wall') {
       // What it takes along is in nothing's way of it; the rest of the room is, and so is the floor kept clear.

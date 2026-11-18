@@ -17,7 +17,7 @@
  * Pure: no THREE, no React, no randomness but the `rng` handed in.
  */
 
-import { partRoom, studioParts } from './studio';
+import { partName, partRoom, studioParts } from './studio';
 import { closestOnSegment } from './walls';
 import type { RoomType } from '@/lib/calculator/types';
 import {
@@ -261,7 +261,7 @@ function areasOfType(rooms: PlanRoom[], type: RoomType, options: LayoutOptions):
     const parts = studioParts(room);
     if (!parts) return room.type === type ? [{ room, obstacles, idPrefix: '' }] : [];
     const keepouts = options.respectDoorSwing === false ? [] : doorKeepouts(room, roomEdges(room.polygon));
-    return parts.filter((part) => part.type === type).map((part) => ({ room: partRoom(room, part), obstacles: [...obstacles, ...keepouts], idPrefix: `p${part.index}-` }));
+    return parts.filter((part) => part.type === type).map((part) => ({ room: partRoom(room, part), obstacles: [...obstacles, ...keepouts], idPrefix: `${partName(part)}-` }));
   });
 }
 
@@ -269,8 +269,9 @@ function areasOfType(rooms: PlanRoom[], type: RoomType, options: LayoutOptions):
 const WASHER_FALLBACK_ROOMS: RoomType[] = ['hallway', 'kitchen'];
 
 export function layoutRoom(room: PlanRoom, given: LayoutOptions = {}): PlacedItem[] {
-  // The room's own stream, where generation hands one per room.
-  const options = given.roomRng ? { ...given, rng: given.roomRng(room.id), roomRng: undefined } : given;
+  // The room's own stream, where generation hands one per room — and a studio's half its own
+  // (`partName`): a change in the kitchen half leaves the living half's draw as it was.
+  const drawn = (part?: string) => (given.roomRng ? { ...given, rng: given.roomRng(room.id, part), roomRng: undefined } : given);
   // A studio is furnished part by part: the kitchen's program in the kitchen half, the living
   // room's in the other, each half a room of its own for the engine, with the windows and doors
   // on its walls (`partRoom`). The doors belong to the whole room, so their clear approach is kept
@@ -278,18 +279,18 @@ export function layoutRoom(room: PlanRoom, given: LayoutOptions = {}): PlacedIte
   // runs along it or hangs on it.
   const parts = studioParts(room);
   if (parts) {
-    const keepouts = options.respectDoorSwing === false ? [] : doorKeepouts(room, roomEdges(room.polygon));
-    const obstacles = [...(options.obstacles?.[room.id] ?? []), ...keepouts];
+    const keepouts = given.respectDoorSwing === false ? [] : doorKeepouts(room, roomEdges(room.polygon));
+    const obstacles = [...(given.obstacles?.[room.id] ?? []), ...keepouts];
     return parts.flatMap((part) =>
       layoutArea(
         partRoom(room, part),
-        { ...options, respectDoorSwing: false, obstacles: { ...options.obstacles, [room.id]: obstacles } },
-        `p${part.index}-`,
+        { ...drawn(partName(part)), respectDoorSwing: false, obstacles: { ...given.obstacles, [room.id]: obstacles } },
+        `${partName(part)}-`,
         roomSightBands(room).map((b) => b.quad)
       )
     );
   }
-  return layoutArea(room, options, '', roomSightBands(room).map((b) => b.quad));
+  return layoutArea(room, drawn(), '', roomSightBands(room).map((b) => b.quad));
 }
 
 /**

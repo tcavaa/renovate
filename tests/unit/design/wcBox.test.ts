@@ -58,6 +58,20 @@ describe('the WC’s installation box', () => {
     expect(followed.wallIndex).toBe(1);
   });
 
+  it('stops at a piece standing on its wall beside the WC, as at a door — never built into it', () => {
+    const room = rect('b', 'bathroom', 3, 2.5);
+    // A basin on a console, 81 cm deep, its side 20 cm from the WC's middle: inside the box's 80 cm.
+    const basin: PlacedItem = { ...wc(1.5), id: 'basin', slot: 'sink', kind: 'sink', position: P(1.7 + 0.345, 0.02 + 0.405), size: { width: 0.69, depth: 0.81, height: 0.91 } };
+    const [box] = wcBoxes([room], [wc(1.5), basin], catalog);
+    expect(box.span.to).toBeLessThanOrEqual(1.7 + 1e-6);
+    // The WC keeps its box behind the whole of it, the other side as wide as ever.
+    expect(box.span.from).toBeCloseTo(1.1, 3);
+    expect(box.span.to).toBeGreaterThanOrEqual(1.5 + 0.2);
+    // A piece standing off the wall, in front of the box's depth, does not cut it.
+    const away = { ...basin, position: P(2.05, 0.2 + 0.4 + 0.05) };
+    expect(wcBoxes([room], [wc(1.5), away], catalog)[0].span.to).toBeCloseTo(1.9, 3);
+  });
+
   it('is not one of the AI designer’s families', () => {
     expect(DECOR_FAMILY_LIST).toContain('box');
     expect(AI_DECOR_FAMILIES).not.toContain('box');

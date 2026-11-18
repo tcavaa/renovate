@@ -84,6 +84,14 @@ export function companionsOf(itemId: string, items: readonly PlacedItem[]): Plac
   return items.filter((i) => ids.has(i.id));
 }
 
+/** The host a companion travels with (the basin of its tap, the machine of its dryer, the bath of its mixer), or null. */
+export function hostOf(item: Pick<PlacedItem, 'id' | 'roomId'>, items: readonly PlacedItem[]): PlacedItem | null {
+  const suffix = COMPANIONS.find((c) => item.id.endsWith(`-${c}`));
+  if (!suffix) return null;
+  const hostId = item.id.slice(0, -(suffix.length + 1));
+  return items.find((i) => i.id === hostId && i.roomId === item.roomId) ?? null;
+}
+
 /**
  * The wall a piece stands with its back to — within `reach` of it, facing away from it — where
  * along it its middle is and how far off it its back stands.
