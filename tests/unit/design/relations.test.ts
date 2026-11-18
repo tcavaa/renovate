@@ -284,6 +284,10 @@ describe('who belongs to whom, each relation from the one source', () => {
     expect(tucksUnder({ kind: 'dining_chair' }, { kind: 'dining_table' })).toBe(true);
     expect(tucksUnder({ kind: 'desk' }, { kind: 'office_chair' })).toBe(true);
     expect(tucksUnder({ kind: 'office_chair' }, { kind: 'dining_table' })).toBe(false);
+    // A piece of a kind that is no archetype tucks under nothing — and so stays in other pieces' way.
+    expect(tucksUnder({ kind: 'sofa_3seat' }, { kind: 'spaceship' })).toBe(false);
+    expect(tucksUnder({ kind: 'spaceship' }, { kind: 'sofa_3seat' })).toBe(false);
+    expect(tucksUnder({ kind: 'spaceship' }, { kind: 'starship' })).toBe(false);
     expect(kinds.filter(isTuckingChair).sort()).toEqual(['dining_chair', 'office_chair']);
   });
 

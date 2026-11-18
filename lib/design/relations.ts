@@ -269,14 +269,16 @@ function tuckedUnder(slot: SlotKind): SlotKind | undefined {
  * real products of other sizes into the engine's slots, only for a chair the engine tucked under
  * its top, and only up to half the chair (`placeFitting`).
  *
- * Kept as it was: a piece of a kind that is no archetype (no slot) "tucks under" any piece that is
- * no tucking chair (undefined matches undefined) — so it is in no one's way in the studio's
- * `blockersFor`. A known fault, left for the owner (it changes what the studio lets overlap).
+ * Only a real pair: a piece of a kind that is no archetype tucks under nothing (it used to match any
+ * piece that is no tucking chair, undefined against undefined, and so stood in nobody's way in the
+ * studio's `blockersFor`).
  */
 export function tucksUnder(a: Pick<PlacedItem, 'kind'>, b: Pick<PlacedItem, 'kind'>): boolean {
   const p = getArchetype(a.kind)?.slot;
   const q = getArchetype(b.kind)?.slot;
-  return (p != null && tuckedUnder(p) === q) || (q != null && tuckedUnder(q) === p);
+  const underP = p != null ? tuckedUnder(p) : undefined;
+  const underQ = q != null ? tuckedUnder(q) : undefined;
+  return (underP != null && underP === q) || (underQ != null && underQ === p);
 }
 
 /** Whether a kind's seat slides under a top (`TUCKING_SLOTS`): the chair of a pair that `tucksUnder`. */
