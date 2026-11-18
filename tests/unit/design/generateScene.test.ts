@@ -73,6 +73,18 @@ describe('generateScene', () => {
     }
   });
 
+  it('records the seed the browser drew, and the same seed lays the same flat out again', () => {
+    useDesignStore.getState().reset();
+    useDesignStore.setState({ plan: generationPlan(), styleId: 'modern', budgetGel: null });
+    const before = useDesignStore.getState();
+    before.generate(GENERATION_CATALOG, null);
+    const stored = useDesignStore.getState();
+    const seed = stored.generation?.seed;
+    expect(typeof seed).toBe('number');
+    const again = generateScene({ plan: before.plan!, styleId: 'modern', budgetGel: null, catalog: GENERATION_CATALOG, proposal: null, finishes: before.finishes, electrical: before.electrical, seed: seed!, at: 'now', aiCount: 0 });
+    expect(flat({ plan: stored.plan!, items: stored.items, finishes: stored.finishes, decor: stored.decor, electrical: stored.electrical, generation: stored.generation! })).toEqual(flat(again));
+  });
+
   it('furnishes the flat as the designer proposed: its picks, its decor, its notes', () => {
     const laid = generateLike(7, generationProposal());
     const bed = laid.items.find((i) => i.kind === 'bed_double');

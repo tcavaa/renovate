@@ -735,6 +735,11 @@ export interface GenerationRecord {
   aiCount?: number;
   /** The designer checked the flat after laying it out (`lib/design/aiReview`): how many fixes went in. */
   reviewed?: number;
+  /**
+   * The seed `generateScene` drew the flat from (`lib/design/random`): with the same plan, catalogue,
+   * style, budget, picks and proposal it lays the same flat out again. Absent on flats generated before it was kept.
+   */
+  seed?: number;
 }
 
 export interface DesignScene {

@@ -26,6 +26,10 @@ at runtime yet; the last one was seen on the sample plan.
   recovers. Being fixed in batches, the plain bugs first (`pnpm audit:generation` measures each
   fix; ticked items are done); which piece gives way to which waits for the owner's per-room rules
   — [design-studio/generation-audit.md](design-studio/generation-audit.md#how-it-is-being-fixed).
+- **The generation baseline is not recorded for each plan's own audit seed** — `runSeed(planId, n)`
+  re-draws every count; record it once with `pnpm audit:generation --write-baseline --allow-worse`
+  (until then `generationInvariants` reports 8 counts worse, 7 better) —
+  [design-studio/generation-audit.md](design-studio/generation-audit.md#how-it-is-being-fixed).
 - **The studio re-settles a generated flat's joinery on the first drag of any piece** — `settleFitted` with the
   studio's builders moves 69 of 360 untouched fixture flats' WC boxes and WCs
   ([design-studio/decor.md](design-studio/decor.md#known-gaps)).

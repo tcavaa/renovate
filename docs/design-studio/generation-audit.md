@@ -40,6 +40,29 @@ style (120 flats) is the baseline (`tests/fixtures/generation/baseline.json`), a
 being recorded (`--write-baseline`, which refuses a baseline that is worse). So each fix lowers a
 number in its own commit, and nothing slides back.
 
+**A fix moves only the rooms it touches.** Each room draws its layout, its products, its bathroom
+pass and its floor and walls from a stream of its own, keyed by the stage and the room
+(`lib/design/random.ts`: `rngStreams`, `roomStreams` — [layout-and-matching.md](layout-and-matching.md#generating-is-random)).
+When the flat drew from one stream, a fix that added, dropped or re-sized one piece made its room
+draw a number more or less and re-drew every room after it, so counts moved in rooms the fix never
+touched and the baseline could not be recorded for the noise. Now a count moves where the change
+is, or where something deterministic reads across rooms on purpose (a product used in an earlier
+room drawn less often, the budget level, the flat's one floor from its lead room, the washer's
+fallback room, one door and one window product). Because a stream is keyed by the room's id and
+the fixture plans reuse ids (175 rooms, 59 ids; r2 is a room in 15 plans, a bathroom in 6), each
+plan's draw *n* has a seed of its own (`runSeed(planId, n)`, the plan's id mixed into *n* × 1000 +
+7): one seed for every plan would draw every room of an id the same numbers in every plan, and the
+audit would sample far fewer draws than it has flats. The new draw needs the baseline recorded
+again, once, with `--allow-worse`: every count is re-drawn, so some rise and some fall on 120 flats
+(not done yet: `baseline.json` is still the per-room streams' draw with one seed for every plan,
+and until it is recorded the invariants test reports 8 counts worse and 7 better —
+[roadmap](../roadmap.md)). On 2,880 flats (24 draws) at two offsets of
+the seeds, the one stream of main and the streams per room, with each plan's own seed, agree within
+the draw's noise: mirror 860 and 864 against 804 and 856, sink 216 and 176 against 240 and 220,
+basin height 471 and 465 against 435 and 466, door zone 220 and 212 against 224 and 237. The sink is
+noise too: it moves in one room, #375's r6, missing its basin 96 and 100 times in 1,200 draws of
+main against 105 and 89 per room (and #392's r6 381 and 370 against 394 and 375 in 600).
+
 ## How it was audited
 
 - **Read**: `generateScene.ts`, `autoLayout.ts`, `catalog.ts`, `matcher.ts`, `rules.ts`,
@@ -1239,12 +1262,15 @@ Read, and replayed with the rows in memory (no AI call); each item was then put 
   answer that is not ok becomes the engine's flat (`lib/design/aiDesignClient.ts:35`), under an
   overlay that ends "The AI designer has finished". Nothing reads the generation record or the
   job's error.
-  *Fixed:* the overlay ends on "the AI designer could not design this flat, so the engine laid it
-  out" and why — the runs used up and what to do, too many asked, the design changed, a failure
+  *Fixed:* the overlay ends on "the AI designer could not design this flat, so it was laid out
+  automatically" and why — the runs used up and what to do, too many asked, the design changed, a failure
   (`aiFallback`, `startRefusal`; ka, en, ru) — and waits for a press.
-- [ ] **J5 (medium) — The browser's fallback flat is another draw, from a seed kept nowhere**
+- [x] **J5 (medium) — The browser's fallback flat is another draw, from a seed kept nowhere**
   (`store/designStore.ts:1397`; the record holds who, when and the count): two draws of one plan
   share 26 % of their pieces. A flat cannot be reproduced to be explained.
+  *Fixed:* `generateScene` records the seed it was given (`GenerationRecord.seed`, kept by
+  `generationRecordSchema`) — the browser's drawn one and the job's row's — and
+  [overview.md](overview.md#generation-versions-and-undo) says how a flat is drawn again from it.
 - [x] **J6 (medium) — What is kept cannot explain a flat.** `generation.reviewed` counts the fixes
   accepted, not applied (`generateScene.ts:156`: of 1,380 accepted, 865 changed a piece); a refused
   job's proposal is gone; ignored picks, dropped slots, the job's id and the cost are kept nowhere.
@@ -1362,12 +1388,16 @@ room-by-room rules go:
 
 `pnpm audit:generation --seeds 6` is the measurement of section 3 on today's code (720 flats; the
 tables there were taken on 1,080, nine draws): the same plans, the same catalogue, the same seeds
-and budgets (`tests/helpers/generationAudit.ts`: draw *n* is seed *n* × 1000 + 7, with no budget, a
-generous one and a tight one in turn), each finished flat audited with the app's own geometry
+and budgets (`tests/helpers/generationAudit.ts`: a plan's draw *n* is seed *n* × 1000 + 7 mixed with
+the plan's id — `runSeed(planId, n)`, so rooms that share an id in two plans do not share a stream —
+with no budget, a generous one and a tight one in turn; a plan's four styles share its seed. Since
+each room draws from its own streams and each plan from its own seed, these draw other flats than
+the ones section 3 was measured on, with totals that agree within the draw's noise), each finished flat audited with the app's own geometry
 (`footprintOf`, `quadsOverlap`, `inDoorway`, `showerArea`, `decorFootprint`, `pieceWall`,
 `ruleViolations`). It counts what can be read off the finished flat; *where* a piece was lost — no
 slot laid, or no product fitted — was measured by replaying `layoutPlan` and `matchProducts` with
-the same seeded `Rng` as `generateScene`, and "what one change recovers" (L) with an instrumented
+the same seeded draws as `generateScene` (now its streams per room — `roomStreams(rngStreams(seed),
+'layout')` for the layout, `'match'` for the matcher), and "what one change recovers" (L) with an instrumented
 copy of `autoLayout.ts`, one switch per rule: scratch scripts, not kept. The AI designer's side (D)
 and the technical placement run from the technical step (G) are not in the command either.
 `--refresh-catalog` saves the database's catalogue as the fixture; every count then moves, so the

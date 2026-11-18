@@ -3,10 +3,15 @@ import { layoutRoom } from '@/lib/design/autoLayout';
 import { matchProducts, type CatalogProduct } from '@/lib/design/matcher';
 import { footprintOf } from '@/lib/design/manipulate';
 import { boxInPolygon, refreshRoom } from '@/lib/design/planGeometry';
-import { pickNearBest, seededRng, weightedOrder, weightedPick } from '@/lib/design/random';
+import { pickNearBest, rngStreams, roomStreams, seededRng, streamRng, weightedOrder, weightedPick } from '@/lib/design/random';
+import { generateScene, type GeneratedScene } from '@/lib/design/generateScene';
+import { generationRecordSchema } from '@/lib/validations/design.schema';
+import { GENERATION_CATALOG, generationPlan } from '../../helpers/generation';
+import { runSeed } from '../../helpers/generationAudit';
+import { fixturePlans } from '../../helpers/generationFixtures';
 import { generatedFinish, styleFinishProduct, surfaceSpecs, withStyleFinishes } from '@/lib/design/surfaces';
 import { getStyle } from '@/lib/design/styles';
-import type { PlacedItem, PlanRoom } from '@/lib/design/types';
+import type { FloorPlan, PlacedItem, PlanRoom } from '@/lib/design/types';
 
 const rect = (id: string, type: PlanRoom['type'], w: number, d: number): PlanRoom =>
   refreshRoom({ id, type, name: id, polygon: [{ x: 0, z: 0 }, { x: w, z: 0 }, { x: w, z: d }, { x: 0, z: d }], heightM: 2.8, areaM2: 0, perimeterM: 0, openings: [] });
@@ -36,6 +41,121 @@ describe('seeded randomness (lib/design/random)', () => {
     for (let i = 0; i < 200; i++) expect(weightedPick(['a', 'b', 'c'], (x) => (x === 'b' ? 0 : 1), rng)).not.toBe('b');
     expect(weightedOrder([1, 2, 3, 4], () => 1, rng).sort()).toEqual([1, 2, 3, 4]);
     expect(pickNearBest([{ value: 'low', score: 1 }, { value: 'high', score: 9 }], 100)).toBe('high');
+  });
+});
+
+describe('a stream per key (lib/design/random)', () => {
+  const run = (r: () => number, n = 8) => Array.from({ length: n }, r);
+
+  it('is the same for a seed and a key, whatever else was asked for and in whatever order', () => {
+    const first = run(streamRng(42, 'layout:r2'));
+    const streams = rngStreams(42);
+    run(streams('layout:r1'), 50);
+    run(streams('match:r2'), 3);
+    expect(run(streams('layout:r2'))).toEqual(first);
+    // Another seed, another key: another stream.
+    expect(run(streamRng(43, 'layout:r2'))).not.toEqual(first);
+    expect(run(streamRng(42, 'layout:r3'))).not.toEqual(first);
+    expect(run(streamRng(42, 'match:r2'))).not.toEqual(first);
+  });
+
+  it('keeps each stream once made: asking for a key again carries on where it left off', () => {
+    const streams = rngStreams(7);
+    const a = streams('finish:bed');
+    expect(streams('finish:bed')).toBe(a);
+    const opened = run(streamRng(7, 'finish:bed'), 6);
+    expect([...run(a, 3), ...run(streams('finish:bed'), 3)]).toEqual(opened);
+  });
+
+  it('names a stage’s room and a part of it', () => {
+    const streams = rngStreams(5);
+    const match = roomStreams(streams, 'match');
+    expect(match('r1')).toBe(streams('match:r1'));
+    expect(match('r1', 'way-out:r1-sofa-0')).toBe(streams('match:r1:way-out:r1-sofa-0'));
+  });
+});
+
+describe('a generated flat draws each room from its own stream', () => {
+  const at = (id: string, type: PlanRoom['type'], x: number, w: number, d: number): PlanRoom =>
+    refreshRoom({ id, type, name: id, polygon: [{ x, z: 0 }, { x: x + w, z: 0 }, { x: x + w, z: d }, { x, z: d }], heightM: 2.8, areaM2: 0, perimeterM: 0, openings: [] });
+  const flatOf = (rooms: PlanRoom[]): FloorPlan => ({ ...generationPlan(), rooms, bounds: { width: 30, depth: 6 } });
+  const generate = (plan: FloorPlan, seed: number) =>
+    generateScene({ plan, styleId: 'modern', budgetGel: null, catalog: GENERATION_CATALOG, proposal: null, finishes: [], electrical: [], seed, at: '2026-11-18T00:00:00.000Z', aiCount: 0 });
+  /** What a room was given: its pieces, its floor and walls, its decor. */
+  const roomOf = (scene: GeneratedScene, roomId: string) => ({
+    items: scene.items.filter((i) => i.roomId === roomId),
+    finishes: scene.finishes.filter((f) => f.roomId === roomId),
+    decor: scene.decor.filter((d) => d.roomId === roomId),
+  });
+  const [bed, living] = generationPlan().rooms;
+  const guest = at('guest', 'bedroom', 10.6, 3.6, 3.4);
+
+  it('is the same flat for the same seed, and another flat for another seed', () => {
+    const plan = flatOf([bed, living, guest]);
+    const same = (scene: GeneratedScene) => ({ ...scene, electrical: scene.electrical.map(({ id: _id, ...point }) => point) });
+    expect(same(generate(plan, 11))).toEqual(same(generate(plan, 11)));
+    const flats = new Set(Array.from({ length: 6 }, (_, k) => JSON.stringify(generate(plan, 100 + k).items.map((i) => [i.id, i.position, i.product?.productId]))));
+    expect(flats.size).toBeGreaterThan(1);
+  });
+
+  it('leaves every other room as it was when a room before them is retyped', () => {
+    // A kitchen first, then a bathroom (the catalogue furnishes neither, so no product of it is
+    // "used" before the rooms after it): a bathroom's layout draws more numbers than a kitchen's —
+    // and those draws once moved every room after it.
+    const draws = (room: PlanRoom) => {
+      let n = 0;
+      const rng = seededRng(1);
+      layoutRoom(room, { rng: () => (n++, rng()) });
+      return n;
+    };
+    expect(draws(at('k', 'bathroom', 15, 3, 2.6))).not.toBe(draws(at('k', 'kitchen', 15, 3, 2.6)));
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const kitchen = generate(flatOf([at('k', 'kitchen', 15, 3, 2.6), bed, living, guest]), seed);
+      const bathroom = generate(flatOf([at('k', 'bathroom', 15, 3, 2.6), bed, living, guest]), seed);
+      for (const id of ['bed', 'living', 'guest']) expect(roomOf(bathroom, id), `${id}, seed ${seed}`).toEqual(roomOf(kitchen, id));
+    }
+  });
+
+  it('leaves every room before it as it was when the last room is resized or retyped', () => {
+    // The guest room last: the matcher's "a product used in a room before is drawn less often" reads
+    // only the rooms before, so nothing reads it — and its layout's draws once moved every room's products.
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const base = generate(flatOf([bed, living, guest]), seed);
+      for (const changed of [at('guest', 'bedroom', 10.6, 2.9, 3.1), { ...guest, type: 'kitchen' as const }]) {
+        const other = generate(flatOf([bed, living, changed]), seed);
+        for (const id of ['bed', 'living']) expect(roomOf(other, id), `${id}, seed ${seed}, guest ${changed.type}`).toEqual(roomOf(base, id));
+      }
+    }
+  });
+
+  it('records the seed it was drawn from, and the save route keeps it', () => {
+    const scene = generate(flatOf([bed, living]), 2_147_483_000);
+    expect(scene.generation.seed).toBe(2_147_483_000);
+    expect(generationRecordSchema.parse(scene.generation).seed).toBe(2_147_483_000);
+  });
+});
+
+describe('the audit draws each fixture plan from a seed of its own', () => {
+  // A stream is keyed by the stage and the room's id, and the fixture plans reuse ids (r2 is a room
+  // in 15 of them, a bathroom in 6): drawn from one seed, every room of that id would draw the same
+  // numbers in every plan, and the audit would sample far fewer draws than it has flats.
+  const plans = fixturePlans();
+
+  it('gives every plan another seed for the same draw, and the same one each time', () => {
+    for (const n of [1, 2, 3]) {
+      const seeds = plans.map((p) => runSeed(p.id, n));
+      expect(new Set(seeds).size, `draw ${n}`).toBe(plans.length);
+      expect(plans.map((p) => runSeed(p.id, n))).toEqual(seeds);
+      for (const seed of seeds) expect(generationRecordSchema.parse({ by: 'engine', at: '2026-11-18T00:00:00.000Z', aiCount: 0, seed }).seed).toBe(seed);
+    }
+    expect(runSeed(plans[0].id, 1)).not.toBe(runSeed(plans[0].id, 2));
+  });
+
+  it('so a room id two plans share draws two streams', () => {
+    const sharing = plans.filter((p) => p.plan.rooms.some((r) => r.id === 'r2'));
+    expect(sharing.length).toBeGreaterThan(1);
+    const first = (planId: string) => Array.from({ length: 4 }, rngStreams(runSeed(planId, 1))('layout:r2'));
+    expect(new Set(sharing.map((p) => JSON.stringify(first(p.id)))).size).toBe(sharing.length);
   });
 });
 

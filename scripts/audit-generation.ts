@@ -85,7 +85,7 @@ function showFlat(name: string, roomId: string | null) {
   const [planId, styleId, n] = name.split('/');
   const entry = fixturePlans().find((p) => p.id === planId);
   if (!entry || !STYLE_IDS.includes(styleId as StyleId) || !Number(n)) throw new Error(`no flat "${name}": plan/style/draw, e.g. '#412/modern/1' (plans: ${fixturePlans().map((p) => p.id).join(' ')})`);
-  const scene = generatedFlat(entry.plan, fixtureCatalog(), styleId as StyleId, Number(n));
+  const scene = generatedFlat(entry.id, entry.plan, fixtureCatalog(), styleId as StyleId, Number(n));
   const issues = auditScene(scene);
   for (const room of scene.plan.rooms) {
     if (roomId && room.id !== roomId) continue;

@@ -19,7 +19,7 @@ as products).
 | `lib/design/autoLayout.ts` | `layoutPlan` / `layoutRoom` (rule-based placement, collision-checked; a studio half by half — `partRoom`; `LayoutOptions.anchors` from technical points, `obstacles` for columns and the strip in front of every radiator — `radiatorKeepouts`, [design-rules.md](design-rules.md)), `placeAdditional` (a free spot for one more piece), `FURNISHABLE_ROOM_TYPES` |
 | `lib/design/matcher.ts` | `matchProducts` (client-side; drops products without `model3dUrl`, scores style tag + budget tier, checks the fit), `candidatesFor` (the swap list), `toSceneProduct`, `applySwap` |
 | `lib/design/arrangedOff.ts` | `arrangedOff` (which piece a kind is arranged off, read from the archetypes' rules), `withoutOrphans` (a piece that is gone takes what was arranged off it) |
-| `lib/design/random.ts` | seeded randomness for generating (`seededRng`, `randomSeed`, `weightedPick`, `weightedOrder`, `pickNearBest`) |
+| `lib/design/random.ts` | seeded randomness for generating (`seededRng`, `randomSeed`, a stream per key — `streamRng`, `rngStreams`, `roomStreams` — `weightedPick`, `weightedOrder`, `pickNearBest`) |
 | `lib/design/clearance.ts` | `tightSpots`, `tightSpotsByItem` |
 | `lib/design/footprintMasks.ts` | a model's real footprint when it is not its box (filled by `lib/design3d/modelLoader.ts`) |
 | `lib/design/styles.ts`, `styleQuiz.ts` | the style a design is matched to |
@@ -207,11 +207,36 @@ scene ──tightSpots──▶ amber warnings (not a rule)
 ## Generating is random
 
 The same plan generated twice gives two flats. `generate` draws a fresh seed (`randomSeed`) and
-hands one seeded `Rng` to the layout engine, the matcher and the finishes; everything else that
-lays out or matches (adding a piece, a swap, a change of style, the tests) passes none and is
-deterministic, so a person who swaps one product does not have the rest of the flat jump around.
+`generateScene` draws everything from it — but not as one stream through the flat: **each room
+draws each stage from a stream of its own**. `rngStreams(seed)` gives, for a key, a stream seeded
+from a hash of the seed and the key (`streamRng`: the same however many numbers other keys draw and
+in whatever order they are asked for; asking for a key again carries on its stream), and
+`roomStreams(streams, stage)` names a stage's per-room streams: `layout:<room>` (the room's
+placement and decor — both halves of a studio), `match:<room>` (its products, the kitchen run's
+material or unit), `match:<room>:way-out:<slot>` (a slot's way out, below), `bathroom:<room>` (its
+taps, bath mixer and dryer) and `finish:<room>` (its floor and walls). The engine, the matcher and
+the bathroom pass take them as `roomRng` beside their `rng` (which the tests and other callers
+still pass: one stream for everything they lay out); everything else that lays out or matches
+(adding a piece, a swap, a change of style) passes neither and is deterministic, so a person who
+swaps one product does not have the rest of the flat jump around.
 
-- **Placement** (`LayoutOptions.rng`): a piece against a wall goes to any spot scoring within
+So a change in one room — a piece more or less, a wall moved, the room retyped, a door added —
+leaves every other room's draws as they were. When it once drew from one stream, a room that drew
+one number more re-drew every room after it, and every count of `pnpm audit:generation` moved in
+rooms a fix never touched. What still reads another room is not a draw, and is meant to:
+
+- the matcher's "a product already placed in another room is drawn a third as often"
+  (`usedByKind`) reads the rooms matched before, in the plan's order;
+- with a budget, the budget level is estimated over the whole flat (`budgetLevel`);
+- the one floor and wall through the flat are the lead room's draw (`withFlatFinish`,
+  `flatFinishRoom`: the largest living room or studio);
+- the washing machine goes to the hall or the kitchen only when no bathroom laid one out
+  (`layoutPlan`; that placement draws nothing);
+- the flat hangs one door and one window product through it, for all its openings' widths
+  (`withOpeningProducts`), and the partitions the app adds, the entrance's sight and the wiring
+  read the plan as a whole.
+
+- **Placement** (`LayoutOptions.rng` / `roomRng`): a piece against a wall goes to any spot scoring within
   `SPOT_SPREAD` (10) of the best — another wall of similar merit, another stretch of the same
   wall — the better the likelier (`pickNearBest`); a fixture's pull to its pipe (up to +40) is
   far above the spread, so a toilet stays by the sewer. A corner piece takes any corner nearly as
@@ -222,7 +247,7 @@ deterministic, so a person who swaps one product does not have the rest of the f
   an armchair or a bookshelf 75 %, a dresser 80 %, a rug 85 % (under the bed 80 %), curtains
   90 %, a roller blind 95 % — of the rooms they would fit in. The pieces a room is for (a bed, a sofa, a toilet) are
   always laid out.
-- **Products** (`MatchOptions.rng`, `generationWeight`): each slot's product is drawn from
+- **Products** (`MatchOptions.rng` / `roomRng`, `generationWeight`): each slot's product is drawn from
   **every** candidate of its kind with a model — the style's own ten times as likely as an
   untagged one (a kindred tag three times), one whose colour is of the style guide's palette a
   third more and whose name or tags carry one of its materials a quarter more (`guideFit`,
@@ -247,7 +272,8 @@ deterministic, so a person who swaps one product does not have the rest of the f
   — and on the longest clear wall when the room has no run; made to measure in the run's
   material's wall version, none over a shop's run ([../budget.md](../budget.md#kitchens-a-shops-units-or-made-to-measure-libdesignkitchents)).
 
-The seed is not stored: a generated flat is saved as what it is, not how it was drawn.
+The seed is kept in the generation record (`GenerationRecord.seed`) — how a flat is drawn again
+from it is in [overview.md](overview.md#generation-versions-and-undo).
 
 ## Layout fallbacks that keep rooms furnished (`autoLayout.ts`, `matcher.ts`)
 
@@ -320,8 +346,9 @@ kind such a slot stays empty, as does the hall's `shoe_cabinet`, which has no pr
 the kind has products of its own it keeps to them.
 
 Generating, a way out is drawn like the slot's own (`weightedOrder`), but with a draw of its own
-begun from the flat's last number: the pieces matched after it get the products they would have
-had, and a flat whose own pieces all fit is the flat it was.
+(generating a flat, the slot's own stream, `match:<room>:way-out:<slot>`; given one `rng`, a stream
+begun from its last number): the pieces matched after it get the products they would have had, and
+a flat whose own pieces all fit is the flat it was.
 
 ## A piece that is gone takes what was arranged off it (`lib/design/arrangedOff.ts`)
 
@@ -653,8 +680,11 @@ across the line known to both halves, nothing tall over it in either, dressed on
 of it past the line no opening), `tests/unit/design/manipulate.test.ts` (`placeAdditional` with real sizes; the engine's
 chair tucked under its table and its bed flush in a corner at −π/2, both let stand by the studio),
 `tests/unit/design/clearance.test.ts`, `tests/unit/design/shelfRooms.test.ts`,
-`tests/unit/design/generationRandom.test.ts` (the same seed the same flat, seeds apart different
-flats with every piece inside its room, a bed in every bedroom, every sofa drawn over 400
+`tests/unit/design/generationRandom.test.ts` (a stream per key the same whatever else is drawn;
+the same seed the same flat and seeds apart different flats; a room retyped or resized leaving
+every other room's pieces, products and finishes as they were; the seed recorded and kept by the
+save schema; the audit's seed of its own per fixture plan, so a room id two plans share draws two
+streams; every piece inside its room, a bed in every bedroom, every sofa drawn over 400
 generations and the style's own most often, the best without an `rng`; drawn finishes in their
 category and wetness, kept by `withStyleFinishes` until the room is retyped). The sample flat
 (`lib/design/samplePlan`, an ordinary 150 m² apartment) run through `layoutPlan` is the manual check for the layout as a

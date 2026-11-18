@@ -7,8 +7,9 @@
  * see when you walk in, the sofa goes on the longest wall, the coffee table sits a metre in
  * front of it, nothing blocks a door — plus a collision pass to keep it honest.
  *
- * Deterministic unless given an `rng` (`LayoutOptions.rng`): generating a design passes a freshly
- * seeded one, so the same plan generated twice is laid out differently — a piece goes to another
+ * Deterministic unless given an `rng` (`LayoutOptions.rng`, or a stream per room — `roomRng`):
+ * generating a design passes freshly seeded ones, so the same plan generated twice is laid out
+ * differently — a piece goes to another
  * of the walls or spots that score close to the best, the optional decor comes and goes. Without
  * one (adding a piece, the tests) the same plan always gives the same room, so a person who swaps
  * one product does not have the rest of the furniture jump around.
@@ -47,7 +48,7 @@ import { isLargeSize, isTightPassage, longSideGaps } from './clearance';
 import { blocksWindow, pieceWall } from './manipulate';
 import { kitchenCornerFloor } from './kitchenCorner';
 import { anchorsFor, type TechnicalAnchor } from './technical';
-import { pickNearBest, weightedOrder, type Rng } from './random';
+import { pickNearBest, weightedOrder, type RoomRng, type Rng } from './random';
 import {
   ARMCHAIR_DINING_GAP_M,
   BATH_PASSAGE_M,
@@ -106,6 +107,11 @@ export interface LayoutOptions {
   obstacles?: Record<string, Box[]>;
   /** Seeded randomness (`lib/design/random`): another good spot, optional decor or not. None: the same room every time. */
   rng?: Rng;
+  /**
+   * Per room, a stream of its own (`roomStreams`), in place of `rng`: each room — both halves of a
+   * studio — draws from its own, so a change in one room leaves every other room laid out as it was.
+   */
+  roomRng?: RoomRng;
   /** Per room, what is seen coming in through the flat's front door (`entranceSightBands`): the kitchen keeps out of it. */
   entranceSight?: Record<string, Quad[]>;
   /** The flat's style: it dresses the windows (`windowDressing` — roller blinds or curtains). */
@@ -262,7 +268,9 @@ function areasOfType(rooms: PlanRoom[], type: RoomType, options: LayoutOptions):
 /** Where the washing machine goes when no bathroom has room for it, in this order. */
 const WASHER_FALLBACK_ROOMS: RoomType[] = ['hallway', 'kitchen'];
 
-export function layoutRoom(room: PlanRoom, options: LayoutOptions = {}): PlacedItem[] {
+export function layoutRoom(room: PlanRoom, given: LayoutOptions = {}): PlacedItem[] {
+  // The room's own stream, where generation hands one per room.
+  const options = given.roomRng ? { ...given, rng: given.roomRng(room.id), roomRng: undefined } : given;
   // A studio is furnished part by part: the kitchen's program in the kitchen half, the living
   // room's in the other, each half a room of its own for the engine, with the windows and doors
   // on its walls (`partRoom`). The doors belong to the whole room, so their clear approach is kept

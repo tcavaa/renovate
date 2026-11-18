@@ -6,6 +6,7 @@
 
 import { generateScene, type GeneratedScene } from '../../lib/design/generateScene';
 import { auditScene, issueMetric, type SceneIssue } from '../../lib/design/sceneAudit';
+import { streamRng } from '../../lib/design/random';
 import { STYLE_IDS } from '../../lib/design/styles';
 import type { CatalogProduct } from '../../lib/design/matcher';
 import type { FloorPlan, StyleId } from '../../lib/design/types';
@@ -19,15 +20,21 @@ export interface GenerationRun {
   n: number;
 }
 
-/** The draw of the n-th run, as the audit's measurements had it. */
-export const runSeed = (n: number) => n * 1000 + 7;
+/**
+ * The seed of a plan's n-th run: n × 1000 + 7 mixed with the plan's id (`streamRng`), below 2³¹ like
+ * `randomSeed`. Each room draws from streams keyed by its id, and the fixture plans reuse ids (r2 is
+ * a room in 15 of them): one seed for every plan would draw every room of an id the same numbers in
+ * every plan, and the audit would sample far fewer draws than it has flats. A plan's four styles
+ * share its seed, as they always have.
+ */
+export const runSeed = (planId: string, n: number) => Math.floor(streamRng(n * 1000 + 7, `audit:${planId}`)() * 2 ** 31);
 /** The budget of the n-th run: none, a generous one, a tight one — in turn. */
 export const runBudget = (n: number): number | null => (n % 3 === 1 ? null : n % 3 === 2 ? 10_000_000 : 2500);
 export const runName = (run: GenerationRun) => `${run.planId}/${run.styleId}/${run.n}`;
 
 /** The flat the app generates for a plan, a style and a draw, with no AI designer. */
-export function generatedFlat(plan: FloorPlan, catalog: CatalogProduct[], styleId: StyleId, n: number): GeneratedScene {
-  return generateScene({ plan, styleId, budgetGel: runBudget(n), catalog, proposal: null, finishes: [], electrical: [], seed: runSeed(n), at: '2026-11-16T00:00:00.000Z', aiCount: 0 });
+export function generatedFlat(planId: string, plan: FloorPlan, catalog: CatalogProduct[], styleId: StyleId, n: number): GeneratedScene {
+  return generateScene({ plan, styleId, budgetGel: runBudget(n), catalog, proposal: null, finishes: [], electrical: [], seed: runSeed(planId, n), at: '2026-11-16T00:00:00.000Z', aiCount: 0 });
 }
 
 export interface GenerationMeasure {
@@ -47,7 +54,7 @@ export function measureGeneration(plans: readonly FixturePlan[], catalog: Catalo
     for (const styleId of STYLE_IDS) {
       for (let n = 1; n <= seeds; n++) {
         const run = { planId, styleId, n };
-        const scene = generatedFlat(plan, catalog, styleId, n);
+        const scene = generatedFlat(planId, plan, catalog, styleId, n);
         const issues = auditScene(scene);
         measure.flats++;
         for (const room of scene.plan.rooms) measure.rooms[room.type] = (measure.rooms[room.type] ?? 0) + 1;

@@ -21,7 +21,7 @@ import { fitBathrooms } from './bathroom';
 import { fitHall } from './hall';
 import { fitWardrobes } from './bedroom';
 import { withOpeningProducts } from './openings';
-import { seededRng, type Rng } from './random';
+import { rngStreams, roomStreams, type RoomRng, type Rng } from './random';
 import { generatedFinish, isStyleFinish, withFlatFinish } from './surfaces';
 import { technicalAnchors } from './technical';
 import { defaultTrim, hasTrims } from './trims';
@@ -73,8 +73,10 @@ export function generateScene(input: GenerateSceneInput): GeneratedScene {
   const partitioned = withGeneratedPartitions(input.plan, styleId);
   const plan = partitioned.plan;
   // Every generation draws from its own seed: the same plan gives another layout, other products
-  // and other floors and walls each time.
-  const rng = seededRng(input.seed);
+  // and other floors and walls each time. Each room draws each stage — its layout, its products,
+  // its bathroom pass, its floor and walls — from a stream of its own (`roomStreams`), so a change
+  // in one room (a piece more, a wall moved, a door added) leaves every other room's draw as it was.
+  const streams = rngStreams(input.seed);
   // Columns are in the way, and so is the floor in front of a radiator: nothing is stood there.
   const radiators = radiatorKeepouts(plan);
   const obstacles = Object.fromEntries(plan.rooms.map((r) => [r.id, [...columnFootprints(plan, r.id), ...(radiators[r.id] ?? []), ...(partitioned.keepouts[r.id] ?? [])]]));
@@ -83,16 +85,16 @@ export function generateScene(input: GenerateSceneInput): GeneratedScene {
   for (const band of entranceSightBands(plan.rooms)) (entranceSight[band.roomId] ??= []).push(band.quad);
   // Laid out under the ceiling: a pendant hangs from a new ceiling, a curtain runs from just under it.
   const underCeilings = plan.rooms.map((r) => underCeiling(r, plan));
-  const placed = layoutPlan(underCeilings, { anchors: technicalAnchors(plan), obstacles, rng, entranceSight, styleId });
+  const placed = layoutPlan(underCeilings, { anchors: technicalAnchors(plan), obstacles, roomRng: roomStreams(streams, 'layout'), entranceSight, styleId });
   // A slot no partner product can fill is dropped rather than shown as a stand-in — and with it
   // what the engine arranged off it (`withoutOrphans`: no coffee table before a sofa that is not
   // there). The AI designer's product picks go in where they fit their slot (`MatchOptions.picks`).
-  const matchOptions = { styleId, budgetGel, rooms: underCeilings, rng, picks: proposalPicks(proposal), keepClear: obstacles };
+  const matchOptions = { styleId, budgetGel, rooms: underCeilings, roomRng: roomStreams(streams, 'match'), picks: proposalPicks(proposal), keepClear: obstacles };
   let items = withoutOrphans(placed, placeableOnly(matchProducts(placed, catalog, matchOptions)), underCeilings);
   // The bathrooms finished as a joiner and a plumber would (the rulebook): a vanity made to measure
   // under the basin, a tap on it, the washer's column (a dryer on the machine at the top budget), the
   // bath boxed or enclosed and its mixer at its head.
-  const fitted = fitBathrooms({ rooms: underCeilings, items, catalog, styleId, level: budgetLevel(placed, catalog, matchOptions), rng, keepClear: obstacles, radiators: radiatorBodies(plan) });
+  const fitted = fitBathrooms({ rooms: underCeilings, items, catalog, styleId, level: budgetLevel(placed, catalog, matchOptions), roomRng: roomStreams(streams, 'bathroom'), keepClear: obstacles, radiators: radiatorBodies(plan) });
   items = fitted.items;
   // The hall's built-in wardrobe by the front door (coats, the boiler's cupboard, shoes) and the
   // full-height mirror across from it.
@@ -108,7 +110,7 @@ export function generateScene(input: GenerateSceneInput): GeneratedScene {
   // and paint elsewhere — so the budget buys what the flat is shown in. Re-laying out the
   // furniture is not a reason to lose the tiles someone picked. The designer's floors and walls
   // replace the style's own draw.
-  let finishes = withFlatFinish(withProposalFinishes(keepChosen(defaultFinishes(plan, styleId, catalog, rng), input.finishes), plan, proposal, styleId, catalog), plan.rooms, catalog);
+  let finishes = withFlatFinish(withProposalFinishes(keepChosen(defaultFinishes(plan, styleId, catalog, undefined, roomStreams(streams, 'finish')), input.finishes), plan, proposal, styleId, catalog), plan.rooms, catalog);
   if (calculatorPicks) {
     items = withoutOrphans(items, placeableOnly(applyFurniturePicks(items, plan, calculatorPicks, catalog, obstacles)), plan.rooms);
     finishes = applyFinishPicks(finishes, plan, calculatorPicks, catalog);
@@ -137,8 +139,8 @@ export function generateScene(input: GenerateSceneInput): GeneratedScene {
   items = clearOfDecor(settleToWalls(withoutArtOverDecor(items, decor, laid), laid), decor, laid);
   const ceiled = underCeilingDecor(items, dressed.electrical, decor, laid);
   const generation: GenerationRecord = proposal
-    ? { by: 'ai', model: proposal.model, at: input.at, notes: proposalNotes(proposal), aiCount: input.aiCount }
-    : { by: 'engine', at: input.at, aiCount: input.aiCount };
+    ? { by: 'ai', model: proposal.model, at: input.at, notes: proposalNotes(proposal), aiCount: input.aiCount, seed: input.seed }
+    : { by: 'engine', at: input.at, aiCount: input.aiCount, seed: input.seed };
   return { plan: dressed.plan, items: ceiled.items, finishes, decor, electrical: ceiled.electrical, generation };
 }
 
@@ -264,14 +266,19 @@ export function placeableOnly(items: PlacedItem[]): PlacedItem[] {
 /**
  * Every room's floor, walls, ceiling and mouldings as the style lays them: its floor and walls as
  * the partner products they are when the catalogue is to hand (`generatedFinish`, drawn from the
- * style's kind of finish when generating — `rng`), its ceiling and mouldings as the style's look.
+ * style's kind of finish when generating — `rng`, or each room from its own stream, `roomRng`), its
+ * ceiling and mouldings as the style's look.
  * Without a catalogue the floor and walls are the look alone, until one comes
  * (`ensureFinishProducts`).
  */
-export function defaultFinishes(plan: FloorPlan | null, styleId: StyleId, catalog: CatalogProduct[] = [], rng?: Rng): SurfaceFinish[] {
+export function defaultFinishes(plan: FloorPlan | null, styleId: StyleId, catalog: CatalogProduct[] = [], rng?: Rng, roomRng?: RoomRng): SurfaceFinish[] {
   if (!plan) return [];
   const surfaces = ['floor', 'wall', 'ceiling'] as const;
-  const finishes = plan.rooms.flatMap((room) => [...surfaces.map((surface) => generatedFinish(room, surface, styleId, catalog, rng)), ...(hasTrims(room) ? [defaultTrim(room, 'skirting', styleId), defaultTrim(room, 'cornice', styleId)] : [])]);
+  const finishes = plan.rooms.flatMap((room) => {
+    // The room's own draw, where generation hands one per room (`roomRng`).
+    const draw = roomRng ? roomRng(room.id) : rng;
+    return [...surfaces.map((surface) => generatedFinish(room, surface, styleId, catalog, draw)), ...(hasTrims(room) ? [defaultTrim(room, 'skirting', styleId), defaultTrim(room, 'cornice', styleId)] : [])];
+  });
   // One floor and one wall finish through the flat, drawn for its main room (the owner's notes):
   // a bathroom, a balcony and a closed kitchen keep their own.
   return withFlatFinish(finishes, plan.rooms, catalog);

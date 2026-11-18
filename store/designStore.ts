@@ -1394,6 +1394,8 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
         },
 
         // --- furniture ---
+        // A fresh seed for every generation, kept in the generation record (`generateScene` writes
+        // it there): the flat can be drawn again from it to be explained.
         generate: (catalog, proposal, seed = randomSeed()) => {
           const { plan, styleId, budgetGel, calculatorPicks, generation } = get();
           if (!plan) return;

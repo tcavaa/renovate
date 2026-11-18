@@ -19,7 +19,7 @@ import { asPlacedKitchen, CUSTOM_KITCHEN_SLOTS, kitchenMaterialCandidates } from
 import { KITCHEN_CIRCULATION_M } from './rules';
 import { styleAffinity } from './styles';
 import { guideFit, styleRejects } from './styleGuide';
-import { seededRng, weightedOrder, weightedPick, type Rng } from './random';
+import { seededRng, weightedOrder, weightedPick, type RoomRng, type Rng } from './random';
 import type { PlacedItem, PlanRoom, SceneProduct, StyleId, Vec2 } from './types';
 
 /** A catalogue row as the client receives it. */
@@ -92,6 +92,12 @@ export interface MatchOptions {
    * with a model can turn up and the same plan furnishes differently each time. None: the best.
    */
   rng?: Rng;
+  /**
+   * Per room, a stream of its own (`roomStreams`), in place of `rng`: a room's slots draw from
+   * their room's, each slot's way out from one of its own (`roomRng(roomId, 'way-out:<slot id>')`),
+   * so what one room draws never moves another room's products.
+   */
+  roomRng?: RoomRng;
 }
 
 /** How often a generated kitchen run is a shop's kitchen unit (that fits the wall) rather than made to measure. */
@@ -192,13 +198,17 @@ export function matchProducts(
   const rotation = new Map<string, number>();
   // Generating: the products of each kind already placed, drawn less often in the next room.
   const usedByKind = new Map<string, Set<number>>();
-  // The flat's draw, its last number kept: what a slot's way out is drawn from (below).
+  // The flat's draw, its last number kept: what a slot's way out is drawn from (below). Given a
+  // stream per room (`roomRng`), each slot draws from its room's, and a way out from one of its own.
   let lastDraw = 0;
-  const rng: Rng | undefined = options.rng && (() => (lastDraw = options.rng!()));
+  const flatRng: Rng | undefined = options.rng && (() => (lastDraw = options.rng!()));
+  const rngOf = (roomId: string): Rng | undefined => (options.roomRng ? options.roomRng(roomId) : flatRng);
+  const wayOutOf = (slot: PlacedItem): Rng => (options.roomRng ? options.roomRng(slot.roomId, `way-out:${slot.id}`) : seededRng(lastDraw * 2 ** 32));
   // The rooms whose set of dining chairs has its first chair.
   const setStarted = new Set<string>();
 
   const matched = items.map((slotItem, index) => {
+    const rng = rngOf(slotItem.roomId);
     const finish = (matched: PlacedItem) => {
       if (matched.product) settled.push(matched);
       return matched;
@@ -259,8 +269,8 @@ export function matchProducts(
     // take it (`slotSteps`: a smaller piece of the style, the nearest other style's) — the first
     // that fits. A product of another kind makes the piece that kind: a three-seat in a corner
     // sofa's slot is a three-seat, in the sofa's slot.
-    // A way out is drawn with a draw of its own, begun from the flat's last: the pieces matched
-    // after it get the products they would have had.
+    // A way out is drawn with a draw of its own (`wayOutOf`: its own stream, or one begun from the
+    // flat's last number): the pieces matched after it get the products they would have had.
     let wayOut: Rng | undefined;
     const steps = slotSteps(item.kind, poolOf);
     // What each step offers the slot — drawn once, when it is first come to.
@@ -322,7 +332,7 @@ export function matchProducts(
         ranked = inSet ? [] : rng ? weightedOrder(candidates, weigh, rng) : scored.map((s) => s.product);
       } else {
         // A way out is drawn like the slot's own: the best first, or — generating — a draw.
-        if (rng) wayOut ??= seededRng(lastDraw * 2 ** 32);
+        if (rng) wayOut ??= wayOutOf(item);
         ranked = wayOut ? weightedOrder(candidates, weigh, wayOut) : scored.map((s) => s.product);
         chosen = ranked[0];
       }

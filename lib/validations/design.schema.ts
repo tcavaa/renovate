@@ -350,6 +350,8 @@ export const generationRecordSchema = z.object({
   notes: z.record(z.string().max(64), z.string().max(1200)).optional(),
   aiCount: z.number().int().min(0).max(1000).optional(),
   reviewed: z.number().int().min(0).max(1000).optional(),
+  /** The seed the flat was drawn from (`randomSeed`: below 2³¹; any 32-bit seed draws). */
+  seed: z.number().int().min(0).max(2 ** 32 - 1).optional(),
 });
 
 const styleIdSchema = z.enum(['modern', 'scandinavian', 'industrial', 'vintage']);

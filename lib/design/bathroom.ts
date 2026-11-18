@@ -25,7 +25,7 @@ import { footprintOf, footprintsOverlap, inDoorway, isPlacementValid, type Footp
 import { floorTaken } from './shower';
 import { getArchetype } from './catalog';
 import { includesTap, isBuiltInBath, isFloorTap, isWallTap } from './productRoles';
-import { weightedPick, type Rng } from './random';
+import { weightedPick, type RoomRng, type Rng } from './random';
 import { styleAffinity } from './styles';
 import { styleRejects } from './styleGuide';
 import { pointOnEdge, type PlanEdge } from './planGeometry';
@@ -44,6 +44,8 @@ export interface BathroomInput {
   styleId: StyleId;
   level: BudgetLevel;
   rng?: Rng;
+  /** Per room, a stream of its own (`roomStreams`), in place of `rng`: each room's taps, mixers and dryer are drawn from its own. */
+  roomRng?: RoomRng;
   /**
    * The floor the layout kept clear, per room (`generateScene`'s obstacles: the strips before the
    * radiators, the columns, the floor behind a partition): nothing is built or stood on it.
@@ -70,15 +72,17 @@ export function fitBathrooms(input: BathroomInput): { items: PlacedItem[]; decor
   const vintage = styleId === 'vintage';
   const material = joineryMaterial(catalog, styleId, items);
   const face = joineryFace(material);
-  const pick = (kind: string, keep: (p: CatalogProduct) => boolean = () => true): CatalogProduct | null => {
+  const pickWith = (draw: Rng | undefined) => (kind: string, keep: (p: CatalogProduct) => boolean = () => true): CatalogProduct | null => {
     const all = candidatesFor(kind, catalog, styleId).filter(keep);
     const kept = all.filter((p) => !styleRejects(p, styleId));
     const pool = kept.length > 0 ? kept : all;
     if (pool.length === 0) return null;
-    return rng ? weightedPick(pool, (p) => [1, 3, 10][styleAffinity(styleId, p.styleTags, p.tags)] ?? 1, rng) ?? pool[0] : pool[0];
+    return draw ? weightedPick(pool, (p) => [1, 3, 10][styleAffinity(styleId, p.styleTags, p.tags)] ?? 1, draw) ?? pool[0] : pool[0];
   };
 
   for (const room of rooms) {
+    // The room's own draw, where generation hands one per room.
+    const pick = pickWith(input.roomRng ? input.roomRng(room.id) : rng);
     const wet = WET_ROOM_TYPES.includes(room.type);
     const vanities = new Map<string, Vanity>();
 

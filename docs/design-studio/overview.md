@@ -236,6 +236,21 @@ it out and the overlay says the AI designer could not, and why.
 **Generating twice gives two flats**: each `generate` draws a fresh seed, so the placement, the
 decor, the products and the floors and walls vary between the good options
 ([layout-and-matching.md](layout-and-matching.md#generating-is-random)); nothing else is random.
+Each room draws each of those from a stream of its own, keyed by the stage and the room
+(`rngStreams`, `roomStreams` in `lib/design/random.ts`), so a change in one room leaves every
+other room's draw as it was; what still reads across rooms (a product used in a room before drawn
+less often, the budget level, the flat's one floor from its lead room, the washer's fallback room,
+one door and one window product) is listed there.
+**The seed is recorded**: `generateScene` writes the seed it was given into the generation record
+(`scene.generation.seed`, kept by `generationRecordSchema`) — the browser's `generate` the one it
+drew (`randomSeed`, or the one it is handed), the server's job its row's (`design_jobs.seed`, the
+same seed the designer's brief was drawn with). To draw a flat again, to explain it, run
+`generateScene` with that seed and the same inputs: the same plan as it was before generating, the
+same catalogue, style, budget, calculation picks, the finishes and fittings it had before, and —
+for the designer's flat — the same proposal (the job's row keeps it, `design_jobs.proposal`, when
+its flat was written; the check's fixes are applied after, by `reviewedScene`). A catalogue that has changed since (a product added,
+removed, re-priced or resized) gives another flat from the same seed, and so does any change to
+the generation code.
 Generation also lays every room's floor and walls in the style's own partner products, by the
 kind of room (`roomLook` → `styleFinish`: tiles in the bathrooms, the bedroom painted calmer than
 the living room, the kitchen and the hall tiled — the style's `rooms` and its twelve paints),
@@ -271,7 +286,9 @@ the same work deterministically — and must keep doing so.
 calculator's picks landing on their surfaces), `budget.test.ts` (what the flat already has),
 `tests/unit/store/designStore.test.ts` (the empty start, carry, swap, paint, room names, the
 whole flat after generating), `tests/unit/design/generateScene.test.ts` (the store and
-`generateScene` make the same flat for a seed), `tests/unit/design/generationJob.test.ts` and
+`generateScene` make the same flat for a seed; the seed the browser drew is recorded and draws the
+flat again), `tests/unit/design/generationRandom.test.ts` (a stream per room: a room retyped or
+resized leaves the others' draws as they were; the audit's seed of its own per fixture plan), `tests/unit/design/generationJob.test.ts` and
 `tests/integration/design-job.test.ts` (the server's generation job),
 `e2e/design-studio.spec.ts`. Nothing tests `designStepOrder` / `nextStep`, `generate` clearing
 the versions and history, or `ensureExistingVersion` / `restoreVersion`.
