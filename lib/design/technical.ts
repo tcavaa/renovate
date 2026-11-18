@@ -15,7 +15,7 @@ import type { HomeState, RoomType } from '@/lib/calculator/types';
 import { CEILING_PHASE, FLOOR_PHASE, HOME_STATES } from '@/lib/calculator/constants';
 import { pointInPolygon, roomEdges, wallEdges } from './planGeometry';
 import { closestOnSegment, DEFAULT_WALL_HEIGHT_M } from './walls';
-import { RADIATOR_FLOOR_GAP_M, SHAFT_FIXTURES, SHAFT_MAX_DISTANCE_M, kitchenRunZones } from './rules';
+import { COLD_WATER_SLOTS, HOT_WATER_SLOTS, RADIATOR_FLOOR_GAP_M, SHAFT_FIXTURES, SHAFT_MAX_DISTANCE_M, WET_ROOM_TYPES, kitchenRunZones } from './rules';
 import type { DesignMode, FloorPlan, PlacedItem, PlanRoom, TechnicalKind, TechnicalPoint, Vec2 } from './types';
 
 export interface TechnicalKindInfo {
@@ -23,24 +23,32 @@ export interface TechnicalKindInfo {
   placement: 'wall' | 'floor' | 'any';
   /** Usual height of the point above the floor. */
   defaultElevationM: number;
-  /** The rooms it usually belongs to; the tray lists these first. */
-  rooms: RoomType[];
   /** The archetypes that want to stand near this point. */
   attracts: string[];
 }
 
+/**
+ * The pieces the layout draws to a water pipe: those fed by it (`COLD_WATER_SLOTS`,
+ * `HOT_WATER_SLOTS`) but the WC, which is drawn to the sewer (its shaft) rather than its cold
+ * pipe — and an island, whose sink may take water though automatic placement brings it none.
+ */
+const DRAWN_TO_COLD: string[] = [...COLD_WATER_SLOTS.filter((slot) => slot !== 'toilet'), 'kitchen_island'];
+const DRAWN_TO_HOT: string[] = [...HOT_WATER_SLOTS, 'kitchen_island'];
+
+/** What each kind of point is: where it sits, how high, and what the layout stands near it. Where a room gets one is `autoTechnical`'s (`BY_ROOM`). */
 export const TECHNICAL_KINDS: Record<TechnicalKind, TechnicalKindInfo> = {
-  water_supply: { placement: 'wall', defaultElevationM: 0.5, rooms: ['bathroom', 'toilet', 'kitchen', 'studio'], attracts: ['sink', 'shower', 'bathtub', 'washer', 'kitchen_run', 'kitchen_island'] },
-  water_hot: { placement: 'wall', defaultElevationM: 0.5, rooms: ['bathroom', 'kitchen', 'studio'], attracts: ['sink', 'shower', 'bathtub', 'kitchen_run', 'kitchen_island'] },
-  sewer: { placement: 'any', defaultElevationM: 0, rooms: ['bathroom', 'toilet', 'kitchen', 'studio'], attracts: ['toilet', 'sink', 'shower', 'bathtub', 'washer', 'kitchen_run'] },
-  floor_drain: { placement: 'floor', defaultElevationM: 0, rooms: ['bathroom', 'toilet'], attracts: ['shower', 'bathtub', 'washer'] },
-  electrical_panel: { placement: 'wall', defaultElevationM: 1.4, rooms: ['hallway'], attracts: [] },
-  gas: { placement: 'wall', defaultElevationM: 1.0, rooms: ['kitchen', 'studio'], attracts: ['kitchen_run'] },
-  radiator: { placement: 'wall', defaultElevationM: RADIATOR_FLOOR_GAP_M, rooms: ['living_room', 'bedroom', 'kitchen', 'office', 'bathroom', 'hallway', 'studio'], attracts: [] },
-  ac_unit: { placement: 'wall', defaultElevationM: 2.1, rooms: ['living_room', 'bedroom', 'office', 'studio'], attracts: [] },
-  extractor: { placement: 'wall', defaultElevationM: 2.2, rooms: ['bathroom', 'toilet', 'kitchen', 'studio'], attracts: [] },
-  boiler: { placement: 'wall', defaultElevationM: 1.6, rooms: ['hallway', 'balcony', 'bathroom', 'storage', 'kitchen', 'studio'], attracts: [] },
-  heating_pipe: { placement: 'any', defaultElevationM: 0, rooms: ['living_room', 'bedroom', 'kitchen', 'hallway', 'studio'], attracts: [] },
+  water_supply: { placement: 'wall', defaultElevationM: 0.5, attracts: DRAWN_TO_COLD },
+  water_hot: { placement: 'wall', defaultElevationM: 0.5, attracts: DRAWN_TO_HOT },
+  // Every piece fed water drains (`COLD_WATER_SLOTS`).
+  sewer: { placement: 'any', defaultElevationM: 0, attracts: [...COLD_WATER_SLOTS] },
+  floor_drain: { placement: 'floor', defaultElevationM: 0, attracts: ['shower', 'bathtub', 'washer'] },
+  electrical_panel: { placement: 'wall', defaultElevationM: 1.4, attracts: [] },
+  gas: { placement: 'wall', defaultElevationM: 1.0, attracts: ['kitchen_run'] },
+  radiator: { placement: 'wall', defaultElevationM: RADIATOR_FLOOR_GAP_M, attracts: [] },
+  ac_unit: { placement: 'wall', defaultElevationM: 2.1, attracts: [] },
+  extractor: { placement: 'wall', defaultElevationM: 2.2, attracts: [] },
+  boiler: { placement: 'wall', defaultElevationM: 1.6, attracts: [] },
+  heating_pipe: { placement: 'any', defaultElevationM: 0, attracts: [] },
 };
 
 export const TECHNICAL_KIND_LIST = Object.keys(TECHNICAL_KINDS) as TechnicalKind[];
@@ -256,6 +264,14 @@ export interface TechnicalSuggestion {
 export const MAX_FIXTURE_DISTANCE_M = 1.6;
 
 /**
+ * Each fixture is checked against the pipe that decides where it can go: a shower and a bath
+ * against their drain (`far_from_sewer`); a basin, a kitchen run and a washer against the water
+ * (`far_from_water`) — a WC, fed cold too, is checked by its shaft instead (`SHAFT_FIXTURES`).
+ */
+const CHECKED_BY_DRAIN: readonly string[] = ['shower', 'bathtub'];
+const CHECKED_BY_WATER: readonly string[] = COLD_WATER_SLOTS.filter((slot) => !CHECKED_BY_DRAIN.includes(slot) && slot !== 'toilet');
+
+/**
  * What the technical setup says about the design as it stands: a toilet far from the sewer,
  * a sink far from the water, a radiator on an interior wall, a bathroom with no extractor.
  * Hints, not rules — the person decides.
@@ -270,7 +286,7 @@ export function technicalSuggestions(plan: FloorPlan, items: PlacedItem[]): Tech
     const water = here.filter((a) => a.kind === 'water_supply' || a.kind === 'water_hot');
     // A corner kitchen's leg (`legOf`) is part of its run: the sink is the run's, and so are its hints.
     for (const item of items.filter((i) => i.roomId === room.id && !i.legOf)) {
-      if (['shower', 'bathtub'].includes(item.slot) && sewer.length > 0) {
+      if (CHECKED_BY_DRAIN.includes(item.slot) && sewer.length > 0) {
         const d = nearest(item.position, sewer);
         if (d > MAX_FIXTURE_DISTANCE_M) out.push({ code: 'far_from_sewer', roomId: room.id, itemId: item.id, distanceM: round1(d) });
       }
@@ -280,7 +296,7 @@ export function technicalSuggestions(plan: FloorPlan, items: PlacedItem[]): Tech
         const d = nearest(zones?.sink ?? item.position, shaft);
         if (d > SHAFT_MAX_DISTANCE_M) out.push({ code: 'far_from_shaft', roomId: room.id, itemId: item.id, distanceM: round1(d) });
       }
-      if (['sink', 'kitchen_run', 'washer'].includes(item.slot) && water.length > 0) {
+      if (CHECKED_BY_WATER.includes(item.slot) && water.length > 0) {
         const d = nearest(item.position, water);
         if (d > MAX_FIXTURE_DISTANCE_M + 0.6) out.push({ code: 'far_from_water', roomId: room.id, itemId: item.id, distanceM: round1(d) });
       }
@@ -298,7 +314,7 @@ export function technicalSuggestions(plan: FloorPlan, items: PlacedItem[]): Tech
       const exterior = room.openings.some((o) => o.wallIndex === near.e.index && (o.exterior || o.kind === 'window'));
       if (!exterior) out.push({ code: 'radiator_not_exterior', roomId: room.id, pointId: point.id });
     }
-    if (room.type === 'bathroom' || room.type === 'toilet') {
+    if (WET_ROOM_TYPES.includes(room.type)) {
       if (!points.some((p) => p.kind === 'extractor')) out.push({ code: 'no_extractor', roomId: room.id });
       if (room.type === 'bathroom' && !points.some((p) => p.kind === 'floor_drain' || p.kind === 'sewer')) out.push({ code: 'no_drain', roomId: room.id });
     }

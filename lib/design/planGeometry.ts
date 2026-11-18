@@ -10,7 +10,7 @@
 
 import { doorWidthFor } from './rules';
 import type { Room, RoomPart, RoomType } from '@/lib/calculator/types';
-import { DEFAULT_CEILING_M, WET_ROOM_TYPES } from '@/lib/calculator/constants';
+import { DEFAULT_CEILING_M, WATER_ROOM_TYPES } from '@/lib/calculator/constants';
 import { effectiveSplit, partAt, roomPartsFor } from './studio';
 import { roomTypeName, withRoomNames } from './roomNames';
 import type {
@@ -904,7 +904,7 @@ export function calculatorRoomsFromPlan(plan: FloorPlan): Room[] {
       wallM2: roomWallAreaM2(room),
       ceilingM2: floorM2,
       perimeterM: round2(wallPerimeterM(room)),
-      isWetRoom: WET_ROOM_TYPES.includes(room.type),
+      isWetRoom: WATER_ROOM_TYPES.includes(room.type),
       // Where the room sits on the plan, so the calculator's board shows the flat as drawn.
       x: round2(Math.min(...xs)),
       z: round2(Math.min(...zs)),

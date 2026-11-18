@@ -1,6 +1,6 @@
 /**
- * Products chosen for the whole flat, put on the flat: a door on every interior door (an
- * entrance door on the front door), a window on every window, a radiator on every radiator —
+ * Products chosen for the whole flat, put on the flat: a door on every door but the front door
+ * (an entrance door on that one — `frontDoor`), a window on every window, a radiator on every radiator —
  * its sections counted from its room — a panel, boiler, air conditioner, hood, fan or drain on
  * every technical point it is bought for, a socket, switch or light on every fitting of its
  * kind, a skirting board or cornice round every room.
@@ -15,6 +15,7 @@
 import { FIXTURE_PRODUCT_KIND, withFixtureProduct } from './electrical';
 import { isEquipmentProductKind, pointProductKind, withEquipmentProduct, type EquipmentProductKind } from './equipment';
 import { toSceneProduct, type CatalogProduct } from './matcher';
+import { frontDoor } from './openings';
 import { withRadiatorProduct } from './radiators';
 import { hasTrims, trimFromProduct } from './trims';
 import type { ElectricalPoint, FloorPlan, SurfaceFinish, TechnicalPoint } from './types';
@@ -59,7 +60,10 @@ export function dressBoard(board: FloorPlan, electrical: ElectricalPoint[], prod
     if (!target) continue;
     let n = 0;
     if (target === 'door' || target === 'entrance_door' || target === 'window') {
-      const wanted = (o: { kind: string; exterior: boolean }) => (target === 'window' ? o.kind === 'window' : o.kind === 'door' && o.exterior === (target === 'entrance_door'));
+      // The flat has one front door (`frontDoor`, as `withOpeningProducts` lays it): an entrance door
+      // goes on it alone, and a door on every other — a balcony's door to the outside among them.
+      const front = frontDoor(plan.rooms)?.opening.id ?? null;
+      const wanted = (o: { id: string; kind: string }) => (target === 'window' ? o.kind === 'window' : o.kind === 'door' && (o.id === front) === (target === 'entrance_door'));
       const bought = toSceneProduct(product, 1);
       plan = {
         ...plan,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { addOpening, alignTwins, leafOnOtherSide, separateOverlaps, moveOpening, openingCandidates, openingWorldPoint, projectToEdge, removeOpening, setOpeningProduct, twinOf, updateOpening, withOpeningProducts, withOpeningTwins } from '@/lib/design/openings';
 import { planRoomSchema } from '@/lib/validations/design.schema';
+import { dressBoard } from '@/lib/design/boardPicks';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import { deriveOpenings, refreshRoom, roomEdges } from '@/lib/design/planGeometry';
 import { ensureWalls, planWallThickness, rebuildRooms } from '@/lib/design/walls';
@@ -240,6 +241,20 @@ describe('dragging openings between walls', () => {
       // A door now, onto the outside from the bedroom: the hall has the flat's front door, so it is a door, not a second entrance door.
       expect(refilled.find((r) => r.id === window.roomId)!.openings.find((o) => o.id === window.id)!.product?.productId).toBe(1);
       expect(refilled.find((r) => r.id === 'hall')!.openings.find((o) => o.exterior && o.kind === 'door')!.product?.productId).toBe(3);
+    });
+
+    it('put a calculation’s entrance door on the front door alone, and its door on every other — an outside one too', () => {
+      // The bedroom's window made a door onto a balcony beyond the plan: a second door on an outside wall.
+      const rooms = flat();
+      const window = rooms.flatMap((r) => r.openings).find((o) => o.kind === 'window')!;
+      const plan: FloorPlan = { rooms: updateOpening(rooms, window.roomId, window.id, { kind: 'door' }), metresPerPixel: null, bounds: { width: 8, depth: 3 }, source: 'manual', wallThicknessM: 0.12 };
+      const dressed = dressBoard(plan, [], [{ key: 'entrance', product: catalog[2] }, { key: 'door', product: catalog[0] }]);
+      const front = dressed.plan.rooms.find((r) => r.id === 'hall')!.openings.find((o) => o.kind === 'door' && o.exterior)!;
+      const outside = dressed.plan.rooms.find((r) => r.id === window.roomId)!.openings.find((o) => o.id === window.id)!;
+      expect(front.product?.productId).toBe(3);
+      expect(outside.product?.productId).toBe(1);
+      // One entrance door; the bedroom's door to the hall (both halves, one door) and its outside door.
+      expect(dressed.placed).toEqual({ entrance: 1, door: 2 });
     });
 
     it('follow a change of style where the style chose them, and keep what a person chose — on either half', () => {

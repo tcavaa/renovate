@@ -18,7 +18,7 @@ import type { CatalogProduct } from './matcher';
 import { placeFitting, quantityFor, rehung, sizeFromProduct, toSceneProduct } from './matcher';
 import { footprintOf, footprintsOverlap, type Footprint } from './manipulate';
 import { asPlacedKitchen } from './kitchen';
-import { finishFromProduct, isSurfaceProduct, isWetRoom, surfaceSpecs } from './surfaces';
+import { finishFromProduct, isSurfaceProduct, isWetRoomType, surfaceSpecs } from './surfaces';
 import { dressBoard, pickTarget } from './boardPicks';
 import { hasTrims, trimFromProduct } from './trims';
 import type { ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, SurfaceFinish } from './types';
@@ -263,7 +263,7 @@ export function applyFinishPicks(
       if (!isSurfaceProduct(product, surface)) continue;
       const wet = !!surfaceSpecs(product).wet;
       for (const room of plan.rooms) {
-        if (isWetRoom(room.type) !== wet) continue;
+        if (isWetRoomType(room.type) !== wet) continue;
         if (perRoom.has(`${room.id}:${surface}`)) continue;
         apply(room, surface, product);
       }

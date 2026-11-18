@@ -18,7 +18,8 @@ import { toSceneProduct } from './matcher';
 import { getStyle, styleAffinity } from './styles';
 import { isBaseFinish } from './zones';
 import { roomWallAreaM2 } from './planGeometry';
-import { hasTrims, isTrimSurface } from './trims';
+import { hasTrims, isTrimSurface, styleTrim } from './trims';
+import { WET_ROOM_TYPES } from './rules';
 import { weightedPick, type Rng } from './random';
 import type { ItemOrigin, PlanRoom, StyleDefinition, StyleId, StyleSurface, SurfaceFinish } from './types';
 
@@ -37,8 +38,12 @@ export interface SurfaceSpecs {
 /** The categories whose products can be finishes; the catalogue route serves these too. */
 export const SURFACE_CATEGORY_SLUGS = ['laminate', 'carpet', 'floor-tiles', 'wall-tiles', 'paint'];
 
-export function isWetRoom(type: RoomType): boolean {
-  return type === 'bathroom' || type === 'toilet';
+/**
+ * A room of the design's wet types (`WET_ROOM_TYPES`, a bathroom or a toilet): only wet finishes go
+ * in. Not a calculator room's `isWetRoom` flag, which is the rooms with water, the kitchen among them.
+ */
+export function isWetRoomType(type: RoomType): boolean {
+  return WET_ROOM_TYPES.includes(type);
 }
 
 export function surfaceSpecs(product: CatalogProduct): SurfaceSpecs {
@@ -60,7 +65,7 @@ export function surfaceOptions(
   room: PlanRoom | null,
   styleId: StyleId
 ): CatalogProduct[] {
-  const wet = room ? isWetRoom(room.type) : false;
+  const wet = room ? isWetRoomType(room.type) : false;
   return catalog
     .filter((p) => isSurfaceProduct(p, surface))
     .sort((a, b) => {
@@ -97,7 +102,7 @@ export function wallAreaM2(room: PlanRoom): number {
  */
 export function roomLook(style: StyleDefinition, type: PlanRoom['type'], surface: 'floor' | 'wall' | 'ceiling', generic = false): StyleSurface {
   if (surface === 'ceiling') return style.surfaces.ceiling;
-  if (isWetRoom(type)) return surface === 'floor' ? style.surfaces.wetFloor : style.surfaces.wetWall;
+  if (isWetRoomType(type)) return surface === 'floor' ? style.surfaces.wetFloor : style.surfaces.wetWall;
   const own = generic ? undefined : style.rooms[type]?.[surface];
   return own ?? (surface === 'floor' ? style.surfaces.floor : style.surfaces.wall);
 }
@@ -186,7 +191,7 @@ export function styleFinishProduct(catalog: CatalogProduct[], room: PlanRoom, su
  * not that it may go nowhere else (a terracotta balcony, a terrazzo kitchen).
  */
 export function mayLay(product: CatalogProduct, room: Pick<PlanRoom, 'type'>): boolean {
-  return !isWetRoom(room.type) || !!surfaceSpecs(product).wet;
+  return !isWetRoomType(room.type) || !!surfaceSpecs(product).wet;
 }
 
 /**
@@ -253,7 +258,7 @@ export function isClosedKitchen(room: Pick<PlanRoom, 'type' | 'open' | 'openings
  * one tone): every room but a bathroom or a toilet, a balcony and a closed kitchen.
  */
 export function sharesFlatFinish(room: Pick<PlanRoom, 'type' | 'open' | 'openings'>): boolean {
-  return !isWetRoom(room.type) && room.type !== 'balcony' && !isClosedKitchen(room);
+  return !isWetRoomType(room.type) && room.type !== 'balcony' && !isClosedKitchen(room);
 }
 
 /** The room the flat's floor and walls are drawn for: the largest living room or studio, else the largest room that shares them. */
@@ -329,6 +334,21 @@ export function withStyleFinishes(finishes: SurfaceFinish[], rooms: PlanRoom[], 
       if (current?.product && current.laidFor === room.type && suitsRoom(byId.get(current.product.productId), room, surface)) continue;
       const wanted = styleFinish(room, surface, styleId, catalog);
       if (!wanted.product || current?.product?.productId === wanted.product.productId) continue;
+      if (next === finishes) next = [...finishes];
+      if (current) next[index] = wanted;
+      else next.push(wanted);
+    }
+  }
+  // A skirting board and a cornice the style laid with no product become the style's moulding
+  // where the catalogue has one (`styleTrim`), and a room with none gets it — bought as the floor is.
+  for (const room of rooms) {
+    if (!hasTrims(room)) continue;
+    for (const kind of ['skirting', 'cornice'] as const) {
+      const index = next.findIndex((f) => f.roomId === room.id && f.surface === kind);
+      const current = index >= 0 ? next[index] : undefined;
+      if (current && (current.product || !isStyleFinish(current))) continue;
+      const wanted = styleTrim(room, kind, styleId, catalog);
+      if (!wanted.product) continue;
       if (next === finishes) next = [...finishes];
       if (current) next[index] = wanted;
       else next.push(wanted);

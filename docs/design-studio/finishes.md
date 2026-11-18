@@ -20,11 +20,11 @@ per-room floor and wall picks, carried into 3D).
 
 | File | Responsibility |
 |---|---|
-| `lib/design/surfaces.ts` | what a finish product is (`specs.surfaces`, `wet`, `textureScaleM`, maps), the style's look for a kind of room (`roomLook`, `defaultFinish`, `isWetRoom`) and the product it is (`styleFinishProduct`, `styleFinish`, `isStyleFinish`, `withStyleFinishes`), `pricePerM2` |
+| `lib/design/surfaces.ts` | what a finish product is (`specs.surfaces`, `wet`, `textureScaleM`, maps), the style's look for a kind of room (`roomLook`, `defaultFinish`, `isWetRoomType`) and the product it is (`styleFinishProduct`, `styleFinish`, `isStyleFinish`, `withStyleFinishes`), `pricePerM2` |
 | `lib/design/styles.ts` | each style's `rooms` — the floor and wall of each kind of dry room — and the paints they are painted in (`PAINT_COLORS`, `paintLook`) |
 | `lib/design/zones.ts` | finishes on part of a surface: one wall (`wallIndex`), floor zones (`halfZone`, `wallStripZone`, `zoneFromRect`, clipped to the room), `wallFinishFor`, `finishCoverage`, `isBaseFinish` |
 | `lib/design/paint.ts` | the brush: floor cells, wall strips (`span`) and wall patches (`cells` as [column, row]) — `paintCell`, `paintSpan`, `paintPatch`, `patchAt`, `patchSpans`, `patchSpansOnWall`, `erasePatchFromStrip`, `patchesAreaM2` |
-| `lib/design/trims.ts` | skirting and cornice specs (`trimOutline` profiles, `hasTrims`, `trimLengthM`, `STYLE_TRIMS`, `trimFromProduct`, `defaultTrim`) |
+| `lib/design/trims.ts` | skirting and cornice specs (`trimOutline` profiles, `hasTrims`, `trimLengthM`, `STYLE_TRIMS`, `trimFromProduct`, `defaultTrim`), the style's moulding as a product (`styleTrimProduct`, `styleTrim`) |
 | `lib/design/finishQuantity.ts` | `finishQuantity` / `finishUnit` — what a finish covers, shared by the store and the save route; `visibleFinishes` — what of it shows, which is what the budget buys |
 | `lib/design/finishBrowser.ts` | `FinishSurface`, `finishOptions` (a surface's finishes, best first), `finishUnitPrice` (per m², per m for a moulding), `narrowFinishShelf` (the tray's style and colour filters), `browseFinishes` (the catalogue's filters with counts) |
 | `lib/design3d/wallGeometry.ts` | spans on a wall face (`buildWallGeometry`), `buildMouldingGeometry` |
@@ -352,11 +352,18 @@ along every wall by `buildMouldingGeometry`, mitred at the corners (each run giv
 `tan(turn/2)` per metre it stands out) and broken at the doorways for a skirting board.
 It travels in `scene.finishes` as `surface: 'skirting' | 'cornice'` with a `trim` spec, is
 sold by the running metre (`trimLengthM`: the walled perimeter — not an edge on a room
-separator — less the doorways for a skirting board), and `trim_install` is its labour. A wall
+separator — less the doorways for a skirting board), and `trim_install` is its labour (for the style's own
+mouldings in a renovation only — a design-only project fits only one somebody chose). A wall
 finish never lands on a separator's open edge either: the room's wall area (`wallAreaM2`), one
 wall's (`wallEdgeAreaM2`, 0 there), the visible-finish sums and the paint brush all go by
-`wallEdges`. A room with no product wears the style's own
-moulding for nothing (`STYLE_TRIMS`; modern and industrial have no cornice at all).
+`wallEdges`. **A room wears the style's own moulding, bought** (`styleTrim`, laid by
+`defaultFinishes` at generation and on a change of style, and by `withStyleFinishes` on a
+design whose style trims had no product): the catalogue's moulding of the style
+(`styleTrimProduct` — of the products tagged with the style, the one of its profile and height in
+`STYLE_TRIMS`, its colour first, else the first of them), still `origin: 'style'`, priced by the
+metres the room runs. Where the style has no moulding of the kind (modern and industrial have no
+cornice at all) there is none; where the catalogue has none of the style, the style's look is
+drawn for nothing (`defaultTrim`).
 **A balcony has neither** (`hasTrims`): its walls are the building's outside, so no skirting or
 cornice is drawn there (`buildTrim`), laid there (`setFinish`, the style's defaults, the
 calculator's and the board's whole-flat picks), offered there (`finishOptions` is empty and the
@@ -417,9 +424,8 @@ own", re-measuring after a resize, `ensureFinishProducts`),
   "beige" porcelain brown — the families are the furniture's (`lib/design/colors.ts`), tuned on
   models. A database that had finishes before colours were read needs `pnpm textures:colors`
   once (run on the local database 28 Sept 2026; production not yet).
-- **The style's skirting boards and cornices are still only its look**: drawn in 3D, not
-  products, not in the budget (`defaultTrim`, product null). The same treatment as the floors
-  and walls would need a trim product per style profile.
+- **A style moulding's metres are those of the room when it was laid**, as a floor's area is: a
+  room redrawn afterwards keeps the old quantity until its finishes are laid again.
 - A design saved before the style's finishes were products has none in its stored budget (the
   project page, an order placed from the list) until one of its steps is opened again.
 - `visibleFinishes` takes floor zones not to overlap one another; two that do are both bought

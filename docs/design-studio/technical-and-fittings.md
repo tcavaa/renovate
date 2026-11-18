@@ -57,7 +57,18 @@ is the hint list on step 3 (a shower or bath far from the sewer or a drain; a WC
 the kitchen's sink end more than 2 m from the sewer, which stands for the plumbing shaft
 (`far_from_shaft`); a sink, kitchen run or washer more than 2.2 m from the water, hot or cold; a
 bathroom with no floor drain or sewer; a radiator — not a towel rail — on an interior wall; no extractor in a bathroom
-or toilet). `suggestTechnical`
+or toilet). **One table per question:** which pieces are fed water is `COLD_WATER_SLOTS` /
+`HOT_WATER_SLOTS` (`rules.ts`, from `WATER_NEEDS` and the kitchen run) — the layout draws the same
+pieces to the pipes (`TECHNICAL_KINDS[*].attracts`) but the WC, drawn to the sewer, and adds the
+island; the hints check a shower and a bath by their drain, a WC by its shaft and the rest by the
+water. Which rooms are heated is `isHeatedRoom` (`radiators.ts`); which points a room gets is
+`BY_ROOM` (`autoTechnical.ts`) — a kind no longer carries a list of rooms of its own. The design's
+wet rooms are `WET_ROOM_TYPES` (a bathroom and a toilet — a table of its own, today the members of
+the calculator's `BATH_ROOM_TYPES`; read by `isWetRoomType`), the calculator's rooms with water
+`WATER_ROOM_TYPES` (those and the kitchen — a calculator room's `isWetRoom` flag, a name kept for
+its stored rows). A sewer serves every piece fed water (`COLD_WATER_SLOTS`). The calculator's plan-less counts (`ROOM_POINTS`)
+give a toilet and a hall no radiator where `suggestRadiators` heats both
+([generation-audit.md](generation-audit.md), X9 — the owner's to settle). `suggestTechnical`
 (`lib/design/autoTechnical.ts`) places the water, drains, extractors, gas, air conditioning, one
 panel and one boiler by a fitter's rules at a click, all `origin: 'user'` — and **one button**
 ("ავტომატური განლაგება") does it and hangs the radiators too, as one step of history
@@ -146,7 +157,10 @@ room, in the middle of its floor (`roomMiddle`: the area's own centre, `polygonC
 furniture's hanging lamp is hung too — not the mean of the outline's corners; where that centre
 falls outside a thin L, the middle of the room's widest stretch across it there) — a hallway one every 3 m or nearer, evenly spaced down its middle (`hallLightSpots`,
 `HALL_LIGHT_SPACING_M`; the owner: one light is not enough for a hallway) — a 105 cm switch on the handle side of every door, 20 cm from the opening (about 15 cm from
-the frame), general 45 cm sockets on the long walls of the rooms people live in, off the walls
+the frame) — and in a room entered through a room separator alone, on a wall at either end of the
+separator, 20 cm from it, the first end unless its spot is taken (`separatorEnds`, past the end of
+a partial wall to the wall beyond); a room with no door and no separator — a plan whose doors were
+never drawn — has its light and no switch — general 45 cm sockets on the long walls of the rooms people live in, off the walls
 the switches are on; a hallway 4 m or longer is switched from both ends — the door switches
 nearest its two ends become a **two-way** pair (`switch_two_way`), or a two-way switch is added on
 the wall at the far end. **The furniture's** (`suggestElectrical` = the standard ones + these):
@@ -167,7 +181,8 @@ wall cabinets. **An industrial bedroom's main light is a track** of three cylind
 room's middle, square to the bed (`TRACK_SPOTS`); `suggestElectrical` takes the style for it. An
 industrial spot or ceiling light whose name says cylinder, tube or track goes first
 (`fixtureCandidates`); a desk's
-sockets 10 cm over the desktop; 170 cm high sockets and the television and data points by the TV;
+sockets 10 cm over the desktop; 170 cm high sockets and the television and data points by the TV
+— each TV unit, sofa, desk and basin of the room its own, a second sofa as the first;
 **a bathroom basin's socket** at 110 cm, 20 cm past the basin's edge, on the side out of the splash
 zone (`SPLASH_ZONE_M`, 60 cm from a bath or a shower's tray — `splashBlocks` reads the same
 `inSplashZone` the rule check does), sliding along the wall out of it where both sides are in one —
@@ -392,19 +407,34 @@ column (`towelRailSpot`); a radiator stays under its window when nothing stands 
 goes to clear wall — the same wall, then another outside wall, then any (`clearSpot`; with nowhere
 clear it goes where it was wanted and the rule check flags it). **A room's radiators are hung
 together, and never across a door** — furnished or not: the ones that stay where they are wanted
-go up first and the ones that move go clear of them, each hung radiator counted as long as the
-catalogue's longest would be there (`expectedLengthM`), so two never share a spot; and a radiator
+go up first and the ones that move go clear of them, so two never share a spot; and a radiator
 whose spot is across a door, or a window too low for it (a windowless hall with a door in every
-wall, where the spot is the middle of its longest wall), slides to the nearest wall beside it —
-where no wall holds the 80 cm a radiator is placed by, to the middle of the widest stretch
-between the doors. A panel, a boiler, an air
+wall, where the spot is the middle of its longest wall), slides to the nearest wall beside it.
+**Each is placed as the product it will be** when the step knows the style (`suggestRadiators`
+takes the `styleId`; both store callers pass it): the radiator its window takes
+(`radiatorProductFor`), its length its share of the room's sections at that product's section
+width (`radiatorLengthM`), and the room's count from the heat a section of the style's radiator
+gives (`radiatorsNeeded` with its `wattsPerSection`, not 170 W) — so a 1.4 m panel is hung clear
+of the door beside its window. Where no wall holds that length clear of the doors and the other
+radiators, and with no style, it is placed as before: as an 80 cm radiator (`BESIDE_RADIATOR_M`),
+each hung one counted as long as the catalogue's longest would be there (`expectedLengthM`) —
+and where no wall holds even that, in the middle of the widest stretch between the doors. A panel, a boiler, an air
 conditioner or a fan with no fixture to go by takes the widest stretch clear at its height
 (`spotFor`, `widestClear`), a wall with none only when no wall has one. **The boiler's cupboard
 reads what is already there, in every room it may go to** (`cupboardBlocks`, `cupboardTiers`): it
 stands on the floor, so its stretch of wall is clear from the floor to over the boiler — of the
 furniture and the joinery at the wall, and of the equipment already hung on it (the panel, an air
-conditioner, a fan), which are placed before it — and as wide as the cupboard
-(`boilerCabinetSize`: 62 cm indoors, 80 cm on a balcony; the hall's 80 cm). In the hall it is still
+conditioner, a fan), which are placed before it — and as wide and as tall as the cupboard round
+the boiler the style will buy (`boilerSizeFor`: the first of `equipmentCandidates`, what the point
+is then given; `boilerCabinetSize` — the Vintage boiler's cupboard is 1.4 m); `suggestTechnical`
+takes the catalogue and the `styleId`, which both store callers pass. With no style it is measured
+as a default boiler's (62 cm indoors, 80 cm on a balcony; the hall's 80 cm). In the hall and the
+bathroom each strictness in turn (`cupboardTiers`: clear of everything, then of the equipment
+alone, then of the openings alone) is tried at the real size and then at a default boiler's
+(`tierBySize`), so the cupboard is put through the furniture at its real size only where no stretch
+clear of the furniture holds even a default boiler's; where one does, it goes there as it did
+before its size was known. On the balcony and elsewhere, the real size first, then the default.
+So the room it goes to does not change. In the hall it is still
 as near the front door as such a stretch allows, in the bathroom still the spot farthest from the
 shower and the bath. A room with no such stretch keeps its boiler: clear of the equipment alone
 (never on the panel, though a mirror hangs there), then of the openings alone, as in a bare room.
@@ -640,8 +670,9 @@ another style lays that style's (`isChosenOpeningProduct`); any other product �
 studio (`setOpeningProduct` clears the mark), put on by the calculation (`applyBoardPicks`), or on
 a plan saved before the mark — is somebody's choice and stays through any style while it is of the
 opening's family (the swap list's: a person's glass door into a bathroom stays), the chosen half's
-product on both halves. (The calculation puts an entrance door it picked on every door on an outside
-wall, so a flat made from such a calculation still buys one for each — Known gaps.) The store attaches them in `generate`, `addOpening` / `dropOpening` and
+product on both halves. The calculation's whole-flat picks go on the same doors (`dressBoard`): an
+entrance door on the front door alone (`frontDoor`), a door on every other door, a balcony's door to
+the outside among them — on the calculation's sheet and on a design made from it alike. The store attaches them in `generate`, `addOpening` / `dropOpening` and
 `updateOpening` (a change of kind drops the product and takes one of the new kind), the
 studio's `ensureOpeningProducts` fills in the rest once the catalogue is in (a saved design
 from before, a door dropped on the 2D board), and `setOpeningProduct` swaps one on both
@@ -768,15 +799,10 @@ have no tests of their own.
 
 ## Known gaps
 
-- **A calculation's entrance door goes on every door on an outside wall.** `dressBoard`
-  (`boardPicks.ts`) puts an entrance door picked for the whole flat on every door with `exterior`
-  set, a balcony's included, and no mark of the style's on it — so `withOpeningProducts` keeps it as
-  somebody's choice, and a flat made from a calculation with an entrance-door pick buys one for every
-  outside door, as the calculation's own sheet prices it. A door with no product on an outside wall
-  is estimated at the entrance door's price too (`openingEstimate`, `ENTRANCE_DOOR_GEL`), in both.
-  Putting the pick on the front door alone (`frontDoor`) and the door pick on the other outside doors
-  changes the calculator's sheet as well as the design's, so it is the calculator's change to make
-  with its own tests.
+- **A door with no product on an outside wall is estimated at the entrance door's price**
+  (`openingEstimate`, `ENTRANCE_DOOR_GEL`), a balcony's included, in the calculation's sheet and the
+  design's budget alike, though only the front door is bought as an entrance door. Estimating the
+  others as doors changes the calculator's estimate, which is the calculator's to decide.
 
 - **A towel rail hung low still costs its floor.** The layout engine's obstacles are boxes on the
   floor (`LayoutOptions.obstacles`), so under a rail at the usual 60 cm — hung by the button in a
@@ -786,14 +812,15 @@ have no tests of their own.
   rail in 7–29 of 40 draws of four small bathrooms, against 0–4 with the strip kept. It needs an
   obstacle that says how high the floor under it is free (`autoLayout.ts`).
 
-- **A radiator and a boiler's cupboard are placed before their product is known**, by a nominal
-  size: a radiator as 80 cm long (`BESIDE_RADIATOR_M`) where the catalogue's panel is up to 1.4 m,
-  the cupboard as 62 cm wide where the Vintage boiler's is 1.4 m. So a radiator hung beside a door
-  can reach 3–20 cm across it once it has its sections (9 of 1,846 hung in 360 generated flats),
-  and the Vintage cupboard can stand through what is beside it. `suggestRadiators` and
-  `suggestTechnical` would need the style's product before they place
-  ([generation-audit.md](generation-audit.md), T13). Two radiators moved to the same clear wall
-  hang side by side, 5 cm apart: how far apart they should be is not a rule yet.
+- **A cupboard the room has no clear wall for.** In a hall whose walls are furnished the Vintage
+  boiler's 1.4 m cupboard can have no clear stretch: it is then placed where a default boiler's
+  cupboard was (`tierBySize`), as before its size was known, and the real cupboard runs past its
+  wall's end or through the furniture beside it (26 of 120 Vintage flats in the fixtures: 22 past
+  a wall's end, 9 through furniture — every one placed so before; 75 before it was measured at its
+  size). Ignoring the furniture to hold it at full size instead put 12 of them through a wardrobe
+  that the old spot was clear of. Whether such a cupboard should go to the balcony or the bathroom
+  instead is the owner's ([generation-audit.md](generation-audit.md), T7). Two radiators moved to the same
+  clear wall hang side by side, 5 cm apart: how far apart they should be is not a rule yet.
 - **An L-shaped hallway's arm can be unlit**: the hall's lights are a row along the longer side of
   its outline (`hallLightSpots`), each in the middle of the hall's width there, so an arm that no
   light of the row falls in has none. It needs the row laid along the hall's own centre line.

@@ -20,7 +20,7 @@
 
 import { clearOf, nearestClear, wallBlocks, type WallBlock } from './wallClear';
 import { radiatorBodies, radiatorWallBlocks, type RadiatorBody } from './radiators';
-import { isPassage, openingSpanUp, pointInPolygon, pointOnEdge, polygonBounds, polygonCentroid, roomEdges, wallEdges, type PlanEdge } from './planGeometry';
+import { isOpenEdge, isPassage, openingSpanUp, pointInPolygon, pointOnEdge, polygonBounds, polygonCentroid, roomEdges, wallEdges, type PlanEdge } from './planGeometry';
 import { inSplashZone, wetFootprints } from './ruleChecks';
 import { partAt, studioParts } from './studio';
 import { closestOnSegment } from './walls';
@@ -50,6 +50,7 @@ import {
   TV_SOCKET_M,
   TWO_WAY_CORRIDOR_M,
   WALL_UNIT_BOTTOM_M,
+  WET_ROOM_TYPES,
   roomLightK,
   underCeiling,
   kitchenRunZones,
@@ -332,33 +333,41 @@ function standardFor(b: Builder, room: PlanRoom, items: readonly PlacedItem[] = 
   // A bathroom or a toilet: never one light — spots down its length, the same distance from one
   // another and from the walls, at least three, which falls over the basin, the WC and the shower
   // (the rulebook, BA-21 and WC-3).
-  else if (room.type === 'bathroom' || room.type === 'toilet') for (const at of wetRoomSpots(room)) make(b, room, 'light_spot', at, { category: 'primary' });
+  else if (WET_ROOM_TYPES.includes(room.type)) for (const at of wetRoomSpots(room)) make(b, room, 'light_spot', at, { category: 'primary' });
   else make(b, room, 'light_ceiling', centre);
-  for (const door of room.openings.filter(isPassage)) {
-    const edge = edges.find((e) => e.index === door.wallIndex);
-    if (!edge) continue;
-    const side = door.hinge === 'right' ? -1 : 1;
-    const offset = door.widthM / 2 + SWITCH_FROM_OPENING_M;
+  // The first spot of the two unless it is taken: the wall ends before it, another door or a window
+  // is there, a radiator hangs there or a wardrobe stands there. Then the other, when its spot is
+  // free; with neither free, whichever has a clear spot nearer. A spot that is free is kept though
+  // the plate has to move a hair off what is beside it (`makeOnWall` slides it).
+  const switchAt = (spots: ReadonlyArray<{ edge: PlanEdge; wanted: number }>) => {
     const switchM = ELECTRICAL_KINDS.switch.defaultElevationM;
-    // The handle side — unless its spot there is taken: the wall ends before it, another door or a
-    // window is there, a radiator hangs there or a wardrobe stands there. Then the other side, when
-    // its spot is free; with neither free, whichever has a clear spot nearer. A spot that is free
-    // keeps its side though the plate has to move a hair off what is beside it (`makeOnWall` slides
-    // it): the switch does not go behind the open door for that.
-    const hidden = blocksOf(edge);
-    const inTheWay = [...radiatorWallBlocks(b.radiators, room, edge), ...hidden];
-    const sides = [side, -side].map((sign) => {
-      const wanted = door.t * edge.length + sign * offset;
+    const sides = spots.map(({ edge, wanted }) => {
+      const hidden = blocksOf(edge);
+      const inTheWay = [...radiatorWallBlocks(b.radiators, room, edge), ...hidden];
       const onTheWall = wanted >= 0 && wanted <= edge.length;
       const spot = onTheWall ? clearSpotOnWall(b, room, edge, wanted, switchM, DEFAULT_PLATE_M, inTheWay) : null;
       // Free: the middle of the plate is on clear wall where it is wanted (a plate of no width stays put).
       const middle = onTheWall ? clearSpotOnWall(b, room, edge, wanted, switchM, 0, inTheWay) : null;
-      return { wanted, off: spot == null ? Infinity : Math.abs(spot - wanted), free: spot != null && middle != null && Math.abs(middle - wanted) < 1e-6 };
+      return { edge, hidden, wanted, off: spot == null ? Infinity : Math.abs(spot - wanted), free: spot != null && middle != null && Math.abs(middle - wanted) < 1e-6 };
     });
-    const best = sides[0].free ? sides[0] : sides[1].free ? sides[1] : sides[1].off < sides[0].off - 1e-6 ? sides[1] : sides[0];
-    const t = Math.max(0, Math.min(1, best.wanted / edge.length));
+    const best = sides.find((side) => side.free) ?? sides.reduce((a, c) => (c.off < a.off - 1e-6 ? c : a));
+    const t = Math.max(0, Math.min(1, best.wanted / best.edge.length));
     // Hidden behind a wardrobe when the wall has no spot clear of it — rather than no switch at all.
-    if (!makeOnWall(b, room, 'switch', edge, t, {}, hidden)) makeOnWall(b, room, 'switch', edge, t);
+    if (!makeOnWall(b, room, 'switch', best.edge, t, {}, best.hidden)) makeOnWall(b, room, 'switch', best.edge, t);
+  };
+  for (const door of room.openings.filter(isPassage)) {
+    const edge = edges.find((e) => e.index === door.wallIndex);
+    if (!edge) continue;
+    // The handle side first: the switch does not go behind the open door.
+    const side = door.hinge === 'right' ? -1 : 1;
+    const offset = door.widthM / 2 + SWITCH_FROM_OPENING_M;
+    switchAt([side, -side].map((sign) => ({ edge, wanted: door.t * edge.length + sign * offset })));
+  }
+  // A room entered through a room separator alone has its light switched there, as at a doorway:
+  // on a wall either end of the separator, 20 cm from it.
+  if (!b.points.slice(before).some((p) => isSwitch(p.kind))) {
+    const ends = separatorEnds(room);
+    if (ends.length > 0) switchAt(ends);
   }
   if (room.type === 'hallway') twoWayCorridor(b, room, edges, before);
 
@@ -380,6 +389,36 @@ function standardFor(b: Builder, room: PlanRoom, items: readonly PlacedItem[] = 
       else if (!furnished) made++;
     }
   }
+}
+
+/**
+ * Where a switch goes at a room's separator, as beside a doorway (`SWITCH_FROM_OPENING_M` from the
+ * opening): on the wall before the first stretch of separator, at its end, and on the wall after
+ * it, at its start — past the end of a partial wall (an edge too short to hold the plate there) to
+ * the wall beyond it. None when the room has no separator, or no wall either side of it.
+ */
+function separatorEnds(room: PlanRoom): Array<{ edge: PlanEdge; wanted: number }> {
+  const edges = roomEdges(room.polygon);
+  const n = edges.length;
+  const open = (i: number) => isOpenEdge(room, ((i % n) + n) % n);
+  const first = edges.findIndex((e) => open(e.index) && !open(e.index - 1));
+  if (first < 0) return [];
+  let last = first;
+  while (open(last + 1) && last - first < n) last++;
+  // The first wall from the separator, stepping `step` round the room, long enough for the switch's spot.
+  const holds = SWITCH_FROM_OPENING_M + DEFAULT_PLATE_M / 2;
+  const wallFrom = (from: number, step: 1 | -1): PlanEdge | null => {
+    for (let k = 1; k < n; k++) {
+      const i = from + step * k;
+      if (open(i)) return null;
+      const edge = edges[((i % n) + n) % n];
+      if (edge.length >= holds) return edge;
+    }
+    return null;
+  };
+  const before = wallFrom(first, -1);
+  const after = wallFrom(last, 1);
+  return [...(before ? [{ edge: before, wanted: before.length - SWITCH_FROM_OPENING_M }] : []), ...(after ? [{ edge: after, wanted: SWITCH_FROM_OPENING_M }] : [])];
 }
 
 /** Furniture this tall standing against a wall hides a socket or a switch behind it: a wardrobe, a fridge, shelving. */
@@ -604,8 +643,8 @@ function furnitureFor(b: Builder, room: PlanRoom, here: PlacedItem[], technical:
     for (const at of ringSpots(room)) make(b, room, 'light_spot', at, { category: 'secondary' });
   }
 
-  const tv = here.find((i) => i.slot === 'tv_unit');
-  if (tv) {
+  // Every TV unit, sofa, desk and basin the room has its own sockets — a second sofa as the first.
+  for (const tv of here.filter((i) => i.slot === 'tv_unit')) {
     const wall = backWall(room, tv);
     if (wall) {
       makeOnWall(b, room, 'tv', wall.edge, wall.t, { elevationM: TV_SOCKET_M });
@@ -615,14 +654,12 @@ function furnitureFor(b: Builder, room: PlanRoom, here: PlacedItem[], technical:
     }
   }
 
-  const sofa = here.find((i) => i.slot === 'sofa');
-  if (sofa) {
+  for (const sofa of here.filter((i) => i.slot === 'sofa')) {
     const wall = backWall(room, sofa);
     if (wall) makeOnWall(b, room, 'socket_double', wall.edge, alongBack(sofa, wall, sofa.size.width / 2 + 0.2));
   }
 
-  const desk = here.find((i) => i.slot === 'desk');
-  if (desk) {
+  for (const desk of here.filter((i) => i.slot === 'desk')) {
     const wall = backWall(room, desk);
     if (wall) {
       // Just above the desktop, where a charger reaches.
@@ -689,8 +726,7 @@ function furnitureFor(b: Builder, room: PlanRoom, here: PlacedItem[], technical:
     if (wall) makeOnWall(b, room, dryer ? 'socket_double' : 'socket', wall.edge, wall.t, { elevationM: APPLIANCE_SOCKET_M }, splashBlocks(room, wall.edge, here));
   }
 
-  const sink = here.find((i) => i.slot === 'sink');
-  if (sink && (room.type === 'bathroom' || room.type === 'toilet')) {
+  for (const sink of WET_ROOM_TYPES.includes(room.type) ? here.filter((i) => i.slot === 'sink') : []) {
     const wall = backWall(room, sink);
     if (wall) {
       // Beside the basin, 20 cm past its edge — on the side out of the splash zone of the shower and

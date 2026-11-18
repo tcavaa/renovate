@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { suggestTechnical } from '@/lib/design/autoTechnical';
 import { standardElectrical } from '@/lib/design/electrical';
 import { refreshRoom, roomEdges } from '@/lib/design/planGeometry';
-import { radiatorBody, suggestRadiators } from '@/lib/design/radiators';
+import { radiatorBody, suggestRadiators, withRadiatorProducts } from '@/lib/design/radiators';
+import type { CatalogProduct } from '@/lib/design/matcher';
 import { clearOf, nearestClear, wallBlocks } from '@/lib/design/wallClear';
-import type { DecorPiece, FloorPlan, Opening, PlacedItem, PlanRoom, Vec2 } from '@/lib/design/types';
+import type { DecorPiece, FloorPlan, Opening, PlacedItem, PlanRoom, TechnicalPoint, Vec2 } from '@/lib/design/types';
 
 /**
  * Placing the technical points automatically in a furnished flat reads the furniture and the decor
@@ -135,7 +136,7 @@ describe('a radiator and the doors', () => {
   /** How much of the radiator, as long as it will be (`radiatorBody`), is across a door of its wall. */
   const acrossADoor = (hall: PlanRoom, point: ReturnType<typeof suggestRadiators>[number]) => {
     const body = radiatorBody({ ...plan(hall), technical: { points: [point] } }, point)!;
-    return Math.max(0, ...hall.openings.filter((o) => o.wallIndex === body.edge.index).map((o) => Math.min(body.to, o.t * body.edge.length + o.widthM / 2) - Math.max(body.from, o.t * body.edge.length - o.widthM / 2)));
+    return Math.max(0, ...hall.openings.filter((o) => o.kind === 'door' && o.wallIndex === body.edge.index).map((o) => Math.min(body.to, o.t * body.edge.length + o.widthM / 2) - Math.max(body.from, o.t * body.edge.length - o.widthM / 2)));
   };
 
   it('is hung beside the door, not across it, in a windowless hall with a door in every wall', () => {
@@ -154,6 +155,40 @@ describe('a radiator and the doors', () => {
     const hall = room('h', 'hallway', 2.2, 2, doors);
     const [point] = suggestRadiators(plan(hall), ids());
     expect(acrossADoor(hall, point)).toBe(0);
+  });
+
+  /** A style's panel radiator: `watts` a section of `sectionCm`. */
+  const panel = (id: number, watts: number, sectionCm: number): CatalogProduct =>
+    ({ id, nameKa: `r${id}`, slug: `r${id}`, categorySlug: 'radiators', pricePerUnit: 10, unit: 'piece', model3dKind: 'radiator', model3dUrl: `/models/r${id}.glb`, widthCm: sectionCm, depthCm: 10, heightCm: 60, styleTags: ['modern'], specs: { wattsPerSection: watts, sectionWidthCm: sectionCm } }) as unknown as CatalogProduct;
+  /** The radiators as they are bought: each with the style's product and its sections. */
+  const bought = (r: PlanRoom, points: TechnicalPoint[], catalog: CatalogProduct[]) => {
+    const withProducts = withRadiatorProducts({ ...plan(r), technical: { points } }, catalog, 'modern');
+    return withProducts.technical!.points;
+  };
+
+  it('is hung clear of a door at the length of the style’s radiator, not of a middling one', () => {
+    // 5 × 3 m: a window 1–2 m along the top wall, a door 2.2–3 m beside it. The style's radiator is
+    // 14 sections of 12 cm (130 W each) — 1.68 m — which, centred under the window, reaches 14 cm
+    // across the door; an 80 cm radiator there would not, which is how it was placed with no style.
+    const living = room('l', 'living_room', 5, 3, [{ ...window(0, 0.3), widthM: 1 }, { ...door(0, 2.6 / 5), exterior: false }]);
+    const catalog = [panel(1, 130, 12)];
+    expect(acrossADoor(living, bought(living, suggestRadiators(plan(living), ids(), catalog), catalog)[0])).toBeGreaterThan(0.1);
+    const [point] = bought(living, suggestRadiators(plan(living), ids(), catalog, [], [], 'modern'), catalog);
+    const body = radiatorBody({ ...plan(living), technical: { points: [point] } }, point)!;
+    expect(body.to - body.from).toBeCloseTo(1.68, 2);
+    expect(acrossADoor(living, point)).toBe(0);
+    // Still under its window.
+    expect(body.from).toBeLessThan(2);
+    expect(body.to).toBeGreaterThan(1);
+  });
+
+  it('counts a room’s radiators by the heat a section of the style’s radiator gives', () => {
+    // 5 × 3 m, two windows: 1,867 W. At 170 W a section that is 11 sections, one radiator; at the
+    // style's 110 W it is 17 — more than fourteen, so two.
+    const living = room('l', 'living_room', 5, 3, [window(0, 0.25), window(0, 0.75)]);
+    expect(suggestRadiators(plan(living), ids())).toHaveLength(1);
+    expect(suggestRadiators(plan(living), ids(), [panel(1, 110, 8)], [], [], 'modern')).toHaveLength(2);
+    expect(suggestRadiators(plan(living), ids(), [panel(1, 180, 8)], [], [], 'modern')).toHaveLength(1);
   });
 });
 

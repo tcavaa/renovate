@@ -128,8 +128,8 @@ bathrooms with no shower or bath 36 %, no mirror about 30 %, no WC 11 %; studios
 6. *A style's own floor in dry rooms* (F3): with wet-flagged tiles allowed in dry rooms an Industrial
    balcony takes the style's own floor 33 times in 150 (106 before); Industrial's bathroom slate is
    flagged dry, so no bathroom gets it — catalogue data.
-7. *A calculation's entrance-door pick* still goes on every outside door (Q7b; the calculator's own
-   sheet shares the function).
+7. *A door with no product on an outside wall* is estimated at the entrance door's price, a
+   balcony's included (Q7b's remainder; the calculator's estimate would change).
 8. *Decor beside low joinery* loses the wall above it (W4).
 9. *Catalogue data* (K1–K4, P1): products filed under the wrong kind or with wrong sizes, and shop
    kitchens never generated (their names do not say sink and hob) — admin's, or a rule.
@@ -707,15 +707,33 @@ pieces a room has, the kitchen, the joinery, taps, lamps on the wiring, radiator
 - [ ] **X8 — Rules the next stage undoes**: the table of 1.2 m (slot) and a 70 cm table (product);
   "always a wardrobe" and the 8 m² gate; "a TV only with a unit" and "every window dressed" against
   the AI check's `remove`.
-- [ ] **X9 — One name, two lists**: `WET_ROOM_TYPES` is bathroom, toilet, kitchen in
+- [x] **X9 — One name, two lists**: `WET_ROOM_TYPES` is bathroom, toilet, kitchen in
   `lib/calculator/constants.ts:69` and bathroom, toilet in `rules.ts:243`. Which rooms are heated,
   which fixture needs water and which points a room gets are each tabled two or three times with
   different members (`radiators.ts:46`, `technical.ts:33-43`, `autoTechnical.ts:46-70`,
   `rules.ts:121`) *(the last three not re-checked)*.
-- [ ] **X10 — Unused numbers in `rules.ts`**: `COFFEE_TABLE_GAP_M` and `TV_CENTRE_M` are read by
+  *Fixed:* the calculator's list is `WATER_ROOM_TYPES` (rooms with water, the kitchen among them),
+  the design's `WET_ROOM_TYPES` is a table of its own (today the members of the calculator's
+  `BATH_ROOM_TYPES`, which a test pins, not the same array), read by `isWetRoomType` — renamed from
+  `isWetRoom`, the calculator room's flag that means the rooms with water — and by the wiring's and
+  the lighting's bathroom checks; every piece fed water drains (`sewer` attracts
+  `COLD_WATER_SLOTS`); the
+  water a piece is fed is `COLD_WATER_SLOTS` / `HOT_WATER_SLOTS`, from which the layout's pull to
+  the pipes and the hints' lists are named differences (the WC drawn to its shaft, the island to the
+  water, a shower checked by its drain); `TECHNICAL_KINDS[*].rooms`, read by nothing, is gone, so
+  `BY_ROOM` and `isHeatedRoom` are the one table each — no change in behaviour. *For the owner:* the
+  calculator's plan-less `ROOM_POINTS` heat neither a toilet nor a hall, which `suggestRadiators`
+  heats (from 3.5 m²); and an island is drawn to the water though nothing brings it a pipe.
+- [x] **X10 — Unused numbers in `rules.ts`**: `COFFEE_TABLE_GAP_M` and `TV_CENTRE_M` are read by
   nothing — the live 0.42 and 1.05 are literals in `catalog.ts:217`, `:241`; `KITCHEN_WORKTOP_M` is
   only re-exported; `BASIN_TOP_M` and `SPLASH_ZONE_M` are read by the check and not by what places
   the basin or the sockets.
+  *Fixed:* the coffee table's gap and the TV's centre are read from `rules.ts` by their archetypes,
+  the wall cabinets hang half their height over `WALL_UNIT_BOTTOM_M`, which is `KITCHEN_WORKTOP_M`
+  and the 55 cm over it, and the basin's socket keeps out of `SPLASH_ZONE_M` (`splashBlocks`) while
+  the bathroom pass lifts a basin to `BASIN_TOP_M` — the same values, the audit's output unchanged.
+  The duplicates left are in other lanes' code: the matcher's 0.86 basin (X1), the island's 1.2 m in
+  `autoLayout.ts` (X6) and the backsplash's 0.9 m worktop in `decor/resolve.ts`.
 
 ### F. The same thing written more than once
 
@@ -803,7 +821,7 @@ running the repo's own functions.
   sewer, the gas and the hood went to the leg, which has no sink or hob. *Fixed:* the technical
   points, the kitchen's wiring and the step's hints all leave a piece with `legOf` out — the run is
   what is served.
-- [ ] **T6 (medium) — Radiators are moved clear of furniture one at a time**, and the fallback
+- [x] **T6 (medium) — Radiators are moved clear of furniture one at a time**, and the fallback
   returns the wanted spot even across a door (`radiators.ts:261-271`, `:311-331`): two radiators
   touching or on one spot (8 pairs in 120 flats), a radiator across a door by 30–50 cm in a hall
   with a door in every wall. *Partly:* a room's radiators are hung together — the ones that stay
@@ -813,6 +831,11 @@ running the repo's own functions.
   *Left:* a radiator is placed as 80 cm long and the catalogue's panel is up to 1.4 m, so 9 of
   1,846 still reach 3–20 cm across a door they were hung beside — `suggestRadiators` would need
   the style's product before it places (T13).
+  *Fixed:* given the style, each radiator is placed at the length of the product it will be (its
+  window's, its share of the room's sections) and the room's count from that product's watts; an
+  80 cm radiator only where no wall holds its length between the doors. The 30 plans bare and
+  furnished (3 draws), four styles, 600 flats: radiators across a door 15 of 2,272 → 0 of 2,376
+  (more radiators: a section of the style's radiator gives less than 170 W), overlapping pairs 0.
 - [ ] **T7 (medium) — The boiler looks at nothing.** `hallCupboardSpot` and `clearOfWet` take no
   furniture (`autoTechnical.ts:234-274`): the cupboard through the WC on 15 of 30 seeds of one flat,
   the boiler exactly on the electrical panel in 8 of 30. *Partly:* the cupboard's stretch of wall is
@@ -825,6 +848,16 @@ running the repo's own functions.
   clear (the hall's mirror on the only wall that holds the cupboard, 9, a basin, 4), and the Vintage boiler,
   whose cupboard is 1.4 m wide once it has its product — the placement goes by the 62 cm of a
   boiler without one (T13).
+  *Partly:* given the style and the catalogue, the cupboard is measured at the size of the boiler
+  the style will buy (`boilerSizeFor`) in every room it may go to; in the hall and the bathroom
+  each strictness is tried at that size and then at a default boiler's (`tierBySize`), so the
+  cupboard is never put through furniture at full size where a default one's stretch was clear of
+  it, and the room does not change: in the same 600 flats a cupboard through furniture, a door or
+  a window, or past its wall's end, 82 of 480 → 33 (Vintage 75 of 120 → 26; past a wall's end 69 →
+  22, through furniture 19 → 16, through an opening 4 → 0; none worse than before). *Left:* the 26
+  Vintage flats with no clear 1.4 m keep the default cupboard's spot, the real one past its wall's
+  end or through the furniture beside it — which room takes a cupboard the hall has no wall for
+  is the owner's.
 - [ ] **T8 (medium) — One edited fitting freezes a room's wiring.** Any edit, a product swap
   included, marks the point the person's (`store/designStore.ts:1247`); `wiredByHand` then skips the
   whole room (`electrical.ts:181-184`): generating again moves the furniture and keeps every old
@@ -862,6 +895,23 @@ running the repo's own functions.
   `BESIDE_RADIATOR_M` 0.8 against radiators of up to 1.12 m; radiators counted at 170 W a section
   whatever the product; "an outside wall" defined two ways (`technical.ts:296`); margins round an
   opening of 5, 8, 10 and 15 cm; `TECHNICAL_KINDS[*].rooms` read by nothing.
+  *Partly* (each re-checked, 18 Nov): a room entered through a separator alone has its switch at
+  the separator, 20 cm from it as at a door (`separatorEnds`) — rooms with a light and no switch in
+  360 generated flats 498 of 2,220 → 232, every one left a room with no door and no separator (plans
+  whose doors were never drawn) — and on the calculator's board too, whose sheet then counts the
+  switch: 16 of the 30 fixture boards gain switches, 11 sheets 52–272 ₾ ([calculator.md](../calculator.md));
+  a second TV unit, sofa, desk or basin gets the sockets the first
+  has (none is generated today; the studio adds them); the 80 cm radiator, the 170 W section and
+  the kinds' room lists are fixed under T6 and X9; `CLEAR_WALL_M` 0.5 is the cupboard's own width
+  once the style's boiler is known (T7), and stays the fallback where nothing wider fits, so no
+  boiler is lost. *Left for the owner:* the size gates (no points under 1.2 m², no radiator or towel
+  rail under 3.5 m²); which "outside wall" a radiator is judged by — the geometry's (nothing behind
+  it in the plan, which takes a stair-hall wall too: `outsideEdges`, where `suggestRadiators` hangs
+  one in a windowless room) or the hint's (a window or an outside door in it), so a radiator the
+  button hangs on a windowless outside wall is hinted `radiator_not_exterior`; and the margins round
+  an opening — 5 cm for equipment, 8 cm for a fitting's middle, 10 cm for a radiator's or a
+  cupboard's stretch, 15 cm for a radiator beside a window — which are clearances for different
+  things, not one number.
 
 ### H. Wall decor and joinery
 
@@ -1025,6 +1075,13 @@ which product, and what the designer is offered.
   filed under wall-tiles — brick, concrete, wallpaper, cladding — enter only through rooms that then
   take the lead's paint (44); `defaultTrim` never has a product, so 68 m of skirting a flat is drawn
   and not bought.
+  *Partly:* the skirting and the cornice are the style's moulding as a product where the
+  catalogue has one (`styleTrim`), bought by the metre as the floors are: in 360 flats 24,622 m of
+  skirting and 13,370 m of cornice drawn, none bought → all of it (2,030 ₾ of mouldings a flat;
+  `trim_install` fits them, about 422 ₾ a flat, in a renovation only — in a design-only project
+  the style's mouldings get no fitting, as its floors and walls get none). The
+  six of the eight mouldings that are a style's own are laid; the other two (548, 553) only when
+  chosen. *Left:* the 75 finish products never laid (not this lane's).
 - [x] **F6 (medium) — Labour is priced from another table than the one that lays.**
   `TILED_FLOOR_ROOM_TYPES` (kitchen, balcony — `lib/calculator/constants.ts:79`) decides the tiling
   labour whatever the design lays: an open kitchen wears the flat's laminate, a Modern balcony too.
@@ -1313,12 +1370,23 @@ no table in 60 of the 416 runs of 10 m² or more; an island 0 of 96.
   what the style has (Scandinavian's one entrance door is 144 cm, its window 90 cm), Q6's. The
   budget names a door line the entrance door only when it holds the front door.
   *Left open* (Q7b below): a calculation's entrance-door pick still goes on every outside door.
-- [ ] **Q7b (medium) — A calculation's entrance-door pick goes on every outside door** (`dressBoard`,
+- [x] **Q7b (medium) — A calculation's entrance-door pick goes on every outside door** (`dressBoard`,
   `boardPicks.ts:62`, with no style mark, so `withOpeningProducts` keeps it as somebody's choice): a
   flat made from a calculation with an entrance-door pick buys one for each outside door, a
   balcony's included, as the calculation's sheet prices it; a door with no product on an outside
   wall is estimated at the entrance door's price in both (`openingEstimate`). The fix changes the
   calculator's sheet too ([technical-and-fittings.md](technical-and-fittings.md#known-gaps)).
+  *Fixed:* `dressBoard` puts an entrance door on the front door alone (`frontDoor`) and a door on
+  every other, a balcony's outside door included, for the sheet and the design alike. The 30 plans as
+  the calculator's boards (`calculationCost`, white frame, with no picks, a door, an entrance door,
+  both and a window): the renovation's materials and labour do not depend on the picks in any of
+  the 120 (against main they do change in 11 of the 30 boards, by the separator switches of T13:
+  each room entered only through a separator gains a switch whose point, chasing and switch the
+  sheet counts, 52–272 ₾ — see [calculator.md](../calculator.md)); the door lines
+  change in the two plans with more than one outside door (#389: 4 entrance doors → 1, 2,610 ₾
+  less with both picks; #392: 2 → 1). *Left:* a door with no product on an outside wall is still
+  estimated at the entrance door's price (`openingEstimate`) — changing it changes the calculator's
+  estimate.
 
 ### N. The generation job
 

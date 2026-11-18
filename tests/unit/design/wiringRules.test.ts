@@ -215,6 +215,52 @@ describe('the switch by a door', () => {
   });
 });
 
+describe('a room entered through a separator', () => {
+  // A kitchen 3 × 3 m whose right side (x = 3, edge 1) is a room separator onto the living room: no door.
+  const kitchen: PlanRoom = { ...room('k', 'kitchen', 3, 3), open: [1] };
+
+  it('has its light switched at the separator, 20 cm from it, as at a doorway', () => {
+    for (const wired of [standardElectrical(plan([kitchen])), suggestElectrical(plan([kitchen]), [])]) {
+      expect(wired.some((p) => p.kind === 'light_ceiling')).toBe(true);
+      const switches = wired.filter((p) => p.kind === 'switch');
+      expect(switches).toHaveLength(1);
+      // On the top wall (edge 0), 20 cm before the separator's end at x = 3.
+      expect(switches[0].wallIndex).toBe(0);
+      expect(at(kitchen, switches[0])).toBeCloseTo(3 - 0.2, 3);
+    }
+  });
+
+  it('takes the separator’s other end when a window takes the first', () => {
+    const windowed: PlanRoom = { ...room('k', 'kitchen', 3, 3, [window(0, 2.3 / 3, 1.2)]), open: [1] };
+    const sw = standardElectrical(plan([windowed])).find((p) => p.kind === 'switch')!;
+    expect(sw.wallIndex).toBe(2);
+    expect(at(windowed, sw)).toBeCloseTo(0.2, 3);
+  });
+
+  it('gets no second switch where a door already switches it', () => {
+    const withDoor: PlanRoom = { ...room('k', 'kitchen', 3, 3, [door(3, 0.5)]), open: [1] };
+    expect(standardElectrical(plan([withDoor])).filter((p) => p.kind === 'switch')).toHaveLength(1);
+  });
+});
+
+describe('a second piece of a kind', () => {
+  it('gives a second sofa, desk and basin the sockets the first has', () => {
+    const living = room('l', 'living_room', 6, 4, [door(2, 0.5)]);
+    // A sofa against the top wall and another against the left one; a desk on the right wall and another on the bottom.
+    const sofas = [{ ...item('l', 'sofa', 2, 0.45, { width: 2, depth: 0.9, height: 0.8 }), id: 's1' }, { ...item('l', 'sofa', 0.45, 2.2, { width: 2, depth: 0.9, height: 0.8 }, Math.PI / 2), id: 's2' }];
+    const desks = [{ ...item('l', 'desk', 5.65, 2, { width: 1.2, depth: 0.7, height: 0.75 }, -Math.PI / 2), id: 'd1' }, { ...item('l', 'desk', 4.5, 3.65, { width: 1.2, depth: 0.7, height: 0.75 }, Math.PI), id: 'd2' }];
+    const wired = suggestElectrical(plan([living]), [...sofas, ...desks]);
+    const near = (piece: PlacedItem, kind: ElectricalPoint['kind']) => wired.some((p) => p.kind === kind && Math.hypot(p.position.x - piece.position.x, p.position.z - piece.position.z) < piece.size.width / 2 + 0.5);
+    for (const sofa of sofas) expect(near(sofa, 'socket_double')).toBe(true);
+    for (const desk of desks) expect(near(desk, 'internet')).toBe(true);
+
+    const bath = room('b', 'bathroom', 3, 2, [door(2, 0.5)]);
+    const basins = [{ ...item('b', 'sink', 0.6, 0.25, { width: 0.6, depth: 0.5, height: 0.85 }), id: 'b1' }, { ...item('b', 'sink', 2.4, 0.25, { width: 0.6, depth: 0.5, height: 0.85 }), id: 'b2' }];
+    const bathWired = suggestElectrical(plan([bath]), basins);
+    for (const basin of basins) expect(bathWired.some((p) => p.kind === 'socket' && p.wallIndex === 0 && Math.abs(at(bath, p) - basin.position.x) < 0.6)).toBe(true);
+  });
+});
+
 describe('the basin’s socket and the splash zone', () => {
   const bath = room('b', 'bathroom', 3, 2, [door(2, 0.15)]);
   /** A basin on the top wall (z = 0), x 1.2–1.8. */

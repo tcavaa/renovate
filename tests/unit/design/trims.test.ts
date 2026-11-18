@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { STYLE_TRIMS, defaultTrim, trimFromProduct, trimLengthM, trimOptions, trimOutline } from '@/lib/design/trims';
+import { STYLE_TRIMS, defaultTrim, styleTrim, styleTrimProduct, trimFromProduct, trimLengthM, trimOptions, trimOutline } from '@/lib/design/trims';
+import { defaultFinishes } from '@/lib/design/generateScene';
+import { priceScene } from '@/lib/design/pricing';
+import { withStyleFinishes } from '@/lib/design/surfaces';
 import { polygonAreaM2, polygonPerimeterM, signedArea } from '@/lib/design/planGeometry';
 import type { CatalogProduct } from '@/lib/design/matcher';
-import type { PlanRoom, TrimProfile } from '@/lib/design/types';
+import type { DesignScene, FloorPlan, PlanRoom, TrimProfile } from '@/lib/design/types';
 
 const polygon = [
   { x: 0, z: 0 },
@@ -56,5 +59,65 @@ describe('trims', () => {
     const catalog = [moulding(1, 'skirting', 30, ['vintage'], {}), moulding(2, 'skirting', 8, ['modern'], {}), moulding(3, 'skirting', 5, ['vintage'], {}), moulding(4, 'cornice', 1, ['modern'], {})];
     expect(trimOptions(catalog, 'skirting', 'modern').map((p) => p.id)).toEqual([2, 3, 1]);
     expect(trimOptions(catalog, 'cornice', 'modern').map((p) => p.id)).toEqual([4]);
+  });
+});
+
+describe('the style’s mouldings bought', () => {
+  // The seeded range: each style's board and cornice as a product of its profile, height and colour.
+  const range = [
+    { ...moulding(547, 'skirting', 9, ['modern', 'scandinavian'], { profile: 'flat', heightCm: 8, depthCm: 1.6 }), colorHex: '#F4F4F2' },
+    { ...moulding(548, 'skirting', 14, ['modern', 'scandinavian', 'vintage'], { profile: 'stepped', heightCm: 12, depthCm: 1.8 }), colorHex: '#F7F5F0' },
+    { ...moulding(551, 'skirting', 28, ['vintage'], { profile: 'ogee', heightCm: 14, depthCm: 2.2 }), colorHex: '#EFE6D4' },
+    { ...moulding(552, 'cornice', 11, ['scandinavian', 'modern'], { profile: 'cove', heightCm: 6, depthCm: 6 }), colorHex: '#FAF8F4' },
+    { ...moulding(554, 'cornice', 32, ['vintage'], { profile: 'ogee', heightCm: 11, depthCm: 11 }), colorHex: '#F3ECDD' },
+  ] as CatalogProduct[];
+  const plan: FloorPlan = { rooms: [room, { ...room, id: 'b', type: 'balcony' }], metresPerPixel: null, bounds: { width: 4, depth: 3 }, source: 'manual', wallThicknessM: 0.12 };
+
+  it('takes the catalogue’s moulding of the style’s own profile and height, and none where the style has no cornice', () => {
+    expect(styleTrimProduct(range, 'skirting', 'modern')?.id).toBe(547);
+    expect(styleTrimProduct(range, 'skirting', 'vintage')?.id).toBe(551);
+    expect(styleTrimProduct(range, 'cornice', 'vintage')?.id).toBe(554);
+    // Scandinavian's rounded 7 cm board is not in this range: the first of its own.
+    expect(styleTrimProduct(range, 'skirting', 'scandinavian')?.id).toBe(547);
+    // Modern has no cornice, though the range has one tagged modern.
+    expect(styleTrimProduct(range, 'cornice', 'modern')).toBeNull();
+    // Industrial has no board in this range: drawn, not bought.
+    expect(styleTrimProduct(range, 'skirting', 'industrial')).toBeNull();
+    expect(styleTrim(room, 'skirting', 'industrial', range).product).toBeNull();
+  });
+
+  it('lays them round every room a generated flat has but the balcony, still the style’s, and the budget buys the metres', () => {
+    const finishes = defaultFinishes(plan, 'vintage', range);
+    const skirting = finishes.find((f) => f.roomId === 'r' && f.surface === 'skirting')!;
+    expect(skirting.origin).toBe('style');
+    expect(skirting.product?.productId).toBe(551);
+    expect(skirting.product?.qty).toBeCloseTo(trimLengthM(room, 'skirting'), 6);
+    expect(finishes.find((f) => f.roomId === 'r' && f.surface === 'cornice')?.product?.productId).toBe(554);
+    expect(finishes.some((f) => f.roomId === 'b' && (f.surface === 'skirting' || f.surface === 'cornice'))).toBe(false);
+    const scene: DesignScene = { styleId: 'vintage', mode: 'design_only', budgetGel: null, items: [], finishes };
+    const lines = priceScene(plan, scene).lines;
+    expect(lines.find((l) => l.key === 'product-551')?.qty).toBeCloseTo(13.1, 6);
+    expect(lines.find((l) => l.key === 'product-554')?.qty).toBeCloseTo(14, 6);
+    // Fitted by the metre in a renovation (`trim_install`)…
+    expect(priceScene(plan, { ...scene, mode: 'full' }, { homeState: 'white_frame' }).lines.find((l) => l.key === 'trim_install')?.qty).toBeCloseTo(27.1, 6);
+    // …but a design-only project pays no fitting for the style's mouldings, as for the style's
+    // floors and walls: nobody chose them.
+    expect(lines.find((l) => l.key === 'trim_install')).toBeUndefined();
+  });
+
+  it('fits a moulding somebody chose in a design-only project, beside the style’s that it does not fit', () => {
+    const chosen = trimFromProduct(room, 'skirting', range[1]);
+    const style = styleTrim(room, 'cornice', 'vintage', range);
+    const scene: DesignScene = { styleId: 'vintage', mode: 'design_only', budgetGel: null, items: [], finishes: [chosen, style] };
+    expect(priceScene(plan, scene).lines.find((l) => l.key === 'trim_install')?.qty).toBeCloseTo(chosen.product!.qty, 6);
+  });
+
+  it('turns the style’s drawn moulding into its product once the catalogue is in, and keeps one somebody chose', () => {
+    const drawn = [defaultTrim(room, 'skirting', 'vintage'), defaultTrim(room, 'cornice', 'vintage')];
+    const priced = withStyleFinishes(drawn, [room], 'vintage', range);
+    expect(priced.filter((f) => f.product).map((f) => f.product!.productId).sort()).toEqual([551, 554]);
+    expect(withStyleFinishes(priced, [room], 'vintage', range)).toBe(priced);
+    const chosen = [trimFromProduct(room, 'skirting', range[1])];
+    expect(withStyleFinishes(chosen, [room], 'vintage', range).find((f) => f.surface === 'skirting')?.product?.productId).toBe(548);
   });
 });

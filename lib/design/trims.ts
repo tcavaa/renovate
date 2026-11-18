@@ -8,9 +8,10 @@
  * counts the metres. It travels in `scene.finishes` with `surface: 'skirting' | 'cornice'`,
  * which is what gives it undo, versions, autosave and the per-room tray for free.
  *
- * Without a product a room wears its style's own trim, which costs nothing (like the
- * style's default floor): a plain board everywhere, a cornice only in the two styles that
- * would have one.
+ * A room wears its style's own trim (`styleTrim`): the catalogue's moulding of the style where it
+ * has one — bought by the metre like the style's floor and walls, still the style's (`origin:
+ * 'style'`) — else the style's look, drawn and costing nothing: a plain board everywhere, a
+ * cornice only in the two styles that would have one.
  *
  * Pure: the outlines are plain numbers, shared by the 3D builder and the script that draws
  * the product photos.
@@ -130,6 +131,31 @@ export function trimLengthM(room: PlanRoom, kind: TrimKind): number {
   const perimeter = wallEdges(room).reduce((sum, e) => sum + e.length, 0);
   const gaps = room.openings.filter((o) => (kind === 'skirting' ? o.kind !== 'window' : o.kind === 'railing')).reduce((sum, o) => sum + o.widthM, 0);
   return Math.max(0, Math.round((perimeter - gaps) * 10) / 10);
+}
+
+/**
+ * The catalogue's moulding a style's own trim *is*, as `styleFinishProduct` is its floor's: of the
+ * products tagged with the style (`trimOptions`, the style's first), the one of the style's profile
+ * and height (`STYLE_TRIMS`, to the centimetre) — its colour first — else the first of them. Null
+ * where the style has no trim of this kind (a Modern cornice) or the catalogue none of the style.
+ */
+export function styleTrimProduct(catalog: CatalogProduct[], kind: TrimKind, styleId: StyleId): CatalogProduct | null {
+  const spec = STYLE_TRIMS[styleId][kind];
+  if (!spec) return null;
+  const own = trimOptions(catalog, kind, styleId).filter((p) => Array.isArray(p.styleTags) && (p.styleTags as string[]).includes(styleId));
+  const height = (p: CatalogProduct) => Math.round(trimSpecs(p).heightCm ?? p.heightCm ?? 0);
+  const looks = own.filter((p) => trimSpecs(p).profile === spec.profile && height(p) === Math.round(spec.heightM * 100));
+  return looks.find((p) => p.colorHex?.toUpperCase() === spec.colorHex.toUpperCase()) ?? looks[0] ?? own[0] ?? null;
+}
+
+/**
+ * The style's trim for a room: its product where the catalogue has one (`styleTrimProduct`),
+ * still marked `origin: 'style'`, priced by the metres the room runs; else the style's plain look
+ * (`defaultTrim`).
+ */
+export function styleTrim(room: PlanRoom, kind: TrimKind, styleId: StyleId, catalog: CatalogProduct[] = []): SurfaceFinish {
+  const product = styleTrimProduct(catalog, kind, styleId);
+  return product ? trimFromProduct(room, kind, product, 'style') : defaultTrim(room, kind, styleId);
 }
 
 /** The style's own trim for a room — no product, no cost; `trim: null` where the style has none. */

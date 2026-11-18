@@ -12,6 +12,7 @@
  */
 
 import type { RoomType } from '@/lib/calculator/types';
+import { COFFEE_TABLE_GAP_M, TV_CENTRE_M, WALL_UNIT_BOTTOM_M } from './rules';
 import type { SlotKind } from './types';
 
 export interface Size3 {
@@ -109,6 +110,9 @@ export interface Archetype {
 // ---------------------------------------------------------------------------
 // Archetypes
 // ---------------------------------------------------------------------------
+
+/** The wall cabinets' box: their middle hangs half its height over `WALL_UNIT_BOTTOM_M`. */
+const KITCHEN_WALL_SIZE: Size3 = { width: 2.4, depth: 0.35, height: 0.72 };
 
 export const ARCHETYPES: Record<string, Archetype> = {
   // --- sleeping ---
@@ -214,7 +218,7 @@ export const ARCHETYPES: Record<string, Archetype> = {
     labelRu: 'Журнальный столик',
     categorySlug: 'tables',
     size: { width: 1.1, depth: 0.6, height: 0.42 },
-    placement: { type: 'relative', to: 'sofa', forward: 1.05, lateral: 0, align: 'same', gapM: 0.42 },
+    placement: { type: 'relative', to: 'sofa', forward: 1.05, lateral: 0, align: 'same', gapM: COFFEE_TABLE_GAP_M },
     priority: 70,
   },
   tv_unit: {
@@ -238,7 +242,7 @@ export const ARCHETYPES: Record<string, Archetype> = {
     labelRu: 'Телевизор',
     categorySlug: 'tvs',
     size: { width: 1.45, depth: 0.08, height: 0.82 },
-    placement: { type: 'wall-mounted', heightM: 1.05, above: 'tv_unit', aboveHeightM: 1.05, onlyAbove: true },
+    placement: { type: 'wall-mounted', heightM: TV_CENTRE_M, above: 'tv_unit', aboveHeightM: TV_CENTRE_M, onlyAbove: true },
     priority: 60,
   },
   storage_shelf: {
@@ -311,8 +315,8 @@ export const ARCHETYPES: Record<string, Archetype> = {
     labelEn: 'Kitchen wall cabinets',
     labelRu: 'Навесные кухонные шкафы',
     categorySlug: 'kitchen-furniture',
-    size: { width: 2.4, depth: 0.35, height: 0.72 },
-    placement: { type: 'wall-mounted', heightM: 1.81, above: 'kitchen_run', stretch: true },
+    size: { ...KITCHEN_WALL_SIZE },
+    placement: { type: 'wall-mounted', heightM: Math.round((WALL_UNIT_BOTTOM_M + KITCHEN_WALL_SIZE.height / 2) * 100) / 100, above: 'kitchen_run', stretch: true },
     priority: 95,
   },
   kitchen_island: {

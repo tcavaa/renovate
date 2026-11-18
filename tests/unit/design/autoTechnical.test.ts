@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { suggestTechnical } from '@/lib/design/autoTechnical';
 import { refreshRoom, roomEdges } from '@/lib/design/planGeometry';
 import { ruleViolations } from '@/lib/design/ruleChecks';
-import type { FloorPlan, PlacedItem, PlanRoom, TechnicalKind, Vec2 } from '@/lib/design/types';
+import type { FloorPlan, PlacedItem, PlanRoom, TechnicalKind, TechnicalPoint, Vec2 } from '@/lib/design/types';
+import type { CatalogProduct } from '@/lib/design/matcher';
+import { boilerCabinetSize } from '@/lib/design/boilerCabinet';
 
 const P = (x: number, z: number): Vec2 => ({ x, z });
 const room = (id: string, type: PlanRoom['type'], x: number, z: number, w: number, d: number): PlanRoom =>
@@ -184,6 +186,54 @@ describe('placing the technical points by the rules', () => {
       // The cupboard (62 cm) is beside the WC (40 cm), not over it — and still clear of the shower and the bath.
       expect(moved.wall !== spot.wall || Math.abs(moved.s - spot.s) >= 0.31 + 0.2).toBe(true);
       expect(ruleViolations({ ...planOf([bath]), technical: { points: [furnished] } }, [...wet, wc]).map((v) => v.code)).not.toContain('boiler_by_bath');
+    });
+
+    it('is measured at the size of the boiler the style will buy, not a default one', () => {
+      // 3 × 2.5 m, a WC 0.8–1.2 m along the top wall: 80 cm of wall left of it holds a default boiler's
+      // 62 cm cupboard; the Vintage boiler's 1.2 m makes a cupboard of 1.4 m, which only the 1.8 m
+      // right of the WC holds.
+      const bath = room('bath', 'bathroom', 0, 0, 3, 2.5);
+      const wc = at('bath', 'wc', 'toilet', 1, 0.33, 0.4, 0.65, 0.8);
+      const boiler = { id: 9, nameKa: 'b', slug: 'b', categorySlug: 'boilers', pricePerUnit: 100, unit: 'piece', model3dKind: 'boiler', model3dUrl: '/models/b.glb', widthCm: 120, depthCm: 40, heightCm: 90, styleTags: ['vintage'], specs: {} } as unknown as CatalogProduct;
+      const cupboardOn = (point: TechnicalPoint) => {
+        const spot = onWall(bath, point.position);
+        const half = boilerCabinetSize({ sizeM: { width: 1.2, depth: 0.4, height: 0.9 } }, bath).width / 2;
+        return { wall: spot.wall, from: spot.s - half, to: spot.s + half, length: spot.length };
+      };
+      const before = cupboardOn(suggestTechnical(planOf([bath]), [wc], ids).points.find((p) => p.kind === 'boiler')!);
+      // Placed by a default boiler, the real cupboard stands through the WC.
+      expect(before.wall === 0 && before.to > 0.8 && before.from < 1.2).toBe(true);
+      const sized = cupboardOn(suggestTechnical(planOf([bath]), [wc], ids, [], [boiler], 'vintage').points.find((p) => p.kind === 'boiler')!);
+      expect(sized.wall !== 0 || sized.from >= 1.2 - 1e-6 || sized.to <= 0.8 + 1e-6).toBe(true);
+      expect(sized.from).toBeGreaterThanOrEqual(-1e-6);
+      expect(sized.to).toBeLessThanOrEqual(sized.length + 1e-6);
+    });
+
+    it('is not put through a hall\'s furniture at the style\'s size where only a default boiler\'s stretch is clear of it', () => {
+      // A 4 × 1.5 m hall, the front door in its left wall; wardrobes along the top wall leave 90 cm
+      // between them (x 1.0–1.9), a shoe cabinet the whole bottom wall, another the right. A default
+      // cupboard (80 cm) fits the gap; the Vintage boiler's 1.4 m fits only by ignoring the furniture.
+      // Ignoring the furniture is the last resort at any size: the cupboard goes where it went.
+      // (The panel is already on the right wall.)
+      const bare = room('hall', 'hallway', 0, 0, 4, 1.5);
+      const left = roomEdges(bare.polygon).find((e) => Math.abs(e.a.x) < 1e-6 && Math.abs(e.b.x) < 1e-6)!;
+      const hall: PlanRoom = { ...bare, openings: [{ id: 'front', kind: 'door', wallIndex: left.index, t: 0.5, widthM: 0.9, heightM: 2.05, sillM: 0, roomId: 'hall', exterior: true }] };
+      const panel: TechnicalPoint = { id: 'panel', kind: 'electrical_panel', roomId: 'hall', position: P(3.92, 0.75), elevationM: 1.4, origin: 'user' };
+      const planOfHall = () => ({ ...planOf([hall]), technical: { points: [panel] } });
+      const furniture = [
+        at('hall', 'w1', 'wardrobe', 0.5, 0.3, 1.0, 0.6, 2.2),
+        at('hall', 'w2', 'wardrobe', 2.95, 0.3, 2.1, 0.6, 2.2),
+        at('hall', 's1', 'dresser', 2, 1.325, 4, 0.35, 0.9, Math.PI),
+        at('hall', 's2', 'dresser', 3.825, 0.75, 1.5, 0.35, 0.9, -Math.PI / 2),
+      ];
+      const boiler = { id: 9, nameKa: 'b', slug: 'b', categorySlug: 'boilers', pricePerUnit: 100, unit: 'piece', model3dKind: 'boiler', model3dUrl: '/models/b.glb', widthCm: 120, depthCm: 40, heightCm: 90, styleTags: ['vintage'], specs: {} } as unknown as CatalogProduct;
+      const unstyled = suggestTechnical(planOfHall(), furniture, ids).points.find((p) => p.kind === 'boiler')!;
+      expect(onWall(hall, unstyled.position).wall).toBe(0);
+      expect(onWall(hall, unstyled.position).s).toBeCloseTo(1.45, 1);
+      const styled = suggestTechnical(planOfHall(), furniture, ids, [], [boiler], 'vintage').points.find((p) => p.kind === 'boiler')!;
+      expect(styled.roomId).toBe('hall');
+      expect(styled.position.x).toBeCloseTo(unstyled.position.x, 6);
+      expect(styled.position.z).toBeCloseTo(unstyled.position.z, 6);
     });
   });
 

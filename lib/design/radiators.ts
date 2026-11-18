@@ -137,10 +137,8 @@ export function withRadiatorProduct(plan: FloorPlan, point: TechnicalPoint, prod
     const { product: _product, radiator: _radiator, ...rest } = point;
     return rest;
   }
-  const specs = radiatorSpecs(product);
   const radiator = {
-    wattsPerSection: specs.wattsPerSection ?? DEFAULT_WATTS_PER_SECTION,
-    sectionWidthM: (specs.sectionWidthCm ?? product.widthCm ?? DEFAULT_SECTION_WIDTH_M * 100) / 100,
+    ...radiatorFacts(product),
     heightM: (product.heightCm ?? 60) / 100,
     depthM: (product.depthCm ?? 10) / 100,
   };
@@ -212,17 +210,25 @@ export function withRadiatorProducts(plan: FloorPlan, catalog: CatalogProduct[],
  * runs when the button is pressed, and a radiator nobody asked for should not appear at
  * all — while one that was asked for has to be in the budget even in a finished home, where
  * only what the person added is new work.
+ *
+ * Given the style (`styleId`), each is placed as the product it will be (`radiatorProductFor`, from
+ * `radiatorCandidates`): the room's count from the heat a section of the style's radiator gives,
+ * and each radiator at its own length — its share of the room's sections at its section's width —
+ * so it is hung clear of a door and of the next radiator at the length it is bought at. Where no
+ * wall has room for that length, and with no style, it is placed as a middling radiator, 80 cm
+ * (`BESIDE_RADIATOR_M`), as before.
  */
-export function suggestRadiators(plan: FloorPlan, nextId: () => string, catalog: CatalogProduct[] = [], items: PlacedItem[] = [], decor: readonly DecorPiece[] = []): TechnicalPoint[] {
+export function suggestRadiators(plan: FloorPlan, nextId: () => string, catalog: CatalogProduct[] = [], items: PlacedItem[] = [], decor: readonly DecorPiece[] = [], styleId?: StyleId): TechnicalPoint[] {
   // The lowest radiator there is: a window whose sill leaves less room than this has its radiator beside it.
   const heights = catalog.filter((p) => p.model3dKind === RADIATOR_PRODUCT_KIND && p.heightCm).map((p) => p.heightCm! / 100);
   const lowest = heights.length > 0 ? Math.min(...heights) : LOWEST_RADIATOR_M;
+  const candidates = styleId ? radiatorCandidates(catalog, styleId) : [];
   const existing = radiatorPoints(plan);
   const out: TechnicalPoint[] = [];
   for (const room of plan.rooms) {
     if (!isHeatedRoom(room) || room.areaM2 < 3.5) continue;
     if (existing.some((p) => radiatorRoom(plan, p)?.id === room.id)) continue;
-    const wanted = radiatorsNeeded(plan, room);
+    const wanted = radiatorsNeeded(plan, room, candidates[0] ? radiatorFacts(candidates[0]).wattsPerSection : DEFAULT_WATTS_PER_SECTION);
     if (wanted === 0) continue;
     const edges = wallEdges(room);
     if (TOWEL_RAIL_ROOMS.includes(room.type)) {
@@ -253,8 +259,10 @@ export function suggestRadiators(plan: FloorPlan, nextId: () => string, catalog:
       if (!edge) continue;
       if (window.sillM - RADIATOR_FLOOR_GAP_M - RADIATOR_SILL_GAP_M >= lowest - 1e-6) spots.push({ edge, t: window.t });
       else {
-        // A floor-length window (a balcony door's glass): the radiator goes beside it on the same wall.
-        const beside = besideWindow(room, edge, window);
+        // A floor-length window (a balcony door's glass): the radiator goes beside it on the same wall —
+        // at the style's radiator's length where that side has the room, else a middling one's.
+        const own = candidates[0] ? radiatorLengthM(plan, room, candidates[0], Math.max(1, wanted)) : null;
+        const beside = (own != null && own > BESIDE_RADIATOR_M ? besideWindow(room, edge, window, own) : null) ?? besideWindow(room, edge, window);
         if (beside !== null) spots.push({ edge, t: beside });
       }
     }
@@ -268,22 +276,28 @@ export function suggestRadiators(plan: FloorPlan, nextId: () => string, catalog:
     // Each where it is wanted, or — in a furnished room, across a door, on another radiator — on the
     // nearest wall clear of them (`clearSpot`). The ones that stay where they are wanted are hung
     // first, so one that has to move goes clear of them rather than onto another's spot.
-    const lengthM = expectedLengthM(plan, room, spots.length, catalog);
-    const hung: Array<{ edge: PlanEdge; t: number } | null> = spots.map(() => null);
+    // Each as long as the product it will be (its window's, `radiatorProductFor`); with no style, as
+    // long as the longest the catalogue's could turn out, placed by a middling one's 80 cm.
+    const expected = expectedLengthM(plan, room, spots.length, catalog);
+    const sizes = spots.map((spot): RadiatorSize => {
+      const product = candidates.length > 0 ? radiatorProductFor(plan, { id: '', kind: 'radiator', roomId: room.id, position: offWall(spot), elevationM: RADIATOR_FLOOR_GAP_M, origin: 'user' }, candidates) : null;
+      const lengthM = product ? radiatorLengthM(plan, room, product, spots.length) : null;
+      return lengthM != null ? { widthM: lengthM, reachM: lengthM / 2 } : { widthM: null, reachM: expected - BESIDE_RADIATOR_M / 2 };
+    });
+    const hung: Array<HungRadiator | null> = spots.map(() => null);
     const placed = () => hung.flatMap((spot) => spot ?? []);
     spots.forEach((wanted, i) => {
-      if (clearSpot(plan, room, wanted, items, decor, lowest, placed(), lengthM) === wanted) hung[i] = wanted;
+      if (clearSpot(plan, room, wanted, items, decor, lowest, placed(), sizes[i].widthM) === wanted) hung[i] = { ...wanted, reachM: sizes[i].reachM };
     });
     spots.forEach((wanted, i) => {
-      hung[i] ??= clearSpot(plan, room, wanted, items, decor, lowest, placed(), lengthM);
+      hung[i] ??= { ...clearSpot(plan, room, wanted, items, decor, lowest, placed(), sizes[i].widthM), reachM: sizes[i].reachM };
     });
     for (const spot of placed()) {
-      const at = pointOnEdge(spot.edge, spot.t);
       out.push({
         id: nextId(),
         kind: 'radiator',
         roomId: room.id,
-        position: { x: round2(at.x + spot.edge.inward.x * 0.08), z: round2(at.z + spot.edge.inward.z * 0.08) },
+        position: offWall(spot),
         elevationM: RADIATOR_FLOOR_GAP_M,
         origin: 'user',
       });
@@ -315,28 +329,57 @@ export const TOWEL_RAIL_OVER_WC_MIN_M = 0.9;
 /** What a towel rail gives, W: a bathroom's heat in one piece. */
 const TOWEL_RAIL_WATTS = 450;
 
+/** A radiator's spot: a wall of its room and how far along it, 0..1. */
+type RadiatorSpot = { edge: PlanEdge; t: number };
+/** One already hung in the room, and how far either side of its spot it takes of its wall. */
+type HungRadiator = RadiatorSpot & { reachM: number };
+/** How long a radiator is placed as (null: not known, a middling one's 80 cm), and how far either side it then takes. */
+type RadiatorSize = { widthM: number | null; reachM: number };
+
+/** A radiator's point: on its wall, a hand inside the room. */
+function offWall(spot: RadiatorSpot): Vec2 {
+  const at = pointOnEdge(spot.edge, spot.t);
+  return { x: round2(at.x + spot.edge.inward.x * 0.08), z: round2(at.z + spot.edge.inward.z * 0.08) };
+}
+
+/** What a radiator product gives a section and how wide one is (`withRadiatorProduct` reads the same). */
+function radiatorFacts(product: CatalogProduct): { wattsPerSection: number; sectionWidthM: number } {
+  const specs = radiatorSpecs(product);
+  return { wattsPerSection: specs.wattsPerSection ?? DEFAULT_WATTS_PER_SECTION, sectionWidthM: (specs.sectionWidthCm ?? product.widthCm ?? DEFAULT_SECTION_WIDTH_M * 100) / 100 };
+}
+
+/** How long a radiator of this product is when it is one of `radiators` in the room: its share of the room's sections (`radiatorSections`) at its section's width. */
+function radiatorLengthM(plan: FloorPlan, room: PlanRoom, product: CatalogProduct, radiators: number): number {
+  const { wattsPerSection, sectionWidthM } = radiatorFacts(product);
+  return Math.max(MIN_SECTIONS, Math.min(MAX_SECTIONS, Math.ceil(sectionsForRoom(plan, room, wattsPerSection) / Math.max(1, radiators)))) * sectionWidthM;
+}
+
 /**
  * Where a radiator hangs: where it was wanted when nothing stands there; else the nearest clear
  * stretch of the same wall, then of another outside wall, then of any wall — clear of the doors and
- * the windows too low for it, of the radiators already hung in the room (`hung`), and, in a
- * furnished room (the owner's notes of 13 Nov 2026), of the furniture standing against the wall, of
- * the joinery and of decorated wall. With nowhere clear of the furniture it goes where it was wanted
- * and the rule check says it is blocked — unless that is across a door or on another radiator: then
- * on the nearest wall that is neither, and where no wall holds a middling radiator, in the middle of
- * the widest. An empty room is as it was, but for a radiator that would hang across a door or on
- * another. The very `wanted` comes back when it stays.
+ * the windows too low for it, of the radiators already hung in the room (`hung`, each as far either
+ * side as it takes), and, in a furnished room (the owner's notes of 13 Nov 2026), of the furniture
+ * standing against the wall, of the joinery and of decorated wall. With nowhere clear of the
+ * furniture it goes where it was wanted and the rule check says it is blocked — unless that is
+ * across a door or on another radiator: then on the nearest wall that is neither. All of it at the
+ * radiator's own length (`widthM`) when that is known; where no wall holds that length clear of the
+ * doors and the radiators, as a middling one (80 cm, `BESIDE_RADIATOR_M`) as before — and where no
+ * wall holds even that, in the middle of the widest. An empty room is as it was, but for a radiator
+ * that would hang across a door or on another. The very `wanted` comes back when it stays.
  */
-function clearSpot(plan: FloorPlan, room: PlanRoom, wanted: { edge: PlanEdge; t: number }, items: readonly PlacedItem[], decor: readonly DecorPiece[], heightM: number, hung: ReadonlyArray<{ edge: PlanEdge; t: number }> = [], lengthM = BESIDE_RADIATOR_M): { edge: PlanEdge; t: number } {
+function clearSpot(plan: FloorPlan, room: PlanRoom, wanted: RadiatorSpot, items: readonly PlacedItem[], decor: readonly DecorPiece[], heightM: number, hung: readonly HungRadiator[] = [], widthM: number | null = null): RadiatorSpot {
+  return (widthM != null ? spotClear(plan, room, wanted, items, decor, heightM, hung, widthM, false) : null) ?? spotClear(plan, room, wanted, items, decor, heightM, hung, BESIDE_RADIATOR_M, true)!;
+}
+
+/** `clearSpot` at one length; when not `settle`, null where no wall holds that length clear of the doors and the other radiators. */
+function spotClear(plan: FloorPlan, room: PlanRoom, wanted: RadiatorSpot, items: readonly PlacedItem[], decor: readonly DecorPiece[], heightM: number, hung: readonly HungRadiator[], width: number, settle: boolean): RadiatorSpot | null {
   const furnished = items.some((i) => i.roomId === room.id) || decor.some((d) => d.roomId === room.id);
   const band = { bottom: RADIATOR_FLOOR_GAP_M, top: RADIATOR_FLOOR_GAP_M + heightM };
-  const width = BESIDE_RADIATOR_M;
   // What no radiator hangs across: a door, and a window whose sill does not leave it the room.
   const low = (edge: PlanEdge) => room.openings.filter((o) => o.wallIndex === edge.index && !(o.kind === 'window' && o.sillM - RADIATOR_FLOOR_GAP_M - RADIATOR_SILL_GAP_M >= heightM - 1e-6));
-  // The radiators already hung on a wall: each as long as it will be, with what the next one's own length is over the width it is placed by.
+  // The radiators already hung on a wall, each as far either side of its spot as it takes.
   const taken = (edge: PlanEdge): WallBlock[] =>
-    hung
-      .filter((spot) => spot.edge.index === edge.index)
-      .map((spot) => ({ from: spot.t * edge.length - (lengthM - width / 2), to: spot.t * edge.length + (lengthM - width / 2), bottom: band.bottom, top: band.top }));
+    hung.filter((spot) => spot.edge.index === edge.index).map((spot) => ({ from: spot.t * edge.length - spot.reachM, to: spot.t * edge.length + spot.reachM, bottom: band.bottom, top: band.top }));
   // Wall a radiator may hang on at all, and — in a furnished room — what of it nothing stands at.
   const open = (edge: PlanEdge) => clearOf(freeSpans(edge, low(edge), 0.1, edge.length - 0.1, 0.1), taken(edge), band);
   const stretches = (edge: PlanEdge) => (furnished ? clearOf(open(edge), wallBlocks(room, edge, items, decor), band) : open(edge));
@@ -347,7 +390,7 @@ function clearSpot(plan: FloorPlan, room: PlanRoom, wanted: { edge: PlanEdge; t:
   if (!furnished && !across) return wanted;
   const outside = outsideEdges(plan, room);
   const others = [...outside, ...wallEdges(room).filter((e) => !outside.some((o) => o.index === e.index))].filter((e) => e.index !== wanted.edge.index);
-  const nearest = (spans: (edge: PlanEdge) => Array<[number, number]>): { edge: PlanEdge; t: number } | null => {
+  const nearest = (spans: (edge: PlanEdge) => Array<[number, number]>): RadiatorSpot | null => {
     const here = nearestClear(spans(wanted.edge), at, width);
     if (here != null) return Math.abs(here - at) < 0.01 ? wanted : { edge: wanted.edge, t: here / wanted.edge.length };
     for (const edge of others) {
@@ -360,6 +403,7 @@ function clearSpot(plan: FloorPlan, room: PlanRoom, wanted: { edge: PlanEdge; t:
   if (clear || !across) return clear ?? wanted;
   const beside = furnished ? nearest(open) : null;
   if (beside) return beside;
+  if (!settle) return null;
   let widest: { edge: PlanEdge; t: number; length: number } | null = null;
   for (const edge of [wanted.edge, ...others]) {
     for (const [a, b] of open(edge)) if (!widest || b - a > widest.length + 1e-6) widest = { edge, t: (a + b) / 2 / edge.length, length: b - a };
@@ -375,8 +419,8 @@ function clearSpot(plan: FloorPlan, room: PlanRoom, wanted: { edge: PlanEdge; t:
  */
 function expectedLengthM(plan: FloorPlan, room: PlanRoom, radiators: number, catalog: readonly CatalogProduct[]): number {
   const products = catalog.filter((p) => p.model3dKind === RADIATOR_PRODUCT_KIND).map((p) => {
-    const specs = radiatorSpecs(p);
-    return { watts: specs.wattsPerSection ?? DEFAULT_WATTS_PER_SECTION, widthM: (specs.sectionWidthCm ?? p.widthCm ?? DEFAULT_SECTION_WIDTH_M * 100) / 100 };
+    const facts = radiatorFacts(p);
+    return { watts: facts.wattsPerSection, widthM: facts.sectionWidthM };
   });
   const lengths = (products.length > 0 ? products : [{ watts: DEFAULT_WATTS_PER_SECTION, widthM: DEFAULT_SECTION_WIDTH_M }]).map(
     ({ watts, widthM }) => Math.max(MIN_SECTIONS, Math.min(MAX_SECTIONS, Math.ceil(sectionsForRoom(plan, room, watts) / Math.max(1, radiators)))) * widthM,
@@ -420,16 +464,16 @@ const BESIDE_RADIATOR_M = 0.8;
 const LOWEST_RADIATOR_M = 0.5;
 
 /**
- * Where on a window's wall a radiator goes beside it rather than under it: the side with more
- * clear wall, its near end 15 cm from the window and clear of every other opening — or null
- * when neither side has the room.
+ * Where on a window's wall a radiator `lengthM` long goes beside it rather than under it: the side
+ * with more clear wall, its near end 15 cm from the window and clear of every other opening — or
+ * null when neither side has the room.
  */
-function besideWindow(room: PlanRoom, edge: PlanEdge, window: Opening): number | null {
+function besideWindow(room: PlanRoom, edge: PlanEdge, window: Opening, lengthM = BESIDE_RADIATOR_M): number | null {
   const centre = window.t * edge.length;
-  const reach = window.widthM / 2 + RADIATOR_BESIDE_WINDOW_M + BESIDE_RADIATOR_M / 2;
+  const reach = window.widthM / 2 + RADIATOR_BESIDE_WINDOW_M + lengthM / 2;
   const sides = [centre - reach, centre + reach]
-    .filter((s) => s - BESIDE_RADIATOR_M / 2 >= 0.1 && s + BESIDE_RADIATOR_M / 2 <= edge.length - 0.1)
-    .filter((s) => !room.openings.some((o) => o !== window && o.wallIndex === edge.index && Math.abs(o.t * edge.length - s) < o.widthM / 2 + BESIDE_RADIATOR_M / 2 + 0.05))
+    .filter((s) => s - lengthM / 2 >= 0.1 && s + lengthM / 2 <= edge.length - 0.1)
+    .filter((s) => !room.openings.some((o) => o !== window && o.wallIndex === edge.index && Math.abs(o.t * edge.length - s) < o.widthM / 2 + lengthM / 2 + 0.05))
     .sort((a, b) => Math.min(b, edge.length - b) - Math.min(a, edge.length - a));
   return sides.length > 0 ? sides[0] / edge.length : null;
 }

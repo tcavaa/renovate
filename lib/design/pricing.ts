@@ -422,8 +422,11 @@ export function priceScene(
   }
 
   // A skirting board or cornice somebody chose is fitted by the metre, in either mode:
-  // choosing it is asking for it — and one ticked off the order is fitted all the same.
-  const trimMetres = round2(priced.reduce((sum, f) => sum + (f.product && isTrimSurface(f.surface) ? f.product.qty : 0), 0));
+  // choosing it is asking for it — and one ticked off the order is fitted all the same. The
+  // style's own mouldings (`styleTrim`, `origin: 'style'`) are fitted only in a renovation: in a
+  // design-only project nobody chose them, and the style's floors and walls get no fitting either.
+  const fitted = (f: SurfaceFinish) => f.product != null && isTrimSurface(f.surface) && (full || f.origin !== 'style');
+  const trimMetres = round2(priced.reduce((sum, f) => sum + (fitted(f) ? f.product!.qty : 0), 0));
   if (trimMetres > 0) {
     const price = options.book?.labour.trim_install?.price ?? TRIM_INSTALL_DEFAULT_GEL;
     raw.push({ section: 'labour', bucket: 'labour', key: 'trim_install', tick: tickFor.labour('trim_install'), qty: trimMetres, unit: 'm', unitPrice: price, total: round2(trimMetres * price), estimated: true });

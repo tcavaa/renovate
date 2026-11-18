@@ -125,6 +125,21 @@ describe('a calculation is priced as a design', () => {
     expect(placedQuantity(plan, electrical, 'sanitary_global', basin)).toBeNull();
   });
 
+  it('buys one entrance door, for the front door, where the board has another door to the outside — the works priced as before', () => {
+    const { plan, electrical } = standardFlat();
+    // The living room's window made a door to a balcony beyond the board.
+    const window = plan.rooms.find((r) => r.id === 'liv')!.openings.find((o) => o.kind === 'window')!;
+    const rooms = plan.rooms.map((r) => (r.id === 'liv' ? { ...r, openings: r.openings.map((o) => (o.id === window.id ? { ...o, kind: 'door' as const, sillM: 0, heightM: 2.05, exterior: true } : o)) } : r));
+    const twoOut: FloorPlan = { ...plan, rooms: [...rooms, { ...rooms[0], id: 'hall', type: 'hallway', name: 'hall', polygon: rooms[0].polygon.map((p) => ({ x: p.x - 20, z: p.z })), openings: [{ id: 'front', kind: 'door', wallIndex: 0, t: 0.5, widthM: 0.9, heightM: 2.05, sillM: 0, roomId: 'hall', exterior: true }] }] };
+    const priced = (selectedProducts: Record<string, SelectedProduct>) => calculationCost({ rooms: calculatorRoomsFromPlan(twoOut), homeState: 'white_frame', picks: { selectedProducts, selectedFurniture: {} }, board: twoOut, electrical });
+    const lines = priced({ doors_global: door, 'entrance-doors_global': entrance }).lines;
+    expect(lines.find((l) => l.key === 'product-11')?.qty).toBe(1);
+    expect(lines.find((l) => l.key === 'product-10')?.roomName).toContain('მისაღები');
+    // The renovation's materials and labour do not read the picks.
+    const works = (cost: ReturnType<typeof priced>) => cost.lines.filter((l) => l.section !== 'openings').map((l) => `${l.key}:${l.total}`);
+    expect(works(priced({ doors_global: door, 'entrance-doors_global': entrance }))).toEqual(works(priced({})));
+  });
+
   it('prices what the board has no place for as the calculator’s own lines, under the shop that sells it', () => {
     const sheet = calculatorSheet(input());
     const basinLine = sheet.lines.find((l) => l.tick === tickFor.pick('sanitary_global'))!;

@@ -19,7 +19,7 @@ import { partRoom, studioParts } from './studio';
 import { budgetLevel, generationWeight, kindPool, slotPool, type BudgetLevel, type CatalogProduct } from './matcher';
 import { randomSeed, seededRng, weightedOrder } from './random';
 import { styleAffinity } from './styles';
-import { isWetRoom } from './surfaces';
+import { isWetRoomType } from './surfaces';
 import { finishCandidates, type AiProposal, type AiRoomProposal } from './aiProposal';
 import { polygonCentroid, roomEdges, wallEdges, type PlanEdge } from './planGeometry';
 import { freeSpans } from './decor/layout';
@@ -521,7 +521,7 @@ const text = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? v
  */
 export function validateProposal(raw: { rooms?: RawRoom[] }, plan: FloorPlan, offer: Offer, model: string, styleId?: StyleId): AiProposal {
   const roomIds = new Set(plan.rooms.map((r) => r.id));
-  const wet = new Set(plan.rooms.filter((r) => isWetRoom(r.type)).map((r) => r.id));
+  const wet = new Set(plan.rooms.filter((r) => isWetRoomType(r.type)).map((r) => r.id));
   const rooms: AiRoomProposal[] = [];
   for (const room of raw.rooms ?? []) {
     if (!room || !roomIds.has(room.roomId)) continue;

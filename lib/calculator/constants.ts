@@ -66,7 +66,12 @@ export const DEFAULT_STUDIO_PARTS: [RoomType, RoomType] = ['kitchen', 'living_ro
 /** The share of a studio's floor its first part is given when the room becomes a studio. */
 export const DEFAULT_FIRST_SHARE = 0.35;
 
-export const WET_ROOM_TYPES: RoomType[] = ['bathroom', 'toilet', 'kitchen'];
+/**
+ * Rooms with water — a bathroom, a toilet and a kitchen: the calculator's "wet" rooms (a room's
+ * `isWetRoom`), whose floor it buys floor tiles for and keeps laminate out of. Not the design's wet
+ * rooms (`WET_ROOM_TYPES` in `lib/design/rules`, a bathroom and a toilet: `BATH_ROOM_TYPES`).
+ */
+export const WATER_ROOM_TYPES: RoomType[] = ['bathroom', 'toilet', 'kitchen'];
 
 /**
  * Rooms whose floor and walls are tiled and prepared as a bathroom (screed at the bathroom

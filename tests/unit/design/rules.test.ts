@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { doorWidthFor, entranceSightBands, kitchenRunZones, minDoorWidthM, roomNiches } from '@/lib/design/rules';
+import { ARCHETYPES } from '@/lib/design/catalog';
+import { COFFEE_TABLE_GAP_M, COLD_WATER_SLOTS, HOT_WATER_SLOTS, KITCHEN_WORKTOP_M, TV_CENTRE_M, WALL_UNIT_BOTTOM_M, WALL_UNIT_OVER_WORKTOP_M, WET_ROOM_TYPES, doorWidthFor, entranceSightBands, kitchenRunZones, minDoorWidthM, roomNiches } from '@/lib/design/rules';
+import { BATH_ROOM_TYPES, WATER_ROOM_TYPES } from '@/lib/calculator/constants';
+import { isWetRoomType } from '@/lib/design/surfaces';
+import { TECHNICAL_KINDS } from '@/lib/design/technical';
 import { layoutRoom, seatSlots } from '@/lib/design/autoLayout';
 import { addOpening } from '@/lib/design/openings';
 import { seededRng } from '@/lib/design/random';
@@ -235,5 +239,39 @@ describe('the warnings in words', () => {
     const room = { ...rect('w', 'toilet', 0, 0, 1.2, 1.8), openings: [{ id: 'd', kind: 'door' as const, wallIndex: 2, t: 0.5, widthM: 0.7, heightM: 2.05, sillM: 0, roomId: 'w', exterior: false }] };
     const wc: PlacedItem = { id: 't', slot: 'toilet', kind: 'toilet', roomId: 'w', position: P(0.6, 0.34), rotation: 0, elevationM: 0, size: { width: 0.4, depth: 0.68, height: 0.82 }, product: { productId: 1, nameKa: 'wc', pricePerUnit: 1, unit: 'piece', qty: 1, totalPrice: 1 } as PlacedItem['product'] };
     expect(reviewFindings(planOf([room]), [wc]).get('t')?.join(' ')).toMatch(/door opens onto/);
+  });
+});
+
+describe('one table per name', () => {
+  const types = ['living_room', 'bedroom', 'kitchen', 'bathroom', 'toilet', 'hallway', 'balcony', 'storage', 'office', 'closet', 'studio'] as const;
+
+  it('keeps the design’s wet rooms a table of their own — today the rooms the calculator tiles as a bathroom, and not the calculator’s rooms with water, which take the kitchen in too', () => {
+    // Two meanings, two tables: a change to the calculator's tiling must not move the design's
+    // door widths, mirrors and wet finishes with it.
+    expect(WET_ROOM_TYPES).not.toBe(BATH_ROOM_TYPES);
+    expect([...WET_ROOM_TYPES].sort()).toEqual(['bathroom', 'toilet']);
+    expect([...BATH_ROOM_TYPES].sort()).toEqual(['bathroom', 'toilet']);
+    for (const type of types) expect(isWetRoomType(type)).toBe(WET_ROOM_TYPES.includes(type));
+    expect([...WATER_ROOM_TYPES].sort()).toEqual(['bathroom', 'kitchen', 'toilet']);
+  });
+
+  it('feeds water to the fixtures of the sanitary plan and a kitchen run, and draws the layout to the pipes from the same list', () => {
+    expect([...COLD_WATER_SLOTS].sort()).toEqual(['bathtub', 'kitchen_run', 'shower', 'sink', 'toilet', 'washer']);
+    expect([...HOT_WATER_SLOTS].sort()).toEqual(['bathtub', 'kitchen_run', 'shower', 'sink']);
+    // The WC is drawn to its shaft, not its cold pipe; an island to the water.
+    expect([...TECHNICAL_KINDS.water_supply.attracts].sort()).toEqual(['bathtub', 'kitchen_island', 'kitchen_run', 'shower', 'sink', 'washer']);
+    expect([...TECHNICAL_KINDS.water_hot.attracts].sort()).toEqual(['bathtub', 'kitchen_island', 'kitchen_run', 'shower', 'sink']);
+    // Every piece fed water drains to the sewer.
+    expect([...TECHNICAL_KINDS.sewer.attracts].sort()).toEqual([...COLD_WATER_SLOTS].sort());
+  });
+
+  it('places the archetypes by the rules’ numbers: the coffee table’s gap, the TV’s centre, the wall cabinets over the worktop', () => {
+    const coffee = ARCHETYPES.coffee_table.placement;
+    expect(coffee.type === 'relative' && coffee.gapM).toBe(COFFEE_TABLE_GAP_M);
+    const tv = ARCHETYPES.tv.placement;
+    expect(tv.type === 'wall-mounted' && [tv.heightM, tv.aboveHeightM]).toEqual([TV_CENTRE_M, TV_CENTRE_M]);
+    expect(WALL_UNIT_BOTTOM_M).toBe(KITCHEN_WORKTOP_M + WALL_UNIT_OVER_WORKTOP_M);
+    const cabinets = ARCHETYPES.kitchen_wall;
+    expect(cabinets.placement.type === 'wall-mounted' && cabinets.placement.heightM).toBeCloseTo(WALL_UNIT_BOTTOM_M + cabinets.size.height / 2, 6);
   });
 });

@@ -18,7 +18,7 @@ import {
   ROOM_POINTS,
   TILED_FLOOR_ROOM_TYPES,
   WASHING_MACHINE_POINTS,
-  WET_ROOM_TYPES,
+  WATER_ROOM_TYPES,
   CONTINGENCY_PCT,
   workChoices,
   type MaterialRate,
@@ -45,7 +45,7 @@ export function computeRoomAreas(input: {
   const perimeterM = round2(2 * (width + length));
   const wallM2 = round2(perimeterM * height);
   const ceilingM2 = floorM2;
-  const isWetRoom = WET_ROOM_TYPES.includes(input.type);
+  const isWetRoom = WATER_ROOM_TYPES.includes(input.type);
 
   return {
     ...input,
@@ -196,7 +196,7 @@ export function expandStudios(rooms: Room[]): Room[] {
       ceilingM2: part.floorM2,
       wallM2: part.wallM2,
       perimeterM: part.perimeterM,
-      isWetRoom: WET_ROOM_TYPES.includes(part.type),
+      isWetRoom: WATER_ROOM_TYPES.includes(part.type),
       split: undefined,
       parts: undefined,
     }));

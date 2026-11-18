@@ -127,6 +127,10 @@ export const WATER_NEEDS: Partial<Record<SlotKind, WaterNeed>> = {
 };
 /** A kitchen run's sink and dishwasher (`kitchenRunZones`). */
 export const KITCHEN_SINK_WATER: WaterNeed = { hot: true, elevationM: 0.5 };
+/** The pieces fed cold water: every fixture of `WATER_NEEDS`, and a kitchen run (its sink and dishwasher). */
+export const COLD_WATER_SLOTS: readonly SlotKind[] = [...(Object.keys(WATER_NEEDS) as SlotKind[]), 'kitchen_run'];
+/** The pieces fed hot water too: the fixtures somebody washes under, and a kitchen run's sink. */
+export const HOT_WATER_SLOTS: readonly SlotKind[] = [...(Object.keys(WATER_NEEDS) as SlotKind[]).filter((slot) => WATER_NEEDS[slot]!.hot), 'kitchen_run'];
 export const DISHWASHER_WATER: WaterNeed = { hot: false, elevationM: 0.3 };
 /** A boiler takes cold in and gives hot out, under it. */
 export const BOILER_PIPES_BELOW_M = 0.15;
@@ -173,7 +177,7 @@ export const NEUTRAL_LIGHT_K = { min: 3500, max: 4000 } as const;
 export function roomLightK(type: PlanRoom['type']): { k: number; min: number; max: number } {
   if (type === 'kitchen' || type === 'office') return { k: 3800, ...NEUTRAL_LIGHT_K };
   // A bathroom is not in the brief; a mirror is lit for the face, a little cooler than a bedroom.
-  if (type === 'bathroom' || type === 'toilet') return { k: 3500, min: 3000, max: 4000 };
+  if (WET_ROOM_TYPES.includes(type)) return { k: 3500, min: 3000, max: 4000 };
   return { k: 2850, ...WARM_LIGHT_K };
 }
 
@@ -240,7 +244,14 @@ export function underCeiling<R extends Pick<PlanRoom, 'heightM' | 'type'>>(room:
 /** A room's door: 80–90 cm; a bathroom's or toilet's at least 70 cm. */
 export const ROOM_DOOR_MIN_M = 0.8;
 export const WET_DOOR_MIN_M = 0.7;
-export const WET_ROOM_TYPES: Array<PlanRoom['type']> = ['bathroom', 'toilet'];
+/**
+ * The design's wet rooms — a bathroom and a toilet: a narrower door, the mirror over the basin, wet
+ * finishes only (`isWetRoomType`). A table of its own: today it has the members of the calculator's
+ * `BATH_ROOM_TYPES` (the rooms it tiles and prepares as a bathroom), but that is the calculator's
+ * tiling and may change without moving these. Not the calculator's rooms with water
+ * (`WATER_ROOM_TYPES`, a calculator room's `isWetRoom` flag), which take the kitchen in too.
+ */
+export const WET_ROOM_TYPES: ReadonlyArray<PlanRoom['type']> = ['bathroom', 'toilet'];
 
 /** The flat's own front door, when the app adds one. */
 export const ENTRANCE_DOOR_M = 0.9;
@@ -273,7 +284,7 @@ export const DINING_SEAT_M = 0.6;
 export const FACING_COUNTERS_M = 1.2;
 /** Wall cabinets: 50–60 cm over the worktop. */
 export const WALL_UNIT_OVER_WORKTOP_M = 0.55;
-export const WALL_UNIT_BOTTOM_M = 0.9 + WALL_UNIT_OVER_WORKTOP_M;
+export const WALL_UNIT_BOTTOM_M = KITCHEN_WORKTOP_M + WALL_UNIT_OVER_WORKTOP_M;
 /** A wardrobe's depth: 60 cm, or a shallow one 35–40 cm. */
 export const WARDROBE_DEPTH_M = 0.6;
 export const SHALLOW_WARDROBE_DEPTH_M = 0.38;

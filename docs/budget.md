@@ -223,7 +223,13 @@ lays each room's floor and walls in the style's own partner products — the bat
 the bedroom's laminate and paint ([design-studio/finishes.md](design-studio/finishes.md),
 `styleFinish`) — so they are finish lines like any tile somebody picked, in either mode and
 whatever the home state: the design shows the flat in partner products, and those are what it
-buys. A floor or wall the person means to keep is ticked off on the summary like any line.
+buys. So are the skirting boards and cornices the style runs round each room (`styleTrim`: the
+catalogue's moulding of the style's profile and height, by the metre — none on a balcony, no
+cornice in a style that has none). `trim_install` fits them by the metre in a renovation, as
+it fits a moulding somebody chose; in a design-only project the style's mouldings (`origin:
+'style'`) get no fitting line, as the style's floors and walls get none — only a moulding
+somebody chose is fitted there. A moulding the catalogue has none of for the style is drawn and not
+bought. A floor or wall the person means to keep is ticked off on the summary like any line.
 Before any line is made, `visibleFinishes` cuts every finish down to the part
 of it nothing lies on: the paint under a tiled strip, the room's walls under a wall papered on
 its own, the laminate under painted floor tiles, the first colour of a strip painted twice are

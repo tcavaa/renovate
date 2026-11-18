@@ -529,12 +529,20 @@ in English — `ruleProblem` into `reviewFindings`' PROBLEMS) and the foot of th
   sockets (`electrical.ts`) and its water, waste, gas and hood (`autoTechnical.ts`), so they agree.
   A run under 2.1 m has no dishwasher.
 - `WATER_NEEDS` (what each fixture is fed and at what height), `KITCHEN_SINK_WATER`,
-  `DISHWASHER_WATER`, the pair's spacing, `SHAFT_FIXTURES` and `SHAFT_MAX_DISTANCE_M`.
+  `DISHWASHER_WATER`, the pieces fed cold and hot (`COLD_WATER_SLOTS`, `HOT_WATER_SLOTS` — what the
+  layout draws to the pipes and the step's hints are named against), the pair's spacing,
+  `SHAFT_FIXTURES` and `SHAFT_MAX_DISTANCE_M`. The wet rooms, `WET_ROOM_TYPES`: a bathroom and a
+  toilet — a table of its own, today with the members of the calculator's `BATH_ROOM_TYPES`, so a
+  change to the calculator's tiling does not move the design's doors, mirrors and finishes (its
+  rooms with water, the kitchen too, are `WATER_ROOM_TYPES`).
 - `minDoorWidthM(type)` and `doorWidthFor(type, other)`: a new door is 80 cm, 70 cm when either
   room is a bathroom or toilet, 90 cm to the outside (`addOpening`; `deriveOpenings` too).
 - The layout's numbers (`BED_SIDE_FREE_M`, `SOFA_TV_M`, `COFFEE_TABLE_GAP_M`, `TV_CENTRE_M`,
   `DINING_SEAT_M`, `FACING_COUNTERS_M`, `WALL_UNIT_BOTTOM_M`, the wardrobe depths, `SHOWER_MIN_M`,
-  `WC_SIDE_M`, `BASIN_TOP_M`, `SPLASH_ZONE_M`) and the geometry they need: `footprintQuad`,
+  `WC_SIDE_M`, `BASIN_TOP_M`, `SPLASH_ZONE_M`) and the geometry they need — the archetypes read
+  them rather than repeating them (`catalog.ts`: the coffee table's gap, the TV's centre, the wall
+  cabinets hung from `WALL_UNIT_BOTTOM_M`, itself the worktop's `KITCHEN_WORKTOP_M` and the 55 cm
+  over it); `footprintQuad`,
   `quadsOverlap`, `rayToPolygon`, `doorSightBand` / `roomSightBands` / `entranceSightBands`,
   `roomNiches`.
 - `backWallOf`, `alongWall`.

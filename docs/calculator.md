@@ -19,7 +19,7 @@ locks, "see it in 3D") · [budget.md](budget.md) (the summary sheet shared with 
 | File | Responsibility |
 |---|---|
 | `lib/calculator/materials.ts` | the pure engine: `computeRoomAreas`, `aggregateRoomTotals`, `calculateMaterials`, `calculateWorkerCosts`, `expandStudios`, `estimateCounts`; `buildProjectSummary` (only the landing page's sample now — the sheet is `calculationCost`) |
-| `lib/calculator/constants.ts` | the shipped rate book (`MATERIAL_RATES_PER_M2`, `WORKER_RATES`), phases per home state, room-type sets (`BATH_ROOM_TYPES`, `TILED_FLOOR_ROOM_TYPES`, wet rooms), `ROOM_POINTS`, `PHASE_NAMES` |
+| `lib/calculator/constants.ts` | the shipped rate book (`MATERIAL_RATES_PER_M2`, `WORKER_RATES`), phases per home state, room-type sets (`BATH_ROOM_TYPES`, `TILED_FLOOR_ROOM_TYPES`, `WATER_ROOM_TYPES` — the rooms with water a room's `isWetRoom` means, the kitchen among them; the design's wet rooms are `lib/design/rules`'s `WET_ROOM_TYPES`, read by `isWetRoomType`), `ROOM_POINTS`, `PHASE_NAMES` |
 | `lib/calculator/rates.ts` | rows of the `rates` table → a `RateBook` (`rateBookFromRows`, `defaultRateRows`, `DEFAULT_RATE_BOOK`, `LABOUR_PHASE`) |
 | `lib/calculator/types.ts` | `HomeState`, `Room`, `SelectedProduct`, `WorkChoices`, … |
 | `lib/calculator/quantities.ts` | selection keys (`selectionKey`, `categorySlugFromKey`, `roomIdFromKey`, `partFromKey`), `suggestedQuantity`, a room's walls (`roomWalls`, `roomWallAreasM2`), `roomFinishAreaM2` / `roomFinishQuantity` / `finishPickQuantity` |
@@ -116,7 +116,11 @@ locks, "see it in 3D") · [budget.md](budget.md) (the summary sheet shared with 
   conditioners, the boiler), the radiators each room's heat calls for under its outside windows
   (`suggestRadiators`, in the style's radiator product), the fittings (`suggestElectrical`,
   which with no furniture is `standardElectrical`: a ceiling light per room, a switch by each
-  door, general sockets), and clearing them. A fitting set down is its catalogue product at once
+  door — or, in a room entered through a room separator alone, beside the separator — general
+  sockets), and clearing them. The sheet counts the switches the board holds, so a board whose
+  fittings are suggested again gains a switch (its `electrical_switch`, `electric_point` and
+  `wall_chasing` lines) for each room entered only through a separator: on the 30 fixture plans 16
+  boards gain switches and 11 of their sheets 52–272 ₾ (the other five sheets do not change). A fitting set down is its catalogue product at once
   (`PlanWorkspace`'s `catalog`), as in the studio.
   **A tray opens with nothing in hand** — the sheet selects until a kind is picked — **and a
   kind picked stays in hand**: every click on the sheet sets down another (the page drives the
@@ -207,9 +211,9 @@ rooms. So:
 - "Other products" (sockets, lights, sanitary ware, doors, windows…) are one product for the
   whole flat (`<slug>_global`). One the board has a place for goes **on every one of its kind on
   the board** (`boardWithPicks` → `dressBoard`, `lib/design/boardPicks.ts`; what it goes on is
-  `pickTarget`: the product's 3D kind, else its tab): a door on every interior door (an entrance
-  door on every door on an outside wall — every one, not only the flat's front door the design buys
-  one for: [technical-and-fittings.md](design-studio/technical-and-fittings.md#known-gaps)), a window on every window, a radiator on every radiator — its
+  `pickTarget`: the product's 3D kind, else its tab): an entrance door on the flat's front door
+  alone (`frontDoor`, the door the design buys one for) and a door on every other door, a balcony's
+  door to the outside among them, a window on every window, a radiator on every radiator — its
   sections counted from its room — a socket, switch or light on every fitting of its kind, a
   skirting board or cornice round every room. It is bought for what it is on (`placedQuantity`):
   the bundled sample image's (`public/samples/plan-2br.png`, read the CV way) 3 doors and 8 windows, a radiator's sections over all six radiators, a

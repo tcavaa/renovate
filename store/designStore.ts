@@ -1152,9 +1152,9 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             if (!s.plan) return null;
             let n = 0;
             const nextId = () => `${uid('t')}${n++}`;
-            const points = suggestTechnicalIn(s.plan, s.items, nextId, s.decor).points;
+            const points = suggestTechnicalIn(s.plan, s.items, nextId, s.decor, catalog, s.styleId).points;
             const withPoints: FloorPlan = { ...s.plan, technical: { ...s.plan.technical, points: [...(s.plan.technical?.points ?? []), ...points] } };
-            const radiators = suggestRadiators(withPoints, nextId, catalog, s.items, s.decor);
+            const radiators = suggestRadiators(withPoints, nextId, catalog, s.items, s.decor, s.styleId);
             if (points.length === 0 && radiators.length === 0) return null;
             placed.points = points.length;
             placed.radiators = radiators.length;
@@ -1184,9 +1184,9 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             if (!s.plan) return null;
             let n = 0;
             const nextId = () => `${uid('t')}${n++}`;
-            const points = suggestTechnicalIn(s.plan, s.items, nextId, s.decor).points;
+            const points = suggestTechnicalIn(s.plan, s.items, nextId, s.decor, catalog, s.styleId).points;
             let plan: FloorPlan = { ...s.plan, technical: { ...s.plan.technical, points: [...(s.plan.technical?.points ?? []), ...points] } };
-            const radiators = suggestRadiators(plan, nextId, catalog, s.items, s.decor);
+            const radiators = suggestRadiators(plan, nextId, catalog, s.items, s.decor, s.styleId);
             plan = withRadiatorProducts({ ...plan, technical: { ...plan.technical!, points: [...(plan.technical?.points ?? []), ...radiators] } }, catalog, s.styleId);
             plan = withEquipmentProducts(plan, catalog, s.styleId);
             const before = s.electrical.filter((p) => p.origin !== 'generated').length;

@@ -65,6 +65,11 @@ export interface Room {
   wallM2: number;
   ceilingM2: number;
   perimeterM: number;
+  /**
+   * A room with water — a bathroom, a toilet or a kitchen (`WATER_ROOM_TYPES`): its floor is tiled
+   * and kept free of laminate. Not the design's wet rooms (`WET_ROOM_TYPES`, `isWetRoomType`: a
+   * bathroom and a toilet). The name is kept: it is in stored rows and the room schema.
+   */
   isWetRoom: boolean;
   /** Top-left corner on the flat's plan, metres. Set by the plan or the layout editor. */
   x?: number;

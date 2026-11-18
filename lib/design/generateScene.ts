@@ -24,7 +24,7 @@ import { withOpeningProducts } from './openings';
 import { rngStreams, roomStreams, type RoomRng, type Rng } from './random';
 import { generatedFinish, isStyleFinish, withFlatFinish } from './surfaces';
 import { technicalAnchors } from './technical';
-import { defaultTrim, hasTrims } from './trims';
+import { hasTrims, styleTrim } from './trims';
 import { columnFootprints } from './walls';
 import { withGeneratedPartitions } from './autoPartitions';
 import { radiatorKeepouts } from './ruleChecks';
@@ -277,7 +277,7 @@ export function defaultFinishes(plan: FloorPlan | null, styleId: StyleId, catalo
   const finishes = plan.rooms.flatMap((room) => {
     // The room's own draw, where generation hands one per room (`roomRng`).
     const draw = roomRng ? roomRng(room.id) : rng;
-    return [...surfaces.map((surface) => generatedFinish(room, surface, styleId, catalog, draw)), ...(hasTrims(room) ? [defaultTrim(room, 'skirting', styleId), defaultTrim(room, 'cornice', styleId)] : [])];
+    return [...surfaces.map((surface) => generatedFinish(room, surface, styleId, catalog, draw)), ...(hasTrims(room) ? [styleTrim(room, 'skirting', styleId, catalog), styleTrim(room, 'cornice', styleId, catalog)] : [])];
   });
   // One floor and one wall finish through the flat, drawn for its main room (the owner's notes):
   // a bathroom, a balcony and a closed kitchen keep their own.

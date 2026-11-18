@@ -18,7 +18,7 @@ import { decorDepth, fitLight, paramsOf } from './decor/layout';
 import { blocksWindow, clampInsideRoom, fitSwapped, footprintInRoom, footprintOf, footprintsOverlap, inDoorway, isPlacementValid, pieceWall, type Footprint } from './manipulate';
 import { roomEdges, type PlanEdge } from './planGeometry';
 import type { AiReview } from './aiReview';
-import { finishFromProduct, isWetRoom, surfaceOptions, surfaceSpecs } from './surfaces';
+import { finishFromProduct, isWetRoomType, surfaceOptions, surfaceSpecs } from './surfaces';
 import type { DecorPiece, DecorSlot, ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, SlotKind, StyleId, SurfaceFinish, Vec2 } from './types';
 import type { RoomType } from '@/lib/calculator/types';
 import { COVERS_WALL, overlaps, reanchorDecor, resolveDecor, resolveRoomDecor, type DecorIntent } from './decor/resolve';
@@ -51,7 +51,7 @@ export function proposalPicks(proposal: AiProposal | null | undefined): Record<s
 
 /** The finishes a surface of a room may wear: the right surface, as wet or dry as the room. */
 export function finishCandidates(catalog: CatalogProduct[], room: PlanRoom, surface: 'floor' | 'wall', styleId: StyleId): CatalogProduct[] {
-  const wet = isWetRoom(room.type);
+  const wet = isWetRoomType(room.type);
   return surfaceOptions(catalog, surface, room, styleId).filter((p) => !!surfaceSpecs(p).wet === wet);
 }
 
