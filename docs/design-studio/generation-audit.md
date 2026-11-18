@@ -84,10 +84,14 @@ there is the owner's choice ([decor.md](decor.md#known-gaps)).
 
 ## Where it stands (18 Nov 2026)
 
-Four batches are on `main` (the bugs of sections A–O that need no rule choice; each item says
-*Fixed*, *Partly* or nothing). `pnpm audit:generation --seeds 6`, 720 flats, before (16 Nov) →
-now — the draws differ (one stream then, a stream per room now), so a count the fixes did not
-touch moves only within the draw's noise:
+Two rounds are on `main`: the bugs of sections A–O that need no rule choice (four batches, 16–18
+Nov), then the clean-ups and the rest of what needs none (three batches, 18 Nov: one set of
+builders for what is built round a piece, one answer to each geometry question and the shower read
+by its tray everywhere, one number per rule and one list per name, tests that can see generation,
+the AI designer briefed from the laid-out flat, one table of who belongs to whom). 65 of the 133
+items are ticked; each says *Fixed*, *Partly* or nothing. `pnpm audit:generation --seeds 6` on the
+30 original plans, 720 flats, before (16 Nov) → now — the draws differ (one stream then, a stream
+per room now), so a count the fixes did not touch moves only within the draw's noise:
 
 | What | Before | Now |
 |---|---|---|
@@ -96,22 +100,34 @@ touch moves only within the draw's noise:
 | Living rooms with no TV unit | 92 | 72 |
 | Flats with a bathroom and no washing machine | 192 | 48 |
 | Pieces arranged round a piece that is gone (every orphan) | 343 | 0 |
-| A piece within 90 cm in front of a door | 292 | 56 |
+| A piece within 90 cm in front of a door | 292 | 47 |
 | A TV unit on a room separator's line / free of every wall | 217 / 83 | 124 / 48 |
-| A hung piece into what stands below (now canopy beds' pendants) | 369 | 102 |
+| A hung piece into what stands below (a pendant over a canopy bed no pendant can clear) | 369 | 9 |
 | A hung piece into another (the mirror into the tap) | 274 | 0 |
 | A basin hanging in the air | 106 | 0 |
 | Joinery or a piece in a shower's tray | 58 / 19 | 0 / 0 |
 | Joinery in a door's way / before a wall of wardrobe's doors | 157 / 129 | 0 / 0 |
 | A socket inside a radiator · two main lights at one spot | 516 · 1,246 | 0 · 0 |
-| The app's own checks: door swing blocked · radiator blocked · socket in a splash zone | 161 · 98 · 51 | 56 · 19 · 0 |
+| The app's own checks: door swing blocked · radiator blocked · socket in a splash zone · WC side tight | 161 · 98 · 51 · 5 | 46 · 19 · 0 · 0 |
 | A flat the save route would refuse | (not counted) | 0 |
 
 Measured outside the command, in the lanes' scripts: Modern balconies in laminate 150 of 150 → 0;
 flats with doors of two products 48 of 360 → 0 (one door and one window through a flat); calculator picks
 out of the room, in a piece or on a door's floor 45 % → 14 %; the AI designer's picks the engine
 ignored 1,009 of 3,465 → 494; the AI check shown the engine's own work as problems 481 times in 360
-flats → 0, and an empty check changing 122 of 360 flats → 0.
+flats → 0, and an empty check changing 122 of 360 flats → 0; the studio's own settling changing an
+untouched generated flat on the first drag of any piece 83 of 360 → 0; WCs with no box 100 → 14 of
+672; radiators across a door 15 of 2,272 → 0; the 68 m of skirting a flat drawn and never bought →
+bought; carpet offered to the designer for a balcony in 97 of 100 briefs → 0; and in the tests, the
+branches that never ran run and sixteen step-overs past a missing piece are hard expectations.
+
+Left of the clean-ups, each said at its item: D4 (the studio's own swap still fits a product its own
+way), the copies of "the wall behind a piece" in the builders' files (D1), the numbers the prompts
+still carry where `rules.ts` has none (A7), and four defects pinned as skipped tests for the owner
+or a later round — a dining table drawn smaller than its slot when a larger one fits (M8), the AI
+check's move of a bed standing its nightstand in a door's way (V3), wall cabinets left off beside a
+wide window though 1.38 m of the run is clear (V4), dining chairs on the floor behind an entrance
+screen in 6 of the 60 flats with one (Q4).
 
 Still as before, because each is a matter of which piece gives way (the owner's per-room rules):
 bathrooms with no shower or bath 36 %, no mirror about 30 %, no WC 11 %; studios with no TV unit
@@ -148,6 +164,9 @@ bathrooms with no shower or bath 36 %, no mirror about 30 %, no WC 11 %; studios
     by the window, a shallower screen) would change the screen's own numbers. And a screen whose
     short end meets a room separator's open line is still run on to that line and ends free there,
     as before: whether it should, or be left short with the way through the separator, is a rule.
+12. *A door's clear floor* (X5) is one function now, but five callers still pass five sets of numbers
+    (the engine's 0.95 m × the door + 20 cm, the matcher's 0.90 m × the door, the check's leaf, the
+    passage check's 45 cm, the joinery's 0.90 m): which one is the rule?
 
 ## How it was audited
 

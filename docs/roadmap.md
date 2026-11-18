@@ -23,9 +23,9 @@ at runtime yet; the last one was seen on the sample plan.
   appear, Modern balconies in laminate, doors that never follow the style, calculator picks placed
   with no fit test, rules stated twice, and tests
   that cannot see any of it; the root cause of each lost piece is measured, with what one change
-  recovers. The plain bugs are fixed (four batches, 16–18 Nov; `pnpm audit:generation` measures
-  each fix); which piece gives way to which, and ten decisions the fixes ran into, wait for the
-  owner's per-room rules — [design-studio/generation-audit.md](design-studio/generation-audit.md#where-it-stands-18-nov-2026).
+  recovers. The plain bugs and the clean-ups that need no rule are fixed (seven batches, 16–18 Nov;
+  `pnpm audit:generation` measures each fix); which piece gives way to which, and twelve decisions
+  the fixes ran into, wait for the owner's per-room rules — [design-studio/generation-audit.md](design-studio/generation-audit.md#where-it-stands-18-nov-2026).
 - **Two clashes the generation audit does not count are kept for the owner's choice of what gives
   way**: a vanity that cannot be cut back to a washer's column without becoming narrower than its
   basin (2 of 1,440 flats) and a basin 1.9 cm past a vanity cut back to a corner column (1) —
