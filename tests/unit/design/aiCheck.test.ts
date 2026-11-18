@@ -192,6 +192,18 @@ describe('the fittings follow the furniture the check changed (A6)', () => {
     expect(checked.electrical).toBe(electrical);
     expect(checked.items).toEqual(items);
   });
+
+  it('records as reviewed the fixes that changed something, not the fixes it was given (J6)', () => {
+    const fixes = [
+      // Changes the flat: the bed to the far wall.
+      { target: 'bed', action: 'move_to_wall' as const, productId: null, wallIndex: 2, reason: '' },
+      // Change nothing: a piece that is not there, a product the catalogue does not have.
+      { target: 'gone', action: 'remove' as const, productId: null, wallIndex: null, reason: '' },
+      { target: 'n1', action: 'replace' as const, productId: 999, wallIndex: null, reason: '' },
+    ];
+    expect(reviewedScene(scene, { model: 'm', notes: {}, fixes }, []).generation.reviewed).toBe(1);
+    expect(reviewedScene(scene, { model: 'm', notes: {}, fixes: fixes.slice(1) }, []).generation.reviewed).toBe(0);
+  });
 });
 
 describe('what the engine built stays as it built it after the check (W1)', () => {

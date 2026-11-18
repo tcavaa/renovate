@@ -21,7 +21,7 @@ at runtime yet; the last one was seen on the sample plan.
   tray and in front of the bed, sockets on radiators, technical points left behind by the
   furniture, the AI designer offered what the engine refuses, about 160 products that never
   appear, Modern balconies in laminate, doors that never follow the style, calculator picks placed
-  with no fit test, a paid AI run lost to a save from another tab, rules stated twice, and tests
+  with no fit test, rules stated twice, and tests
   that cannot see any of it; the root cause of each lost piece is measured, with what one change
   recovers. Being fixed in batches, the plain bugs first (`pnpm audit:generation` measures each
   fix; ticked items are done); which piece gives way to which waits for the owner's per-room rules

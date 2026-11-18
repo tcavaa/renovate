@@ -535,8 +535,10 @@ export const designJobStage = pgEnum('design_job_stage', ['designing', 'checking
  * engine laid it when the designer failed) or `failed` (nothing written: the page lays the flat out
  * with the engine). `stageAt` is when it entered its stage; one in a stage past `JOB_STALE_MS` died
  * with its function and is settled when it is next read. The flat is written only over `baseRev`,
- * the revision the design had when the job started (and `baseRev + 1` for the check). Every row is
- * one AI run: their count is the design's cap (`MAX_AI_GENERATIONS`).
+ * the revision the design had when the job started (and `baseRev + 1` for the check). The rows that
+ * wrote the designer's flat (`wroteDesignersFlat`) are the design's AI runs, capped
+ * (`MAX_AI_GENERATIONS`); the rows that asked the designer at all, within an hour, its safety stop.
+ * `error` is `<step>:<code>[ <detail>]` (`jobError`).
  */
 export const designJobs = pgTable('design_jobs', {
   id: id(),
@@ -547,7 +549,7 @@ export const designJobs = pgTable('design_jobs', {
   baseRev: integer('base_rev').notNull(),
   /** The draw the brief and the layout were made from (`lib/design/random`): the run reproduced. */
   seed: integer('seed').notNull(),
-  /** The AI runs the design has had with this one — what its flat records (`generation.aiCount`). */
+  /** The AI runs the design has had with this one, if it writes the designer's flat — what that flat records (`generation.aiCount`; the engine's flat records one fewer). */
   aiCount: integer('ai_count').notNull(),
   proposal: jsonb('proposal'),
   review: jsonb('review'),

@@ -2,16 +2,17 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { DesignJob, Project } from '@/lib/db/schema';
 import { env } from '@/lib/env';
 import { log } from '@/lib/log';
+import { RATE_RULES } from '@/lib/api/rateLimit';
 import { getDesignCatalog } from '@/lib/api/designCatalog';
 import { designWriteColumns, refusedDesignChange } from '@/lib/api/designWrite';
-import { claimJob, latestJob, loadJob, loadProject, ownedProject, projectGenerated, updateJob, userRole, withJobLock, writeDesignForJob, type JobUpdate } from '@/lib/api/designJobRows';
-import { designWithClaude } from '@/lib/design/aiDesign';
-import { reviewWithClaude, type AiReview } from '@/lib/design/aiReview';
+import { claimJob, jobAndRevision, latestJob, loadJob, loadProject, ownedProject, projectGenerated, updateJob, userRole, withJobLock, writeDesignForJob, type JobUpdate } from '@/lib/api/designJobRows';
+import { designWithClaude, type AiDesignUsage } from '@/lib/design/aiDesign';
+import { reviewWithClaude, type AiReview, type AiReviewUsage } from '@/lib/design/aiReview';
 import { MAX_AI_GENERATIONS, type AiProposal } from '@/lib/design/aiProposal';
 import { getArchetype } from '@/lib/design/catalog';
 import { picksFromCalculator } from '@/lib/design/fromCalculator';
 import { generateScene, reviewedScene } from '@/lib/design/generateScene';
-import { DESIGN_DEADLINE_MS, REVIEW_DEADLINE_MS, isLive, isStale, type GenerationJobView, type GenerationStatus } from '@/lib/design/generationJob';
+import { DESIGN_DEADLINE_MS, REVIEW_DEADLINE_MS, REVIEW_START_MS, calledDesigner, isLive, isStale, jobError, wroteDesignersFlat, type GenerationJobView, type GenerationStage, type GenerationStatus, type JobErrorCode } from '@/lib/design/generationJob';
 import { randomSeed } from '@/lib/design/random';
 import { ensureWalls } from '@/lib/design/walls';
 import type { DesignProgress, DesignScene, FloorPlan } from '@/lib/design/types';
@@ -62,8 +63,17 @@ export function validJobToken(jobId: number, token: string | null): boolean {
   return got.length === want.length && timingSafeEqual(got, want);
 }
 
+/**
+ * What a job keeps of the designer's answers, so a flat can be explained later: the proposal with
+ * what its call cost (`design_jobs.proposal` — kept also when its write was refused), the check with
+ * its cost and how many of its fixes changed the flat (`design_jobs.review`); the error says which
+ * step ended how (`jobError`). Neither is ever read back to lay a flat out.
+ */
+type KeptProposal = AiProposal & { usage?: AiDesignUsage };
+type KeptReview = AiReview & { usage?: AiReviewUsage; applied?: number };
+
 export function jobView(job: DesignJob): GenerationJobView {
-  const review = job.review as AiReview | null;
+  const review = job.review as KeptReview | null;
   return {
     id: job.id,
     stage: job.stage,
@@ -71,7 +81,7 @@ export function jobView(job: DesignJob): GenerationJobView {
     stageAt: job.stageAt.toISOString(),
     finishedAt: job.finishedAt ? job.finishedAt.toISOString() : null,
     error: job.error,
-    reviewed: review ? review.fixes.length : null,
+    reviewed: review ? (review.applied ?? 0) : null,
   };
 }
 
@@ -90,17 +100,29 @@ function calculatorPicksOf(project: Project, scene: DesignScene) {
 
 export type StartResult =
   | { ok: true; job: DesignJob; started: boolean }
-  | { ok: false; error: 'PROJECT_NOT_FOUND' | 'PROJECT_CHANGED' | 'AI_LIMIT' | 'PLAN_REQUIRED' | 'NO_ROOMS'; status: number; feature?: string; plan?: string | null };
+  | { ok: false; error: 'PROJECT_NOT_FOUND' | 'PROJECT_CHANGED' | 'AI_LIMIT' | 'AI_PAUSED' | 'PLAN_REQUIRED' | 'NO_ROOMS'; status: number; feature?: string; plan?: string | null };
+
+/**
+ * The safety stop on what the designer may be asked for one design in a short time, whatever came
+ * of it — the numbers of the start route's own rate rule (`RATE_RULES.aiGenerate`: 8 an hour),
+ * here per design rather than per address. The cap counts only the runs that wrote a flat, so
+ * without this a designer that keeps failing could be asked again and again.
+ */
+const DESIGNER_CALLS = RATE_RULES.aiGenerate;
 
 /**
  * Starts a generation for one of the account's projects, or hands back the one already running
  * (two clicks, two tabs: one job, one bill). The design must be at `baseRev` — what the page saved
- * just before — and under the per-design cap of AI runs (`MAX_AI_GENERATIONS`, counted from the
- * jobs here, so a repeat cannot bill past it). Laying out a flat already laid out is the studio's
+ * just before — and under the per-design cap of AI runs (`MAX_AI_GENERATIONS`: the runs that wrote
+ * the designer's flat, `wroteDesignersFlat`, counted from the jobs here so a repeat cannot bill past
+ * it), and under the safety stop on the designer's calls (`DESIGNER_CALLS`: the jobs that asked it,
+ * `calledDesigner`, within its window). Laying out a flat already laid out is the studio's
  * catalogue on the plan's locks, as in the save route.
  */
 export async function startDesignJob(account: { id: number; role?: UserRole | null }, input: { projectId: number; baseRev: number; locale: Locale }): Promise<StartResult> {
-  // A job whose function died is settled before anything is counted or compared.
+  // The account's own project only (its small columns first) — then a job whose function died is
+  // settled before anything is counted or compared, and the project read as the settling left it.
+  if (!(await projectGenerated(input.projectId, account.id))) return { ok: false, error: 'PROJECT_NOT_FOUND', status: 404 };
   await settleStaleJob(input.projectId);
   const owned = await ownedProject(input.projectId, account.id);
   if (!owned) return { ok: false, error: 'PROJECT_NOT_FOUND', status: 404 };
@@ -110,11 +132,13 @@ export async function startDesignJob(account: { id: number; role?: UserRole | nu
   const refused = await refusedDesignChange(owned, { plan, scene: { ...scene, generation: { by: 'ai', at: new Date().toISOString() } } }, account);
   if (refused) return { ok: false, error: 'PLAN_REQUIRED', status: 402, feature: refused.feature, plan: refused.plan };
 
-  return withJobLock(input.projectId, async ({ latest, designRev, jobCount, insert }): Promise<StartResult> => {
+  return withJobLock(input.projectId, async ({ latest, designRev, jobs, insert }): Promise<StartResult> => {
     if (latest && isLive(latest.stage) && !isStale(latest)) return { ok: true, job: latest, started: false };
     if (designRev !== input.baseRev) return { ok: false, error: 'PROJECT_CHANGED', status: 409 };
-    const done = Math.max(scene.generation?.aiCount ?? 0, jobCount);
+    const done = Math.max(scene.generation?.aiCount ?? 0, jobs.filter(wroteDesignersFlat).length);
     if (done >= MAX_AI_GENERATIONS) return { ok: false, error: 'AI_LIMIT', status: 429 };
+    const since = Date.now() - DESIGNER_CALLS.windowMs;
+    if (jobs.filter((j) => new Date(j.createdAt).getTime() > since && calledDesigner(j)).length >= DESIGNER_CALLS.limit) return { ok: false, error: 'AI_PAUSED', status: 429 };
     const job = await insert({ projectId: input.projectId, userId: account.id, locale: input.locale, baseRev: input.baseRev, seed: randomSeed(), aiCount: done + 1 });
     return { ok: true, job, started: true };
   });
@@ -125,22 +149,34 @@ export async function startDesignJob(account: { id: number; role?: UserRole | nu
  * on in the same transaction. The plan's locks hold: a generation over a flat not laid out passes
  * on every plan (checked with none of the studio's features), anything else on the account's own.
  */
-async function writeFlat(job: DesignJob, project: Project, plan: FloorPlan, scene: DesignScene, options: { expectRev: number; stage: 'design' | 'review'; jobUpdate: JobUpdate; versions?: [] }): Promise<{ ok: true } | { ok: false; error: string }> {
+async function writeFlat(job: DesignJob, project: Project, plan: FloorPlan, scene: DesignScene, options: { expectRev: number; stage: 'design' | 'review'; jobUpdate: JobUpdate; versions?: [] }): Promise<{ ok: true } | { ok: false; code: JobErrorCode; detail: string | null }> {
   const stored = { plan: project.plan as FloorPlan | null, scene: project.scene as DesignScene | null };
   if (refusedSceneChange(stored, { plan, scene }, { catalog: false, moveFurniture: false, picks: calculatorPickIds(project.selectedProducts, project.selectedFurniture) })) {
     const role = job.userId ? await userRole(job.userId) : null;
     const refused = job.userId && role ? await refusedDesignChange(project, { plan, scene }, { id: job.userId, role }) : { feature: 'catalog' };
-    if (refused) return { ok: false, error: `PLAN_REQUIRED ${refused.feature}` };
+    if (refused) return { ok: false, code: 'PLAN_REQUIRED', detail: refused.feature };
   }
   const write = await designWriteColumns(project, { plan, scene, homeState: project.homeState, floorPlanUrl: project.floorPlanUrl, versions: options.versions, draft: true });
-  if (!write.ok) return { ok: false, error: write.error };
+  if (!write.ok) return { ok: false, code: 'WRITE_REFUSED', detail: write.error };
   const written = await writeDesignForJob(project.id, options.expectRev, write.set, `job-${job.id}-${options.stage}`, job.id, options.jobUpdate);
-  return written ? { ok: true } : { ok: false, error: 'PROJECT_CHANGED' };
+  return written ? { ok: true } : { ok: false, code: 'PROJECT_CHANGED', detail: null };
 }
 
-async function endJob(jobId: number, update: JobUpdate): Promise<void> {
+/** Ends a job — only from the stage it was in (`fromStage`): a job settled meanwhile keeps its end. */
+async function endJob(jobId: number, fromStage: GenerationStage, update: JobUpdate): Promise<void> {
   const now = new Date();
-  await updateJob(jobId, { stageAt: now, finishedAt: now, ...update });
+  await updateJob(jobId, { stageAt: now, finishedAt: now, ...update }, fromStage);
+}
+
+/**
+ * Whether a step may make its paid call: the job still in `stage` (not settled as dead meanwhile)
+ * and the design still at `rev` — read again right before the call, so a design that moved on is
+ * not paid for to be thrown away at the write.
+ */
+async function mayCall(job: DesignJob, stage: GenerationStage, rev: number): Promise<'go' | 'settled' | 'changed'> {
+  const now = await jobAndRevision(job.id, job.projectId);
+  if (now.stage !== stage) return 'settled';
+  return now.designRev === rev ? 'go' : 'changed';
 }
 
 /**
@@ -153,12 +189,19 @@ export async function runDesignStage(jobId: number, origin: string): Promise<voi
   if (!job || job.stage !== 'designing') return;
   try {
     const project = await loadProject(job.projectId);
-    if (!project?.plan || !project.scene) return endJob(job.id, { stage: 'failed', error: 'NO_DESIGN' });
+    if (!project?.plan || !project.scene) return endJob(job.id, 'designing', { stage: 'failed', error: jobError('design', 'NO_DESIGN') });
     const plan = ensureWalls(project.plan as FloorPlan);
     const saved = project.scene as DesignScene;
     const { products: catalog } = await getDesignCatalog();
 
+    // Read again right before the designer is paid: a design changed since the start (a save the
+    // route could not refuse, the job settled as dead) is not designed to be thrown away.
+    const may = await mayCall(job, 'designing', job.baseRev);
+    if (may === 'settled') return;
+    if (may === 'changed') return endJob(job.id, 'designing', { stage: 'failed', error: jobError('design', 'CHANGED') });
+
     let proposal: AiProposal | null = null;
+    let usage: AiDesignUsage | undefined;
     let designError: string | null = null;
     try {
       // The flat's design so far (what the person has): offered rarely again, so "generate" a
@@ -179,6 +222,7 @@ export async function runDesignStage(jobId: number, origin: string): Promise<voi
         signal: AbortSignal.timeout(DESIGN_DEADLINE_MS),
       });
       proposal = answer.proposal;
+      usage = answer.usage;
       log.info('ai-generate', { projectId: project.id, jobId: job.id, rooms: plan.rooms.length, decor: proposal.rooms.reduce((n, r) => n + r.decor.length, 0), ...answer.usage });
     } catch (err) {
       designError = errorText(err);
@@ -196,7 +240,8 @@ export async function runDesignStage(jobId: number, origin: string): Promise<voi
       calculatorPicks: calculatorPicksOf(project, saved),
       seed: job.seed,
       at: new Date().toISOString(),
-      aiCount: job.aiCount,
+      // The job's count holds this run; the engine's flat is not one (`wroteDesignersFlat`).
+      aiCount: proposal ? job.aiCount : job.aiCount - 1,
     });
     const now = new Date();
     const scene: DesignScene = {
@@ -210,21 +255,26 @@ export async function runDesignStage(jobId: number, origin: string): Promise<voi
       // style step, and the check's write is the generation's own (`refusedSceneChange`).
       progress: proposal ? { ...(saved.progress ?? { step: 4 }), generated: false } : laidOutProgress(saved.progress),
     };
+    const kept: KeptProposal | null = proposal ? { ...proposal, usage } : null;
     const written = await writeFlat(job, project, laid.plan, scene, {
       expectRev: job.baseRev,
       stage: 'design',
       // The versions kept for an earlier layout describe a flat that no longer exists.
       versions: [],
-      jobUpdate: proposal ? { stage: 'checking', proposal, stageAt: now } : { stage: 'done', error: designError, stageAt: now, finishedAt: now },
+      jobUpdate: kept ? { stage: 'checking', proposal: kept, stageAt: now } : { stage: 'done', error: jobError('design', 'AI_FAILED', designError), stageAt: now, finishedAt: now },
     });
     if (!written.ok) {
-      log.warn('design job could not write the flat', { projectId: project.id, jobId: job.id, error: written.error });
-      return endJob(job.id, { stage: 'failed', error: written.error });
+      log.warn('design job could not write the flat', { projectId: project.id, jobId: job.id, error: written.code, detail: written.detail });
+      // The paid proposal stays on the job, though no flat was written from it.
+      return endJob(job.id, 'designing', { stage: 'failed', proposal: kept, error: jobError('design', written.code, designError ? `${written.detail ?? ''} after AI_FAILED ${designError}`.trim() : written.detail) });
     }
-    if (proposal && !(await startReview(job.id, origin))) await finishFlat(job.id, null, 'REVIEW_NOT_STARTED');
+    if (proposal && !(await startReview(job.id, origin))) await finishFlat(job.id, null, jobError('check', 'NOT_STARTED'));
   } catch (err) {
     log.error('design job failed', { jobId: job.id, err });
-    await endJob(job.id, { stage: 'failed', error: errorText(err) }).catch(() => undefined);
+    const error = jobError('design', 'ERROR', errorText(err));
+    // Thrown after the flat was written (the job is checking): it opens as laid out, unchecked.
+    await finishFlat(job.id, null, error).catch(() => undefined);
+    await endJob(job.id, 'designing', { stage: 'failed', error }).catch(() => undefined);
   }
 }
 
@@ -235,7 +285,7 @@ async function startReview(jobId: number, origin: string): Promise<boolean> {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', [JOB_HEADER]: String(jobId), [JOB_TOKEN_HEADER]: jobToken(jobId) },
       body: JSON.stringify({ jobId }),
-      signal: AbortSignal.timeout(20_000),
+      signal: AbortSignal.timeout(REVIEW_START_MS),
     });
     if (!res.ok) log.warn('design job: the check was not started', { jobId, status: res.status });
     return res.ok;
@@ -251,48 +301,128 @@ export async function runReviewStage(jobId: number): Promise<void> {
   if (!job || job.stage !== 'checking') return;
   try {
     const project = await loadProject(job.projectId);
-    if (!project?.plan || !project.scene) return endJob(job.id, { stage: 'failed', error: 'NO_DESIGN' });
+    if (!project?.plan || !project.scene) return endJob(job.id, 'checking', { stage: 'failed', error: jobError('check', 'NO_DESIGN') });
     const saved = project.scene as DesignScene;
     let review: AiReview | null = null;
+    let usage: AiReviewUsage | undefined;
     let reviewError: string | null = null;
+    const { products: catalog } = await getDesignCatalog();
+    // Read again right before the check is paid: a design changed since the design stage wrote it
+    // is not checked to be thrown away.
+    const may = await mayCall(job, 'checking', job.baseRev + 1);
+    if (may === 'settled') return;
+    if (may === 'changed') return finishFlat(job.id, null, jobError('check', 'CHANGED'));
     try {
-      const { products: catalog } = await getDesignCatalog();
       // The pieces the check can read: each with its product and a kind the engine knows (fixes apply to every piece).
       const items = saved.items.filter((i) => i.product && getArchetype(i.kind));
       const answer = await reviewWithClaude({ plan: ensureWalls(project.plan as FloorPlan), items, decor: saved.decor ?? [], styleId: saved.styleId, locale: job.locale as Locale, catalog, signal: AbortSignal.timeout(REVIEW_DEADLINE_MS) });
       review = answer.review;
+      usage = answer.usage;
       log.info('ai-review', { projectId: project.id, jobId: job.id, items: items.length, fixes: review.fixes.length, ...answer.usage });
     } catch (err) {
-      reviewError = errorText(err);
+      reviewError = jobError('check', 'AI_FAILED', errorText(err));
       log.warn('ai-review failed, the flat stays as laid out', { projectId: project.id, jobId: job.id, err });
     }
-    await finishFlat(job.id, review, reviewError);
+    await finishFlat(job.id, review, reviewError, usage);
   } catch (err) {
     log.error('design job check failed', { jobId: job.id, err });
-    await endJob(job.id, { stage: 'failed', error: errorText(err) }).catch(() => undefined);
+    const error = jobError('check', 'ERROR', errorText(err));
+    // The flat opens as laid out, unchecked; only if even that cannot be written has the job failed.
+    await finishFlat(job.id, null, error).catch(() => endJob(job.id, 'checking', { stage: 'failed', error }).catch(() => undefined));
   }
 }
 
 /**
- * The flat the design stage wrote, written laid out — with the check's fixes when there is a
- * review, as laid out when there is none (the check failed, timed out or never started). Over the
- * design stage's revision only: a design changed since is left as it is (the job ends without it).
+ * The design stage's flat as the row holds it: the designer's (its record the job's run) and not
+ * yet laid out. A change the save route cannot see while the job runs (the calculation's save
+ * turning the design's mode) moves the revision but leaves this flat; a person's own copy saved
+ * over it once the job was taken for dead does not.
  */
-async function finishFlat(jobId: number, review: AiReview | null, error: string | null): Promise<void> {
+function isJobsFlat(scene: DesignScene, job: DesignJob): boolean {
+  return scene.generation?.by === 'ai' && scene.generation.aiCount === job.aiCount && scene.progress?.generated !== true;
+}
+
+/**
+ * Ends the check — whatever ended it — with the design stage's flat written laid out, so the project
+ * opens in the studio and never on a furnished flat stuck before it: with the check's fixes when
+ * there is a review and the flat is still the revision it checked; as written, unchecked, when the
+ * check failed, timed out, never started, threw, or the design moved on under it (a change the save
+ * route could not refuse — kept, and the fixes not applied over it); and as written when the fixes
+ * themselves cannot be written. A row that holds another design than the job's is left as it is.
+ *
+ * A change that lands between the read and the write (the write finds another revision) is read
+ * and the flat laid out over it, unchecked, again while the row still holds the job's flat. There
+ * is no count of tries: each one needs another write to have landed on the design since the last,
+ * and under a running job only a writer the save route cannot refuse can land — the calculation's
+ * save turning the design's mode, once per project.
+ */
+async function finishFlat(jobId: number, answer: AiReview | null, error: string | null, usage?: AiReviewUsage): Promise<void> {
   const job = await loadJob(jobId);
-  const project = job ? await loadProject(job.projectId) : null;
-  if (!job || !project?.plan || !project.scene) return;
+  if (!job || job.stage !== 'checking') return;
+  let project = await loadProject(job.projectId);
+  for (;;) {
+    const written = await layOutJobsFlat(job, project, answer, error, usage);
+    if (written !== 'raced') return;
+    // Settled meanwhile (taken for dead): its end stands.
+    if ((await loadJob(job.id))?.stage !== 'checking') return;
+    const again = await loadProject(job.projectId);
+    // A revision only moves on; one that did not cannot be tried again (`NO_DESIGN` ends a row gone).
+    if (again && again.designRev === project?.designRev) {
+      await endJob(job.id, 'checking', { stage: 'done', review: keptReview(answer, usage, 0), error: error ?? jobError('check', 'PROJECT_CHANGED') });
+      return;
+    }
+    project = again;
+  }
+}
+
+/** The check as the job keeps it: with its cost, and how many of its fixes went in (none unless written with them). */
+function keptReview(answer: AiReview | null, usage: AiReviewUsage | undefined, applied: number): KeptReview | null {
+  return answer ? { ...answer, usage, applied } : null;
+}
+
+/**
+ * One try of `finishFlat` over the row as read: `raced` when its write found another revision and
+ * the row may still hold the job's flat (the caller reads it again and tries over it); otherwise
+ * the job has ended (`done`), written or not.
+ */
+async function layOutJobsFlat(job: DesignJob, project: Project | null, answer: AiReview | null, error: string | null, usage?: AiReviewUsage): Promise<'ended' | 'raced'> {
+  const kept = (applied: number) => keptReview(answer, usage, applied);
+  const review = answer;
+  if (!project?.plan || !project.scene) {
+    await endJob(job.id, 'checking', { stage: 'done', review: kept(0), error: error ?? jobError('check', 'NO_DESIGN') });
+    return 'ended';
+  }
   const plan = ensureWalls(project.plan as FloorPlan);
   const saved = project.scene as DesignScene;
-  const now = new Date();
-  if (project.designRev !== job.baseRev + 1) return endJob(job.id, { stage: 'done', review, error: 'PROJECT_CHANGED' });
-  const fixed = review && saved.generation ? reviewedScene({ plan, items: saved.items, decor: saved.decor ?? [], electrical: saved.electrical ?? [], generation: saved.generation, styleId: saved.styleId, calculatorPicks: calculatorPicksOf(project, saved) }, review, (await getDesignCatalog()).products) : null;
-  const scene: DesignScene = { ...saved, ...(fixed ?? {}), progress: laidOutProgress(saved.progress) };
-  const written = await writeFlat(job, project, plan, scene, { expectRev: job.baseRev + 1, stage: 'review', jobUpdate: { stage: 'done', review, error, stageAt: now, finishedAt: now } });
-  if (!written.ok) {
-    log.warn('design job could not write the checked flat', { projectId: project.id, jobId: job.id, error: written.error });
-    await endJob(job.id, { stage: 'done', review, error: written.error });
+  const checked = project.designRev === job.baseRev + 1;
+  if (!checked && !isJobsFlat(saved, job)) {
+    await endJob(job.id, 'checking', { stage: 'done', review: kept(0), error: error ?? jobError('check', 'PROJECT_CHANGED') });
+    return 'ended';
   }
+
+  let reason = checked ? error : (error ?? jobError('check', 'PROJECT_CHANGED'));
+  let fixed: ReturnType<typeof reviewedScene> | null = null;
+  if (checked && review && saved.generation) {
+    try {
+      fixed = reviewedScene({ plan, items: saved.items, decor: saved.decor ?? [], electrical: saved.electrical ?? [], generation: saved.generation, styleId: saved.styleId, calculatorPicks: calculatorPicksOf(project, saved) }, review, (await getDesignCatalog()).products);
+    } catch (err) {
+      log.error('design job: the check’s fixes could not be applied, the flat opens as laid out', { projectId: project.id, jobId: job.id, err });
+      reason = jobError('check', 'ERROR', errorText(err));
+    }
+  }
+  const write = (with_: typeof fixed, why: string | null) => {
+    const now = new Date();
+    return writeFlat(job, project, plan, { ...saved, ...(with_ ?? {}), progress: laidOutProgress(saved.progress) }, { expectRev: project.designRev, stage: 'review', jobUpdate: { stage: 'done', review: kept(with_?.generation.reviewed ?? 0), error: why, stageAt: now, finishedAt: now } });
+  };
+  let written = await write(fixed, reason);
+  // Fixes the write refuses (the plan's locks, the save's own checks): the flat as written, unchecked.
+  if (!written.ok && fixed && written.code !== 'PROJECT_CHANGED') written = await write(null, jobError('check', written.code, written.detail));
+  if (written.ok) return 'ended';
+  // Another write landed between the read and this one: read again and lay the flat out over it.
+  if (written.code === 'PROJECT_CHANGED') return 'raced';
+  log.warn('design job could not write the checked flat', { projectId: project.id, jobId: job.id, error: written.code, detail: written.detail });
+  await endJob(job.id, 'checking', { stage: 'done', review: kept(0), error: jobError('check', written.code, written.detail) });
+  return 'ended';
 }
 
 /**
@@ -304,10 +434,10 @@ async function finishFlat(jobId: number, review: AiReview | null, error: string 
 export async function settleStaleJob(projectId: number, now: Date = new Date()): Promise<DesignJob | null> {
   const job = await latestJob(projectId);
   if (!job || !isStale(job, now)) return job;
-  const claimed = await claimJob(job, job.stage === 'designing' ? { stage: 'failed', error: 'TIMEOUT', stageAt: now, finishedAt: now } : { stageAt: now });
+  const claimed = await claimJob(job, job.stage === 'designing' ? { stage: 'failed', error: jobError('design', 'TIMEOUT'), stageAt: now, finishedAt: now } : { stageAt: now });
   if (claimed && job.stage === 'checking') {
     log.warn('design job: the check never finished, the flat opens as laid out', { projectId, jobId: job.id });
-    await finishFlat(job.id, null, 'REVIEW_TIMEOUT');
+    await finishFlat(job.id, null, jobError('check', 'TIMEOUT'));
   }
   return loadJob(job.id);
 }

@@ -158,7 +158,8 @@ Locally `.env.local` points at a local Postgres (`DATABASE_URL=postgresql://loca
   after 200 s) and writes the flat laid out. Measured locally on the 150 m² sample flat (21 Oct
   2026): 91 s and $0.33 for the design, 35 s and $0.13 for the check. Both routes declare
   `maxDuration = 300`, the most a Hobby function may run; a stage whose function died is settled
-  when the job is next read (after 6 minutes). The request to itself goes to the production domain
+  when the job is next read (after 320 s: the 300 s plus the 20 s the check's request is waited for —
+  `JOB_STALE_MS`). The request to itself goes to the production domain
   (`renovatege.vercel.app`), which is outside Vercel's deployment protection, as Flitt's callback
   needs it to be; a protected preview URL would refuse it and the flat would open unchecked.
 - **Mail** goes through `lib/email.ts` (`MAIL_DRIVER=log|smtp`). With `log` the reset and

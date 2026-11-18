@@ -330,7 +330,13 @@ removing a cache (`safeLocalStorage.removeItem`, a store's `drop`) cancels its w
   the design's autosave is off — no write, no unsaved mark, no flush on leaving (`useAutosave`
   flushes only while enabled): the job writes the design over the revision it started from. The
   page lets it go when the job comes to nothing (the engine then lays the flat out here) and when
-  the page is left for another step, where a change is saved as usual and wins over the job.
+  the page is left for another step. **Any other save of the design is refused while the job
+  runs** — that step's autosave, a second tab, another computer, forced or not: the save route
+  answers 409 `DESIGN_GENERATING` while the project's last job is designing or checking and not
+  dead (`jobRunning`), the save helper raises `DesignGeneratingError`, and the change stays in this
+  browser, unsaved, with the *generating* banner (below) — to be saved once the job is over, when
+  it usually meets the job's own write as a conflict. The job's own writes do not go through the
+  route.
 
 ### The save helpers and the queue (`lib/calculator/saveProject.ts`, `lib/design/saveDesign.ts`, `lib/flow/saveQueue.ts`)
 
@@ -366,6 +372,10 @@ reloaded offline is lost (the browser keeps no copy of them).
   contingency): `baseRev = rev`, `pendingSaveId = null`, no problem, and the half is marked
   clean if the store did not change while the write was on its way.
 - **409 `PROJECT_CHANGED`** becomes `ProjectChangedError`, raised as the *conflict* problem.
+- **409 `DESIGN_GENERATING`** (the design only) becomes `DesignGeneratingError`, raised as the
+  *generating* problem: the AI designer's job is writing the design. The banner says so and offers
+  *Load the latest* (the flat the job makes, once it is done) and *Try again* — once the job is
+  over the retry goes through, or meets the job's write as a *conflict*. The baseRev is not moved.
 - **Other problems** (`useSaveProblems`, shown by `SaveProblemBanner`): `error` (retry),
   `unknown-product` (a product the catalogue no longer has), and `gone` (the row was deleted:
   `PROJECT_NOT_FOUND` / `no-project`; nothing more is saved, and the banner links to the hub).
@@ -387,7 +397,11 @@ first too.
    rooms — `lib/validations/calculatorSave.schema.ts`; the design's is
    `lib/validations/design.schema.ts`).
 2. Signed in (401), the caller's own project (404).
-3. **The conflict rule** (only when the body carries a `baseRev`). The save is refused with 409 when `!force`, `baseRev < row rev`, and it
+3. *(The design only)* **No save under a running generation**: while the project's last
+   generation job is designing or checking and not dead (`jobRunning` in
+   `lib/design/generationJob.ts`, over `latestJob`), every save is refused with 409
+   `DESIGN_GENERATING`, forced or not.
+4. **The conflict rule** (only when the body carries a `baseRev`). The save is refused with 409 when `!force`, `baseRev < row rev`, and it
    is not *this browser's own unconfirmed write*. It is its own when `prevSaveId === row's save
    id` and `baseRev === row rev − 1` — exactly one write since this copy, and it was this
    copy's save whose answer never arrived.

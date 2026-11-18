@@ -9,19 +9,25 @@
  * last heard it — `lib/design/generationJob`): while it is designing the overlay moves through the
  * designer's steps every few seconds but stops before the check; when it is checking it stands on
  * the check; when it is done it finishes the rest and calls `onDone`.
+ *
+ * When the AI designer was meant to design the flat and the engine laid it out instead
+ * (`fallback`: why — `lib/design/generationJob` `AiFallback`), the overlay says so at the end and
+ * waits for the person's press before the studio opens.
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { Check, Loader2, Sparkles } from 'lucide-react';
+import { Check, Info, Loader2, Sparkles } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';
-import type { GenerationStage } from '@/lib/design/generationJob';
+import { MAX_AI_GENERATIONS } from '@/lib/design/aiProposal';
+import { JOB_MAX_MINUTES, type AiFallback, type GenerationStage } from '@/lib/design/generationJob';
 
 /** The AI steps' positions: the designer's own run from 2; the check is 6. */
 const DESIGNER_FROM = 2;
 const CHECK_STEP = 6;
 
-export function GenerationOverlay({ open, onDone, ai = false, stage = 'done' }: { open: boolean; onDone: () => void; ai?: boolean; stage?: GenerationStage }) {
+export function GenerationOverlay({ open, onDone, ai = false, stage = 'done', fallback = null }: { open: boolean; onDone: () => void; ai?: boolean; stage?: GenerationStage; fallback?: AiFallback | null }) {
   const t = useT();
   const steps = ai
     ? [t.build.genWalls, t.build.genOpenings, t.decor.genAiStep1, t.decor.genAiStep2, t.decor.genAiStep3, t.decor.genAiStep4, t.decor.genAiStep5, t.build.genWiring]
@@ -29,10 +35,20 @@ export function GenerationOverlay({ open, onDone, ai = false, stage = 'done' }: 
   const [done, setDone] = useState(0);
   const stageRef = useRef(stage);
   const doneRef = useRef(onDone);
+  const fallbackRef = useRef(fallback);
   useEffect(() => {
     stageRef.current = stage;
     doneRef.current = onDone;
+    fallbackRef.current = fallback;
   });
+  const why =
+    fallback === 'limit'
+      ? t.decor.genAiFallbackLimit.replace('{n}', String(MAX_AI_GENERATIONS))
+      : fallback === 'paused'
+        ? t.decor.genAiFallbackPaused
+        : fallback === 'changed'
+          ? t.decor.genAiFallbackChanged
+          : t.decor.genAiFallbackFailed;
 
   useEffect(() => {
     if (!open) {
@@ -45,7 +61,8 @@ export function GenerationOverlay({ open, onDone, ai = false, stage = 'done' }: 
       if (cancelled) return;
       setDone(n);
       if (n >= steps.length) {
-        timer = window.setTimeout(() => !cancelled && doneRef.current(), 450);
+        // Told why the designer did not design it: the studio opens on the person's press.
+        if (!fallbackRef.current) timer = window.setTimeout(() => !cancelled && doneRef.current(), 450);
         return;
       }
       if (ai && n >= DESIGNER_FROM) {
@@ -96,7 +113,23 @@ export function GenerationOverlay({ open, onDone, ai = false, stage = 'done' }: 
             );
           })}
         </ul>
-        <p className="mt-5 text-xs text-ink-muted">{done >= steps.length ? (ai ? t.decor.genAiDone : t.build.genDone) : ai ? t.decor.genAiHint : t.build.genHint}</p>
+        {done >= steps.length && fallback ? (
+          <div className="mt-5 space-y-3">
+            <div className="flex items-start gap-2.5 rounded-2xl bg-sun-soft p-3.5 text-sm text-ink">
+              <Info className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+              <p>
+                <span className="font-semibold">{t.decor.genAiFallback}</span> {why}
+              </p>
+            </div>
+            <div className="flex justify-end">
+              <Button size="sm" variant="ink" onClick={() => doneRef.current()}>
+                {t.decor.genAiFallbackOpen}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <p className="mt-5 text-xs text-ink-muted">{done >= steps.length ? (ai ? t.decor.genAiDone : t.build.genDone) : ai ? t.decor.genAiHint.replace('{n}', String(JOB_MAX_MINUTES)) : t.build.genHint}</p>
+        )}
       </div>
     </div>
   );

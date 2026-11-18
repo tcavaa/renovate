@@ -1212,32 +1212,57 @@ no table in 60 of the 416 runs of 10 m² or more; an island 0 of 96.
 
 Read, and replayed with the rows in memory (no AI call); each item was then put to a skeptic.
 
-- [ ] **J1 (high) — One save from anywhere ends a running job after the designer is paid.** The
+- [x] **J1 (high) — One save from anywhere ends a running job after the designer is paid.** The
   designer is called (`lib/api/designJob.ts:170`) and the revision compared only at the write
   (`:213`); the save route knows nothing of jobs. A second tab, or a nudge on the board, and the
   proposal is thrown away, the run counted, and the page lays out with the engine.
-- [ ] **J2 (high) — Every job uses one of the five AI runs for the life of the project** (`:116`
+  *Fixed:* the save route refuses any save of a design whose last job is designing or checking and
+  not dead (409 `DESIGN_GENERATING`, forced or not — `jobRunning`), the browser keeps the change
+  under a *generating* banner of its own (`DesignGeneratingError`) to save once the job is over, and
+  each step reads the revision again right before its paid call (`mayCall`) and gives up unpaid
+  (`design:CHANGED` / `check:CHANGED`).
+- [x] **J2 (high) — Every job uses one of the five AI runs for the life of the project** (`:116`
   counts the job rows): a designer that failed, a write refused, a function that died. After five,
   the page is refused and lays out with the engine without a word.
-- [ ] **J3 (high) — A design changed during the check: the check is paid and dropped**, and the row
+  *Fixed:* the cap counts only the runs that wrote the designer's flat (`wroteDesignersFlat`; the
+  engine's flat records one run fewer), with a safety stop per design on the jobs that asked the
+  designer at all within an hour, at the start route's own rate rule (8 — `AI_PAUSED`).
+- [x] **J3 (high) — A design changed during the check: the check is paid and dropped**, and the row
   keeps the designer's flat not laid out (`:262`, `:288`); a later visit finds the style step again.
-- [ ] **J4 (high) — The person is never told the designer failed, was refused or was skipped.** Any
+  *Fixed:* whatever ends a check — a change the save route cannot see (before the call: not paid;
+  during it: its fixes not applied), a failure, a throw, fixes the write refuses — writes the
+  designer's flat laid out, unchecked, the change kept (`finishFlat`, `isJobsFlat`) — a change
+  landing between the check's read and its write too (read again, laid out over it); only a row
+  holding another design is left alone, and the flat as written refused by the save's checks (a
+  plan or the catalogue changed since the design stage wrote it) stays not laid out.
+- [x] **J4 (high) — The person is never told the designer failed, was refused or was skipped.** Any
   answer that is not ok becomes the engine's flat (`lib/design/aiDesignClient.ts:35`), under an
   overlay that ends "The AI designer has finished". Nothing reads the generation record or the
   job's error.
+  *Fixed:* the overlay ends on "the AI designer could not design this flat, so the engine laid it
+  out" and why — the runs used up and what to do, too many asked, the design changed, a failure
+  (`aiFallback`, `startRefusal`; ka, en, ru) — and waits for a press.
 - [ ] **J5 (medium) — The browser's fallback flat is another draw, from a seed kept nowhere**
   (`store/designStore.ts:1397`; the record holds who, when and the count): two draws of one plan
   share 26 % of their pieces. A flat cannot be reproduced to be explained.
-- [ ] **J6 (medium) — What is kept cannot explain a flat.** `generation.reviewed` counts the fixes
+- [x] **J6 (medium) — What is kept cannot explain a flat.** `generation.reviewed` counts the fixes
   accepted, not applied (`generateScene.ts:156`: of 1,380 accepted, 865 changed a piece); a refused
   job's proposal is gone; ignored picks, dropped slots, the job's id and the cost are kept nowhere.
-- [ ] **J7 (medium) — A dead function keeps the overlay up to six more minutes**: a stage is taken
+  *Fixed:* `generation.reviewed` counts the fixes that change the flat each on its own, and the job's
+  row keeps the proposal (also when its write was refused) and the check with their calls' cost and
+  the fixes applied, its error naming the step (`<step>:<code>`); ignored picks and dropped slots
+  belong to the whole-flat record of step 3 below, and the seed to J5.
+- [x] **J7 (medium) — A dead function keeps the overlay up to six more minutes**: a stage is taken
   for dead after 360 s (`lib/design/generationJob.ts:37`), a function lives 300 s, and the hint says
   two to three minutes.
-- [ ] **J8 (low)** — A failed job lays the flat out when the style step is next opened, with no
+  *Fixed:* a stage is dead after `FUNCTION_MAX_MS` + `REVIEW_START_MS` (320 s, tested against the
+  routes' `maxDuration`), and the hint says usually two to three minutes, never more than 11.
+- [x] **J8 (low)** — A failed job lays the flat out when the style step is next opened, with no
   press on that visit and no age limit (`generationJob.ts:81`; the documented fallback — the hinge
   was confirmed when the job was started). The start route settles a project's stale job before it
   checks whose project it is (`lib/api/designJob.ts:104`).
+  *Fixed:* only the visit waiting on the job lays the flat out with the engine — a later one waits
+  for the press — and the start checks the project is the caller's before it settles anything.
 
 ### O. The tests
 

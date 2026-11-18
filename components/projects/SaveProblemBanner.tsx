@@ -20,6 +20,9 @@ import { usePlanStore } from '@/store/planStore';
  *  - **Changed elsewhere** — the half was saved from another tab or computer since this copy
  *    was opened, and the server refused to write an older copy over it: take the latest
  *    (this browser's copy is let go) or keep this one (written over the other).
+ *  - **Being generated** — the AI designer's job is writing the design on the server, and every
+ *    other save of it is refused until it is over: try again once it has finished (then usually
+ *    as "changed elsewhere", the job having written it), or load the flat it made.
  *  - **A product that is gone** — the catalogue no longer has something the project uses; the
  *    save goes through once it is swapped for another.
  *  - **Deleted** — in another tab or on another computer: there is nothing to save into any
@@ -62,7 +65,9 @@ export function SaveProblemBanner({ projectId }: { projectId: number }) {
   const text =
     problem === 'conflict'
       ? t.hub.conflictText
-      : problem === 'unknown-product'
+      : problem === 'generating'
+        ? t.hub.generatingText
+        : problem === 'unknown-product'
         ? t.hub.unknownProductText
         : problem === 'gone'
           ? t.hub.goneText
@@ -104,6 +109,15 @@ export function SaveProblemBanner({ projectId }: { projectId: number }) {
             </Button>
             <Button size="sm" variant="ink" disabled={busy} onClick={() => save(true)}>
               {t.hub.conflictKeepMine}
+            </Button>
+          </>
+        ) : problem === 'generating' ? (
+          <>
+            <Button size="sm" variant="outline" disabled={busy} onClick={loadLatest}>
+              {t.hub.conflictLoadLatest}
+            </Button>
+            <Button size="sm" variant="ink" disabled={busy} onClick={() => save(false)}>
+              {t.hub.retry}
             </Button>
           </>
         ) : (

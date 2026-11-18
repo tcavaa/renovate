@@ -185,6 +185,14 @@ export function reviewedScene(
     fixed = checked(fixes);
   }
   let items = placeableOnly(fixed.items);
+  // What the check did, as it is kept (`generation.reviewed`): the fixes kept that change the flat
+  // each on its own — not those it asked for that changed nothing (a piece not there, a product
+  // that does not fit, a piece already against its wall, a move that did not stand), nor a piece
+  // that only followed another's fix (the nightstands of a moved bed).
+  const applied = fixes.filter((fix) => {
+    const alone = applyReviewFixes(scene.items, scene.decor, { ...review, fixes: [fix] }, scene.plan, catalog, clear);
+    return changedPieces(scene.items, alone.items).size > 0 || JSON.stringify(alone.decor) !== JSON.stringify(scene.decor);
+  }).length;
   let electrical = scene.electrical;
   const rewire = changedRooms(scene, { items, decor: fixed.decor });
   if (rewire.size > 0) {
@@ -198,7 +206,7 @@ export function reviewedScene(
   // The room's note after the check says how it reads now; the designer's first note stays before it.
   const notes = { ...(scene.generation.notes ?? {}) };
   for (const [roomId, note] of Object.entries(review.notes)) notes[roomId] = (notes[roomId] ? `${notes[roomId]} ${note}` : note).slice(0, 1200);
-  return { items, decor: fixed.decor, electrical, generation: { ...scene.generation, notes, reviewed: review.fixes.length } };
+  return { items, decor: fixed.decor, electrical, generation: { ...scene.generation, notes, reviewed: applied } };
 }
 
 /** The ids of the pieces not as they were: moved, swapped, gone or new. */

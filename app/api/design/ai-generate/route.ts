@@ -42,8 +42,9 @@ export const GET = handle('GET /api/design/ai-generate', 'Failed', async (req) =
  * Starts the AI designer on the project's design as the page has just saved it: the job is
  * written and answered at once (`{ job }`), and the flat is designed, laid out, written and then
  * checked on the server whether the page stays open or not (`lib/api/designJob`). Every way it
- * cannot start — no key, the per-design cap, the design changed since — is a 503, 429 or 409 with
- * `fallback: 'engine'`, and the page lays the flat out with the engine as before. Only the plan's
+ * cannot start — no key, the per-design cap (`AI_LIMIT`), its safety stop (`AI_PAUSED`), the design
+ * changed since — is a 503, 429 or 409 with `fallback: 'engine'`, and the page lays the flat out
+ * with the engine and says why (`startRefusal`). Only the plan's
  * geometry, the style and the budget go to the designer; never a name, an address or a contact.
  */
 export const POST = handle('POST /api/design/ai-generate', 'Failed to generate', async (req) => {

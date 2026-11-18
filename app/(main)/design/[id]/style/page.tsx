@@ -20,7 +20,7 @@ import { useProjectId } from '@/components/projects/ProjectGate';
 import { useDesignCatalog } from '@/hooks/useDesignCatalog';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { generationStatus, startAiGeneration } from '@/lib/design/aiDesignClient';
-import { generationAction, JOB_POLL_MS, type GenerationStage, type GenerationStatus } from '@/lib/design/generationJob';
+import { aiFallback, generationAction, JOB_POLL_MS, type AiFallback, type GenerationStage, type GenerationStatus } from '@/lib/design/generationJob';
 import { MAX_AI_GENERATIONS } from '@/lib/design/aiProposal';
 import { dropCachedCopy } from '@/lib/flow/projectSync';
 import { formatM2 } from '@/lib/utils';
@@ -29,8 +29,11 @@ import { scoreQuiz } from '@/lib/design/styleQuiz';
 import { designStepHref, designStepCount, designStepPosition, previousStepHref } from '@/lib/design/steps';
 import { saveDesign } from '@/lib/design/saveDesign';
 
-/** What the overlay is showing: the engine's flat being opened, or the server's job at its stage. */
-type Run = { kind: 'engine' } | { kind: 'ai'; stage: GenerationStage };
+/**
+ * What the overlay is showing: the engine's flat being opened, or the server's job at its stage —
+ * and, when the AI designer was meant to design the flat and did not, why (`fallback`).
+ */
+type Run = { kind: 'engine'; fallback: AiFallback | null } | { kind: 'ai'; stage: GenerationStage; fallback: AiFallback | null };
 
 /**
  * Step 4: the style test — five questions and a verdict — with the four plates under it for
@@ -59,52 +62,60 @@ export default function StylePage() {
   const [run, setRun] = useState<Run | null>(null);
   /** This page started the job, or found it running, and waits on it. */
   const waiting = useRef(false);
-  /** The engine is to lay the flat out as soon as the catalogue is here (a job found failed on opening). */
-  const engineDue = useRef(false);
+  /** The engine is to lay the flat out as soon as the catalogue is here (the job came to nothing before it arrived), and why. */
+  const engineDue = useRef<{ fallback: AiFallback | null } | null>(null);
   /** The catalogue as it is now, for what the server's answers set off. */
   const catalogNow = useRef(products);
   const generating = run != null;
 
   /** Lays the flat out here with the engine, and opens the studio. */
   const engineNow = useCallback(
-    (catalog: typeof products) => {
-      engineDue.current = false;
+    (catalog: typeof products, fallback: AiFallback | null) => {
+      engineDue.current = null;
       generate(catalog, null);
       setStep(5);
-      setRun({ kind: 'engine' });
+      setRun({ kind: 'engine', fallback });
     },
     [generate, setStep]
   );
 
-  /** Lays the flat out here with the engine — no designer, or the server's job came to nothing. */
-  const layOutWithEngine = useCallback(() => {
-    waiting.current = false;
-    holdAutosave(false);
-    const catalog = catalogNow.current;
-    if (catalog.length > 0) engineNow(catalog);
-    else engineDue.current = true;
-  }, [holdAutosave, engineNow]);
+  /**
+   * Lays the flat out here with the engine — no designer (`fallback` null), or the designer could
+   * not design it (why: the overlay says so).
+   */
+  const layOutWithEngine = useCallback(
+    (fallback: AiFallback | null) => {
+      waiting.current = false;
+      holdAutosave(false);
+      const catalog = catalogNow.current;
+      if (catalog.length > 0) engineNow(catalog, fallback);
+      else engineDue.current = { fallback };
+    },
+    [holdAutosave, engineNow]
+  );
 
   useEffect(() => {
     catalogNow.current = products;
-    if (engineDue.current && products.length > 0) engineNow(products);
+    if (engineDue.current && products.length > 0) engineNow(products, engineDue.current.fallback);
   }, [products, engineNow]);
 
   /** What the server says about the job, acted on (`generationAction`). */
   const follow = useCallback(
     (status: Pick<GenerationStatus, 'job' | 'designGenerated'>) => {
       const local = useDesignStore.getState();
-      const action = generationAction(status, { generated: local.generated, generatedAt: local.generation?.at ?? null }, waiting.current);
+      const action = generationAction(status, { generated: local.generated }, waiting.current);
       if (action === 'wait' && status.job) {
         waiting.current = true;
         holdAutosave(true);
-        setRun({ kind: 'ai', stage: status.job.stage });
+        setRun({ kind: 'ai', stage: status.job.stage, fallback: null });
       } else if (action === 'reload') {
         waiting.current = false;
         holdAutosave(true);
-        setRun({ kind: 'ai', stage: 'done' });
+        // The server's flat: the designer's, or the engine's when the designer failed (said so).
+        setRun({ kind: 'ai', stage: 'done', fallback: aiFallback(status.job) });
       } else if (action === 'engine') {
-        layOutWithEngine();
+        // Nothing laid out on the server: the person is told why.
+        layOutWithEngine(aiFallback(status.job, false));
       } else if (waiting.current) {
         waiting.current = false;
         holdAutosave(false);
@@ -177,16 +188,20 @@ export default function StylePage() {
    */
   const generateNow = async () => {
     setHinge(false);
-    const useAi = aiEnabled && (generation?.aiCount ?? 0) < MAX_AI_GENERATIONS;
-    if (!useAi) {
-      layOutWithEngine();
+    if (!aiEnabled) {
+      layOutWithEngine(null);
+      return;
+    }
+    // The design's AI runs used up (the server counts them too): the engine, and the person told.
+    if ((generation?.aiCount ?? 0) >= MAX_AI_GENERATIONS) {
+      layOutWithEngine('limit');
       return;
     }
     waiting.current = true;
-    setRun({ kind: 'ai', stage: 'designing' });
-    const job = await startAiGeneration({ projectId, baseRev: useDesignStore.getState().baseRev ?? 0, locale: locale as 'ka' | 'en' | 'ru' });
-    if (job) follow({ job, designGenerated: false });
-    else layOutWithEngine();
+    setRun({ kind: 'ai', stage: 'designing', fallback: null });
+    const started = await startAiGeneration({ projectId, baseRev: useDesignStore.getState().baseRev ?? 0, locale: locale as 'ka' | 'en' | 'ru' });
+    if ('job' in started) follow({ job: started.job, designGenerated: false });
+    else layOutWithEngine(started.refused);
   };
 
   /** The overlay has finished: the studio — the engine's flat as it is here, the server's read again from the server. */
@@ -277,7 +292,7 @@ export default function StylePage() {
       {hinge && (
         <HingeDialog open onOpenChange={setHinge} kind="design" save={saveBeforeGenerating} onConfirm={generateNow} />
       )}
-      <GenerationOverlay open={generating} ai={run?.kind === 'ai'} stage={run?.kind === 'ai' ? run.stage : 'done'} onDone={opened} />
+      <GenerationOverlay open={generating} ai={run?.kind === 'ai'} stage={run?.kind === 'ai' ? run.stage : 'done'} fallback={run?.fallback ?? null} onDone={opened} />
     </>
   );
 }

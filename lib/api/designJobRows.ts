@@ -1,4 +1,4 @@
-import { and, count, eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { desc } from '@/lib/db/order';
 import { db } from '@/lib/db';
 import { designJobs, projects, users, type DesignJob, type Project } from '@/lib/db/schema';
@@ -53,10 +53,13 @@ export async function userRole(userId: number): Promise<UserRole | null> {
 export interface LockedJobs {
   latest: DesignJob | null;
   designRev: number | null;
-  /** Every job the project has had: each one an AI run. */
-  jobCount: number;
+  /** Every job the project has had, by its small columns — what the cap and the safety stop count (`lib/api/designJob`). */
+  jobs: JobSummary[];
   insert: (job: NewJob) => Promise<DesignJob>;
 }
+
+/** A job as the start counts it: where it ended, why, when it began, and whether it holds a proposal. */
+export type JobSummary = Pick<DesignJob, 'stage' | 'error' | 'createdAt'> & { hasProposal: boolean };
 
 /** Runs `fn` holding the project's lock for the length of a transaction: two tabs starting at once start one job. */
 export async function withJobLock<T>(projectId: number, fn: (locked: LockedJobs) => Promise<T>): Promise<T> {
@@ -64,18 +67,32 @@ export async function withJobLock<T>(projectId: number, fn: (locked: LockedJobs)
     await tx.execute(sql`select pg_advisory_xact_lock(${7_302}, ${projectId})`);
     const [latest] = await tx.select().from(designJobs).where(eq(designJobs.projectId, projectId)).orderBy(desc(designJobs.id)).limit(1);
     const [row] = await tx.select({ designRev: projects.designRev }).from(projects).where(eq(projects.id, projectId)).limit(1);
-    const [{ n }] = await tx.select({ n: count() }).from(designJobs).where(eq(designJobs.projectId, projectId));
+    const jobs = await tx
+      .select({ stage: designJobs.stage, error: designJobs.error, createdAt: designJobs.createdAt, hasProposal: sql<boolean>`${designJobs.proposal} is not null` })
+      .from(designJobs)
+      .where(eq(designJobs.projectId, projectId));
     return fn({
       latest: latest ?? null,
       designRev: row?.designRev ?? null,
-      jobCount: Number(n),
+      jobs: jobs.map((j) => ({ ...j, hasProposal: j.hasProposal === true })),
       insert: async (job) => (await tx.insert(designJobs).values(job).returning())[0],
     });
   });
 }
 
-export async function updateJob(jobId: number, update: JobUpdate): Promise<void> {
-  await db.update(designJobs).set(update).where(eq(designJobs.id, jobId));
+/** Moves a job on — only from `fromStage` when one is named, so a job settled meanwhile is not rewritten by a late step. */
+export async function updateJob(jobId: number, update: JobUpdate, fromStage?: DesignJob['stage']): Promise<void> {
+  await db
+    .update(designJobs)
+    .set(update)
+    .where(fromStage ? and(eq(designJobs.id, jobId), eq(designJobs.stage, fromStage)) : eq(designJobs.id, jobId));
+}
+
+/** A job's stage and its project's design revision as they are now: read just before a paid call. */
+export async function jobAndRevision(jobId: number, projectId: number): Promise<{ stage: DesignJob['stage'] | null; designRev: number | null }> {
+  const [job] = await db.select({ stage: designJobs.stage }).from(designJobs).where(eq(designJobs.id, jobId)).limit(1);
+  const [row] = await db.select({ designRev: projects.designRev }).from(projects).where(eq(projects.id, projectId)).limit(1);
+  return { stage: job?.stage ?? null, designRev: row?.designRev ?? null };
 }
 
 /** Moves a job on only if it is still where it was read (its stage and `stageAt`): two readers settle it once. */

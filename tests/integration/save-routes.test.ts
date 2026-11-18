@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { JOB_STALE_MS } from '@/lib/design/generationJob';
 
 /**
  * The project routes end to end, with the database and the session mocked.
@@ -63,6 +64,10 @@ vi.mock('@/lib/plans/server', async () => {
     featureAccess: async () => ({ plan: slots.free ? 'free' : 'premium', has: () => !slots.free, needs: () => 'premium' }),
   };
 });
+
+// The project's last generation job (`lib/api/designJobRows`): none unless a test says one runs.
+const jobs = vi.hoisted(() => ({ latest: null as null | Record<string, unknown> }));
+vi.mock('@/lib/api/designJobRows', () => ({ latestJob: async () => jobs.latest }));
 
 // The rate limits' shared counters, in memory.
 vi.mock('@/lib/api/counterStore', async () => (await import('../helpers/counterStore')).memoryCounterStore());
@@ -136,6 +141,7 @@ const labourLine = (sheet: Sheet, key: string) => sheet.lines.find((l) => l.sect
 const sheetTotal = (sheet: Sheet, section: string) => sheet.lines.filter((l) => l.section === section).reduce((sum, l) => sum + l.total, 0);
 
 beforeEach(() => {
+  jobs.latest = null;
   db.row = own();
   db.affected = 1;
   db.updates.length = 0;
@@ -724,6 +730,30 @@ describe('POST /api/design/projects (the design)', () => {
     expect((await res.json()).error).toBe('PLAN_REQUIRED');
     expect(res.headers.get('X-Plan-Feature')).toBe('catalog');
     expect(db.updates).toHaveLength(0);
+  });
+
+  it('refuses any save of the design while the server generates it, and takes it once the job is over or dead', async () => {
+    signedIn();
+    db.row = designRow({ designRev: 4 });
+    const POST = await load();
+    const body = (patch: Row = {}) => ({ projectId: 42, baseRev: 4, plan, scene: { styleId: 'scandinavian', mode: 'design_only', budgetGel: null, items: [], finishes: [] }, draft: true, ...patch });
+    const now = new Date();
+    for (const stage of ['designing', 'checking']) {
+      jobs.latest = { id: 9, projectId: 42, stage, stageAt: now };
+      // From the newest revision, forced or not: the job writes over the revision it started from.
+      for (const patch of [{}, { force: true }]) {
+        const res = await POST(post('http://localhost/api/design/projects', body(patch)), ctx);
+        expect(res.status).toBe(409);
+        expect((await res.json()).error).toBe('DESIGN_GENERATING');
+      }
+    }
+    expect(db.updates).toHaveLength(0);
+    // Over: done, failed, or a stage long past its function's life.
+    for (const latest of [{ stage: 'done', stageAt: now }, { stage: 'failed', stageAt: now }, { stage: 'designing', stageAt: new Date(now.getTime() - JOB_STALE_MS - 1000) }]) {
+      jobs.latest = { id: 9, projectId: 42, ...latest };
+      const res = await POST(post('http://localhost/api/design/projects', body({ baseRev: Number(db.row!.designRev) })), ctx);
+      expect(res.status).toBe(200);
+    }
   });
 
   it('refuses a save made from an older revision than the row’s', async () => {

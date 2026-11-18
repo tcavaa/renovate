@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DesignJob, Project } from '@/lib/db/schema';
-import type { AiProposal } from '@/lib/design/aiProposal';
+import { MAX_AI_GENERATIONS, type AiProposal } from '@/lib/design/aiProposal';
+import { RATE_RULES } from '@/lib/api/rateLimit';
 import type { AiReview } from '@/lib/design/aiReview';
 import type { DesignScene, FloorPlan } from '@/lib/design/types';
 import { generationAction, JOB_STALE_MS } from '@/lib/design/generationJob';
@@ -17,7 +18,8 @@ import { GENERATION_CATALOG, generationPlan, generationProposal } from '../helpe
  */
 
 type JobRow = DesignJob;
-const rows = vi.hoisted(() => ({ project: null as unknown as Record<string, unknown>, jobs: [] as Array<Record<string, unknown>>, nextId: 1 }));
+/** `beforeWrite`: run once at the start of the next job write, as another writer landing just before it. */
+const rows = vi.hoisted(() => ({ project: null as unknown as Record<string, unknown>, jobs: [] as Array<Record<string, unknown>>, nextId: 1, beforeWrite: null as null | (() => void) }));
 const clone = <T,>(value: T): T => structuredClone(value);
 
 vi.mock('@/lib/api/designJobRows', () => {
@@ -36,7 +38,7 @@ vi.mock('@/lib/api/designJobRows', () => {
       fn({
         latest: clone(jobsOf(projectId).at(-1) ?? null),
         designRev: project().designRev,
-        jobCount: jobsOf(projectId).length,
+        jobs: jobsOf(projectId).map((j) => ({ stage: j.stage, error: j.error, createdAt: j.createdAt, hasProposal: j.proposal != null })),
         insert: async (job: Partial<JobRow>) => {
           const now = new Date();
           const row = { id: rows.nextId++, stage: 'designing', proposal: null, review: null, error: null, createdAt: now, stageAt: now, finishedAt: null, ...job };
@@ -44,7 +46,11 @@ vi.mock('@/lib/api/designJobRows', () => {
           return clone(row);
         },
       }),
-    updateJob: async (id: number, update: Partial<JobRow>) => void Object.assign(find(id)!, update),
+    updateJob: async (id: number, update: Partial<JobRow>, fromStage?: string) => {
+      const row = find(id)!;
+      if (!fromStage || row.stage === fromStage) Object.assign(row, update);
+    },
+    jobAndRevision: async (id: number, projectId: number) => ({ stage: find(id)?.stage ?? null, designRev: project().id === projectId ? project().designRev : null }),
     claimJob: async (job: Pick<JobRow, 'id' | 'stage' | 'stageAt'>, update: Partial<JobRow>) => {
       const row = find(job.id)!;
       if (row.stage !== job.stage || row.stageAt.getTime() !== new Date(job.stageAt).getTime()) return false;
@@ -52,6 +58,9 @@ vi.mock('@/lib/api/designJobRows', () => {
       return true;
     },
     writeDesignForJob: async (projectId: number, expectRev: number, set: Record<string, unknown>, saveId: string, jobId: number, jobUpdate: Partial<JobRow>) => {
+      const landing = rows.beforeWrite;
+      rows.beforeWrite = null;
+      landing?.();
       if (project().id !== projectId || project().designRev !== expectRev) return false;
       rows.project = { ...rows.project, ...clone(set), designRev: expectRev + 1, designSaveId: saveId };
       Object.assign(find(jobId)!, jobUpdate);
@@ -74,7 +83,7 @@ vi.mock('@/lib/api/designWrite', async (importOriginal) => ({
 const plan = vi.hoisted(() => ({ free: false }));
 vi.mock('@/lib/plans/server', () => ({ featureAccess: async () => ({ plan: plan.free ? 'free' : 'premium', has: () => !plan.free, needs: () => 'premium' }) }));
 
-const claude = vi.hoisted(() => ({ design: null as null | (() => Promise<unknown>), review: null as null | (() => Promise<unknown>), designCalls: [] as Array<Record<string, unknown>> }));
+const claude = vi.hoisted(() => ({ design: null as null | (() => Promise<unknown>), review: null as null | (() => Promise<unknown>), designCalls: [] as Array<Record<string, unknown>>, reviewCalls: 0 }));
 vi.mock('@/lib/design/aiDesign', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/design/aiDesign')>()),
   designWithClaude: async (request: Record<string, unknown>) => {
@@ -84,7 +93,10 @@ vi.mock('@/lib/design/aiDesign', async (importOriginal) => ({
 }));
 vi.mock('@/lib/design/aiReview', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/design/aiReview')>()),
-  reviewWithClaude: async () => claude.review!(),
+  reviewWithClaude: async () => {
+    claude.reviewCalls += 1;
+    return claude.review!();
+  },
 }));
 
 const { generationStatus, runDesignStage, settleStaleJob, startDesignJob } = await import('@/lib/api/designJob');
@@ -106,6 +118,7 @@ vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
 const project = () => rows.project as unknown as Project & { scene: DesignScene; plan: FloorPlan };
 const job = (id = 1) => rows.jobs.find((j) => j.id === id) as unknown as JobRow;
 const account = { id: 5, role: 'user' as const };
+const hoursAgo = (hours: number) => new Date(Date.now() - hours * 60 * 60_000);
 const start = (baseRev = 3) => startDesignJob(account, { projectId: 42, baseRev, locale: 'en' });
 /** The check runs after its route's answer: waited for until the job has ended. */
 const settled = () => vi.waitFor(() => expect(['done', 'failed']).toContain(job().stage), { timeout: 2000 });
@@ -113,6 +126,7 @@ const settled = () => vi.waitFor(() => expect(['done', 'failed']).toContain(job(
 beforeEach(() => {
   rows.jobs.length = 0;
   rows.nextId = 1;
+  rows.beforeWrite = null;
   rows.project = {
     id: 42,
     userId: 5,
@@ -130,6 +144,7 @@ beforeEach(() => {
   claude.design = proposalAnswer();
   claude.review = async () => ({ review: { model: 'claude-test', fixes: [], notes: { bed: 'Checked.' } } satisfies AiReview, usage });
   claude.designCalls.length = 0;
+  claude.reviewCalls = 0;
   trigger.mode = 'route';
   trigger.calls.length = 0;
 });
@@ -159,6 +174,9 @@ describe('a generation job', () => {
     await settled();
     expect(job()).toMatchObject({ stage: 'done', error: null });
     expect(job().review).toMatchObject({ fixes: [{ action: 'remove' }] });
+    // What the job knew, kept on its row: the proposal and the check, each with what it cost, and how many fixes went in.
+    expect(job().proposal).toMatchObject({ rooms: expect.any(Array), usage: { model: 'claude-test', costUsd: 0 } });
+    expect(job().review).toMatchObject({ usage: { model: 'claude-test' }, applied: 1 });
     expect(project()).toMatchObject({ designRev: 5, designSaveId: 'job-1-review' });
     expect(project().scene.progress).toMatchObject({ generated: true, step: 5, at: 5 });
     expect(project().scene.generation).toMatchObject({ by: 'ai', reviewed: 1, notes: { bed: 'A calm bedroom. Checked.' } });
@@ -173,9 +191,10 @@ describe('a generation job', () => {
     await runDesignStage(1, 'https://app.test');
     expect(trigger.calls).toHaveLength(0);
     expect(job()).toMatchObject({ stage: 'done' });
-    expect(job().error).toContain('The designer declined');
+    expect(job().error).toMatch(/^design:AI_FAILED .*The designer declined/);
     expect(project().designRev).toBe(4);
-    expect(project().scene.generation).toMatchObject({ by: 'engine', aiCount: 1 });
+    // The engine's flat is not an AI run (`wroteDesignersFlat`).
+    expect(project().scene.generation).toMatchObject({ by: 'engine', aiCount: 0 });
     expect(project().scene.decor).toEqual([]);
     expect(project().scene.progress).toMatchObject({ generated: true, step: 5 });
     expect(project().scene.items.length).toBeGreaterThan(0);
@@ -189,7 +208,7 @@ describe('a generation job', () => {
     await runDesignStage(1, 'https://app.test');
     await settled();
     expect(job()).toMatchObject({ stage: 'done', review: null });
-    expect(job().error).toContain('overloaded');
+    expect(job().error).toMatch(/^check:AI_FAILED .*overloaded/);
     expect(project().scene.progress).toMatchObject({ generated: true });
     expect(project().scene.generation?.reviewed).toBeUndefined();
 
@@ -198,29 +217,149 @@ describe('a generation job', () => {
     const second = await start(project().designRev);
     expect(second).toMatchObject({ ok: true, started: true });
     await runDesignStage(2, 'https://app.test');
-    expect(job(2)).toMatchObject({ stage: 'done', error: 'REVIEW_NOT_STARTED' });
+    expect(job(2)).toMatchObject({ stage: 'done', error: 'check:NOT_STARTED' });
     expect(project().scene.progress).toMatchObject({ generated: true });
   });
 
-  it('never writes over a design changed under it', async () => {
+  it('does not ask the designer when the design changed after the start, and never writes over one changed while it worked', async () => {
     await start();
     rows.project = { ...rows.project, designRev: 4 };
     await runDesignStage(1, 'https://app.test');
-    expect(job()).toMatchObject({ stage: 'failed', error: 'PROJECT_CHANGED' });
+    // Read again right before the paid call: given up, nothing paid, nothing written.
+    expect(claude.designCalls).toHaveLength(0);
+    expect(job()).toMatchObject({ stage: 'failed', error: 'design:CHANGED' });
     expect(project().scene.items).toEqual([]);
 
-    // …nor the check over one changed while it ran.
+    // Changed while the designer worked (a change the save route cannot refuse): its write is refused.
     rows.project = { ...rows.project, designRev: 3 };
     rows.jobs.length = 0;
-    trigger.mode = 'lost';
+    claude.design = async () => {
+      rows.project = { ...rows.project, designRev: 4 };
+      return { proposal: generationProposal(), usage };
+    };
     await start();
     await runDesignStage(rows.jobs[0].id as number, 'https://app.test');
+    expect(claude.designCalls).toHaveLength(1);
+    expect(rows.jobs[0]).toMatchObject({ stage: 'failed', error: 'design:PROJECT_CHANGED' });
+    // The paid proposal is kept on the job, with its cost — it is not an AI run (`wroteDesignersFlat`).
+    expect(rows.jobs[0].proposal).toMatchObject({ rooms: expect.any(Array), usage: { model: 'claude-test' } });
+    expect(project().scene.items).toEqual([]);
+  });
+
+  it('does not ask for the check when the design changed after the design stage wrote it', async () => {
+    trigger.mode = 'lost';
+    await start();
+    await runDesignStage(1, 'https://app.test');
+    expect(job().stage).toBe('checking');
     rows.project = { ...rows.project, designRev: project().designRev + 1 };
     trigger.mode = 'route';
     await reviewRoute.POST(new Request('https://app.test/api/design/ai-review', { method: 'POST', headers: trigger.calls[0].headers }) as never, { params: Promise.resolve({}) } as never);
-    await vi.waitFor(() => expect(rows.jobs[0].stage).toBe('done'));
-    expect(rows.jobs[0].error).toBe('PROJECT_CHANGED');
-    expect(project().scene.progress?.generated).toBe(false);
+    await settled();
+    expect(claude.reviewCalls).toBe(0);
+    expect(job()).toMatchObject({ stage: 'done', review: null });
+    expect(job().error).toMatch(/^check:CHANGED/);
+  });
+
+  /** A check started by the server's request, as the check's own invocation runs it, waited for. */
+  const runCheck = async () => {
+    await reviewRoute.POST(new Request('https://app.test/api/design/ai-review', { method: 'POST', headers: trigger.calls.at(-1)!.headers }) as never, { params: Promise.resolve({}) } as never);
+    await settled();
+  };
+
+  it('leaves the designer’s flat laid out, unchecked, whatever ends the check — never a furnished flat stuck before the studio', async () => {
+    // A change the save route cannot see (the calculation's save turning the design's mode), before the check…
+    trigger.mode = 'lost';
+    await start();
+    await runDesignStage(1, 'https://app.test');
+    const designed = clone(project().scene);
+    rows.project = { ...rows.project, designRev: project().designRev + 1, scene: { ...project().scene, mode: 'full' } };
+    await runCheck();
+    expect(claude.reviewCalls).toBe(0);
+    expect(job()).toMatchObject({ stage: 'done', error: 'check:CHANGED' });
+    expect(project().scene.progress).toMatchObject({ generated: true, step: 5, at: 5 });
+    // …the designer's flat as written, with the change kept.
+    expect(project().scene.items).toEqual(designed.items);
+    expect(project().scene.mode).toBe('full');
+    expect(await generationStatus(42, 5)).toMatchObject({ designGenerated: true });
+
+    // …while the check runs: paid, but its fixes are not applied over a design that moved on.
+    rows.jobs.length = 0;
+    rows.nextId = 1;
+    rows.project = { ...rows.project, scene: { ...project().scene, progress: { step: 4, generated: false } } };
+    await start(project().designRev);
+    await runDesignStage(1, 'https://app.test');
+    const written = clone(project().scene);
+    claude.review = async () => {
+      rows.project = { ...rows.project, designRev: project().designRev + 1 };
+      const nightstand = project().scene.items.find((i) => i.kind === 'nightstand')!;
+      return { review: { model: 'claude-test', fixes: [{ target: nightstand.id, action: 'remove', productId: null, wallIndex: null, reason: 'x' }], notes: {} }, usage };
+    };
+    await runCheck();
+    expect(job()).toMatchObject({ stage: 'done', error: 'check:PROJECT_CHANGED' });
+    expect(job().review).toMatchObject({ fixes: [{ action: 'remove' }] });
+    expect(project().scene.items).toEqual(written.items);
+    expect(project().scene.progress).toMatchObject({ generated: true, step: 5 });
+
+    // …and when the check's own step throws.
+    rows.jobs.length = 0;
+    rows.nextId = 1;
+    rows.project = { ...rows.project, scene: { ...project().scene, progress: { step: 4, generated: false } } };
+    await start(project().designRev);
+    await runDesignStage(1, 'https://app.test');
+    // An answer the fixes cannot be applied from (no list of them): applying it throws.
+    claude.review = async () => ({ review: { model: 'claude-test', fixes: { length: 1 }, notes: {} }, usage });
+    await runCheck();
+    expect(job().stage).toBe('done');
+    expect(job().error).toMatch(/^check:ERROR /);
+    expect(project().scene.progress).toMatchObject({ generated: true, step: 5 });
+  });
+
+  it('lays the designer’s flat out, unchecked, over a change that lands between the check’s read and its write', async () => {
+    trigger.mode = 'lost';
+    await start();
+    await runDesignStage(1, 'https://app.test');
+    const designed = clone(project().scene);
+    claude.review = async () => {
+      const nightstand = project().scene.items.find((i) => i.kind === 'nightstand')!;
+      return { review: { model: 'claude-test', fixes: [{ target: nightstand.id, action: 'remove', productId: null, wallIndex: null, reason: 'x' }], notes: {} }, usage };
+    };
+    // The calculation's save turning the design's mode lands after the check read the design, before its write.
+    rows.beforeWrite = () => {
+      rows.project = { ...rows.project, designRev: project().designRev + 1, scene: { ...project().scene, mode: 'full' } };
+    };
+    await runCheck();
+    expect(job()).toMatchObject({ stage: 'done', error: 'check:PROJECT_CHANGED' });
+    expect(job().review).toMatchObject({ applied: 0 });
+    // The designer's flat as written (the fixes not applied over the change), the change kept, laid out.
+    expect(project().scene.items).toEqual(designed.items);
+    expect(project().scene.mode).toBe('full');
+    expect(project().scene.progress).toMatchObject({ generated: true, step: 5, at: 5 });
+    expect(await generationStatus(42, 5)).toMatchObject({ designGenerated: true });
+  });
+
+  it('leaves another design than its own as it is', async () => {
+    trigger.mode = 'lost';
+    await start();
+    await runDesignStage(1, 'https://app.test');
+    // The job taken for dead and the person's own copy kept over it (forced), not laid out.
+    const theirs = { styleId: 'modern', mode: 'design_only', budgetGel: null, items: [], finishes: [], electrical: [], decor: [], generation: null, progress: { step: 4, generated: false } };
+    rows.project = { ...rows.project, designRev: project().designRev + 1, scene: theirs };
+    await runCheck();
+    expect(job()).toMatchObject({ stage: 'done', error: 'check:CHANGED' });
+    expect(project().scene).toEqual(theirs);
+
+    // …also when their copy lands between the check's read and its write.
+    rows.jobs.length = 0;
+    rows.nextId = 1;
+    rows.project = { ...rows.project, scene: { ...theirs, progress: { step: 4, generated: false } } };
+    await start(project().designRev);
+    await runDesignStage(1, 'https://app.test');
+    rows.beforeWrite = () => {
+      rows.project = { ...rows.project, designRev: project().designRev + 1, scene: theirs };
+    };
+    await runCheck();
+    expect(job()).toMatchObject({ stage: 'done', error: 'check:PROJECT_CHANGED' });
+    expect(project().scene).toEqual(theirs);
   });
 
   it('is started once at a time, from the revision just saved, within the cap', async () => {
@@ -229,13 +368,72 @@ describe('a generation job', () => {
     expect(again).toMatchObject({ ok: true, started: false, job: { id: (first as { job: JobRow }).job.id } });
     expect(rows.jobs).toHaveLength(1);
 
-    rows.jobs[0].stage = 'done';
+    // Five runs that wrote the designer's flat (long ago, so the safety stop does not count them).
+    Object.assign(rows.jobs[0], { stage: 'done', proposal: generationProposal(), createdAt: hoursAgo(3) });
     expect(await start(2)).toMatchObject({ ok: false, error: 'PROJECT_CHANGED', status: 409 });
     for (let i = 0; i < 4; i++) rows.jobs.push({ ...rows.jobs[0], id: rows.nextId++ });
     expect(await start()).toMatchObject({ ok: false, error: 'AI_LIMIT', status: 429 });
     rows.jobs.length = 0;
     rows.project = { ...rows.project, scene: { ...project().scene, generation: { by: 'ai', at: 'x', aiCount: 5 } } };
     expect(await start()).toMatchObject({ ok: false, error: 'AI_LIMIT' });
+  });
+
+  it('counts towards the cap only the runs that wrote the designer’s flat', async () => {
+    const run = async () => {
+      const started = await start(project().designRev);
+      expect(started).toMatchObject({ ok: true, started: true });
+      await runDesignStage((started as { job: JobRow }).job.id, 'https://app.test');
+      // Long ago: the safety stop is its own test.
+      rows.jobs.at(-1)!.createdAt = hoursAgo(3);
+    };
+    // A designer that fails (the engine's flat), a write refused, a design changed before the call,
+    // a function that died: none of them is an AI run, however many there are.
+    claude.design = async () => {
+      throw new Error('529 overloaded');
+    };
+    for (let i = 0; i < 3; i++) {
+      await run();
+      expect(rows.jobs.at(-1)).toMatchObject({ stage: 'done', proposal: null });
+      expect(project().scene.generation).toMatchObject({ by: 'engine', aiCount: 0 });
+      rows.project = { ...rows.project, scene: { ...project().scene, progress: { step: 4, generated: false } } };
+    }
+    claude.design = async () => {
+      rows.project = { ...rows.project, designRev: Number(rows.project.designRev) + 1 };
+      return { proposal: generationProposal(), usage };
+    };
+    for (let i = 0; i < 3; i++) {
+      await run();
+      expect(rows.jobs.at(-1)).toMatchObject({ stage: 'failed', error: 'design:PROJECT_CHANGED' });
+    }
+    for (let i = 0; i < 3; i++) {
+      await start(project().designRev);
+      Object.assign(rows.jobs.at(-1)!, { stage: 'failed', error: 'design:TIMEOUT', createdAt: hoursAgo(3) });
+    }
+    expect(rows.jobs).toHaveLength(9);
+
+    // …and the runs that wrote one count: five, then the cap.
+    claude.design = proposalAnswer();
+    trigger.mode = 'lost';
+    for (let i = 0; i < MAX_AI_GENERATIONS; i++) {
+      await run();
+      expect(rows.jobs.at(-1)).toMatchObject({ stage: 'checking' });
+      expect(project().scene.generation).toMatchObject({ by: 'ai', aiCount: i + 1 });
+      rows.jobs.at(-1)!.stage = 'done';
+    }
+    expect(await start(project().designRev)).toMatchObject({ ok: false, error: 'AI_LIMIT', status: 429 });
+  });
+
+  it('stops asking the designer for one design after as many calls in an hour as the start’s rate rule allows', async () => {
+    const recent = (patch: Partial<JobRow>) => rows.jobs.push({ id: rows.nextId++, projectId: 42, stage: 'failed', proposal: null, review: null, error: 'design:AI_FAILED Error: 529 overloaded', createdAt: new Date(), stageAt: new Date(), finishedAt: new Date(), ...patch });
+    for (let i = 0; i < RATE_RULES.aiGenerate.limit - 1; i++) recent({ stage: 'done' });
+    // Ended before the designer was asked: not a call.
+    recent({ error: 'design:CHANGED' });
+    recent({ error: 'design:NO_DESIGN' });
+    // A call an hour and more ago is out of the window.
+    recent({ createdAt: hoursAgo(2) });
+    expect(await start()).toMatchObject({ ok: true, started: true });
+    rows.jobs.at(-1)!.stage = 'failed';
+    expect(await start()).toMatchObject({ ok: false, error: 'AI_PAUSED', status: 429 });
   });
 
   it('is refused the account’s plan does not lay a laid-out flat out again, and passes the locks on a Free account otherwise', async () => {
@@ -260,15 +458,29 @@ describe('a generation job', () => {
 describe('a job whose function died', () => {
   const longAgo = () => new Date(Date.now() - JOB_STALE_MS - 60_000);
 
-  it('designing: settled as failed when read, and the page lays the flat out with the engine', async () => {
+  it('designing: settled as failed when read; the page waiting on it lays the flat out with the engine, a later visit waits for a press', async () => {
     await start();
     job().stageAt = longAgo();
     const status = await generationStatus(42, 5);
-    expect(status).toMatchObject({ designGenerated: false, job: { stage: 'failed', error: 'TIMEOUT' } });
-    expect(generationAction(status!, { generated: false, generatedAt: null }, false)).toBe('engine');
-    expect(generationAction(status!, { generated: false, generatedAt: null }, true)).toBe('engine');
+    expect(status).toMatchObject({ designGenerated: false, job: { stage: 'failed', error: 'design:TIMEOUT' } });
+    expect(generationAction(status!, { generated: false }, true)).toBe('engine');
+    expect(generationAction(status!, { generated: false }, false)).toBe('none');
     // A start after it is a new job.
     expect(await start()).toMatchObject({ ok: true, started: true, job: { id: 2 } });
+  });
+
+  it('is settled by nobody but the project’s own account', async () => {
+    trigger.mode = 'lost';
+    await start();
+    await runDesignStage(1, 'https://app.test');
+    job().stageAt = longAgo();
+    expect(await startDesignJob({ id: 6, role: 'user' }, { projectId: 42, baseRev: project().designRev, locale: 'en' })).toMatchObject({ ok: false, error: 'PROJECT_NOT_FOUND', status: 404 });
+    // Untouched: still the dead check, the flat not laid out.
+    expect(job().stage).toBe('checking');
+    expect(project().scene.progress?.generated).toBe(false);
+    // The owner's start settles it first (the flat opens laid out), then finds the design moved on.
+    expect(await start(4)).toMatchObject({ ok: false, error: 'PROJECT_CHANGED' });
+    expect(job()).toMatchObject({ stage: 'done', error: 'check:TIMEOUT' });
   });
 
   it('checking: the flat it wrote is opened as laid out, once, and the page reads it again', async () => {
@@ -276,14 +488,14 @@ describe('a job whose function died', () => {
     await start();
     await runDesignStage(1, 'https://app.test');
     expect(job().stage).toBe('checking');
-    expect(generationAction((await generationStatus(42, 5))!, { generated: false, generatedAt: null }, false)).toBe('wait');
+    expect(generationAction((await generationStatus(42, 5))!, { generated: false }, false)).toBe('wait');
 
     job().stageAt = longAgo();
     const status = await generationStatus(42, 5);
-    expect(status).toMatchObject({ designGenerated: true, job: { stage: 'done', error: 'REVIEW_TIMEOUT' } });
+    expect(status).toMatchObject({ designGenerated: true, job: { stage: 'done', error: 'check:TIMEOUT' } });
     expect(project()).toMatchObject({ designRev: 5 });
     expect(project().scene.progress).toMatchObject({ generated: true, step: 5 });
-    expect(generationAction(status!, { generated: false, generatedAt: null }, false)).toBe('reload');
+    expect(generationAction(status!, { generated: false }, false)).toBe('reload');
     await settleStaleJob(42);
     expect(project().designRev).toBe(5);
   });

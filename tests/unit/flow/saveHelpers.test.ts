@@ -113,6 +113,19 @@ describe('the design’s save', () => {
     expect(sent[0]).toMatchObject({ baseRev: 7, homeState: null });
     expect(designStores.useDesignStore.for(id).getState().baseRev).toBe(8);
   });
+
+  it('is told the server is generating the design: the change stays unsaved in this browser, on its own revision, to be saved once the job is over', async () => {
+    const id = nextId;
+    designStores.useDesignStore.for(id).setState({ projectId: id, baseRev: 7, plan: plan() });
+    sync.markDirty('design', id);
+    server([{ status: 409, body: { data: null, error: 'DESIGN_GENERATING' } }]);
+    const { problemOf } = await import('@/lib/flow/saveQueue');
+    const refused = await saveDesign({ draft: true, projectId: id }).catch((error: unknown) => error);
+    expect(refused).toMatchObject({ name: 'DesignGeneratingError' });
+    expect(problemOf(refused)).toBe('generating');
+    expect(designStores.useDesignStore.for(id).getState().baseRev).toBe(7);
+    expect(sync.isDirty('design', id)).toBe(true);
+  });
 });
 
 describe('the design’s kept versions', () => {

@@ -15,7 +15,8 @@
 import { useDesignStore } from '@/store/designStore';
 import { activeProjectId } from '@/store/projectScope';
 import { markClean } from '@/lib/flow/projectSync';
-import { enqueueSave, newSaveId, ProjectChangedError, useSaveProblems } from '@/lib/flow/saveQueue';
+import { DesignGeneratingError, enqueueSave, newSaveId, ProjectChangedError, useSaveProblems } from '@/lib/flow/saveQueue';
+import { DESIGN_GENERATING } from '@/lib/design/generationJob';
 import type { SavedRow } from '@/lib/calculator/saveProject';
 import type { DesignVersion } from '@/lib/design/types';
 import { jsonBody } from '@/lib/flow/jsonBody';
@@ -98,6 +99,8 @@ export function saveDesign(options: { draft: boolean; projectId?: number; force?
     const res = await fetch('/api/design/projects', { method: 'POST', headers, body });
     const json = (await res.json().catch(() => null)) as { data: { id: number; rev: number } | null; error: string | null } | null;
     if (res.status === 409 && json?.error === 'PROJECT_CHANGED') throw new ProjectChangedError();
+    // The server is generating this design: nothing is written until its job is over.
+    if (res.status === 409 && json?.error === DESIGN_GENERATING) throw new DesignGeneratingError();
     if (!res.ok || !json || json.error || !json.data) throw new Error(json?.error ?? 'save-failed');
     // Nothing touched the design while this was being written: the server has all of it.
     const unchanged = store.getState() === s;

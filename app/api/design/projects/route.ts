@@ -9,6 +9,8 @@ import { ownProject } from '@/lib/api/projectSave';
 import { designWriteColumns, refusedDesignChange } from '@/lib/api/designWrite';
 import { API_ERRORS, fail, handle, ok } from '@/lib/api/route';
 import { readJson } from '@/lib/api/body';
+import { latestJob } from '@/lib/api/designJobRows';
+import { DESIGN_GENERATING, jobRunning } from '@/lib/design/generationJob';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -27,6 +29,11 @@ export const POST = handle('POST /api/design/projects', 'Failed to save design',
   if (!userId) return fail('Unauthorized', 401);
   const existing = await ownProject(parsed.data.projectId, userId);
   if (!existing) return fail('PROJECT_NOT_FOUND', 404);
+  // The server is generating this design (`lib/api/designJob`): it writes over the revision it
+  // started from, so nothing else may move it — another tab, an autosave, a nudge on the board,
+  // forced or not. Refused, and the browser keeps the change (`DesignGeneratingError`) for when
+  // the job is over. The job's own writes do not come through here.
+  if (jobRunning(await latestJob(existing.id))) return fail(DESIGN_GENERATING, 409);
   const { floorPlanUrl, draft, versions, baseRev, force, saveId, prevSaveId } = parsed.data;
   // Made from an older copy than the row has — another tab or computer saved since: refused,
   // so the person chooses (`lib/flow/saveQueue`), rather than one copy silently replacing the

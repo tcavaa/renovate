@@ -46,7 +46,8 @@ server `featureAccess(account)` resolves the plan and the configuration once (`h
 
 Not gated: the calculator's own steps (materials, furniture picks, the summary), the technical
 step and the studio's electric and technical trays (sockets, lights, radiators, equipment), the
-style test and generating (the AI designer's own cap of 5 a design stays), versions, undo, and
+style test and generating (the AI designer's own cap stays: 5 runs a design that wrote its flat, and
+at most 8 calls to it an hour — [design-studio/decor.md](design-studio/decor.md#the-ai-designer)), versions, undo, and
 the brigade's read-only project view.
 
 **Staff** (admin, `agent_orders`, `agent_catalog`) work as Professional with no project

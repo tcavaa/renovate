@@ -33,12 +33,12 @@ proposal goes through) · [3d-engine.md](3d-engine.md) · [studio.md](studio.md)
 | `lib/design/aiReview.ts` | server only: the designer's check of the furnished flat — `reviewFindings` (what measuring each room finds wrong), `buildReviewBrief`, `REVIEW_SCHEMA`, `validateReview`, `reviewWithClaude` |
 | `lib/design/aiDesign.ts` | server only: `buildBrief` (the flat, the candidates, the decor materials and references), `SYSTEM_PROMPT`, `DESIGN_SCHEMA`, `designWithClaude`, `validateProposal`, `DESIGN_MODEL` |
 | `lib/design/generateScene.ts` | laying the flat out, pure and isomorphic: `generateScene` (the store's `generate` and the server's job both run it), `reviewedScene` (the check's fixes and notes), `defaultFinishes`, `keepChosen`, `placeableOnly` |
-| `lib/design/generationJob.ts` | the job as the style page sees it, pure: `GenerationJobView`, `GenerationStatus`, `JOB_STALE_MS` (6 min), the deadlines, `JOB_POLL_MS`, `isStale`, `generationAction` (wait / reload / engine / none) |
+| `lib/design/generationJob.ts` | the job's rules, pure: `GenerationJobView`, `GenerationStatus`, `FUNCTION_MAX_MS`, `REVIEW_START_MS`, `JOB_STALE_MS` (320 s), `JOB_MAX_MINUTES`, the deadlines, `JOB_POLL_MS`, `isStale`, `jobRunning` (the save route's `DESIGN_GENERATING`), `jobError` / `readJobError`, `calledDesigner`, `wroteDesignersFlat`, `aiFallback` / `startRefusal` (what the person is told), `generationAction` (wait / reload / engine / none) |
 | `lib/api/designJob.ts` | server only: the generation job — `startDesignJob`, `runDesignStage`, `runReviewStage`, `settleStaleJob`, `generationStatus`, `jobToken` / `validJobToken` |
 | `lib/api/designJobRows.ts` | the job's queries, one each (`withJobLock`, `claimJob`, `writeDesignForJob` …) — mocked in memory by the tests |
 | `lib/api/designWrite.ts` | a design write's columns (`designWriteColumns`: repriced, its budget worked out) and the plan's locks (`refusedDesignChange`) — the save route's and the job's |
-| `lib/design/aiDesignClient.ts` | the browser's side: `generationStatus`, `startAiGeneration` (each null on any failure) |
-| `app/api/design/ai-generate/route.ts` | `GET` → `{ enabled }`, with `?projectId=` also `{ job, designGenerated }`; `POST` starts a job → 202 `{ job }`, or 503/429/409 with `fallback: 'engine'` (402 on the plan's locks) |
+| `lib/design/aiDesignClient.ts` | the browser's side: `generationStatus` (null on any failure), `startAiGeneration` (`{ job }`, or `{ refused }` with why) |
+| `app/api/design/ai-generate/route.ts` | `GET` → `{ enabled }`, with `?projectId=` also `{ job, designGenerated }`; `POST` starts a job → 202 `{ job }`, or 503/429 (`AI_LIMIT`, `AI_PAUSED`, the rate limit)/409 with `fallback: 'engine'` (402 on the plan's locks) |
 | `app/api/design/ai-review/route.ts` | the job's second invocation: `POST` from the server itself, signed (`x-design-job`, `x-design-job-token`) → 202, the check run after the answer; 403 otherwise |
 | `components/design/GenerationOverlay.tsx` | the overlay, paced by the job's stage |
 | `lib/db/migrations/0009_design_jobs.sql` | the `design_jobs` table |
@@ -332,21 +332,41 @@ the project opens furnished afterwards.
    job runs** lands on the style page (the design is not laid out yet), which finds the job and
    waits on it again; a job that finished meanwhile laid the flat out, so the project opens in the
    studio. What the page does with each answer is `generationAction`: `wait`, `reload` (the server's
-   design is laid out and this browser's is not), `engine` (the job it waits on came to nothing, or
-   a failed job newer than this browser's last generation), `none`.
+   design is laid out and this browser's is not), `engine` (the job this page waits on — the visit
+   that started it or found it running — came to nothing), `none` (also a job that came to nothing
+   while no page waited: the next visit to the style step waits for the person's press, and that
+   run used none of the design's AI runs).
+   **The person is told when the designer did not design the flat** (`GenerationOverlay`
+   `fallback`, `AiFallback` in `lib/design/generationJob.ts`): when the engine lays it out instead —
+   here, or on the server after the designer failed — the overlay ends on "the AI designer could
+   not design this flat, so the engine laid it out" and why (`startRefusal` for a start refused,
+   `aiFallback` for a job: the design's AI runs used up — and that it can be changed by hand in the
+   studio or a new project started; too many asked in a short while; the design changed while it
+   worked; a failure), and the studio opens on the person's press. A check that failed leaves the
+   designer's flat, so nothing is said then; nor when the server's flat is laid out with no job
+   behind it (another tab's engine flat, a deployment with no key — no AI was asked for). The hint says how long: usually two to three minutes,
+   never more than `JOB_MAX_MINUTES` (both stages to the end of their time — 11).
    **The autosave is held while the page waits** (`designStore.autosaveHeld`, `DesignAutosave`):
    the job writes the design over the revision it started from, so nothing else may move it — not
    a change, not the flush on leaving (`useAutosave` flushes only while enabled), not the autosave
    repeating the hinge's save (it no longer writes a signature a save of the page's own just wrote —
-   `savedSignature`). Leaving the style page for another step lets the autosave go again: a change
-   made there is saved and wins, and the job, finding the design moved, writes nothing.
-2. **The start** (`startDesignJob`; signed in, the project the caller's, `RATE_RULES.aiGenerate`)
-   settles a dead job first, refuses what the plan's locks refuse (laying a laid-out flat out again
-   without the catalogue — 402, as the save route would), then in one transaction holding the
-   project's lock (`pg_advisory_xact_lock`): hands back the job already running (two clicks, two
-   tabs: one job), refuses a design not at `baseRev` (409), counts the cap from the jobs the project
-   has had (and the scene's `generation.aiCount` from before jobs existed — every job is one AI run,
-   so a repeat cannot bill past it; 429), and writes the job (`designing`, a seed, its `aiCount`).
+   `savedSignature`). **And the save route refuses every other save of the design while the job
+   runs** (409 `DESIGN_GENERATING` while the last job is designing or checking and not dead —
+   `jobRunning`): another step's autosave, a second tab, another computer, forced or not. The change
+   stays in that browser, unsaved, under the *generating* banner, and is saved once the job is over
+   ([project-flow.md](../project-flow.md#10-saving)).
+2. **The start** (`startDesignJob`; signed in, `RATE_RULES.aiGenerate`) checks the project is the
+   caller's (404 — before it touches anything), settles a dead job, refuses what the plan's locks
+   refuse (laying a laid-out flat out again without the catalogue — 402, as the save route would),
+   then in one transaction holding the project's lock (`pg_advisory_xact_lock`): hands back the job
+   already running (two clicks, two tabs: one job), refuses a design not at `baseRev` (409),
+   **counts the cap** — the runs that wrote the designer's flat (`wroteDesignersFlat`: a proposal
+   kept and the job on to its check; and the scene's `generation.aiCount`), so a designer that
+   failed, a write refused, a design changed or a function that died uses none of the five (429
+   `AI_LIMIT`) — then **the safety stop**: the jobs that asked the designer at all (`calledDesigner`:
+   all but those that ended before the call) within the last hour, at most as many as the start's
+   own rate rule allows an address (`RATE_RULES.aiGenerate`, 8 an hour — here per design; 429
+   `AI_PAUSED`), and writes the job (`designing`, a seed, its `aiCount` — the run it would be).
    It answers 202 at once; everything after runs in `after()` (`afterResponse`).
 3. **The design stage** (`runDesignStage`, after the start's answer, in its function's 300 s):
    the brief is built from the row's plan (`ensureWalls`, as the browser opens it) and the cached
@@ -380,7 +400,10 @@ the project opens furnished afterwards.
    again gives a new design. The prompt tells the designer the lists are random and unordered.
    Measured on two flats in one style: 10 of 28 products shared, no finish shared; one flat
    generated twice: 1 of 30 products, no finish and no decor family shared. Small pools (curtains,
-   desks, TV units — 8 to 16 products) are where two flats still meet. One Claude call (`DESIGN_MODEL`, adaptive thinking, effort medium,
+   desks, TV units — 8 to 16 products) are where two flats still meet. **Right before the call the
+   stage reads the job's stage and the design's revision again** (`mayCall`, `jobAndRevision`): a
+   job settled as dead meanwhile does nothing, and a design that moved on since the start is not
+   designed to be thrown away — the job fails `design:CHANGED`, nothing paid. One Claude call (`DESIGN_MODEL`, adaptive thinking, effort medium,
    server-side refusal fallback, the system prompt cached, structured output against
    `DESIGN_SCHEMA`, let go after `DESIGN_DEADLINE_MS` — 240 s) answers per room: furniture picks,
    floor, wall, up to three decor intents, a note — in the person's language. `validateProposal`
@@ -396,8 +419,10 @@ the project opens furnished afterwards.
    that opens the project waits on the style step, and the check's write is still the
    generation's own on every plan. The job is then `checking`, and the stage starts the check with
    a request of its own (`POST /api/design/ai-review` to the origin the start came in on, signed
-   with `jobToken` — an HMAC of the job id under `AUTH_SECRET`, `validJobToken`), which answers at
-   once. A check that cannot be started leaves the flat as laid out (`REVIEW_NOT_STARTED`).
+   with `jobToken` — an HMAC of the job id under `AUTH_SECRET`, `validJobToken`; waited for
+   `REVIEW_START_MS`, 20 s), which answers at once. A check that cannot be started leaves the flat
+   as laid out (`check:NOT_STARTED`). The proposal is kept on the job's row with what its call cost
+   (`usage`: tokens, model, cost in dollars) — also when its write was refused (the job `failed`).
    What `generateScene` does with the proposal: the engine lays the flat out as always, with
    the picks taken where they fit their slot (`MatchOptions.picks` — a pick that fits only by standing
    in a door's way or on keep-clear floor gives way to a product that keeps them clear, and takes
@@ -464,11 +489,27 @@ the project opens furnished afterwards.
    (`suggestElectrical`, `withFixtureProducts`, the calculation's choices, `underCeilingDecor`; a
    room wired by hand is kept): the bedside sockets go where the bed now stands. Rooms the check did
    not touch keep their fittings as they were, and a check that changed nothing changes no fitting.
-   The room's note gets the check's sentence; `generation.reviewed` counts the fixes. The flat
-   is then written laid out (`progress` generated, step 5, `at` 5 — the studio is where the project
-   opens) over the design stage's revision, and the job is `done` with the review on it
-   (`finishFlat`). A check that fails or times out writes the flat as laid out, unchecked, the job
-   `done` with its error; a design changed since the design stage is left as it is (`PROJECT_CHANGED`).
+   The room's note gets the check's sentence; `generation.reviewed` counts the fixes that changed the
+   flat, each on its own (not those that changed nothing — a piece not there, a move that did not
+   stand — nor a piece that only followed another's fix). Right before the call the stage reads the
+   job and the revision again, as the design stage does. The flat is then written laid out
+   (`progress` generated, step 5, `at` 5 — the studio is where the project opens) over the design
+   stage's revision, and the job is `done` with the review on it — its cost (`usage`) and how many
+   fixes went in (`applied`) — (`finishFlat`). **Whatever ends the check, the designer's flat is
+   written laid out**, unchecked: the check failing or timing out (`check:AI_FAILED`,
+   `check:TIMEOUT`), never started, throwing, its fixes refused by the write; and a design moved on
+   under it by a change the save route could not refuse (the calculation's save turning the design's
+   mode) — the check not paid for when it moved before the call (`check:CHANGED`), its fixes not
+   applied over it when it moved during (`check:PROJECT_CHANGED`), the change kept either way — also
+   when it lands between the check's read and its write: the row is read again and the flat laid
+   out over the new revision while the row still holds the job's flat (no count of tries — each
+   needs another write to have landed, and under a running job only that once-per-project writer
+   can). Only a row that holds another design than the job's flat (`isJobsFlat`: the designer's, of
+   this run, not laid out — e.g. a person's copy kept over a job taken for dead) is left as it is.
+   The one ending left with the flat not laid out: the flat as written refused by the save's own
+   checks (`check:WRITE_REFUSED`, `check:PLAN_REQUIRED`) — the design stage wrote that same flat, so
+   only something changed in between (the account's plan, the catalogue) can make it; not
+   verified that nothing else can.
    The style step's flow guard holds while the page waits (`DesignFlowGuard` `hold`). Rate rule
    `aiGenerate` (8 starts an hour) covers both calls; the stages log `ai-generate` and `ai-review` with
    the job id, tokens, cost and the number of fixes. **Besides replacing and removing, the check
@@ -516,19 +557,26 @@ answered, from the request's start; the designer (one to two minutes, longer for
 slow answer) and the check (about 40 s) together run too close to Vercel's 300 s to share one. Each
 stage has its own function and its own deadline inside it.
 
-**What fails, and what then.** The designer failing — an error, a refusal, an answer that does not
-validate, the deadline — is the engine's flat, laid out by the design stage in the same write, no
-decor, the job `done` with the error (`generation.by` `engine`; the run still counts against the cap,
-it was billed). A job whose function died stays in its stage; past `JOB_STALE_MS` (6 minutes — a
-stage's function lives 300 s at most) it is **settled the next time it is read** (`settleStaleJob`,
-from the page's status call or the next start; claimed by its `stageAt`, so two readers settle it
-once): dead while `checking`, its flat is written laid out, unchecked (`REVIEW_TIMEOUT`), and the
-page reads it again; dead while `designing`, nothing was written, the job is `failed` (`TIMEOUT`) and
-the page lays the flat out with the engine. Every way a job cannot start — no key, the cap, the design
-changed, the server unreachable — is the engine's flat in the page, at once, as before the designer
-existed. **The plan's locks** hold for the job's writes: each is checked with `refusedSceneChange`
-against the design stored, with none of the studio's features (a generation over a flat not laid out
-passes on every plan), and with the account's own plan otherwise.
+**What fails, and what then.** The job's `error` names the step and how it ended —
+`<step>:<code>[ <detail>]` (`jobError` / `readJobError`; `JobErrorCode`: `NO_DESIGN`, `CHANGED`,
+`PROJECT_CHANGED`, `PLAN_REQUIRED`, `WRITE_REFUSED`, `AI_FAILED`, `NOT_STARTED`, `TIMEOUT`,
+`ERROR`). The designer failing — an error, a refusal, an answer that does not validate, the
+deadline — is the engine's flat, laid out by the design stage in the same write, no decor, the job
+`done` with `design:AI_FAILED` (`generation.by` `engine`, its `aiCount` the runs before: not an AI
+run). A job whose function died stays in its stage; past `JOB_STALE_MS` (320 s: no function running
+the stage can be alive — the design stage's function began before the job was written, the check's
+at most `REVIEW_START_MS` after its stage did, and each lives `FUNCTION_MAX_MS`, the routes'
+`maxDuration`) it is **settled the next time it is read** (`settleStaleJob`, from the page's status
+call or the owner's next start; claimed by its `stageAt`, so two readers settle it once): dead while
+`checking`, its flat is written laid out, unchecked (`check:TIMEOUT`), and the page reads it again;
+dead while `designing`, nothing was written, the job is `failed` (`design:TIMEOUT`) and the page
+waiting on it lays the flat out with the engine. A step ends a job only from the stage it found it
+in (`updateJob`'s `fromStage`), so a late step never rewrites a job settled meanwhile. Every way a
+job cannot start — no key, the cap, the safety stop, the design changed, the server unreachable —
+is the engine's flat in the page, at once, and the person is told why. **The plan's locks** hold
+for the job's writes: each is checked with `refusedSceneChange` against the design stored, with
+none of the studio's features (a generation over a flat not laid out passes on every plan), and
+with the account's own plan otherwise.
 
 **The structured output's limit.** A schema may hold at most 16 nullable (union-typed) fields;
 `DESIGN_SCHEMA` has none: "the default" is a sentinel (0, -1, "", "auto"), read back by

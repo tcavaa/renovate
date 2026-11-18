@@ -228,8 +228,11 @@ written, then checked room by room in a second invocation and written laid out. 
 it asks after the job every few seconds, the overlay showing its real stage, and when it is done
 reads the design from the server and opens the studio. Closing the page or losing the connection
 stops none of it — the project opens on the style page while the job runs (and waits on it again)
-and in the studio once it is done ([decor.md](decor.md#the-ai-designer)). Without a key, or when a
-job cannot start or comes to nothing, the page lays the flat out with the engine as before.
+and in the studio once it is done ([decor.md](decor.md#the-ai-designer)); while it runs no other
+save of the design is taken (409 `DESIGN_GENERATING` — [project-flow.md](../project-flow.md#10-saving)).
+Without a key the page lays the flat out with the engine as before; when a job cannot start or
+comes to nothing (on the visit waiting on it — a later visit waits for the press), the engine lays
+it out and the overlay says the AI designer could not, and why.
 **Generating twice gives two flats**: each `generate` draws a fresh seed, so the placement, the
 decor, the products and the floors and walls vary between the good options
 ([layout-and-matching.md](layout-and-matching.md#generating-is-random)); nothing else is random.
