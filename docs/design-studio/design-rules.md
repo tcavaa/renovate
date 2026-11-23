@@ -511,7 +511,7 @@ answers, as the app is to follow them, and the stage each is built in:
 | 12 | A door's clear floor | **By room**: bathrooms and toilets 70 cm deep × the door's width; elsewhere 90 cm × the door + 10 cm each side; archways 55 cm — one rule for the layout, the products, the joinery and the check; the door's swing, access and the way on checked apart, and a layout that passes those three is not refused for the zone alone | 1 |
 | 13 | A calculator pick that fits nowhere | In order: another position or turn in its room → move, shrink or drop the room's secondary pieces for it (a person's pick before the generated ones) → another room of the same type, saying so → left out of the 3D with a note, kept in the list ("This item could not fit in the selected room…"). Never outside the room or overlapping, never resized; placed and unplaced picks told apart | 5 |
 
-The stages (1 to 4 built, 23–24 Nov 2026): **1** the contained rules (door zones, built wardrobes, the hall's boiler section, screens,
+The stages (1 to 5 built, 23–24 Nov 2026): **1** the contained rules (door zones, built wardrobes, the hall's boiler section, screens,
 the balcony door's price, the plan message, the style's own floor, catalogue checks); **2** bathroom
 and bedroom fallbacks; **3** the living room and the TV; **4** the kitchen, the washing machine and
 balconies; **5** decor over low joinery, the ceiling's lighting as one, the calculator's picks; **6**
