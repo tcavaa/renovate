@@ -81,6 +81,11 @@ export function isShowerDoor(product: Named | null | undefined): boolean {
   return !!product && /\bshower (door|screen|enclosure)\b|\bglass\b[^|]*\bdoor\b/.test(nameOf(product));
 }
 
+/** A bidet the library filed under toilets: no WC (the layout lays no bidet, and the WC's slot takes none). */
+export function isBidet(product: Named | null | undefined): boolean {
+  return !!product && /\bbidet\b|ბიდე/.test(nameOf(product));
+}
+
 /** A cooker hood that is round — a cylinder — which the rulebook prefers (K-7). */
 export function isRoundHood(product: Named | null | undefined): boolean {
   return !!product && /\b(cylind|round|tube)/.test(nameOf(product));

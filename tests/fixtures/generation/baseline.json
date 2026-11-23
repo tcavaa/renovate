@@ -16,8 +16,8 @@
   "counts": {
     "door_zone": 6,
     "hung_into_floor": 4,
-    "missing:bathroom:mirror": 32,
-    "missing:bathroom:shower/bathtub": 36,
+    "missing:bathroom:mirror": 4,
+    "missing:bathroom:shower/bathtub": 20,
     "missing:bathroom:sink": 4,
     "missing:bathroom:toilet": 4,
     "missing:bedroom:nightstand": 5,
@@ -32,12 +32,13 @@
     "missing:studio:tv_unit": 28,
     "on_keep_clear": 1,
     "on_open_line": 24,
-    "rule:basin_height": 26,
+    "rule:basin_height": 25,
     "rule:bed_side_tight": 56,
     "rule:door_swing_blocked": 14,
     "rule:radiator_blocked": 3,
+    "rule:shower_too_small": 8,
     "rule:sofa_tv_distance": 26,
-    "rule:wc_faces_door": 32,
+    "rule:wc_faces_door": 28,
     "tv_unit_off_wall": 8
   }
 }

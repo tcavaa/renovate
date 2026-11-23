@@ -128,8 +128,10 @@ standing its nightstand in a door's way (V3), wall cabinets left off beside a wi
 60 flats with one (Q4).
 
 Still as before, because each is a matter of which piece gives way (the owner's per-room rules):
-bathrooms with no shower or bath 36 %, no mirror about 30 %, no WC 11 %; studios with no TV unit
-76 %, no sofa 22 %, no fridge 22 %.
+studios with no TV unit 76 %, no sofa 22 %, no fridge 22 %. Bathrooms with no shower or bath were
+36 %, no mirror about 30 %, no WC 11 %; with the fourth round's door zone (stage 1) and the bathroom's
+fallbacks (stage 2, M1) 15 %, 3 % and 3 % of 744 (792 flats, 6 draws) — the rest a door leaves no
+floor for, and one room 36 cm wide.
 
 **The owner's decisions** — the fixes ran into these 13; Nini answered them on 23 Nov 2026 and they are being built in stages ([design-rules.md](design-rules.md#the-fourth-round-generation-decisions-nini-23-nov-2026)). The questions as they were put:
 
@@ -292,7 +294,7 @@ Nothing after stage 4 re-runs the layout, and no stage verifies the flat as a wh
 | Bedroom | double bed (single under 11 m²) · 2 nightstands · wardrobe (any size) · dresser (13 m², 80 %) · rug (80 %, **no product**) · pendant · print (80 %) · curtains or blinds, one a window · plant (12 m², 70 %) · floor lamp (12 m², 95 %) · stool (12 m², 60 %) | bed on the wall furthest from the door, in the middle, room for both nightstands, out of the door's sight if it can; wardrobe in a niche first, beside the bed, never facing its foot; the bed, nightstands and wardrobe laid together by Nini's ladder (1.6 → 1.4 m double → either along a wall → single; the wardrobe compact or shallow, a nightstand given up for it — `layoutBedroom`); pass: a wall of wardrobe when 85 % of its wall is free |
 | Living room | sofa (corner sofa from 22 m²) · coffee table · TV unit · TV · armchair (16 m², 75 %) · bookcase (15 m², 75 %) · rug (85 %) · floor lamp (11 m²) · pendant · print · plant (12 m²) · curtains · dining table and chairs (26 m²) | sofa on the longest wall, 2.5–3.5 m from the wall it faces, not facing a window, off the way between doors; TV unit across from it (1.5–4.2 m clear) and 60 cm from the coffee table, else none; armchair at the sofa's end turned 45° |
 | Kitchen | run · fridge · wall cabinets · table (10 m²) · chairs · island (17 m²) · pendant · blind | run on the water's wall, then a wall with no window, the longest; out of the entrance's sight; fridge at the run's end; table beyond 1.2 m of working floor, 1.2 m long at least, else against a wall; island 1.2 m clear all round; pass: an L for a run under 2.6 m |
-| Bathroom | WC · basin · bath (7.5 m²; 9 m² in Scandinavian and Industrial) · shower · washer (4.5 m²) · mirror · blind · towel shelf (6 m², top budget only) · stool (6 m², 60 %) | four fixture orders tried, the best kept; each fixture 40–60 cm of free floor; WC out of the door's sight, 80 cm wide; shower in a corner, 80 × 80 to 140 × 90 by area; mirror over the basin only; pass: vanity, tap, washer column, dryer, bath box, mixer; a box behind the WC |
+| Bathroom | WC · basin · shower · washer (4.5 m²) · bath (7.5 m²; 9 m² in Scandinavian and Industrial) · mirror · blind · towel shelf (6 m², top budget only) · stool (6 m², 60 %) | four fixture orders tried, the best kept; each fixture 40–60 cm of free floor; WC out of the door's sight, 80 cm wide; shower in a corner, 80 × 80 to 140 × 90 by area; mirror over the basin; pass: vanity, tap, washer column, dryer, bath box, mixer; a box behind the WC. Missing an essential: the shower across the end, no bath, a 48 cm WC and a 45 × 35 basin, the mirror near the basin, a 70 × 90 shower (Nini's 3.1) |
 | Toilet | WC · basin · mirror | as the bathroom |
 | Hall | door mat (only with the front door) · coat rack · console · shoe cabinet (**no product**) · mirror · plant (8 m²) | pass: a built-in wardrobe by the front door from 1.2 m of width (replaces the coat rack and shoe cabinet), the mirror across from it |
 | Office | desk · chair · bookcase (14 m², from the archetype) · armchair (14 m²: **never placed**) · rug · pendant · floor lamp (9 m²) · print · curtains | desk beside the window |
@@ -387,6 +389,20 @@ Severity: **high** = seen by anyone who generates; **medium** = wrong in some ro
     laid across the end of a narrow bathroom.
   - *The mirror* hangs "over the basin only" (`:478`), and the basin's spot is chosen without
     looking at the wall above it: beside a door or under a window there is no mirror.
+  - *Since stage 2 (Nini's decision 3.1, the bathroom):* where a bathroom or a toilet would go
+    without an essential, her fallbacks in her order (`wetLayout`, [layout-and-matching.md](layout-and-matching.md)):
+    the shower across the end of a narrow room, a shower instead of the bath, a smaller WC and a
+    compact basin, the mirror on the wall nearest the basin, a 70 × 90 shower last — a layout kept
+    only when it ranks higher by her must-haves (`wetRank`), with a way to every fixture and the
+    basin's socket out of the splash zone. On 792 flats (6 draws): bathrooms without a shower or bath
+    208 → 108, a mirror 168 → 24, a basin 28 → 24, a WC 24 → 24 (one room 36 cm wide, #389 r4, has
+    none of them); the rest without a shower are four rooms whose door leaves no floor for one (#381
+    r8, #384 r1's 1.46 m door, #385 r3, half of #386 r6's draws — her sliding or outward door, not built). No
+    bathroom lost a washing machine; two lost the bath for the mirror (#371, Scandinavian and
+    Industrial, one draw), 22 a separate tap for a basin sold with its own; nothing outside the
+    bathrooms moved. `shower_too_small` 0 → 48 (the 70 cm showers — her last resort, which the check
+    still names), `wc_faces_door` 212 → 217 (rearranged small bathrooms), `basin_height` 128 → 118;
+    a WC's slot no longer takes a bidet (48 → 76 with the shorter WC, now 0).
 - [x] **M2 (high) — Strict style has no fallback when nothing of the style fits.**
   `STRICT_STYLE_KINDS` narrows sofas, beds, baths, wardrobes, dining tables and kitchens to the
   style's own products whenever the style has *any* (`matcher.ts:91`, `:156-159`) — not whenever one

@@ -284,7 +284,10 @@ How stage 1 built it — **the bathroom pass** (`lib/design/bathroom.ts`, `fitBa
   (moved to the wall's end only where that is clear too, else round the machine as the engine put it).
 - **Showers** (BA-11, BA-24): a 1.4 × 0.9 m walk-in from 7 m² (`SHOWER_LONG_M2`), its long side
   along the room's length (`alongLength`); a shower-door product is never taken for the shower
-  (`isShowerDoor`) — the glass is built.
+  (`isShowerDoor`) — the glass is built. Where a small bathroom would go without a shower, its
+  fallbacks of the fourth round (decision 3.1, below) lay one across the end of a narrow room, wall
+  to wall with glass in front, and at the last 70 × 90 — which `shower_too_small` still names, since
+  Nini allows it "only if permitted by applicable regulations" and the app cannot know them.
 - **WC** (BA-4, BA-5): it stands in the middle of its wall (+8 at the middle); a WC set down in the
   studio is boxed too (`withWcBoxes`). Its box (`wcBoxes`) stops at what stands on its wall
   within its depth beside the WC — a basin on a console, a shower's tray — as it stops at a door
@@ -516,6 +519,19 @@ holds the detail, and generation-audit.md items X5, W3, W6, Q4, F3, Q7b, K1–K4
 Not built of stage 1: outdoor-rated balcony finishes (no finish says it is), a closed kitchen
 continuing the living room's floor, finishes chosen as one design across the flat, and a zone relaxed
 where the swing, the access and the way on all pass.
+
+**Stage 2's bathroom (3.1) is built** (23 Nov 2026): where a bathroom or a toilet would go without an
+essential — the WC, the basin, its mirror, a bathroom's shower or bath — her fallbacks are tried in her
+order, each only then: the shower across the end of a narrow bathroom (glass in front; no curtain —
+the app draws showers with glass only), a shower instead of the bath (and a bath without the shower
+beside it), a smaller WC (48 cm before its box) and a compact basin (45 × 35), the mirror on the stretch
+of wall nearest the basin, a 70 × 90 shower last; a layout is kept only when it ranks higher by her
+must-haves (the WC; the basin and the shower, equal in a flat's only bathroom; the mirror; the washing
+machine; a bath), leaves a way to every fixture and the basin's socket out of the splash zone. The
+bathroom's program lists its fixtures in that order. Not built: a corner basin (the catalogue has
+none), a curtain instead of glass, and her last resort, a sliding or outward-opening door — the rooms
+still without a shower are the ones a door leaves no floor for (the detail and the numbers:
+[layout-and-matching.md](layout-and-matching.md), generation-audit.md M1).
 
 ## The decisions (owner, 28 Oct 2026)
 

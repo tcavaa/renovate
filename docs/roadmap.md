@@ -26,6 +26,9 @@ at runtime yet; the last one was seen on the sample plan.
   recovers. The plain bugs and the clean-ups that need no rule are fixed (eight batches, 16–18 Nov;
   `pnpm audit:generation` measures each fix); the owner's thirteen decisions and per-room rules
   (Nini, 23 Nov) are being built in six stages — [design-studio/design-rules.md](design-studio/design-rules.md#the-fourth-round-generation-decisions-nini-23-nov-2026); the audit: [design-studio/generation-audit.md](design-studio/generation-audit.md#where-it-stands-18-nov-2026).
+- **Bathrooms a door leaves no shower** (stage 2's 3.1 built but her last resort): a sliding or
+  outward-opening door, a corner basin (none in the catalogue) and a curtain instead of glass are not
+  built — [design-studio/layout-and-matching.md](design-studio/layout-and-matching.md#known-gaps).
 - **Two clashes the generation audit does not count are kept for the owner's choice of what gives
   way**: a vanity that cannot be cut back to a washer's column without becoming narrower than its
   basin (2 of 1,440 flats) and a basin 1.9 cm past a vanity cut back to a corner column (1) —

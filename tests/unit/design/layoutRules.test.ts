@@ -25,10 +25,12 @@ function room(id: string, type: RoomType, w: number, d: number, openings: Array<
 const door = (wallIndex: number, t = 0.5, exterior = false): Omit<Opening, 'roomId' | 'id'> => ({ kind: 'door', wallIndex, t, widthM: 0.8, heightM: 2.05, sillM: 0, exterior });
 const window = (wallIndex: number, t = 0.5, widthM = 1.2): Omit<Opening, 'roomId' | 'id'> => ({ kind: 'window', wallIndex, t, widthM, heightM: 1.4, sillM: 0.9, exterior: true });
 
-/** The free floor in front of a piece, `depth` deep, as a quad. */
-function frontOf(item: PlacedItem, depth: number) {
+/** The free floor in front of a piece, `depth` deep, as a quad — or a stretch of it `width` wide, `offset` to the piece's right. */
+function frontOf(item: PlacedItem, depth: number, offset = 0, width = item.size.width) {
   const forward = { x: Math.sin(item.rotation), z: Math.cos(item.rotation) };
-  return footprintQuad({ position: { x: item.position.x + forward.x * (item.size.depth / 2 + depth / 2), z: item.position.z + forward.z * (item.size.depth / 2 + depth / 2) }, rotation: item.rotation, size: { width: item.size.width, depth, height: 1 } });
+  const right = { x: forward.z, z: -forward.x };
+  const ahead = item.size.depth / 2 + depth / 2;
+  return footprintQuad({ position: { x: item.position.x + forward.x * ahead + right.x * offset, z: item.position.z + forward.z * ahead + right.z * offset }, rotation: item.rotation, size: { width, depth, height: 1 } });
 }
 
 const SEEDS = Array.from({ length: 20 }, (_, i) => i + 1);
@@ -40,9 +42,12 @@ describe('bathrooms', () => {
     for (const seed of SEEDS) {
       const items = layoutRoom(bath, { rng: seededRng(seed) }).filter((i) => ['toilet', 'sink', 'shower', 'bathtub', 'washer'].includes(i.slot));
       for (const item of items) {
-        const front = frontOf(item, 0.38);
         const others = items.filter((o) => o !== item);
-        expect(others.some((o) => quadsOverlap(front, footprintQuad(o))), `${item.slot} blocked (seed ${seed})`).toBe(false);
+        // Reached over 60 cm of its front, or the whole of a narrower one's — a shower across the end
+        // of the room (wall to wall) is stepped into beside what stands before the rest of it.
+        const reach = Math.min(0.6, item.size.width);
+        const fronts = Array.from({ length: Math.floor((item.size.width - reach) / 0.05 + 1e-6) + 1 }, (_, k) => frontOf(item, 0.38, -item.size.width / 2 + reach / 2 + k * 0.05, reach));
+        expect(fronts.every((front) => others.some((o) => quadsOverlap(front, footprintQuad(o)))), `${item.slot} blocked (seed ${seed})`).toBe(false);
       }
     }
   });
@@ -55,7 +60,7 @@ describe('bathrooms', () => {
     expect(roomy!.areaM!.width * roomy!.areaM!.depth).toBeGreaterThan(0.9 * 0.9 - 1e-6);
   });
 
-  it('hangs a bathroom\'s mirror over its basin and nowhere else', () => {
+  it('hangs a bathroom\'s mirror over its basin where the wall over it takes it (else near it: bathroomFallbacks.test)', () => {
     for (const seed of SEEDS.slice(0, 8)) {
       const items = layoutRoom(room('m', 'bathroom', 2.4, 2, [door(2, 0.7)]), { rng: seededRng(seed) });
       const mirror = items.find((i) => i.slot === 'mirror');

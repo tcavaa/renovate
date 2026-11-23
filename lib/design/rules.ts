@@ -360,7 +360,10 @@ export const SHALLOW_WARDROBE_DEPTH_M = 0.38;
  * shop's wardrobe — and 60 cm for sliding doors.
  */
 export const SLIDING_WARDROBE_CLEAR_M = 0.6;
-/** A shower: at least 80 × 80, preferably 90 × 90. */
+/**
+ * A shower: at least 80 × 80, preferably 90 × 90 — 70 × 90 only as a small bathroom's last resort
+ * (`SHOWER_LAST_RESORT_M`), which the check still warns of.
+ */
 export const SHOWER_MIN_M = 0.8;
 /**
  * The shower areas the layout tries, largest first (the owner: at least 80 × 80, larger when the
@@ -374,6 +377,33 @@ export const SHOWER_SIZES_M: Array<{ width: number; depth: number }> = [
   { width: 0.8, depth: 0.8 },
 ];
 export const SHOWER_ROOMY_M2 = 5;
+/**
+ * A small bathroom's fallbacks when it would go without an essential (Nini, 23 Nov 2026, decision
+ * 3.1 — tried in her order, each only when the room lacks a piece, `wetFallbacks` in autoLayout):
+ * after the door's smaller clear floor (`doorClearFloor`), a shower across the end of a narrow
+ * bathroom, wall to wall with glass in front — on an end wall this long at most, 90 then 80 cm deep.
+ */
+export const SHOWER_ACROSS_MAX_M = 1.8;
+export const SHOWER_ACROSS_DEPTHS_M: readonly number[] = [0.9, 0.8];
+/**
+ * Her fourth: a smaller WC — wall-hung, as every WC the layout lays is, 48 cm deep before the box of
+ * its cistern (the catalogue's shortest are 47–52 cm) — and a compact basin, 45 × 35 cm, wall-hung.
+ * Her corner basin is not tried: the catalogue has none.
+ */
+export const WC_COMPACT_DEPTH_M = 0.48;
+export const BASIN_COMPACT_M = { width: 0.45, depth: 0.35 };
+/**
+ * Her fifth: where the wall over the basin cannot take the mirror (a window over it, the door beside
+ * it), the mirror on another stretch of wall near it — its middle this far from the basin's at most,
+ * nothing but the basin standing under it or in front of it. Over the basin stays the first choice.
+ */
+export const MIRROR_NEAR_BASIN_M = 1.2;
+/**
+ * Her sixth and last: a shower 70 × 90 cm, only where no shower of `SHOWER_SIZES_M` fits in a corner
+ * or across the end ("only if permitted by applicable regulations and if the shower remains
+ * comfortable": `shower_too_small` still says so) — across the end 70 cm deep, too.
+ */
+export const SHOWER_LAST_RESORT_M = { width: 0.9, depth: 0.7 };
 /** A walk-in 1.4 m long — the shower lengthened along the room (the rulebook, BA-11) — from this. */
 export const SHOWER_LONG_M2 = 7;
 /**

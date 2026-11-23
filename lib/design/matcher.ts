@@ -10,7 +10,7 @@
  * and swap it, and the same inputs always give the same room.
  */
 
-import { isBuiltInBath, isRectangularBath, isShowerDoor } from './productRoles';
+import { isBidet, isBuiltInBath, isRectangularBath, isShowerDoor } from './productRoles';
 import { blockingItems, blocksWindow, clampInsideRoom, clearsUnder, floorFootprint, footprintInRoom, footprintOf, footprintsOverlap, inDoorway, isPlacementValid, pieceWall, PIECE_TOUCH_M, type Footprint, type KeepClear } from './manipulate';
 import { followsWhenMatched, isTuckingChair, measuredRule, seatedTogether, tucksUnder } from './relations';
 import { getArchetype, isKitchenMaterial, type Archetype } from './catalog';
@@ -872,6 +872,12 @@ export function slotPool(item: PlacedItem, candidates: CatalogProduct[], room: P
       if (counter.length > 0) return counter;
     }
     return standing;
+  }
+  // A WC's slot takes a WC, not a bidet the library filed beside them — a small bathroom's shorter
+  // WC (`WC_COMPACT_DEPTH_M`) drew the shortest of the two.
+  if (item.slot === 'toilet') {
+    const wcs = candidates.filter((p) => !isBidet(p));
+    return wcs.length > 0 ? wcs : candidates;
   }
   // The bath by style (BA-16, BA-18): Modern a freestanding one; Vintage a rectangular one standing
   // in its tiled enclosure; Scandinavian and Industrial a built-in one, boxed and tiled.

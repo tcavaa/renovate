@@ -150,20 +150,55 @@ scene ──tightSpots──▶ amber warnings (not a rule)
   program's own order (`ROOM_PROGRAMS`) stays the shelf's.
 - **The basin is what the door opens onto and the basin and the bath take the long walls** (+6 in
   a doorway's sight, + twice the wall's length); the WC still keeps out of sight when anything
-  else fits. **The mirror hangs over the basin only** in a bathroom or a toilet (no basin, no
-  mirror).
+  else fits. **The mirror hangs over the basin** in a bathroom or a toilet — where the wall over it
+  cannot take it (a window over the basin, the door beside it), on the stretch of wall nearest the
+  basin (`mirrorNearBasin`: its middle within `MIRROR_NEAR_BASIN_M`, 1.2 m, of the basin's, across no
+  opening, nothing but the basin under it or before it — no mirror over the WC or the machine); no
+  basin, no mirror.
 - **The shower is an area** (`PlacedItem.areaM`): the largest of `SHOWER_SIZES_M` (120 × 90,
   100 × 90, 90 × 90, 80 × 80 — the larger only from 5 m², `SHOWER_ROOMY_M2`) that fits a corner with
   its way, squared into the corner a centimetre off both walls, either wall at its back; the
   product (a shower column or panel, about 50 cm across) stands at the back of it (the matcher's
   corner settle). The size check measures the area (`shower_too_small`); it measured the column and
-  warned of a 49 cm shower the engine had laid out. A bath (from 7.5 m²) comes before a separate
-  shower, which goes in only when there is room besides; a smaller bathroom has the shower alone.
+  warned of a 49 cm shower the engine had laid out. A bath (from 7.5 m²) has its own shower, and a
+  separate shower goes in beside it only where there is room; a smaller bathroom has the shower alone.
   **Its glass** stands on the sides of the tray off the walls (`showerGlass`, `lib/design/shower.ts`:
   the tray found from the piece, so it follows it; 3 cm on the plan, 2–5, and 2 m tall,
   `PlacedItem.glass`), drawn on the board and in 3D; the card resizes the tray and the glass, and so do the arrows on
   the selected shower in 3D (`showerHandleSpots`, `dragShowerHandle`: a free side, the front, the
   top of the glass — a side on a wall has none and stays on it).
+- **A small bathroom's fallbacks** (Nini's decision 3.1 of the fourth round, `wetLayout`): tried only
+  where the room as laid (the orders above, by `wetScore`) goes without an essential — the WC, the
+  basin, its mirror, a bathroom's shower or bath (`missesEssential`) — so a room that has them all is
+  laid as it always was. In her order, each with the ones before it (`WET_FALLBACKS`): every order
+  ranked by what must be had; the shower **across the end of a narrow room** before any corner
+  (`placeShowerAcross`: wall to wall on an end wall of 1.8 m at most, `SHOWER_ACROSS_MAX_M`, that is
+  no longer than the room runs from it, both walls beside it walls so its glass is its front alone,
+  90 then 80 cm deep); the orders without the bath — **a shower instead of it** — and without the
+  shower beside a bath (a bath has its own); **a smaller WC and a compact basin** (`compacted`: the WC
+  48 cm deep before its box, `WC_COMPACT_DEPTH_M`, the basin 45 × 35, `BASIN_COMPACT_M` — the
+  catalogue has no corner basin, so none is tried); **a 70 × 90 shower** last (`SHOWER_LAST_RESORT_M`:
+  70 cm deep across the end, else 70 × 90 in a corner — laid first, the smaller one; laid after the
+  others, the largest that still fits — and `shower_too_small` still says it is under 80 cm). Her
+  mirror near the basin is the mirror's own second try (above); her door's 70 cm is the rule for every
+  bathroom (`doorClearFloor`); her last resort, a sliding or outward-opening door, is not the
+  layout's. A fallback's layout is kept only when it **ranks above** the room's (`wetRank`, her
+  must-haves in turn: the WC; the basin and the shower or a bath, the same in a flat's only bathroom
+  — `LayoutOptions.bathrooms`, which `layoutPlan` counts — else the basin first; the mirror; the
+  washing machine; a bath; then `wetScore`), leaves a way to every fixture (`blockedFixtures`: 60 cm
+  free along its front, or the whole front of a narrower one — a shower across the room is stepped
+  into beside the WC before part of it) and the basin's socket a stretch of wall out of the shower's
+  splash zone (`basinSocketDry`); the room as laid gives way only to more of what it must have. The
+  ladder ends at the first fallback that gives every essential and every fixture the room had (else
+  it goes on: a bath given up for the mirror may come back without the shower beside it). A room
+  this tight has few layouts that hold everything, so each fallback is laid with no draw and with
+  six draws of its own (`FALLBACK_DRAWS`, streams seeded from the room as laid — the room's own
+  stream is drawn no further). On 792 fixture flats (6 draws): bathrooms without a shower or bath
+  208 → 108, a mirror 168 → 24, a basin 28 → 24, a WC 24 → 24; what is left is one room 36 cm wide
+  (#389 r4, every piece) and four whose door leaves no floor for a shower (#381 r8, #384 r1's 1.46 m
+  door, #385 r3 and half of #386 r6's draws, short by 1–5 cm: the sliding door's). No bathroom lost a
+  washing machine; two (#371, one draw, Scandinavian and Industrial) gave their bath for the mirror,
+  and 22 a separate tap for a basin sold with its own.
 - **Partitions at generation** (`withGeneratedPartitions`, `lib/design/autoPartitions.ts`, first in
   `generateScene`): a front door into a living room or a studio gets a screen 1.3 m in front of it
   (`ENTRY_DEPTH_M`), an en-suite's door a lobby 1.1 m deep in its bedroom (`ENSUITE_DEPTH_M`, a
@@ -496,7 +531,7 @@ engine applies them:
 |---|---|---|
 | `relative` (off its `to`) | coffee table, TV unit, armchair (sofa) · nightstand (bed) · dining chair (table) · desk chair (desk) · bath mixer (bath) | goes — the engine lays it nowhere without it |
 | `wall-mounted` with `onlyAbove` | TV (TV unit) · tap (basin) · dryer (washing machine) | goes |
-| a bathroom's or a toilet's mirror | over the basin and nowhere else | goes |
+| a bathroom's or a toilet's mirror | over the basin, else near it (`mirrorNearBasin`), nowhere else | goes |
 | `under` (its `to`, else the room's main piece) | rug (coffee table, else the piece the room is laid out round — `mainSlot`: the sofa, an office's desk) · the bedroom's rug (bed) | stays while either stands, goes with both — the engine lays a rug nowhere in a room with neither (never under whatever stands first: a wardrobe, a bookcase) |
 | `wall-mounted` with `above`, no `onlyAbove` | a print (bed, sofa) · a hall's mirror (console) · wall cabinets (run) | stays — without the piece the engine hangs it on a wall anyway |
 | `wall` with `beside` | fridge (run) | stays — without a run it stands on a wall |
@@ -732,7 +767,8 @@ own. The matcher re-measures every piece from the product it got, so the room st
 - **What a slot can hold** (`slotPool`, before the draw): a basin that stands on the floor (60 cm or
   taller — a countertop basin needs a counter the flat has not got; the library also files taps and
   mixer panels under the kind), and in a bathroom or toilet a mirror that hangs flat and is no taller
-  than 1.2 m. **A hall's mirror** is the full-height one (`isFullHeightMirror`: 1.4 m or taller, flat,
+  than 1.2 m; a WC's slot takes no bidet (`isBidet` — the library files two under toilets, and a small
+  bathroom's shorter WC drew the shorter of them: 48 → 76 in 792 flats, now 0). **A hall's mirror** is the full-height one (`isFullHeightMirror`: 1.4 m or taller, flat,
   no wider than 90 cm) only where the wall under its slot is free from the floor up; over the
   console, or anything else standing there (`standingBelow`), it is one that hangs clear of the
   piece's top and under the ceiling (`settledElevation` says where each would hang) — and when the
@@ -801,6 +837,11 @@ rule: the layout is still saved as arranged.
 
 ## Tests
 
+`tests/unit/design/bathroomFallbacks.test.ts` (a small bathroom's fallbacks: the shower across the
+end of a narrow room with its glass in front only, a smaller WC and a compact basin, a 70 × 90 shower
+last and named by the check, a roomy bathroom without either, the mirror near a basin under a window,
+the WC and the basin kept where the door leaves no shower; the must-haves' order, `wetRank`; a WC's
+slot takes no bidet),
 `tests/unit/design/showerGlass.test.ts` (the tray found from the piece, the glass off the walls
 and round the matched column, following the shower, resized with its wall side kept),
 `tests/unit/design/autoPartitions.test.ts` (the entrance screen run to the corner, a free one, none
@@ -871,6 +912,11 @@ whole. `lib/design/matcher.ts` is in the coverage gate.
 
 ## Known gaps
 
+- **A small bathroom whose door leaves no floor for a shower stays without one**: #381 r8, #384 r1
+  (a 1.46 m door swinging in), #385 r3 and #386 r6 (short by 1–5 cm beside a 72–76 cm door's leaf) —
+  84 of the 108 bathrooms without a shower or bath in 792 fixture flats, the other 24 one room 36 cm
+  wide (#389 r4). Nini's last resort, a sliding or outward-opening door, is not built (the layout does
+  not change doors); nor her corner basin (the catalogue has none) or a curtain instead of glass.
 - **A chair re-seated round its real table may stand on a door's clear floor** (`fitPasses`' last
   passes keep the piece where no seat keeps clear): 48 of the 51 floor pieces in a door's way in
   792 fixture flats, 24 of them in one kitchen (#359, every draw), where the 90 cm zone lets the

@@ -49,10 +49,11 @@ import { blocksWindow, clearsUnder, pieceWall, type KeepClear } from './manipula
 import { axisBox, backMiddle, boxesOverlap, QUAD_TOUCH_M, wallBehind } from './pieceGeometry';
 import { kitchenCornerFloor } from './kitchenCorner';
 import { anchorsFor, type TechnicalAnchor } from './technical';
-import { pickNearBest, weightedOrder, type RoomRng, type Rng } from './random';
+import { pickNearBest, streamRng, weightedOrder, type RoomRng, type Rng } from './random';
 import { LAID_TO_ANOTHER } from './kinds';
 import {
   ARMCHAIR_DINING_GAP_M,
+  BASIN_COMPACT_M,
   BATH_PASSAGE_M,
   BATH_PASSAGE_MIN_M,
   BED_SIDE_FREE_M,
@@ -65,17 +66,25 @@ import {
   FACING_COUNTERS_M,
   KITCHEN_CIRCULATION_M,
   NARROW_DOUBLE_BED_M,
+  MIRROR_NEAR_BASIN_M,
   SHALLOW_WARDROBE_DEPTH_M,
   SMALLER_WARDROBES_M,
   BATH_WITH_SHOWER_M2,
+  SHOWER_ACROSS_DEPTHS_M,
+  SHOWER_ACROSS_MAX_M,
   SHOWER_FIRST_STYLES,
+  SHOWER_LAST_RESORT_M,
   SHOWER_LONG_M2,
+  SHOWER_MIN_M,
   SHOWER_ROOMY_M2,
   SHOWER_SIZES_M,
   SOFA_TV_M,
+  SPLASH_ZONE_M,
   TV_UNIT_CLEAR_M,
   WARDROBE_DEPTH_M,
   WC_AS_BUILT_DEPTH_M,
+  WC_BOX_DEPTH_M,
+  WC_COMPACT_DEPTH_M,
   WC_SIDE_M,
   WET_ROOM_TYPES,
   doorClearFloor,
@@ -128,6 +137,12 @@ export interface LayoutOptions {
   entranceSight?: Record<string, Quad[]>;
   /** The flat's style: it dresses the windows (`windowDressing` — roller blinds or curtains). */
   styleId?: StyleId | null;
+  /**
+   * How many rooms typed bathroom the flat has (`layoutPlan` counts them): in its only bathroom the
+   * basin and the shower are as important as each other, in a second the basin comes first (`wetRank`).
+   * None: one.
+   */
+  bathrooms?: number;
 }
 
 /**
@@ -192,12 +207,12 @@ const WET_ORDERS = [
   ['bathtub', 'shower', 'sink', 'toilet', 'washer'],
 ];
 
-function wetOrders(program: ProgramEntry[]): ProgramEntry[][] {
+function wetOrders(program: ProgramEntry[], orders: string[][] = WET_ORDERS): ProgramEntry[][] {
   const fixtures = program.filter((e) => WET_FIXTURES.has(getArchetype(e.kind)?.slot ?? ''));
   const rest = program.filter((e) => !fixtures.includes(e));
   const seen = new Set<string>();
   const out: ProgramEntry[][] = [];
-  for (const kinds of WET_ORDERS) {
+  for (const kinds of orders) {
     const ordered = [...kinds.map((k) => fixtures.find((e) => e.kind === k)).filter((e): e is ProgramEntry => !!e), ...fixtures.filter((e) => !kinds.includes(e.kind))];
     const key = ordered.map((e) => e.kind).join(',');
     if (seen.has(key)) continue;
@@ -218,6 +233,171 @@ function wetScore(items: PlacedItem[]): number {
   return score;
 }
 
+/** The free floor a fixture is reached over: along its front, this wide at least (or its own width). */
+const WET_ACCESS_M = 0.6;
+
+/**
+ * How many of a wet room's fixtures leave no way to them (`wetLayout`'s fallbacks take none that
+ * does): the 38 cm before a fixture with no free stretch `WET_ACCESS_M` wide, or as wide as the
+ * fixture, along it — a shower across the end of a room is stepped into beside the WC before part
+ * of it, a basin or a WC needs its whole front.
+ */
+function blockedFixtures(items: PlacedItem[]): number {
+  const fixtures = items.filter((i) => WET_FIXTURES.has(i.slot));
+  return fixtures.filter((item) => {
+    const pose = { position: item.position, rotation: item.rotation, size: item.size, elevationM: 0 };
+    const front = clearanceBox(pose, BATH_PASSAGE_MIN_M - 0.02);
+    // Along the fixture's width: the stretches of its front another fixture stands in.
+    const across = Math.abs(Math.cos(item.rotation)) > 0.5;
+    const [lo, hi] = across ? [front.minX, front.maxX] : [front.minZ, front.maxZ];
+    const taken = fixtures
+      .filter((o) => o !== item)
+      .map((o) => boxFor({ position: o.position, rotation: o.rotation, size: o.size, elevationM: 0 }))
+      .filter((box) => overlaps(front, box))
+      .map((box) => (across ? [box.minX, box.maxX] : [box.minZ, box.maxZ]) as [number, number])
+      .sort((a, b) => a[0] - b[0]);
+    let free = 0;
+    let from = lo;
+    for (const [a, b] of taken) {
+      free = Math.max(free, Math.min(a, hi) - from);
+      from = Math.max(from, b);
+    }
+    free = Math.max(free, hi - from);
+    return free < Math.min(WET_ACCESS_M, hi - lo) - 0.01;
+  }).length;
+}
+
+/**
+ * A small bathroom's fallbacks (Nini, 23 Nov 2026, decision 3.1), each tried only when the room
+ * would go without an essential (`missesEssential`), in her order and each with the ones before it:
+ * the shower across the end of a narrow bathroom before a corner (`acrossFirst`); a shower instead
+ * of the bath (`withoutBath`: the orders laid without the bath as well — and without the shower
+ * besides the bath, which has its own); a smaller WC and a compact
+ * basin (`compact`); a shower of 70 × 90 cm (`smallShower`). Her first, the door's smaller clear
+ * floor, is the rule for every bathroom (`doorClearFloor`); her fifth, the mirror near the basin, is
+ * the mirror's own second try (`mirrorNearBasin`) — it takes no floor from anything. Her last
+ * resort, a sliding or outward-opening door, is not the layout's to change.
+ */
+interface WetFallback {
+  acrossFirst?: boolean;
+  withoutBath?: boolean;
+  compact?: boolean;
+  smallShower?: boolean;
+}
+
+/** The draws each fallback's layout is tried with besides the best spots (`wetLayout`). */
+const FALLBACK_DRAWS = [0, 1, 2, 3, 4, 5];
+
+const WET_FALLBACKS: WetFallback[] = [
+  {},
+  { acrossFirst: true },
+  { acrossFirst: true, withoutBath: true },
+  { acrossFirst: true, withoutBath: true, compact: true },
+  { acrossFirst: true, withoutBath: true, compact: true, smallShower: true },
+];
+
+/**
+ * The orders a fallback tries a wet room's fixtures in: `WET_ORDERS`, and Nini's order of what
+ * must be had (the WC, the basin, the shower, the washing machine, the bath: what is laid first gets
+ * the floor) with the shower first too (across the end of a narrow room, the rest has a square
+ * floor); without the bath as well, where the fallback takes a shower instead of it.
+ */
+const FALLBACK_ORDERS = [...WET_ORDERS, ['toilet', 'sink', 'shower', 'washer', 'bathtub'], ['shower', 'toilet', 'sink', 'washer', 'bathtub']];
+
+function fallbackOrders(program: ProgramEntry[], relax: WetFallback): ProgramEntry[][] {
+  const both = wetOrders(program, FALLBACK_ORDERS);
+  if (!relax.withoutBath || !program.some((e) => e.kind === 'bathtub')) return both;
+  // The shower instead of the bath — and the bath with no shower besides it (a bath has its own,
+  // the program's rule): one of the two where the room has no floor for both and its essentials.
+  const without = (kind: string) => wetOrders(program.filter((e) => e.kind !== kind), FALLBACK_ORDERS);
+  return [...both, ...without('shower'), ...without('bathtub')];
+}
+
+/**
+ * How a wet room's layout ranks by what it must have (Nini, decision 3.1), compared in turn: the
+ * WC; the basin and a shower or a bath — the same importance in a flat's only bathroom, else the
+ * basin first; the mirror; the washing machine; a bath (a larger room's); then `wetScore`.
+ */
+export function wetRank(items: PlacedItem[], onlyBathroom: boolean): number[] {
+  const has = (...slots: string[]) => (items.some((i) => slots.includes(i.slot)) ? 1 : 0);
+  const basin = has('sink');
+  const wash = has('shower', 'bathtub');
+  return [has('toilet'), ...(onlyBathroom ? [basin + wash] : [basin, wash]), has('mirror'), has('washer'), has('bathtub'), wetScore(items)];
+}
+
+function ranksAbove(a: number[], b: number[]): boolean {
+  for (let i = 0; i < a.length; i++) if (Math.abs(a[i] - b[i]) > 1e-9) return a[i] > b[i];
+  return false;
+}
+
+/** Whether a wet room's layout goes without a piece it must have: the WC, the basin, its mirror, a bathroom's shower or bath. */
+function missesEssential(room: PlanRoom, items: PlacedItem[]): boolean {
+  const has = (...slots: string[]) => items.some((i) => slots.includes(i.slot));
+  return !has('toilet') || !has('sink') || !has('mirror') || (room.type === 'bathroom' && !has('shower', 'bathtub'));
+}
+
+/**
+ * Whether a wet room's basin keeps a stretch of its wall out of the splash zone of the shower and
+ * the bath (`SPLASH_ZONE_M`), where the basin's socket goes (`electrical.ts`): with none it would
+ * stand in the zone. A fallback that lays a room so is not taken (`wetLayout`).
+ */
+function basinSocketDry(room: PlanRoom, items: PlacedItem[]): boolean {
+  const sink = items.find((i) => i.slot === 'sink');
+  const wet = items.filter((i) => i.slot === 'shower' || i.slot === 'bathtub').map((i) => boxFor({ ...i, elevationM: 0 }));
+  if (!sink || wet.length === 0) return true;
+  const wall = wallBehind(sink, roomEdges(room.polygon), { facing: null, by: 'distance', max: 0.45 });
+  if (!wall) return true;
+  for (let s = 0.05; s <= wall.edge.length - 0.05 + 1e-9; s += 0.05) {
+    const point = pointOnEdge(wall.edge, s / wall.edge.length);
+    if (wet.every((box) => distanceToBox(point, box) >= SPLASH_ZONE_M)) return true;
+  }
+  return false;
+}
+
+/**
+ * A wet room's fixtures as the engine lays them: in whichever of a few orders gives the best room
+ * (`wetScore`), as always; and where that room goes without an essential, Nini's fallbacks in turn
+ * (`WET_FALLBACKS`), each kept only when it ranks above what the room had (`wetRank`), leaves a way
+ * to every fixture and the basin's socket out of the splash zone — the first that gives the room
+ * every essential and every fixture it had ends the ladder. A room that has them all is laid as it
+ * always was.
+ */
+function wetLayout(room: PlanRoom, options: LayoutOptions, idPrefix: string, doorBands: Quad[]): PlacedItem[] {
+  const program = ROOM_PROGRAMS[room.type] ?? [];
+  let best: { items: PlacedItem[]; score: number } | null = null;
+  for (const candidate of wetOrders(program)) {
+    const items = layoutArea(room, options, idPrefix, doorBands, candidate);
+    const score = wetScore(items);
+    if (!best || score > best.score) best = { items, score };
+  }
+  if (!best || !missesEssential(room, best.items)) return best?.items ?? [];
+  const only = (options.bathrooms ?? 1) <= 1;
+  // The room as laid gives way only to a layout with more of what it must have; one fallback's
+  // layout to another's with as much and a better `wetScore` too.
+  let kept = { items: best.items, rank: wetRank(best.items, only), fallback: false };
+  // A room this tight has few layouts that hold everything, and one draw can miss them: each
+  // fallback is laid with no draw (every piece at its best spot) and, generating, with a few draws
+  // of its own — streams from a number read off the room as the draw laid it, so each is laid the
+  // same whatever was tried before it, and the room's own stream is drawn no further.
+  const seed = options.rng ? Math.round(best.items.reduce((sum, i) => sum + i.position.x * 7919 + i.position.z * 104729 + i.rotation * 31, 0) * 1000) : null;
+  const drawsOf = (key: string): LayoutOptions[] => [{ ...options, rng: undefined }, ...(seed == null ? [] : FALLBACK_DRAWS.map((k) => ({ ...options, rng: streamRng(seed, `${key}:${k}`) })))];
+  for (const [level, relax] of WET_FALLBACKS.entries()) {
+    for (const candidate of fallbackOrders(program, relax)) for (const drawn of drawsOf(`${level}:${candidate.map((e) => e.kind).join(',')}`)) {
+      const items = layoutArea(room, drawn, idPrefix, doorBands, candidate, relax);
+      // A fallback leaves a way to every fixture and the basin's socket out of the splash zone.
+      if (blockedFixtures(items) > 0 || !basinSocketDry(room, items)) continue;
+      const rank = wetRank(items, only);
+      const musts = rank.slice(0, -1);
+      const keptMusts = kept.rank.slice(0, -1);
+      if (ranksAbove(musts, keptMusts) || (kept.fallback && !ranksAbove(keptMusts, musts) && ranksAbove(rank, kept.rank))) kept = { items, rank, fallback: true };
+    }
+    // Done once it has every essential and every fixture it had — else on, for a layout that ranks
+    // higher still (a bath given up for the mirror may come back without the shower beside it).
+    if (!missesEssential(room, kept.items) && best.items.every((i) => !WET_FIXTURES.has(i.slot) || kept.items.some((k) => k.slot === i.slot))) break;
+  }
+  return kept.items;
+}
+
 /** A dining table seats four at least (the rulebook, K-10 and L-6). */
 const MIN_DINING_TABLE_M = 1.2;
 /** A living room's dining table stands this far from the sofa, its coffee table, the armchair and the TV unit. */
@@ -234,7 +414,8 @@ const BED_SPREAD = 3;
 // Entry points
 // ---------------------------------------------------------------------------
 
-export function layoutPlan(rooms: PlanRoom[], options: LayoutOptions = {}): PlacedItem[] {
+export function layoutPlan(rooms: PlanRoom[], given: LayoutOptions = {}): PlacedItem[] {
+  const options = { ...given, bathrooms: given.bathrooms ?? rooms.filter((r) => r.type === 'bathroom').length };
   const placed = rooms.flatMap((room) => layoutRoom(room, options));
   // The washing machine is the bathroom's; when no bathroom has room for it, the hall's (by the
   // entrance, with the technical things), else the kitchen's — a studio's kitchen half is a
@@ -326,20 +507,22 @@ export function programPiece(entry: ProgramEntry, room: PlanRoom, options: Pick<
   return { kind, archetype };
 }
 
-function layoutArea(room: PlanRoom, options: LayoutOptions, idPrefix: string, doorBands: Quad[] = [], order?: ProgramEntry[]): PlacedItem[] {
+/** A small bathroom's fourth fallback (`WetFallback.compact`): the WC 48 cm deep, the basin 45 × 35 cm; anything else as it is. */
+function compacted(piece: { kind: string; archetype: Archetype } | null, relax: WetFallback): { kind: string; archetype: Archetype } | null {
+  if (!piece || !relax.compact) return piece;
+  const { archetype } = piece;
+  if (archetype.slot === 'toilet') return { ...piece, archetype: { ...archetype, size: { ...archetype.size, depth: WC_COMPACT_DEPTH_M } } };
+  if (archetype.slot === 'sink') return { ...piece, archetype: { ...archetype, size: { ...archetype.size, ...BASIN_COMPACT_M } } };
+  return piece;
+}
+
+function layoutArea(room: PlanRoom, options: LayoutOptions, idPrefix: string, doorBands: Quad[] = [], order?: ProgramEntry[], relax: WetFallback = {}): PlacedItem[] {
   // A bathroom's or a toilet's fixtures are laid out in whichever of a few orders gives the best
   // room: the WC, then the most fixtures, each with a way past it. No one order serves every room —
   // the basin first gives a narrow bathroom its basin at the end, the shower first a square one its
   // corner, and either can leave a narrow room no place for the WC.
-  if (!order && WET_ROOM_TYPES.includes(room.type)) {
-    let best: { items: PlacedItem[]; score: number } | null = null;
-    for (const candidate of wetOrders(ROOM_PROGRAMS[room.type] ?? [])) {
-      const items = layoutArea(room, options, idPrefix, doorBands, candidate);
-      const score = wetScore(items);
-      if (!best || score > best.score) best = { items, score };
-    }
-    return best?.items ?? [];
-  }
+  // Where that room goes without an essential, a small bathroom's fallbacks (`wetLayout`).
+  if (!order && WET_ROOM_TYPES.includes(room.type)) return wetLayout(room, options, idPrefix, doorBands);
   const program = order ?? ROOM_PROGRAMS[room.type] ?? [];
   const edges = roomEdges(room.polygon);
   if (edges.length === 0) return [];
@@ -360,7 +543,8 @@ function layoutArea(room: PlanRoom, options: LayoutOptions, idPrefix: string, do
   const passages: Box[] = [];
   const wet = WET_ROOM_TYPES.includes(room.type);
 
-  const pieceOf = (entry: ProgramEntry) => programPiece(entry, room, options);
+  // A small bathroom's smaller WC and compact basin, where its fallback has come to them (`WetFallback`).
+  const pieceOf = (entry: ProgramEntry) => compacted(programPiece(entry, room, options), relax);
 
   /** Stands a piece: its slot, and the floor it takes and keeps clear of what is laid after it. */
   const stand = (into: { placed: PlacedItem[]; occupied: Box[]; passages: Box[] }, archetype: Archetype, kind: string, pose: Pose, id: string) => {
@@ -439,7 +623,7 @@ function layoutArea(room: PlanRoom, options: LayoutOptions, idPrefix: string, do
 
     for (let i = 0; i < count; i++) {
       const rules: RuleContext = { doorBands, entranceBands: options.entranceSight?.[room.id] ?? [], placed, passages, screenFor };
-      const pose = resolvePose(archetype, i, room, edges, placed, inTheWay(occupied, archetype.size.height), { anchors: anchorsFor(kind, anchors), rng: options.rng, rules });
+      const pose = resolvePose(archetype, i, room, edges, placed, inTheWay(occupied, archetype.size.height), { anchors: anchorsFor(kind, anchors), rng: options.rng, rules, relax });
       // A ring of seats keeps going past a slot that hits a wall; anything else stops at the
       // first failure, because its second copy has no better chance than its first.
       if (!pose && entry.count === 'fill') continue;
@@ -791,7 +975,7 @@ function resolvePose(
   edges: PlanEdge[],
   placed: PlacedItem[],
   occupied: Box[],
-  options: { exact?: boolean; anchors?: TechnicalAnchor[]; rng?: Rng; rules?: RuleContext } = {}
+  options: { exact?: boolean; anchors?: TechnicalAnchor[]; rng?: Rng; rules?: RuleContext; relax?: WetFallback } = {}
 ): Pose | null {
   const rule = archetype.placement;
   const rng = options.rng;
@@ -825,14 +1009,18 @@ function resolvePose(
     case 'relative':
       return placeRelative(archetype, index, room, placed, occupied);
     case 'corner':
-      return placeInCorner(archetype, room, walled, occupied, rule.clearanceM, rng, rules);
+      return archetype.slot === 'shower'
+        ? placeShower(archetype, room, walled, occupied, rule.clearanceM, rng, rules, options.relax ?? {})
+        : placeInCorner(archetype, room, walled, occupied, rule.clearanceM, rng, rules);
     case 'ceiling':
       return placeOnCeiling(archetype, room, placed);
     case 'wall-mounted':
       // Over its piece when the room has one (the wall cabinets over the run, the mirror over the
       // basin, a print over the bed, the TV over its unit), else on a wall — the TV nowhere.
-      // A bathroom's mirror hangs over its basin and nowhere else.
-      return (rule.above ? placeAbove(archetype, room, walled, placed, rule) : null) ?? (rule.onlyAbove || (archetype.slot === 'mirror' && WET_ROOM_TYPES.includes(room.type)) ? null : placeOnWall(archetype, index, room, walled, rule.heightM, placed, rng));
+      // A bathroom's mirror hangs over its basin, else on another stretch of wall near it (Nini's
+      // fifth fallback, `mirrorNearBasin`), and nowhere else.
+      if (archetype.slot === 'mirror' && WET_ROOM_TYPES.includes(room.type)) return placeAbove(archetype, room, walled, placed, rule) ?? mirrorNearBasin(archetype, room, walled, placed, rule);
+      return (rule.above ? placeAbove(archetype, room, walled, placed, rule) : null) ?? (rule.onlyAbove ? null : placeOnWall(archetype, index, room, walled, rule.heightM, placed, rng));
     case 'under':
       return placeUnder(archetype, room, placed);
     case 'window':
@@ -874,9 +1062,11 @@ function placeAgainstWall(
     // for as that wide, then it stands at its own size in the middle of it. And as deep as it will
     // stand once the box of its cistern is built behind it (`WC_AS_BUILT_DEPTH_M`, `wcBoxes`), so
     // the box does not stand it out into a door's clear floor or the fixture laid before it; it is
-    // put with its back on the wall, the rest of that depth in front of it.
+    // put with its back on the wall, the rest of that depth in front of it. A small bathroom's
+    // smaller WC (`WC_COMPACT_DEPTH_M`) is its own depth and the box's.
     const wc = archetype.slot === 'toilet';
-    const search = wc ? { ...archetype.size, width: Math.max(width, 2 * WC_SIDE_M), depth: Math.max(archetype.size.depth, WC_AS_BUILT_DEPTH_M) } : { ...archetype.size, width };
+    const builtDepth = Math.max(archetype.size.depth, Math.min(archetype.size.depth, WC_AS_BUILT_DEPTH_M - WC_BOX_DEPTH_M) + WC_BOX_DEPTH_M);
+    const search = wc ? { ...archetype.size, width: Math.max(width, 2 * WC_SIDE_M), depth: builtDepth } : { ...archetype.size, width };
     const found = bestAlongWalls(archetype, search, room, edges, occupied, prefer, clearanceM, doorPoints, windowPoints, anchors, rng, beside, rules);
     if (found && wc) {
       const back = (search.depth - archetype.size.depth) / 2;
@@ -1545,7 +1735,117 @@ function seatCountFor(archetype: Archetype, placed: PlacedItem[]): number {
   return seatSlots(table).length;
 }
 
-/** Tucks the item into whichever corner has the most room left. */
+/**
+ * A shower: in a corner, the largest area the bathroom allows (`placeInCorner`). Where a small
+ * bathroom's fallbacks have come to them (`WetFallback`): across the end of a narrow room before any
+ * corner (`placeShowerAcross`); and at the last the smaller shower first — 70 cm deep across the
+ * end, then 70 × 90 in a corner (`SHOWER_LAST_RESORT_M`) — since the larger ones left the room
+ * without an essential.
+ */
+function placeShower(
+  archetype: Archetype,
+  room: PlanRoom,
+  walled: PlanEdge[],
+  occupied: Box[],
+  clearanceM: number,
+  rng: Rng | undefined,
+  rules: RuleContext,
+  relax: WetFallback
+): Pose | null {
+  const across = (depths: readonly number[]) => placeShowerAcross(archetype, room, walled, occupied, depths, rng, rules);
+  const small = () => across([SHOWER_LAST_RESORT_M.depth]) ?? placeInCorner(archetype, room, walled, occupied, clearanceM, rng, rules, [{ ...SHOWER_LAST_RESORT_M, height: archetype.size.height }]);
+  const usual = () => (relax.acrossFirst ? across(SHOWER_ACROSS_DEPTHS_M) : null) ?? placeInCorner(archetype, room, walled, occupied, clearanceM, rng, rules);
+  if (!relax.smallShower) return usual();
+  // Laid first, the smaller shower leaves the others their floor; laid after them, the largest that
+  // still fits what they left.
+  const first = !rules.placed.some((p) => p.roomId === room.id && WET_FIXTURES.has(p.slot));
+  return first ? (small() ?? usual()) : (usual() ?? small());
+}
+
+/**
+ * A shower across the end of a narrow bathroom (Nini's second fallback): wall to wall on a short
+ * wall (`SHOWER_ACROSS_MAX_M` at most, no longer than the room runs from it), both walls beside it
+ * walls, so its glass is its front alone (`showerGlass`); `depths` deep, the deepest that leaves a
+ * way past it, the last one any. As a corner's shower, it keeps clear of what stands and is kept
+ * clear, and is rather seen from the door.
+ */
+function placeShowerAcross(archetype: Archetype, room: PlanRoom, walled: PlanEdge[], occupied: Box[], depths: readonly number[], rng: Rng | undefined, rules: RuleContext): Pose | null {
+  const standing = rules.placed.filter((p) => p.roomId === room.id && !ARCHETYPES[p.kind]?.ghost).map((p) => boxFor({ position: p.position, rotation: p.rotation, size: p.size, elevationM: 0 }));
+  const isWalled = new Set(walled.map((e) => e.index));
+  const n = room.polygon.length;
+  const square = (a: PlanEdge, b: PlanEdge) => Math.abs(a.dir.x * b.dir.x + a.dir.z * b.dir.z) < 0.05;
+  const all = new Map(roomEdges(room.polygon).map((e) => [e.index, e]));
+  for (const depth of depths) {
+    const spots: Array<{ value: Pose; score: number; cramped: boolean }> = [];
+    for (const edge of walled) {
+      const width = edge.length - 0.02;
+      if (edge.length > SHOWER_ACROSS_MAX_M + 1e-6 || width < (depth < SHOWER_MIN_M ? SHOWER_LAST_RESORT_M.width : SHOWER_MIN_M) - 1e-6) continue;
+      const before = all.get((edge.index - 1 + n) % n);
+      const after = all.get((edge.index + 1) % n);
+      if (!before || !after || !isWalled.has(before.index) || !isWalled.has(after.index) || !square(before, edge) || !square(after, edge)) continue;
+      const mid = pointOnEdge(edge, 0.5);
+      // The end of a room that runs on from it at least as far as the wall is long: a narrow room's.
+      const reach = rayToPolygon({ x: mid.x + edge.inward.x * 0.01, z: mid.z + edge.inward.z * 0.01 }, edge.inward, room.polygon);
+      if (reach == null || reach < edge.length) continue;
+      const pose: Pose = {
+        position: { x: mid.x + edge.inward.x * (depth / 2 + 0.01), z: mid.z + edge.inward.z * (depth / 2 + 0.01) },
+        rotation: edge.facing,
+        size: { width, depth, height: archetype.size.height },
+        elevationM: 0,
+      };
+      if (!fitsInRoom(pose, room.polygon) || overlapsAny(boxFor(pose), occupied)) continue;
+      const crowding = occupied.reduce((sum, box) => sum + 1 / (1 + distanceToBox(pose.position, box)), 0);
+      const seen = inSight(pose, rules.doorBands);
+      const cramped = overlapsAny(clearanceBox(pose, BATH_PASSAGE_MIN_M), standing) || overlapsAny(boxFor(pose), rules.passages);
+      spots.push({ value: pose, score: -crowding + (seen ? 1.5 : 0), cramped });
+    }
+    const open = spots.filter((s) => !s.cramped);
+    if (open.length > 0) return pickNearBest(open, 1, rng);
+    if (depth === depths[depths.length - 1] && spots.length > 0) return pickNearBest(spots, 1, rng);
+  }
+  return null;
+}
+
+/**
+ * A bathroom's mirror where the wall over its basin cannot take it — a window over the basin, the
+ * door beside it (Nini's fifth fallback): on the stretch of wall nearest the basin, its middle within
+ * `MIRROR_NEAR_BASIN_M` of the basin's, at the height it hangs over a basin, across no opening and
+ * with nothing standing under it or before it but the basin — no mirror over the WC or the machine.
+ * Null with no basin, or no such stretch.
+ */
+function mirrorNearBasin(archetype: Archetype, room: PlanRoom, walled: PlanEdge[], placed: PlacedItem[], rule: Extract<Archetype['placement'], { type: 'wall-mounted' }>): Pose | null {
+  const basin = placed.find((p) => p.roomId === room.id && p.slot === 'sink');
+  if (!basin) return null;
+  const { width, depth, height } = archetype.size;
+  const middle = rule.aboveHeightM ?? rule.heightM;
+  const others = placed
+    .filter((p) => p.roomId === room.id && p !== basin && !ARCHETYPES[p.kind]?.ghost && p.elevationM < 0.05)
+    .map((p) => boxFor({ position: p.position, rotation: p.rotation, size: p.size, elevationM: 0 }));
+  let best: { pose: Pose; distance: number } | null = null;
+  for (const edge of walled) {
+    if (edge.length < width) continue;
+    const blocked = room.openings.filter((o) => o.wallIndex === edge.index);
+    for (const t of sampleAlong(edge, width)) {
+      if (coversOpening(edge, t, width, middle + height / 2, blocked)) continue;
+      const anchor = pointOnEdge(edge, t);
+      const distance = Math.hypot(anchor.x - basin.position.x, anchor.z - basin.position.z);
+      if (distance > MIRROR_NEAR_BASIN_M || (best && distance >= best.distance)) continue;
+      const pose: Pose = {
+        position: { x: anchor.x + edge.inward.x * (depth / 2 + 0.01), z: anchor.z + edge.inward.z * (depth / 2 + 0.01) },
+        rotation: edge.facing,
+        size: archetype.size,
+        elevationM: middle - height / 2,
+      };
+      if (hangsIntoFloorPiece(pose, placed)) continue;
+      const floor = { ...pose, elevationM: 0 };
+      if (overlapsAny(boxFor(floor), others) || overlapsAny(clearanceBox(floor, BATH_PASSAGE_MIN_M), others)) continue;
+      best = { pose, distance };
+    }
+  }
+  return best?.pose ?? null;
+}
+
+/** Tucks the item into whichever corner has the most room left; a shower in the largest of the sizes it may take (or `only` these). */
 function placeInCorner(
   archetype: Archetype,
   room: PlanRoom,
@@ -1553,13 +1853,14 @@ function placeInCorner(
   occupied: Box[],
   clearanceM: number,
   rng?: Rng,
-  rules?: RuleContext
+  rules?: RuleContext,
+  only?: Size3[]
 ): Pose | null {
   // A shower takes the largest area the bathroom allows, 80 × 80 at least (`SHOWER_SIZES_M`).
   const shower = archetype.slot === 'shower';
-  const sizes: Size3[] = shower
+  const sizes: Size3[] = only ?? (shower
     ? SHOWER_SIZES_M.filter((s) => (room.areaM2 >= SHOWER_ROOMY_M2 || s.width <= 0.9) && (room.areaM2 >= SHOWER_LONG_M2 || s.width <= 1.2)).map((s) => ({ ...s, height: archetype.size.height }))
-    : [archetype.size];
+    : [archetype.size]);
   const wetFixture = WET_ROOM_TYPES.includes(room.type) && WET_FIXTURES.has(archetype.slot);
   const standing = (rules?.placed ?? []).filter((p) => p.roomId === room.id && !ARCHETYPES[p.kind]?.ghost).map((p) => boxFor({ position: p.position, rotation: p.rotation, size: p.size, elevationM: 0 }));
   const all = roomEdges(room.polygon);

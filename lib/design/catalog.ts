@@ -733,17 +733,18 @@ export const ROOM_PROGRAMS: Record<RoomType, ProgramEntry[]> = {
     { kind: 'pendant', count: 1 },
     { kind: 'blind', count: 1 },
   ],
-  // The bath before the shower: a bath has its own shower, and a separate shower goes in only when
-  // there is room for one besides; a bathroom too small for a bath has the shower alone.
-  // The engine tries the fixtures in a few orders and keeps the best room (`wetOrders` in
-  // autoLayout); the order here is the shelf's. A bath has its own shower, and a separate shower
-  // goes in only when there is room for one besides.
+  // In the order a bathroom must have them (Nini, 23 Nov 2026, decision 3.1): the WC, the basin (with
+  // its mirror) and the shower, the washing machine, and a bath only in a larger room — a bath has its
+  // own shower, and a separate shower goes in beside it only where there is room for one. The engine
+  // tries the fixtures in a few orders and keeps the best room (`wetOrders` in autoLayout), and where
+  // that room goes without an essential, a small bathroom's fallbacks ranked by this order
+  // (`wetLayout`, `wetRank`); the order here is the shelf's.
   bathroom: [
     { kind: 'toilet', count: 1 },
     { kind: 'sink', count: 1 },
-    { kind: 'bathtub', count: 1, minAreaM2: 7.5 },
     { kind: 'shower', count: 1 },
     { kind: 'washer', count: 1, minAreaM2: 4.5 },
+    { kind: 'bathtub', count: 1, minAreaM2: 7.5 },
     { kind: 'mirror', count: 1 },
     { kind: 'blind', count: 1 },
     // With room (and, for the shelf, a higher budget — the matcher's): else the towels hang on the heated rail.
