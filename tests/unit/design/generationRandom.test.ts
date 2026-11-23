@@ -151,7 +151,11 @@ describe('a generated flat draws each room from its own stream', () => {
       const lit = draw(windowed);
       if (JSON.stringify(kitchen(plain.laid)) !== JSON.stringify(kitchen(lit.laid))) kitchenChanged++;
       expect(living(lit.laid), `seed ${seed}`).toEqual(living(plain.laid));
-      expect(living(lit.matched), `seed ${seed}`).toEqual(living(plain.matched));
+      // A kind both halves have takes the product the kitchen half drew first (one room, one product
+      // a kind — the pendant over the table and over the sofa alike): only the living half's own kinds are its stream's.
+      const shared = new Set([...plain.matched, ...lit.matched].filter((i) => i.id.startsWith(`s-p${kitchenHalf.index}-`)).map((i) => i.kind));
+      const own = (items: PlacedItem[]) => living(items).filter(([, kind]) => !shared.has(kind as string));
+      expect(own(lit.matched), `seed ${seed}`).toEqual(own(plain.matched));
     }
     // The window did change the kitchen half in some draws: the test is of something.
     expect(kitchenChanged).toBeGreaterThan(0);
@@ -392,5 +396,20 @@ describe('wall cabinets over the kitchen run', () => {
     // Both ways are drawn: the made-to-measure run most often, the shop's now and then.
     expect(drawn.shop).toBeGreaterThan(0);
     expect(drawn.made).toBeGreaterThan(drawn.shop);
+  });
+
+  it('take a shop’s run by its kind, not its name — never tall units alone or an appliance filed as a run (decision 9)', () => {
+    const made = product(1, { slug: 'kitchen-material-mdf', categorySlug: 'kitchen-custom', unit: 'm2', model3dKind: 'kitchen_run', model3dUrl: '/models/kitchen-material-mdf.glb', widthCm: null, depthCm: null, heightCm: null, styleTags: ['scandinavian'] });
+    const slots = layoutRoom(kitchen).filter((i) => i.slot === 'kitchen_run' || i.slot === 'kitchen_wall');
+    // No sink or hob in its name: a shop's kitchen run as the catalogue names them.
+    const shopRun = product(9, { slug: 'shop-run', nameKa: 'p9', nameEn: 'Grey kitchen run with wall cabinets', model3dKind: 'kitchen_run', widthCm: 300, depthCm: 62, heightCm: 220, categorySlug: 'kitchen-furniture' });
+    const tallUnits = product(10, { slug: 'tall', nameKa: 'p10', nameEn: 'Grey kitchen tall units with built-in ovens', model3dKind: 'kitchen_run', widthCm: 300, depthCm: 63, heightCm: 220, categorySlug: 'kitchen-furniture' });
+    const range = product(11, { slug: 'range', nameKa: 'p11', nameEn: 'Professional range with grill', model3dKind: 'kitchen_run', widthCm: 300, depthCm: 67, heightCm: 80, categorySlug: 'kitchen-furniture' });
+    const taken = new Set<number>();
+    for (let seed = 1; seed <= 60; seed++) {
+      const [run] = matchProducts(slots, [made, shopRun, tallUnits, range], { styleId: 'scandinavian', rooms: [kitchen], rng: seededRng(seed) });
+      if (run.custom === false) taken.add(run.product!.productId);
+    }
+    expect([...taken]).toEqual([9]);
   });
 });

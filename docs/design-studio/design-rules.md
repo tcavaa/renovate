@@ -307,9 +307,11 @@ How stage 2 built it — **the kitchen**:
 - **Hood** (K-7): the extractor's product is a round (cylindrical) hood first, then a thick one
   (50 cm or taller), a built-in insert last; nothing wider than 1.3 m — an island's suspended shelf
   frame is not a wall's hood (`equipmentCandidates`).
-- **Sink and hob** (K-9): the made-to-measure run's model has both; a shop's run is taken only when
-  its name says it has a sink and a hob (`hasSinkAndHob`), and only when it fills 90 % of the run's
-  wall (K-16) — else the run is made to measure along the whole wall.
+- **Sink and hob** (K-9): the made-to-measure run's model has both; a shop's run is taken by its
+  kind (decision 9 of the fourth round: no shop names its sink and hob, so a name test kept every one
+  out), when it has a run's shape — not tall units alone, an oven or a range cooker (`KIND_BOUNDS`) —
+  and only when it fills 90 % of the run's wall (K-16) — else the run is made to measure along the
+  whole wall.
 - **Table** (K-10–K-12, L-6, L-8): 1.2 × 0.82 m at least (chairs at its ends too), never smaller; 1.8 m
   in a long room (1.6 : 1 or longer); 42 cm or more from the walls for the chairs; with no room to
   stand free, against a wall (`placeAgainstWall`, the table's three open sides). A living room's

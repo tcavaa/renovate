@@ -158,6 +158,24 @@ function sameTexture(a: string | null | undefined, b: string | null | undefined)
 }
 
 /**
+ * The catalogue product that is the style's own look for this surface of this room, of `options`
+ * (what may be laid there): the room's own look (`roomLook` — the balcony's terracotta, the
+ * kitchen's microcement), then the style's general floor or wall — except on a floor the app
+ * tiles (`hasTiledFloor`), which never takes the living room's laminate. Null when the catalogue
+ * has neither: the style has no floor of its own for the room.
+ */
+function styleOwnProduct(options: CatalogProduct[], room: PlanRoom, surface: Surface, styleId: StyleId): CatalogProduct | null {
+  const style = getStyle(styleId);
+  const tiled = surface === 'floor' && hasTiledFloor(room);
+  const looks = tiled ? [roomLook(style, room.type, surface)] : [roomLook(style, room.type, surface), roomLook(style, room.type, surface, true)];
+  for (const look of looks) {
+    const own = look.textureUrl ? options.find((p) => sameTexture(p.textureUrl, look.textureUrl)) : undefined;
+    if (own) return own;
+  }
+  return null;
+}
+
+/**
  * The product a style's own finish *is*: the catalogue finish whose texture the style lays on
  * this surface of this room (`roomLook` — tiles in a bathroom, the bedroom's paint, the
  * kitchen's tiles), so what the studio shows is what the budget buys. A catalogue without that
@@ -170,15 +188,9 @@ function sameTexture(a: string | null | undefined, b: string | null | undefined)
  */
 export function styleFinishProduct(catalog: CatalogProduct[], room: PlanRoom, surface: Surface, styleId: StyleId): CatalogProduct | null {
   const options = surfaceOptions(catalog, surface, room, styleId).filter((p) => mayLay(p, room));
-  const style = getStyle(styleId);
-  // A tiled floor never falls back to the style's general floor — the living room's laminate.
-  const tiled = surface === 'floor' && hasTiledFloor(room);
-  const looks = tiled ? [roomLook(style, room.type, surface)] : [roomLook(style, room.type, surface), roomLook(style, room.type, surface, true)];
-  for (const look of looks) {
-    const own = look.textureUrl ? options.find((p) => sameTexture(p.textureUrl, look.textureUrl)) : undefined;
-    if (own) return own;
-  }
-  if (tiled) {
+  const own = styleOwnProduct(options, room, surface, styleId);
+  if (own) return own;
+  if (surface === 'floor' && hasTiledFloor(room)) {
     const tiles = usualFinishCategory(room.type, 'floor');
     return options.find((p) => p.categorySlug === tiles) ?? null;
   }
@@ -229,19 +241,36 @@ export function styleFinish(room: PlanRoom, surface: 'floor' | 'wall' | 'ceiling
  * style's own three times as likely, then the style's tagged ones, any other least. Still
  * `origin: 'style'`: nobody chose it, so a change of style or a fresh generation replaces it, and
  * `withStyleFinishes` keeps it while it suits the room. Without an `rng`, or with nothing like
- * the style's own in the catalogue, the style's finish (`styleFinish`).
+ * the style's own in the catalogue, the style's finish (`styleFinish`) — and the style's own floor
+ * undrawn in a tiled room without water wherever the catalogue has it (`takesStyleOwnFloor`).
  */
 export function generatedFinish(room: PlanRoom, surface: 'floor' | 'wall' | 'ceiling', styleId: StyleId, catalog: CatalogProduct[], rng?: Rng): SurfaceFinish {
   const styled = styleFinish(room, surface, styleId, catalog);
   if (!rng || surface === 'ceiling') return styled;
   const own = styleFinishProduct(catalog, room, surface, styleId);
   if (!own) return styled;
+  if (takesStyleOwnFloor(room, surface) && styleOwnProduct([own], room, surface, styleId)) {
+    // The draw is still taken, so the room's walls are drawn as they were.
+    rng();
+    return styled;
+  }
   const pool = surfaceOptions(catalog, surface, room, styleId).filter((p) => p.categorySlug === own.categorySlug && mayLay(p, room));
   const weight = (p: CatalogProduct) => (p.id === own.id ? 30 : [1, 4, 10][styleAffinity(styleId, p.styleTags, p.tags)] ?? 1);
   const product = weightedPick(pool, weight, rng);
   if (!product || product.id === own.id) return styled;
   const finish = { ...finishFromProduct(room, surface, product, 'style'), laidFor: room.type };
   return product.colorHex ? finish : { ...finish, colorHex: styled.colorHex };
+}
+
+/**
+ * A floor that is the style's own whenever the catalogue has it, never drawn (the owner's decision 6,
+ * 23 Nov 2026): a tiled room without water — a balcony, a closed kitchen. The style's floor first,
+ * so the flat reads as one design; another tile only where the style has none for the room (Modern's
+ * porcelain is no catalogue product), drawn as before. A bathroom's floor is still drawn among the
+ * wet tiles like the style's own.
+ */
+export function takesStyleOwnFloor(room: Pick<PlanRoom, 'type' | 'open' | 'openings'>, surface: Surface | 'ceiling'): boolean {
+  return surface === 'floor' && hasTiledFloor(room) && !isWetRoomType(room.type);
 }
 
 /**

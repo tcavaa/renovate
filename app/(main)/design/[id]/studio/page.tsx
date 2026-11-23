@@ -71,7 +71,7 @@ import { formatM2 } from '@/lib/utils';
 import { fill } from '@/lib/admin/list';
 import type { EditorTool, PlanEditorApi } from '@/components/plan/PlanEditor';
 import type { DecorPiece, ElectricalKind, OpeningKind, PlacedItem, PlanRoom, TechnicalKind, Vec2 } from '@/lib/design/types';
-import { openingProductKind } from '@/lib/design/openings';
+import { frontDoor, openingProductKind } from '@/lib/design/openings';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import type { ViewerApi, EditMode } from '@/components/design/Viewer3D';
 import { SceneLoading } from '@/components/design/SceneLoading';
@@ -1299,6 +1299,7 @@ export default function StudioPage() {
                   key={selectedElement.id}
                   opening={plan.rooms.find((r) => r.id === selectedElement.roomId)!.openings.find((o) => o.id === selectedElement.id)!}
                   room={plan.rooms.find((r) => r.id === selectedElement.roomId)!}
+                  front={frontDoor(plan.rooms)?.opening.id === selectedElement.id}
                   catalog={products}
                   styleId={styleId}
                   locked={structureLocked}

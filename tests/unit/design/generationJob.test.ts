@@ -98,6 +98,8 @@ describe('what the person is told when the AI designer did not design the flat',
     expect(aiFallback(job('failed', { error: 'design:ERROR TypeError: x' }))).toBe('failed');
     expect(aiFallback(job('failed', { error: 'design:CHANGED' }))).toBe('changed');
     expect(aiFallback(job('failed', { error: 'design:PROJECT_CHANGED' }))).toBe('changed');
+    // A write the plan's locks refused: the plan's, not a failure (decision 10a).
+    expect(aiFallback(job('failed', { error: 'design:PLAN_REQUIRED catalog' }))).toBe('plan');
     // No job, and the page lays the flat out with the engine: the run it waited on is gone.
     expect(aiFallback(null, false)).toBe('failed');
     // No job, and the server's flat laid out (another tab's engine flat, a deployment with no
@@ -118,6 +120,8 @@ describe('what the person is told when the AI designer did not design the flat',
     // The start route's own rate limit.
     expect(startRefusal(429, 'Too many requests — please try again later')).toBe('paused');
     expect(startRefusal(409, 'PROJECT_CHANGED')).toBe('changed');
+    // The plan's locks: the plan does not include it — told plainly, never as a failure (decision 10a).
+    expect(startRefusal(402, 'PLAN_REQUIRED')).toBe('plan');
     expect(startRefusal(503, 'AI_UNAVAILABLE')).toBe('failed');
     expect(startRefusal(0, null)).toBe('failed');
   });

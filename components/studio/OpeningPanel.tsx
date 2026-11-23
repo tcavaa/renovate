@@ -18,7 +18,7 @@ import { fill } from '@/lib/admin/list';
 import { cn, formatGEL, formatM2 } from '@/lib/utils';
 import { openingWallArea, roomEdges } from '@/lib/design/planGeometry';
 import { MIN_RAILING_M, RAILING_HEIGHT_RANGE_M, openingCandidates } from '@/lib/design/openings';
-import { openingEstimate } from '@/lib/design/pricing';
+import { openingEstimate, openingEstimateKey } from '@/lib/design/pricing';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import type { Opening, OpeningKind, PlanRoom, StyleId } from '@/lib/design/types';
 import { Chip, Field, IconAction, MaterialField, NumberField, OriginRow, RangeField } from '@/components/plan/ElementInspector';
@@ -31,7 +31,7 @@ export type OpeningPatch = Partial<Pick<Opening, 'widthM' | 'heightM' | 'sillM' 
  * size, sill, deletion); what fills it — the product, the hinge, the swing, the angle, the
  * material — is decoration and stays editable.
  */
-export function OpeningPanel({ opening, room, catalog, styleId, locked, onUpdate, onSwap, onRemove }: { opening: Opening; room: PlanRoom; catalog: CatalogProduct[]; styleId: StyleId; locked?: boolean; onUpdate: (patch: OpeningPatch) => void; onSwap: (product: CatalogProduct | null) => void; onRemove: () => void }) {
+export function OpeningPanel({ opening, room, front, catalog, styleId, locked, onUpdate, onSwap, onRemove }: { opening: Opening; room: PlanRoom; front: boolean; catalog: CatalogProduct[]; styleId: StyleId; locked?: boolean; onUpdate: (patch: OpeningPatch) => void; onSwap: (product: CatalogProduct | null) => void; onRemove: () => void }) {
   const t = useT();
   const locale = useLocale();
   const [open, setOpen] = useState(false);
@@ -43,8 +43,9 @@ export function OpeningPanel({ opening, room, catalog, styleId, locked, onUpdate
   if (opening.kind === 'railing') return <RailingCard opening={opening} room={room} maxLength={Math.ceil((edge?.length ?? 10) * 100) / 100} locked={locked} onUpdate={onUpdate} onRemove={onRemove} />;
   const maxWidth = edge ? Math.max(0.5, edge.length - 0.3) : 6;
   const alternatives = openingCandidates(opening, catalog, styleId);
-  const estimate = openingEstimate(opening);
-  const kindLabel = opening.kind === 'window' ? t.design.window : opening.kind === 'archway' ? t.build.archway : opening.exterior ? t.build.lineEntranceDoor : t.design.door;
+  const estimate = openingEstimate(opening, front);
+  const balconyDoor = openingEstimateKey(opening, front) === 'balcony_door';
+  const kindLabel = opening.kind === 'window' ? t.design.window : opening.kind === 'archway' ? t.build.archway : opening.exterior ? (front ? t.build.lineEntranceDoor : t.build.lineBalconyDoor) : t.design.door;
   const Icon = opening.kind === 'window' ? AppWindow : DoorOpen;
   const select = 'h-8 w-full rounded-lg border border-line bg-bg-surface px-2 text-[13px] text-ink focus:border-ink focus:outline-none disabled:opacity-50';
 
@@ -129,9 +130,14 @@ export function OpeningPanel({ opening, room, catalog, styleId, locked, onUpdate
           </>
         )}
 
-        {/* What it is made of only matters to the estimate; a product brings its own look. */}
+        {/* What it is made of only matters to the estimate; a product brings its own look. A balcony
+            door is a glazed door in the windows' materials (metal-plastic, aluminium, wood). */}
         {!product && opening.kind !== 'archway' && (
-          <MaterialField value={opening.material ?? (opening.kind === 'window' ? 'pvc' : 'wood')} options={opening.kind === 'window' ? ['pvc', 'aluminium', 'wood', 'metal'] : ['wood', 'metal', 'glass', 'aluminium', 'pvc']} onChange={(m) => onUpdate({ material: m })} />
+          <MaterialField
+            value={opening.material ?? (opening.kind === 'window' || balconyDoor ? 'pvc' : 'wood')}
+            options={opening.kind === 'window' ? ['pvc', 'aluminium', 'wood', 'metal'] : balconyDoor ? ['pvc', 'aluminium', 'wood'] : ['wood', 'metal', 'glass', 'aluminium', 'pvc']}
+            onChange={(m) => onUpdate({ material: m })}
+          />
         )}
 
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">

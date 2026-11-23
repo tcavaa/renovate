@@ -48,8 +48,16 @@ at runtime yet; the last one was seen on the sample plan.
 - The calculator's summary lines have no product link (`slug: ''`) — [budget.md](budget.md#known-gaps).
 - The calculation's sheet charges tiling for a kitchen or balcony floor picked in laminate (the
   design's budget lays it as laminate) — [budget.md](budget.md#known-gaps).
-- A door with no product on an outside wall is estimated at the entrance door's price, a balcony's
-  included — [technical-and-fittings.md](design-studio/technical-and-fittings.md#known-gaps).
+- A door onto a drawn balcony is estimated as an interior door; only a door on an outside wall is a
+  glazed balcony door — [technical-and-fittings.md](design-studio/technical-and-fittings.md#known-gaps).
+- Balconies cannot be held to outdoor-rated finishes: no finish says it is —
+  [design-studio/finishes.md](design-studio/finishes.md#known-gaps).
+- No plan lacks the AI designer by itself (generating is not gated); the "standard engine" message
+  and its warning before the press answer only the plan's locks —
+  [subscriptions.md](subscriptions.md#known-gaps).
+- The team's list of catalogue products that cannot be their kind (`pnpm audit:catalog-kinds`, 107
+  in the fixture catalogue) is to be worked through in admin; pendants, dining tables and wine
+  coolers are listed, not refused — [catalog.md](catalog.md#known-gaps).
 - A boiler housed in the hall wardrobe's section keeps no cabinet when the wardrobe is deleted or the
   boiler dragged out of it in the studio, until the next generation — [technical-and-fittings.md](design-studio/technical-and-fittings.md#known-gaps).
 - A calculator pick that moves to a free spot leaves its rug, TV and joinery at its old slot; picks

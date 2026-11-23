@@ -711,7 +711,12 @@ halves; `alignTwins` keeps twins agreeing on the product, and its mark, too. An 
 product, and its mark, across `moveOpeningToWall`. The budget prices a bought door or window as a real line
 (`product-<id>`, a pair counted once, folded across openings), named the entrance door when it holds
 the flat's front door (`frontDoor`) and a door otherwise, and the rest as estimates
-(`openingEstimate`). The admin product form offers the three kinds (🚪) next to the
+(`openingEstimate`, keyed by `openingEstimateKey`): a window by its area, an interior door apiece,
+the front door at the entrance door's price (`ENTRANCE_DOOR_GEL`), and any other door on an outside
+wall — a balcony's door out — as a balcony door, a glazed door priced as the windows are (its area
+at the window rate times its material: metal-plastic, aluminium or wood — the owner's decision 7),
+on a line of its own (`balcony_door`, "საივნის კარი"). Its card (`OpeningPanel`, told which door is
+the front door) names it so and offers the windows' materials. The admin product form offers the three kinds (🚪) next to the
 archetypes; `OPENING_CATEGORY_SLUGS` (doors, windows) are part of the design catalogue;
 the furniture shelf leaves them out (`isOpeningProductKind`).
 
@@ -836,10 +841,10 @@ have no tests of their own.
   (`withHousedBoiler`); the card can add one meanwhile. A boiler the person drags onto a wardrobe's
   stretch is not taken in until the flat is generated again.
 
-- **A door with no product on an outside wall is estimated at the entrance door's price**
-  (`openingEstimate`, `ENTRANCE_DOOR_GEL`), a balcony's included, in the calculation's sheet and the
-  design's budget alike, though only the front door is bought as an entrance door. Estimating the
-  others as doors changes the calculator's estimate, which is the calculator's to decide.
+- **A door between a room and a drawn balcony is an interior door** (`exterior` false: its wall
+  is shared with the balcony room), so it is estimated as one (380 ₾), not as a balcony door; only a
+  door on an outside wall is (decision 7). Whether the door onto a drawn balcony is glazed too is
+  not settled.
 
 - **A cupboard the room has no clear wall for.** In a hall whose walls are furnished the Vintage
   boiler's 1.4 m cupboard can have no clear stretch: it is then placed where a default boiler's

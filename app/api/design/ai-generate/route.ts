@@ -22,8 +22,9 @@ const startSchema = z.object({
 
 /**
  * Whether the AI designer is there (a key on the server) — the style page words its overlay by
- * it — and, with `?projectId=`, that project's last generation job and whether its design is laid
- * out on the server (`lib/api/designJob`): what the style page asks every few seconds while a job
+ * it — and, with `?projectId=`, that project's last generation job, whether its design is laid
+ * out on the server and whether the account's plan would refuse the designer's start
+ * (`planRefused`, `lib/api/designJob`): what the style page asks every few seconds while a job
  * runs, and once whenever it opens.
  */
 export const GET = handle('GET /api/design/ai-generate', 'Failed', async (req) => {
@@ -33,7 +34,7 @@ export const GET = handle('GET /api/design/ai-generate', 'Failed', async (req) =
   const session = await auth();
   const userId = session?.user?.id ? Number(session.user.id) : null;
   if (!userId) return fail(API_ERRORS.UNAUTHORIZED, 401);
-  const status = await generationStatus(projectId, userId);
+  const status = await generationStatus(projectId, { id: userId, role: session?.user?.role });
   if (!status) return fail('PROJECT_NOT_FOUND', 404);
   return ok({ enabled, ...status });
 });

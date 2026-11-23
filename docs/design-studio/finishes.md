@@ -208,7 +208,16 @@ Where the style's products are laid:
   paint for a painted wall, a laminate for a laminate floor, a tile for a tiled kitchen), in a wet
   room only what is made for one (`mayLay`) — the style's own three times as likely as one tagged for the style, those
   ten times as likely as the rest — so the same plan generated twice is painted and floored
-  differently, and any finish of the kind can turn up (before, 31 of the 610 finishes ever did;
+  differently, and any finish of the kind can turn up. **Except the floor of a tiled room without
+  water** — a balcony, a closed kitchen (`takesStyleOwnFloor`; the owner's decision 6, 23 Nov
+  2026: the style's own floor first, so the flat reads as one design): it is the style's own floor
+  whenever the catalogue has it (`styleFinishProduct` found the room's look), undrawn; only where
+  the style has none for the room (Modern's porcelain is no catalogue product) is it drawn as
+  above, the style's tagged tiles first. The floor's draw is still taken, so the room's walls are
+  drawn as before. Over the 33 fixture plans × 6 draws: the style's own floor on a balcony —
+  Industrial 42 → 168 of 168, Scandinavian 49 → 168, Vintage 17 → 168 (Modern 0: none in the
+  catalogue); in a closed kitchen 1 → 6 of 6 for each of the three. A bathroom's floor is still drawn
+  among the wet tiles (before, 31 of the 610 finishes ever did;
   on test project #311's plan, 600 generations laid 211). The category is what keeps it in
   character, so it has to be true to the finish: carpet tiles filed under laminate carpeted most
   generated living rooms until they got their own category (`carpet`, [../categories.md](../categories.md)).
@@ -419,10 +428,17 @@ own", re-measuring after a resize, `ensureFinishProducts`),
   the style's own texture products gives the generated flat stand-ins (a floor tile on a tiled
   floor, only a wet finish in a wet room) or leaves the look unpriced. Ceilings stay the style's colour.
 - **A style whose own tile is not flagged wet never lays it in a wet room**: Industrial's slate floor
-  is a dry product in the catalogue, so an Industrial bathroom draws from the wet tiles instead, and
-  an Industrial balcony, drawing from every tile of the category (a dry room takes any), shows its
-  own slate in 33 of 150 draws where it showed it in 106 when only the dry tiles were drawn from.
-  The slate's `specs.wet` is catalogue data (admin's).
+  is a dry product in the catalogue, so an Industrial bathroom draws from the wet tiles instead (its
+  balcony now always takes it — decision 6). The owner's answer: the slate in bathrooms where it is
+  technically wet-rated — the team marks it in admin if the real product is, else adds a wet-rated
+  slate to the catalogue (catalogue data, admin's).
+- **A balcony cannot be held to outdoor-rated, slip-resistant finishes** (decision 6): no finish
+  says it is outdoor-rated — `specs` has `wet` and nothing else of the kind — so a balcony takes any
+  tile of its category (the style's own first). An `outdoor` flag on the finishes (admin's form
+  and the catalogue's data) is needed before `mayLay` can hold it.
+- **A closed kitchen does not yet continue the living room's floor**, and the flat's finishes are
+  not combined as one design beyond the one floor and wall (`withFlatFinish`): the owner's note to
+  decision 6 asks for both; the style's own floor first is what is built.
 - **The product form takes a finish's colour map only**: no normal or roughness map (a partner's
   tile looks flat next to the stock ones, which have both), and the form cannot set `specs`
   maps by hand. Adding them means two more uploads and `productFileUrls` learning the maps, so

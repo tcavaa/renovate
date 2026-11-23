@@ -115,6 +115,7 @@ pnpm photos:webp [--dry-run]     # the seed pictures in public/uploads/products 
 pnpm uploads:cleanup [--dry-run]   # plan uploads no project references (the daily cron does it in production)
 pnpm uploads:optimize-models [--dry-run]   # the upload recipe over models stored before it
 pnpm audit:studio-products [--out r.md]    # read-only: which products the studio can place, generate, lay as finishes
+pnpm audit:catalog-kinds [--out r.md]      # read-only, no DB: products whose sizes or name cannot be their kind (the team's list)
 pnpm audit:generation [--seeds n] [--examples] [--flat '#412/modern/1'] [--write-baseline]   # whole flats from the fixture plans, each checked as a whole — after touching generation
 pnpm pdf:worker         # re-copy pdf.js's worker into public/vendor after upgrading pdfjs-dist
 pnpm draco:decoder      # re-copy three's Draco decoder into public/vendor/draco after upgrading three

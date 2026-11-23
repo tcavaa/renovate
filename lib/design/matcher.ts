@@ -14,6 +14,7 @@ import { isBuiltInBath, isRectangularBath, isShowerDoor } from './productRoles';
 import { blockingItems, blocksWindow, clampInsideRoom, clearsUnder, floorFootprint, footprintInRoom, footprintOf, footprintsOverlap, inDoorway, isPlacementValid, pieceWall, PIECE_TOUCH_M, type Footprint, type KeepClear } from './manipulate';
 import { followsWhenMatched, isTuckingChair, measuredRule, seatedTogether, tucksUnder } from './relations';
 import { getArchetype, isKitchenMaterial, type Archetype } from './catalog';
+import { isPlausibleForGeneration } from './plausibility';
 import { roomEdges } from './planGeometry';
 import { ISLAND_CLEAR_M, seatSlots } from './autoLayout';
 import { asPlacedKitchen, kitchenMaterialCandidates } from './kitchen';
@@ -126,15 +127,6 @@ const SMALLER_KIND: Readonly<Record<string, string>> = { sofa_corner: 'sofa_3sea
  * stand where the single was laid, an open shelf for a bookcase.
  */
 const FILED_AS: Readonly<Record<string, string>> = { rug_bed: 'rug' };
-
-/**
- * A shop's kitchen run that comes with its sink and its hob (its name says so): a kitchen is never
- * laid out without either (the rulebook, K-9). The made-to-measure run's model has both.
- */
-function hasSinkAndHob(p: CatalogProduct): boolean {
-  const name = `${p.nameEn ?? ''} ${p.nameKa}`;
-  return /\bsink\b|ნიჟარ/i.test(name) && /\b(hob|cooker|range|stove|burners?)\b|ქურ/i.test(name);
-}
 
 /** The kitchen maker's materials of the style when it has any, else them all (K-15). */
 function styleMaterials(materials: CatalogProduct[], styleId: StyleId): CatalogProduct[] {
@@ -258,9 +250,12 @@ export function matchProducts(
       // hobs, coffee machines and a wall cabinet under the same kind.
       const runRoom = roomsById.get(item.roomId);
       // …and not one whose wall cabinets would stand across the window over the run.
-      // A run is at least 1.8 m long, a cabinet's depth (55–72 cm) and worktop-high: a range cooker
-      // filed under kitchen units (166 × 67 × 80 cm) was taken for the whole kitchen.
-      const units = candidates.filter((p) => !!p.widthCm && !!p.depthCm && !!p.heightCm && p.widthCm / 100 <= item.size.width + 0.01 && p.widthCm / 100 >= item.size.width * 0.9 && hasSinkAndHob(p) && p.heightCm >= 85 && p.depthCm >= 55 && p.depthCm <= 72 && p.widthCm >= 180 && !(runRoom && blocksWindow({ ...item, size: sizeFromProduct(p, item) }, runRoom)));
+      // A shop's run is taken by its kind, not its name (the owner's decision 9: no shop names its
+      // sink and hob, so a name test kept every one out): what is filed as a run and has a run's
+      // shape — at least 1.8 m long, a cabinet's depth, worktop-high, not tall units alone
+      // (`KIND_BOUNDS`, already held by the pool: a range cooker of 166 × 67 × 80 cm was once taken
+      // for the whole kitchen) — and is 90–100 % of the run's length.
+      const units = candidates.filter((p) => !!p.widthCm && !!p.depthCm && !!p.heightCm && p.widthCm / 100 <= item.size.width + 0.01 && p.widthCm / 100 >= item.size.width * 0.9 && !(runRoom && blocksWindow({ ...item, size: sizeFromProduct(p, item) }, runRoom)));
       if (materials.length > 0 && !(rng && units.length > 0 && rng() < STORE_KITCHEN_SHARE)) {
         const material = rng ? (weightedPick(materials, (m) => STYLE_WEIGHT[styleAffinity(options.styleId, m.styleTags, m.tags)] ?? 1, rng) ?? materials[0]) : materials[0];
         return finish(asPlacedKitchen({ ...item, product: toSceneProduct(material, quantityFor(item)), origin: 'style' as const }, material));
@@ -488,12 +483,13 @@ export interface KindPool {
 }
 
 /**
- * The products of a kind a flat of this style may be given: every one with a model, less what the
- * style keeps out of a flat it lays out (Scandinavian: nothing black) — unless that would leave the
- * kind with nothing at all.
+ * The products of a kind a flat of this style may be given: every one with a model that can be its
+ * kind (`isPlausibleForGeneration`), less what the style keeps out of a flat it lays out
+ * (Scandinavian: nothing black) — unless that would leave the kind with nothing at all.
  */
 export function kindPool(kind: string, catalog: CatalogProduct[], styleId: StyleId): KindPool {
-  const all = candidatesFor(kind, catalog, styleId);
+  // Never a product that cannot be its kind (`KIND_BOUNDS`: a 30 cm floor lamp, a 2 m door mat); the swap list still offers it.
+  const all = candidatesFor(kind, catalog, styleId).filter(isPlausibleForGeneration);
   const kept = all.filter((p) => !styleRejects(p, styleId));
   const pool = kept.length > 0 ? kept : all;
   const tier = (affinity: number) => pool.filter((p) => styleAffinity(styleId, p.styleTags, p.tags) === affinity);

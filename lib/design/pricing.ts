@@ -588,7 +588,7 @@ export function priceOpenings(plan: FloorPlan, full: boolean, phases: number[], 
   const byProduct = new Map<number, { product: SceneProduct; label: ProductLabelKey; qty: number; total: number; rooms: Set<string> }>();
   // The flat has one front door (`frontDoor`, as `withOpeningProducts` buys it): a line is the
   // entrance door when it holds that one, whichever of its doors comes first; any other door on an
-  // outside wall is a door.
+  // outside wall is a door when bought, a balcony door when estimated (`openingEstimateKey`).
   const front = frontDoor(plan.rooms)?.opening.id ?? null;
   for (const room of plan.rooms) {
     // The two halves of an interior door are listed in the same order on both sides of the
@@ -616,7 +616,7 @@ export function priceOpenings(plan: FloorPlan, full: boolean, phases: number[], 
         byProduct.set(opening.product.productId, bought);
         continue;
       }
-      const line = openingLine(opening, roomName.get(room.id));
+      const line = openingLine(opening, opening.id === front, roomName.get(room.id));
       if (line) lines.push(line);
     }
   }
@@ -626,24 +626,45 @@ export function priceOpenings(plan: FloorPlan, full: boolean, phases: number[], 
   return lines;
 }
 
-/** What a door or window without a product is estimated at: a window by its area, a door apiece, the material weighing in. Nothing for an archway or a railing. */
-export function openingEstimate(opening: Pick<Opening, 'kind' | 'exterior' | 'material' | 'widthM' | 'heightM'>): { qty: number; unit: 'piece' | 'm2'; unitPrice: number; total: number } | null {
-  const factor = OPENING_MATERIAL_FACTOR[opening.material ?? 'pvc'] ?? 1;
-  if (opening.kind === 'window') {
+/**
+ * What a door or window without a product is priced as: a window; an interior door; the flat's
+ * front door (`frontDoor`) an entrance door; any other door on an outside wall — a balcony's door
+ * out — a balcony door, a glazed door in the windows' category (the owner's decision 7, 23 Nov
+ * 2026: metal-plastic, aluminium or wood, as the windows are), never an entrance door. Null for an
+ * archway or a railing.
+ */
+export type OpeningEstimateKey = 'window' | 'door' | 'entrance_door' | 'balcony_door';
+export function openingEstimateKey(opening: Pick<Opening, 'kind' | 'exterior'>, front: boolean): OpeningEstimateKey | null {
+  if (opening.kind === 'window') return 'window';
+  if (opening.kind !== 'door') return null;
+  if (!opening.exterior) return 'door';
+  return front ? 'entrance_door' : 'balcony_door';
+}
+
+/**
+ * What a door or window without a product is estimated at (`openingEstimateKey`): a window and a
+ * balcony door by their area at the window's rate, an interior or entrance door apiece, the
+ * material weighing in. `front` says the opening is the flat's front door. Nothing for an archway
+ * or a railing.
+ */
+export function openingEstimate(opening: Pick<Opening, 'kind' | 'exterior' | 'material' | 'widthM' | 'heightM'>, front: boolean): { qty: number; unit: 'piece' | 'm2'; unitPrice: number; total: number } | null {
+  const key = openingEstimateKey(opening, front);
+  if (!key) return null;
+  if (key === 'window' || key === 'balcony_door') {
+    const factor = OPENING_MATERIAL_FACTOR[opening.material ?? 'pvc'] ?? 1;
     const area = Math.max(0.5, round2(opening.widthM * opening.heightM));
     const unitPrice = round2(OPENING_ESTIMATE_GEL.window * factor);
     return { qty: area, unit: 'm2', unitPrice, total: round2(area * unitPrice) };
   }
-  if (opening.kind === 'archway' || opening.kind === 'railing') return null;
-  const base = opening.exterior ? ENTRANCE_DOOR_GEL : OPENING_ESTIMATE_GEL.door;
+  const base = key === 'entrance_door' ? ENTRANCE_DOOR_GEL : OPENING_ESTIMATE_GEL.door;
   const unitPrice = round2(base * (opening.material ? OPENING_MATERIAL_FACTOR[opening.material] ?? 1 : 1));
   return { qty: 1, unit: 'piece', unitPrice, total: unitPrice };
 }
 
-function openingLine(opening: Opening, roomName?: string): BudgetLine | null {
-  const estimate = openingEstimate(opening);
-  if (!estimate) return null;
-  const key = opening.kind === 'window' ? 'window' : opening.exterior ? 'entrance_door' : 'door';
+function openingLine(opening: Opening, front: boolean, roomName?: string): BudgetLine | null {
+  const key = openingEstimateKey(opening, front);
+  const estimate = openingEstimate(opening, front);
+  if (!key || !estimate) return null;
   return { section: 'openings', bucket: 'openings', key, tick: tickFor.openingEstimate(opening.id), roomName, ...estimate, estimated: true };
 }
 

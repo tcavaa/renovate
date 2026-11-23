@@ -292,12 +292,16 @@ rooms a fix never touched. What still reads another room is not a draw, and is m
   product that does not fit gives way to another draw (`weightedOrder`). Still one product per
   kind per room.
 - **Floors and walls** (`generatedFinish`, [finishes.md](finishes.md)): drawn from the finishes
-  like the style's own for the room.
+  like the style's own for the room — but a balcony's and a closed kitchen's floor is the style's
+  own whenever the catalogue has it (decision 6).
 - **The kitchen run** is made to measure in a drawn material, or about a third of the time a
-  shop's unit that fits the run (only a run-shaped one: worktop-high, deeper than 45 cm, wider than
-  deep — the library files hobs and coffee machines under the same kind) — when one qualifies:
-  none of today's 40 does, since its name must say it has a sink and a hob (`hasSinkAndHob`), so
-  every generated run is made to measure ([generation-audit.md](generation-audit.md), P1). **The wall cabinets**
+  shop's unit that fits the run (90–100 % of its length) — taken by its kind, not its name
+  (decision 9), when it has a run's shape: worktop-high, a cabinet's depth, 1.8 m or longer, not
+  tall units alone (`KIND_BOUNDS`, `lib/design/plausibility.ts` — the library files ovens, hobs,
+  range cookers and coffee machines under the same kind). In the 792 fixture flats 27 of 858 runs
+  are a shop's, of seven products ([generation-audit.md](generation-audit.md), P1).
+- **Products that cannot be their kind** are never generated (`kindPool` → `isPlausibleForGeneration`:
+  a 30 cm floor lamp, a 2 m door mat, a vase as a print — [catalog.md](../catalog.md#what-generation-refuses)). **The wall cabinets**
   (`kitchen_wall`, in the kitchen's program after the run and the fridge) hang over it: `placeAbove` puts them on
   the run's wall, as long as the run, shortened (to three quarters or half of it, no shorter than
   60 cm) and slid along it to keep a window or a door clear — so a wide window over the middle of

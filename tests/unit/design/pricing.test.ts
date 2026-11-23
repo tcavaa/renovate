@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { FREE_DELIVERY_THRESHOLD_GEL, priceOpenings, priceScene } from '@/lib/design/pricing';
+import { FREE_DELIVERY_THRESHOLD_GEL, openingEstimate, openingEstimateKey, priceOpenings, priceScene } from '@/lib/design/pricing';
+import { ENTRANCE_DOOR_GEL, OPENING_ESTIMATE_GEL, OPENING_MATERIAL_FACTOR } from '@/lib/design/technicalRates';
 import { tickFor } from '@/lib/design/ticks';
 import type { RateBook } from '@/lib/calculator/rates';
 import { HOME_STATE_VALUES } from '@/lib/calculator/types';
@@ -237,5 +238,31 @@ describe('priceOpenings — the flat’s one entrance door', () => {
     const lines = priceOpenings(flat, false, [], new Map());
     expect(lines.find((l) => l.key === 'product-70')?.item).toBe('შიდა კარი');
     expect(lines.find((l) => l.key === 'product-71')?.item).toBe('შესასვლელი კარი');
+  });
+});
+
+describe('an outside door with nothing chosen (decision 7)', () => {
+  const opening = (id: string, roomId: string, exterior: boolean, material?: 'pvc' | 'aluminium' | 'wood') => ({ id, kind: 'door' as const, wallIndex: 0, t: 0.5, widthM: 0.9, heightM: 2.1, sillM: 0, roomId, exterior, origin: 'user' as const, ...(material ? { material } : {}) });
+
+  it('prices the front door as an entrance door, and any other outside door as a glazed balcony door at the window’s rate by its area and material', () => {
+    expect(openingEstimateKey({ kind: 'door', exterior: true }, true)).toBe('entrance_door');
+    expect(openingEstimateKey({ kind: 'door', exterior: true }, false)).toBe('balcony_door');
+    expect(openingEstimateKey({ kind: 'door', exterior: false }, false)).toBe('door');
+    expect(openingEstimate(opening('f', 'hall', true), true)).toEqual({ qty: 1, unit: 'piece', unitPrice: ENTRANCE_DOOR_GEL, total: ENTRANCE_DOOR_GEL });
+    // 0.9 × 2.1 m of metal-plastic (the default, as a window's), aluminium or wood.
+    expect(openingEstimate(opening('b', 'living', true), false)).toEqual({ qty: 1.89, unit: 'm2', unitPrice: OPENING_ESTIMATE_GEL.window, total: 1.89 * OPENING_ESTIMATE_GEL.window });
+    for (const material of ['pvc', 'aluminium', 'wood'] as const) {
+      const rate = OPENING_ESTIMATE_GEL.window * OPENING_MATERIAL_FACTOR[material]!;
+      expect(openingEstimate(opening('b', 'living', true, material), false)).toMatchObject({ unit: 'm2', unitPrice: rate, total: Math.round(1.89 * rate * 100) / 100 });
+    }
+  });
+
+  it('gives a balcony door its own line in the budget, the front door the entrance door’s', () => {
+    const living = { ...rect('living', 5, 4), openings: [opening('lx', 'living', true)] };
+    const hall = { ...rect('hall', 2, 2, 'hallway'), openings: [opening('hx', 'hall', true)] };
+    const lines = priceOpenings({ ...plan, rooms: [living, hall] }, false, [], new Map());
+    expect(lines.map((l) => l.key).sort()).toEqual(['balcony_door', 'entrance_door']);
+    expect(lines.find((l) => l.key === 'balcony_door')).toMatchObject({ unit: 'm2', qty: 1.89, estimated: true });
+    expect(lines.find((l) => l.key === 'entrance_door')).toMatchObject({ unit: 'piece', total: ENTRANCE_DOOR_GEL });
   });
 });

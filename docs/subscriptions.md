@@ -48,7 +48,9 @@ Not gated: the calculator's own steps (materials, furniture picks, the summary),
 step and the studio's electric and technical trays (sockets, lights, radiators, equipment), the
 style test and generating (the AI designer's own cap stays: 5 runs a design that wrote its flat, and
 at most 8 calls to it an hour — [design-studio/decor.md](design-studio/decor.md#the-ai-designer)), versions, undo, and
-the brigade's read-only project view.
+the brigade's read-only project view. Where the plan's locks do refuse the designer's start (laying a
+laid-out flat out again without `catalog`), the person is told so plainly, never as a failure, with
+the upgrade — before the press and after the engine's flat (decision 10a, `AiFallback` `plan`).
 
 **Staff** (admin, `agent_orders`, `agent_catalog`) work as Professional with no project
 allowance (`isStaff`) — they open anything for a customer. Partners are customers like anyone.
@@ -197,6 +199,13 @@ plans, or try again once upgraded. Restoring a kept version is gated as a catalo
   credit taken off.
 
 ## Known gaps
+
+- **No plan lacks the AI designer by itself**: generating is on every plan, so the "standard design
+  engine" message with its upgrade (decision 10a) answers only the plan's locks on a flat already
+  laid out — which the style step seldom reaches (it opens the studio once the flat is laid out).
+  Making the AI designer a feature of the plan matrix (`PLAN_FEATURES`) is the owner's call; the
+  message, the warning before the press and the upgrade are ready for it (a stored `plan_config`
+  without the new feature would take it from every plan — `normalizePlanConfig`).
 
 - **The server's studio check trusts what passes by itself**: a save that sets
   `generation.reviewed` for the first time, or moves a wall, has the pieces of that save (or that

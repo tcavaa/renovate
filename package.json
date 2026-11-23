@@ -48,6 +48,7 @@
     "uploads:optimize-models": "tsx scripts/optimize-stored-models.ts",
     "audit:studio-products": "tsx scripts/audit-studio-products.ts",
     "audit:generation": "tsx scripts/audit-generation.ts",
+    "audit:catalog-kinds": "tsx scripts/audit-catalog-kinds.ts",
     "db:backfill-translations": "tsx scripts/backfill-translations.ts",
     "pdf:worker": "node scripts/copy-pdf-worker.mjs",
     "draco:decoder": "node scripts/copy-draco-decoder.mjs",

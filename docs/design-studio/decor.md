@@ -38,7 +38,7 @@ proposal goes through) · [3d-engine.md](3d-engine.md) · [studio.md](studio.md)
 | `lib/api/designJobRows.ts` | the job's queries, one each (`withJobLock`, `claimJob`, `writeDesignForJob` …) — mocked in memory by the tests |
 | `lib/api/designWrite.ts` | a design write's columns (`designWriteColumns`: repriced, its budget worked out) and the plan's locks (`refusedDesignChange`) — the save route's and the job's |
 | `lib/design/aiDesignClient.ts` | the browser's side: `generationStatus` (null on any failure), `startAiGeneration` (`{ job }`, or `{ refused }` with why) |
-| `app/api/design/ai-generate/route.ts` | `GET` → `{ enabled }`, with `?projectId=` also `{ job, designGenerated }`; `POST` starts a job → 202 `{ job }`, or 503/429 (`AI_LIMIT`, `AI_PAUSED`, the rate limit)/409 with `fallback: 'engine'` (402 on the plan's locks) |
+| `app/api/design/ai-generate/route.ts` | `GET` → `{ enabled }`, with `?projectId=` also `{ job, designGenerated, planRefused }`; `POST` starts a job → 202 `{ job }`, or 503/429 (`AI_LIMIT`, `AI_PAUSED`, the rate limit)/409 with `fallback: 'engine'` (402 on the plan's locks) |
 | `app/api/design/ai-review/route.ts` | the job's second invocation: `POST` from the server itself, signed (`x-design-job`, `x-design-job-token`) → 202, the check run after the answer; 403 otherwise |
 | `components/design/GenerationOverlay.tsx` | the overlay, paced by the job's stage |
 | `lib/db/migrations/0009_design_jobs.sql` | the `design_jobs` table |
@@ -392,7 +392,17 @@ the project opens furnished afterwards.
    not design this flat, so the engine laid it out" and why (`startRefusal` for a start refused,
    `aiFallback` for a job: the design's AI runs used up — and that it can be changed by hand in the
    studio or a new project started; too many asked in a short while; the design changed while it
-   worked; a failure), and the studio opens on the person's press. A check that failed leaves the
+   worked; a failure), and the studio opens on the person's press. **A plan that does not include
+   the designer is no failure** (`plan` — the owner's decision 10a: a start refused by the plan's
+   locks, 402 `PLAN_REQUIRED`, or a job whose write they refused): the overlay says "Your apartment
+   has been generated using our standard design engine. To access AI-powered interior design and
+   more advanced layout options, upgrade your plan" with the upgrade (the dialogue of the feature
+   the plan lacks — `X-Plan-Feature` — over the studio it opens) beside "open the studio". **And it
+   is said before the press**: the status (`GET /api/design/ai-generate?projectId=`) carries
+   `planRefused` — the start's own check (`planRefusesStart`, read only when the flat is laid out
+   and no job runs: before the layout every plan may generate) — and the style page shows the same
+   words over the generate button with the upgrade, and lays the flat out with the engine without
+   asking the server. A check that failed leaves the
    designer's flat, so nothing is said then; nor when the server's flat is laid out with no job
    behind it (another tab's engine flat, a deployment with no key — no AI was asked for). The hint says how long: usually two to three minutes,
    never more than `JOB_MAX_MINUTES` (both stages to the end of their time — 11).

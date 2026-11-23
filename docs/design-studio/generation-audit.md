@@ -615,10 +615,17 @@ Severity: **high** = seen by anyone who generates; **medium** = wrong in some ro
 
 162 of the 934 furniture products with a model never appeared in 1,080 flats. By rule, not chance:
 
-- [ ] **P1 — Shop kitchens (40).** A shop's run is taken only when its name says it has a sink and
+- [x] **P1 — Shop kitchens (40).** A shop's run is taken only when its name says it has a sink and
   a hob (`hasSinkAndHob`, `matcher.ts:97-100`): **none of the 40 names does**, and it must also be
   90–100 % of the run's length (`:214`). `STORE_KITCHEN_SHARE` and its branch are dead code; every
   generated kitchen is one of three made-to-measure materials.
+  *Fixed* (decision 9): a shop's run is taken by its kind — the name test is gone; what is filed as a
+  run and has a run's shape (`KIND_BOUNDS.kitchen_run`: worktop-high, a cabinet's depth, 1.8 m or
+  longer, and not tall units alone, whose name says tall units and not a run) and fills 90–100 % of
+  the run is drawn about a third of the time, as a shop's unit (`custom: false`: its own size, model
+  and price, no wall cabinets over it). 792 flats: 0 → 27 of 858 runs a shop's, seven products (13 of
+  them #3281); 13 of the 40 have a run's shape, the rest are ovens, ranges, coffee machines, Ls or
+  tall units.
 - [ ] **P2 — Kitchen islands (9)** — M9.
 - [ ] **P3 — Open shelves (22)** fill the bookcase's slot on the shelf but are generated only in a
   room typed storage.
@@ -1339,6 +1346,13 @@ which product, and what the designer is offered.
   without a draw) — and any other room any finish of the category it draws from. The style's own
   look on a balcony: Scandinavian 34 of 150, Vintage 22 of 150 (was 0 and 0); in a closed kitchen
   3 of 6 and 2 of 6 (was 0).
+  *And* (decision 6, 23 Nov): a tiled room without water takes the style's own floor whenever the
+  catalogue has it, undrawn (`takesStyleOwnFloor`); the draw stays for a style with none of its own
+  for the room. 33 plans × 4 styles × 6 draws, the style's own floor on a balcony: Industrial 42 → 168
+  of 168, Scandinavian 49 → 168, Vintage 17 → 168, Modern 0 → 0 (its porcelain is no product); in a
+  closed kitchen 1 → 6 of 6 for each of the three. *Left:* outdoor-rated balcony finishes (no finish
+  says it is one), a closed kitchen continuing the living room's floor, Industrial's slate wet-rated
+  (admin's) — [finishes.md](finishes.md#known-gaps).
 - [x] **F4 (medium) — The designer's lists cannot give what its prompt asks.** A dry room's floor
   list is one pool for a living room, a kitchen and a balcony (`finishCandidates`,
   `aiProposal.ts:52`): 22 laminates, 31 carpets, 14 products of category wall-tiles, 2 tiles —
@@ -1396,20 +1410,35 @@ which product, and what the designer is offered.
 The generator takes `model3dKind` and the three sizes as true. They often are not, and only the AI
 check (when there is a key) looks:
 
-- [ ] **K1 — Filed under the wrong kind.** Floor lamps: 11 of 23 are table lamps (29–90 cm); **77 %
+- [ ] **K1 — Filed under the wrong kind.** *Partly* (decision 9, with K2 and K4): generation refuses
+  what its sizes or name say cannot be its kind (`KIND_BOUNDS`, `lib/design/plausibility.ts`): table
+  lamps as floor lamps, under-counter coolers as fridges, vases, trays and table mirrors as prints,
+  cabinets as wardrobes, ovens, hobs and tall units as kitchen runs. The team's list (`pnpm
+  audit:catalog-kinds`, 107 products) is for admin to correct; tall wine coolers, small dining tables
+  and the wine racks and trolley under storage shelves are listed, not refused (refused, kitchens lost
+  their fridge and the larger tables put chairs in doorways). The original finding: Floor lamps: 11 of 23 are table lamps (29–90 cm); **77 %
   of the floor lamps placed are under 1 m**. Fridges: under-counter coolers (42 % of fridges placed
   are under 1.4 m). Prints: vases and table mirrors hung on the wall. Wardrobes: cabinets (27 % of
   those placed are under 1.6 m). Dining tables: 13 of 31 under 1.2 m. Storage shelves: wine racks, a
   trolley, a toilet-roll stand. Kitchen runs: ovens, a hob, coffee machines.
-- [ ] **K2 — Wrong sizes.** Door mats 203 × 127 cm (five of six; 68 % of mats placed are over
+- [ ] **K2 — Wrong sizes.** *Partly*: door mats over 1.2 m, rugs of 9.6 × 12 m and a 6.88 m wardrobe
+  are refused by generation; pendants under 15 cm or over 1.5 m across are listed only (refused, the
+  real pendants hang into canopy beds: pieces hung into another 17 → 115 — P5); the longer side is
+  measured where width and depth may be the other way round. The finding: Door mats 203 × 127 cm (five of six; 68 % of mats placed are over
   1.2 m). Pendants under 8 cm across (11 of 93; 31 % of those placed) or 3–4 m. Tables and a bed
   with width and depth the other way round. A wardrobe 6.88 m wide. "Deeper than wide" is reported
   80 times in 1,080 flats.
-- [ ] **K3 — The archetypes' sizes are not the catalogue's.** A double bed is laid out at
+- [ ] **K3 — The archetypes' sizes are not the catalogue's.** (Not touched by the bounds: a bed with
+  its side tables built on is a bed.) A double bed is laid out at
   1.6 × 2.05 m; the 24 products run 1.49–3.34 m wide (most 2.0–2.5, several with side tables built
   on). A wardrobe at 1.8 m; most products are 0.8–1.4 m.
-- [ ] **K4 — No plausibility bounds per kind** at load (`lib/api/designCatalogLoad.ts` applies
+- [x] **K4 — No plausibility bounds per kind** at load (`lib/api/designCatalogLoad.ts` applies
   `refinedKind` by name and nothing by size).
+  *Fixed* (decision 9): `KIND_BOUNDS` per kind, held where generation takes its products (the
+  matcher's pools, `kindPool` — the engine and the AI designer's lists alike), not at load: the
+  product stays in the catalogue, admin and the swap list. 792 flats: no missing-piece count moved;
+  bed sides tight 409 → 439 (a real wardrobe where a 38 cm column stood), pieces hung into another
+  10 → 14 (a print over a real floor lamp), door swings blocked 53 → 51, radiators blocked 19 → 14.
 
 ### K. What the documents say that is not so
 
@@ -1713,6 +1742,11 @@ no table in 60 of the 416 runs of 10 m² or more; an island 0 of 96.
   less with both picks; #392: 2 → 1). *Left:* a door with no product on an outside wall is still
   estimated at the entrance door's price (`openingEstimate`) — changing it changes the calculator's
   estimate.
+  *Fixed* (decision 7, 23 Nov): a door on an outside wall with no product that is not the front door
+  is a balcony door, priced in the windows' category — its area at the window rate times its
+  material (metal-plastic, aluminium, wood) — on its own line (`balcony_door`, "საივნის კარი"), in
+  the calculation's sheet and the design's budget alike (`openingEstimateKey`). A 0.9 × 2.05 m one:
+  950 → 777 ₾ in metal-plastic.
 
 ### N. The generation job
 

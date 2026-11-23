@@ -4,7 +4,7 @@ import { MAX_AI_GENERATIONS, type AiProposal } from '@/lib/design/aiProposal';
 import { RATE_RULES } from '@/lib/api/rateLimit';
 import type { AiReview } from '@/lib/design/aiReview';
 import type { DesignScene, FloorPlan } from '@/lib/design/types';
-import { generationAction, JOB_STALE_MS } from '@/lib/design/generationJob';
+import { generationAction, JOB_STALE_MS, startRefusal } from '@/lib/design/generationJob';
 import { GENERATION_CATALOG, generationPlan, generationProposal } from '../helpers/generation';
 
 /**
@@ -280,7 +280,7 @@ describe('a generation job', () => {
     // …the designer's flat as written, with the change kept.
     expect(project().scene.items).toEqual(designed.items);
     expect(project().scene.mode).toBe('full');
-    expect(await generationStatus(42, 5)).toMatchObject({ designGenerated: true });
+    expect(await generationStatus(42, { id: 5, role: 'user' })).toMatchObject({ designGenerated: true });
 
     // …while the check runs: paid, but its fixes are not applied over a design that moved on.
     rows.jobs.length = 0;
@@ -334,7 +334,7 @@ describe('a generation job', () => {
     expect(project().scene.items).toEqual(designed.items);
     expect(project().scene.mode).toBe('full');
     expect(project().scene.progress).toMatchObject({ generated: true, step: 5, at: 5 });
-    expect(await generationStatus(42, 5)).toMatchObject({ designGenerated: true });
+    expect(await generationStatus(42, { id: 5, role: 'user' })).toMatchObject({ designGenerated: true });
   });
 
   it('leaves another design than its own as it is', async () => {
@@ -438,6 +438,8 @@ describe('a generation job', () => {
 
   it('is refused the account’s plan does not lay a laid-out flat out again, and passes the locks on a Free account otherwise', async () => {
     plan.free = true;
+    // Before the layout every plan may generate: nothing to tell the page.
+    expect(await generationStatus(42, { id: 5, role: 'user' })).toMatchObject({ planRefused: null });
     await start();
     await runDesignStage(1, 'https://app.test');
     await settled();
@@ -445,6 +447,11 @@ describe('a generation job', () => {
     expect(project().scene.progress).toMatchObject({ generated: true });
 
     expect(await start(project().designRev)).toMatchObject({ ok: false, error: 'PLAN_REQUIRED', status: 402, feature: 'catalog' });
+    // The page is told before a press (decision 10a), and a refused start is the plan's, not a failure.
+    expect(await generationStatus(42, { id: 5, role: 'user' })).toMatchObject({ planRefused: { feature: 'catalog', plan: 'premium' } });
+    expect(startRefusal(402, 'PLAN_REQUIRED')).toBe('plan');
+    plan.free = false;
+    expect(await generationStatus(42, { id: 5, role: 'user' })).toMatchObject({ planRefused: null });
   });
 
   it('refuses a check the server did not sign', async () => {
@@ -461,7 +468,7 @@ describe('a job whose function died', () => {
   it('designing: settled as failed when read; the page waiting on it lays the flat out with the engine, a later visit waits for a press', async () => {
     await start();
     job().stageAt = longAgo();
-    const status = await generationStatus(42, 5);
+    const status = await generationStatus(42, { id: 5, role: 'user' });
     expect(status).toMatchObject({ designGenerated: false, job: { stage: 'failed', error: 'design:TIMEOUT' } });
     expect(generationAction(status!, { generated: false }, true)).toBe('engine');
     expect(generationAction(status!, { generated: false }, false)).toBe('none');
@@ -488,10 +495,10 @@ describe('a job whose function died', () => {
     await start();
     await runDesignStage(1, 'https://app.test');
     expect(job().stage).toBe('checking');
-    expect(generationAction((await generationStatus(42, 5))!, { generated: false }, false)).toBe('wait');
+    expect(generationAction((await generationStatus(42, { id: 5, role: 'user' }))!, { generated: false }, false)).toBe('wait');
 
     job().stageAt = longAgo();
-    const status = await generationStatus(42, 5);
+    const status = await generationStatus(42, { id: 5, role: 'user' });
     expect(status).toMatchObject({ designGenerated: true, job: { stage: 'done', error: 'check:TIMEOUT' } });
     expect(project()).toMatchObject({ designRev: 5 });
     expect(project().scene.progress).toMatchObject({ generated: true, step: 5 });
@@ -501,6 +508,6 @@ describe('a job whose function died', () => {
   });
 
   it('answers no project that is not the account’s', async () => {
-    expect(await generationStatus(42, 6)).toBeNull();
+    expect(await generationStatus(42, { id: 6, role: 'user' })).toBeNull();
   });
 });

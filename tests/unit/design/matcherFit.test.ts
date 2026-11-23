@@ -109,8 +109,9 @@ describe('a piece hung over another', () => {
     const unit = slot('unit', 'l', 'tv_unit', 'tv_unit', 2.5, [1.8, 0.42, 0.5]);
     const tv = slot('tv', 'l', 'tv', 'tv', 2.5, [1.45, 0.08, 0.82], { elevationM: 0.65, position: { x: 2.5, z: 0.04 } });
     const print = slot('print', 'l', 'artwork', 'artwork', 2.4, [0.95, 0.05, 0.7], { elevationM: 1.15, position: { x: 2.4, z: 0.025 } });
-    // The TV the catalogue has stands on its own feet, on the unit's top, up to 1.4 m.
-    const [, onUnit, hung] = match([unit, tv, print], [product(1, 'tv_unit', 160, 40, 50), product(2, 'tv', 145, 26, 90), product(3, 'artwork', 14, 16, 20)], [room]);
+    // The TV the catalogue has stands on its own feet, on the unit's top, up to 1.4 m. The print is a
+    // 10 cm deep box frame — as deep as a print may be (`KIND_BOUNDS`) — so it reaches the TV's depth.
+    const [, onUnit, hung] = match([unit, tv, print], [product(1, 'tv_unit', 160, 40, 50), product(2, 'tv', 145, 26, 90), product(3, 'artwork', 30, 10, 40)], [room]);
     expect(onUnit.elevationM).toBeCloseTo(0.5);
     expect(hung.elevationM).toBeGreaterThanOrEqual(onUnit.elevationM + onUnit.size.height);
     expect(hung.elevationM + hung.size.height).toBeLessThanOrEqual(room.heightM);
@@ -190,12 +191,13 @@ describe('what the layout kept clear', () => {
 });
 
 describe('a door mat and a hanging lamp', () => {
-  // A hall 1.2 m wide, the front door in the middle of its west wall; the mat's slot just inside it.
+  // A hall 0.9 m wide, the front door in the middle of its west wall; the mat's slot just inside it.
   const front: Opening = { id: 'front', kind: 'door', wallIndex: 3, t: 0.5, widthM: 0.9, heightM: 2.1, sillM: 0, roomId: 'h', exterior: true };
-  const hall = rect('h', 'hallway', 1.2, 4, [front]);
+  const hall = rect('h', 'hallway', 0.9, 4, [front]);
   const mat = () => slot('mat', 'h', 'door_mat', 'door_mat', 0, [0.8, 0.5, 0.015], { position: { x: 0.28, z: 2 }, rotation: Math.PI / 2 });
-  // As the catalogue has them: five of six door mats are filed 2.03 × 1.27 m.
-  const huge = product(20, 'door_mat', 203, 127, 2, { isFeatured: true });
+  // A mat a door mat can be (under 1.2 m either way — the catalogue's 2.03 × 1.27 m ones are never
+  // generated, `KIND_BOUNDS`), but wider than this hall.
+  const huge = product(20, 'door_mat', 115, 110, 2, { isFeatured: true });
   const proper = product(21, 'door_mat', 75, 45, 2);
 
   it('a mat lies inside its room: the next one that does takes the slot, its edge by the door', () => {

@@ -138,6 +138,11 @@ describe('a calculation is priced as a design', () => {
     // The renovation's materials and labour do not read the picks.
     const works = (cost: ReturnType<typeof priced>) => cost.lines.filter((l) => l.section !== 'openings').map((l) => `${l.key}:${l.total}`);
     expect(works(priced({ doors_global: door, 'entrance-doors_global': entrance }))).toEqual(works(priced({})));
+    // With nothing picked, the front door is estimated as an entrance door and the door to the
+    // balcony as a glazed balcony door, in the windows' category (decision 7) — not a second entrance door.
+    const unpicked = priced({}).lines.filter((l) => l.section === 'openings' && l.estimated);
+    expect(unpicked.filter((l) => l.key === 'entrance_door')).toHaveLength(1);
+    expect(unpicked.find((l) => l.key === 'balcony_door')).toMatchObject({ unit: 'm2', roomName: expect.stringContaining('მისაღები') });
   });
 
   it('prices what the board has no place for as the calculator’s own lines, under the shop that sells it', () => {

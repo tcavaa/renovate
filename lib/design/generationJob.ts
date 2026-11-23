@@ -5,6 +5,8 @@
  * with what it is told (`generationAction`).
  */
 
+import type { PaidPlanId, PlanFeature } from '@/lib/plans/plans';
+
 export type GenerationStage = 'designing' | 'checking' | 'done' | 'failed';
 
 /** A job as `GET /api/design/ai-generate?projectId=` answers it. */
@@ -21,12 +23,23 @@ export interface GenerationJobView {
   reviewed: number | null;
 }
 
+/** A start the account's plan refuses (`refusedDesignChange`): the plan's feature it lacks, and the lowest paid plan that has it (null: none). */
+export interface PlanRefusal {
+  feature: PlanFeature;
+  plan: PaidPlanId | null;
+}
+
 /** What the style page is told: is the designer there, the project's last job, and is its design laid out on the server. */
 export interface GenerationStatus {
   enabled: boolean;
   job: GenerationJobView | null;
   /** The row's design is laid out (`scene.progress.generated`). */
   designGenerated: boolean;
+  /**
+   * The account's plan would refuse the designer's start (the start's own check, `PLAN_REQUIRED`):
+   * the page says so before the generation, and the engine lays the flat out. Null when it would not.
+   */
+  planRefused: PlanRefusal | null;
 }
 
 /**
@@ -111,11 +124,12 @@ export function wroteDesignersFlat(job: { stage: GenerationStage; hasProposal: b
 
 /**
  * Why the AI designer did not design the flat, as the person is told in the overlay
- * (`GenerationOverlay` `fallback`): its runs for this design used up (`limit`), too many asked
- * in a short while (`paused`), the design changed while it worked (`changed`), or anything else
- * (`failed`).
+ * (`GenerationOverlay` `fallback`): the person's plan does not include it (`plan` — said plainly,
+ * with the upgrade, never as a failure: the owner's decision 10a), its runs for this design used up
+ * (`limit`), too many asked in a short while (`paused`), the design changed while it worked
+ * (`changed`), or anything else (`failed`).
  */
-export type AiFallback = 'limit' | 'paused' | 'changed' | 'failed';
+export type AiFallback = 'plan' | 'limit' | 'paused' | 'changed' | 'failed';
 
 /**
  * Why a job ended with the engine's flat, or null when the designer's flat was laid out on the
@@ -129,11 +143,14 @@ export function aiFallback(job: Pick<GenerationJobView, 'error'> | null, laidOut
   if (!job) return laidOut ? null : 'failed';
   const error = readJobError(job.error);
   if (laidOut && (!error || error.step === 'check')) return null;
+  if (error?.code === 'PLAN_REQUIRED') return 'plan';
   return error?.code === 'CHANGED' || error?.code === 'PROJECT_CHANGED' ? 'changed' : 'failed';
 }
 
 /** Why the start route refused a job (`POST /api/design/ai-generate`: its status and `error`); no answer at all is status 0. */
 export function startRefusal(status: number, error: string | null): AiFallback {
+  // The plan's locks (`PLAN_REQUIRED`, 402): not a failure — the plan does not include it.
+  if (status === 402) return 'plan';
   if (status === 429) return error === 'AI_LIMIT' ? 'limit' : 'paused';
   if (status === 409) return 'changed';
   return 'failed';

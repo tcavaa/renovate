@@ -218,7 +218,14 @@ rooms. So:
   skirting board or cornice round every room. It is bought for what it is on (`placedQuantity`):
   the bundled sample image's (`public/samples/plan-2br.png`, read the CV way) 3 doors and 8 windows, a radiator's sections over all six radiators, a
   moulding's metres. The rest (sanitary ware, a pendant) is a line of its own at
-  `suggestedQuantity`, as is one whose kind the board has none of.
+  `suggestedQuantity`, as is one whose kind the board has none of. A door or window **with nothing
+  picked** is estimated (`openingEstimate`, the design's budget alike): a window by its area at the
+  window rate, an interior door apiece, the front door at the entrance door's price — and any other
+  door on an outside wall (a balcony's door out) as a **balcony door**, a glazed door in the
+  windows' category: its area at the window rate times its material (metal-plastic, aluminium or
+  wood, as a window's — the owner's decision 7, 23 Nov 2026), its own line ("საივნის კარი",
+  `balcony_door`). Before, it was a second entrance door (950 ₾); a 0.9 × 2.05 m metal-plastic one
+  is now 777 ₾ (1.85 m² × 420), so the sheet of a flat with such a door comes down.
 
 **How a room's picks are kept.**
 - Under the room's own key, `<slug>_room:<roomId>` (`selectionKey`), with `roomId` and

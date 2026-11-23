@@ -12,7 +12,8 @@
  *
  * When the AI designer was meant to design the flat and the engine laid it out instead
  * (`fallback`: why — `lib/design/generationJob` `AiFallback`), the overlay says so at the end and
- * waits for the person's press before the studio opens.
+ * waits for the person's press before the studio opens. A plan without the AI designer (`plan`) is
+ * no failure: the overlay says the standard engine made the flat and offers the upgrade (`onUpgrade`).
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -27,7 +28,7 @@ import { JOB_MAX_MINUTES, type AiFallback, type GenerationStage } from '@/lib/de
 const DESIGNER_FROM = 2;
 const CHECK_STEP = 6;
 
-export function GenerationOverlay({ open, onDone, ai = false, stage = 'done', fallback = null }: { open: boolean; onDone: () => void; ai?: boolean; stage?: GenerationStage; fallback?: AiFallback | null }) {
+export function GenerationOverlay({ open, onDone, onUpgrade, ai = false, stage = 'done', fallback = null }: { open: boolean; onDone: () => void; onUpgrade?: () => void; ai?: boolean; stage?: GenerationStage; fallback?: AiFallback | null }) {
   const t = useT();
   const steps = ai
     ? [t.build.genWalls, t.build.genOpenings, t.decor.genAiStep1, t.decor.genAiStep2, t.decor.genAiStep3, t.decor.genAiStep4, t.decor.genAiStep5, t.build.genWiring]
@@ -113,7 +114,27 @@ export function GenerationOverlay({ open, onDone, ai = false, stage = 'done', fa
             );
           })}
         </ul>
-        {done >= steps.length && fallback ? (
+        {done >= steps.length && fallback === 'plan' ? (
+          // The plan does not include the AI designer: said plainly, with the upgrade — not a failure.
+          <div className="mt-5 space-y-3">
+            <div className="flex items-start gap-2.5 rounded-2xl bg-mist-light p-3.5 text-sm text-ink">
+              <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-ink" />
+              <p>
+                <span className="font-semibold">{t.decor.genAiPlanTitle}.</span> {t.decor.genAiPlanEngine}
+              </p>
+            </div>
+            <div className="flex flex-wrap justify-end gap-2">
+              {onUpgrade && (
+                <Button size="sm" variant="outline" onClick={onUpgrade}>
+                  {t.decor.genAiPlanUpgrade}
+                </Button>
+              )}
+              <Button size="sm" variant="ink" onClick={() => doneRef.current()}>
+                {t.decor.genAiFallbackOpen}
+              </Button>
+            </div>
+          </div>
+        ) : done >= steps.length && fallback ? (
           <div className="mt-5 space-y-3">
             <div className="flex items-start gap-2.5 rounded-2xl bg-sun-soft p-3.5 text-sm text-ink">
               <Info className="mt-0.5 h-4 w-4 shrink-0 text-warning" />

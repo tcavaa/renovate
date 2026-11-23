@@ -12,7 +12,7 @@ import { MAX_AI_GENERATIONS, type AiProposal } from '@/lib/design/aiProposal';
 import { getArchetype } from '@/lib/design/catalog';
 import { picksFromCalculator } from '@/lib/design/fromCalculator';
 import { generateScene, layOutFlat, reviewedScene } from '@/lib/design/generateScene';
-import { DESIGN_DEADLINE_MS, REVIEW_DEADLINE_MS, REVIEW_START_MS, calledDesigner, isLive, isStale, jobError, wroteDesignersFlat, type GenerationJobView, type GenerationStage, type GenerationStatus, type JobErrorCode } from '@/lib/design/generationJob';
+import { DESIGN_DEADLINE_MS, REVIEW_DEADLINE_MS, REVIEW_START_MS, calledDesigner, isLive, isStale, jobError, wroteDesignersFlat, type GenerationJobView, type GenerationStage, type GenerationStatus, type JobErrorCode, type PlanRefusal } from '@/lib/design/generationJob';
 import { randomSeed } from '@/lib/design/random';
 import { ensureWalls } from '@/lib/design/walls';
 import type { DesignProgress, DesignScene, FloorPlan } from '@/lib/design/types';
@@ -99,6 +99,19 @@ function calculatorPicksOf(project: Project, scene: DesignScene) {
   return picksFromCalculator(project.selectedProducts as Record<string, SelectedProduct>, (project.selectedFurniture ?? {}) as Record<string, SelectedProduct[]>);
 }
 
+/**
+ * Whether the account's plan refuses the designer's generation of this design (the plan's locks:
+ * laying a laid-out flat out again without the catalogue, as the save route would) — the start's
+ * check, and what the style page is told before the generation (`GenerationStatus.planRefused`).
+ */
+async function planRefusesStart(project: Project, account: { id: number; role?: UserRole | null }): Promise<PlanRefusal | null> {
+  const plan = project.plan as FloorPlan | null;
+  const scene = project.scene as DesignScene | null;
+  if (!plan || plan.rooms.length === 0 || !scene) return null;
+  const refused = await refusedDesignChange(project, { plan, scene: { ...scene, generation: { by: 'ai', at: new Date().toISOString() } } }, account);
+  return refused ? { feature: refused.feature, plan: refused.plan === 'free' ? null : refused.plan } : null;
+}
+
 export type StartResult =
   | { ok: true; job: DesignJob; started: boolean }
   | { ok: false; error: 'PROJECT_NOT_FOUND' | 'PROJECT_CHANGED' | 'AI_LIMIT' | 'AI_PAUSED' | 'PLAN_REQUIRED' | 'NO_ROOMS'; status: number; feature?: string; plan?: string | null };
@@ -130,7 +143,7 @@ export async function startDesignJob(account: { id: number; role?: UserRole | nu
   const plan = owned.plan as FloorPlan | null;
   const scene = owned.scene as DesignScene | null;
   if (!plan || plan.rooms.length === 0 || !scene) return { ok: false, error: 'NO_ROOMS', status: 400 };
-  const refused = await refusedDesignChange(owned, { plan, scene: { ...scene, generation: { by: 'ai', at: new Date().toISOString() } } }, account);
+  const refused = await planRefusesStart(owned, account);
   if (refused) return { ok: false, error: 'PLAN_REQUIRED', status: 402, feature: refused.feature, plan: refused.plan };
 
   return withJobLock(input.projectId, async ({ latest, designRev, jobs, insert }): Promise<StartResult> => {
@@ -450,14 +463,20 @@ export async function settleStaleJob(projectId: number, now: Date = new Date()):
 }
 
 /**
- * What the style page asks every few seconds: the project's last job (a dead one settled first) and
- * whether its design is laid out on the server. Null when the project is not the account's. Reads
- * the row's small columns only — the scene is large.
+ * What the style page asks every few seconds: the project's last job (a dead one settled first),
+ * whether its design is laid out on the server, and whether the account's plan would refuse the
+ * designer's start (`planRefusesStart`). Null when the project is not the account's. Reads the
+ * row's small columns only — the scene is large — unless the flat is laid out with no job running:
+ * only then can the plan refuse a start (before the layout every plan may generate).
  */
-export async function generationStatus(projectId: number, userId: number): Promise<Omit<GenerationStatus, 'enabled'> | null> {
-  if (!(await projectGenerated(projectId, userId))) return null;
+export async function generationStatus(projectId: number, account: { id: number; role?: UserRole | null }): Promise<Omit<GenerationStatus, 'enabled'> | null> {
+  if (!(await projectGenerated(projectId, account.id))) return null;
   const job = await settleStaleJob(projectId);
   // Read after the settling, which may have laid the flat out.
-  const row = await projectGenerated(projectId, userId);
-  return { job: job ? jobView(job) : null, designGenerated: row?.generated === true };
+  const row = await projectGenerated(projectId, account.id);
+  const designGenerated = row?.generated === true;
+  const running = !!job && isLive(job.stage);
+  const owned = designGenerated && !running ? await ownedProject(projectId, account.id) : null;
+  const planRefused = owned ? await planRefusesStart(owned, account) : null;
+  return { job: job ? jobView(job) : null, designGenerated, planRefused };
 }

@@ -20,6 +20,7 @@ export function budgetLineName(t: Dictionary, line: Pick<BudgetLine, 'key' | 'se
   if (line.key === 'window') return t.build.lineWindow;
   if (line.key === 'door') return t.build.lineDoor;
   if (line.key === 'entrance_door') return t.build.lineEntranceDoor;
+  if (line.key === 'balcony_door') return t.build.lineBalconyDoor;
   if (line.key === 'kitchen_run_custom') return t.build.lineKitchenRun;
   if (line.key === 'kitchen_island_custom') return t.build.lineKitchenIsland;
   if (line.key === 'kitchen_wall_custom') return t.build.lineKitchenWall;

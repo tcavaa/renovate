@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Sparkles } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { DesignSteps } from '@/components/design/DesignSteps';
@@ -20,7 +21,10 @@ import { useProjectId } from '@/components/projects/ProjectGate';
 import { useDesignCatalog } from '@/hooks/useDesignCatalog';
 import { useLocale, useT } from '@/lib/i18n/client';
 import { generationStatus, startAiGeneration } from '@/lib/design/aiDesignClient';
-import { aiFallback, generationAction, JOB_POLL_MS, type AiFallback, type GenerationStage, type GenerationStatus } from '@/lib/design/generationJob';
+import { aiFallback, generationAction, JOB_POLL_MS, type AiFallback, type GenerationStage, type GenerationStatus, type PlanRefusal } from '@/lib/design/generationJob';
+import { PlanBadge } from '@/components/plans/PlanBadge';
+import { usePlanStore } from '@/store/planStore';
+import type { PlanFeature } from '@/lib/plans/plans';
 import { MAX_AI_GENERATIONS } from '@/lib/design/aiProposal';
 import { dropCachedCopy } from '@/lib/flow/projectSync';
 import { formatM2 } from '@/lib/utils';
@@ -45,7 +49,9 @@ type Run = { kind: 'engine'; fallback: AiFallback | null } | { kind: 'ai'; stage
  * and when it is done reads the design again from the server and opens the studio. Closing the
  * page or losing the connection stops none of it: opening the project again lands here while the
  * job runs (and waits on it again) or in the studio once it is done. Without the designer, or when
- * the job fails, the engine lays the flat out here, as always.
+ * the job fails, the engine lays the flat out here, as always. A plan that does not include the
+ * designer (the plan's locks, `planRefused`) is said before the press, with the upgrade, and the
+ * engine lays the flat out without asking the server.
  */
 export default function StylePage() {
   const t = useT();
@@ -59,6 +65,11 @@ export default function StylePage() {
   const [hinge, setHinge] = useState(false);
   /** The AI designer is there (a key on the server). */
   const [aiEnabled, setAiEnabled] = useState(false);
+  /** The person's plan does not include the designer's start (the plan's locks): told before the generation, and the engine lays the flat out. */
+  const [planRefused, setPlanRefused] = useState<PlanRefusal | null>(null);
+  /** The feature the plan lacks, for the upgrade the overlay offers after a refused start. */
+  const [upgradeFeature, setUpgradeFeature] = useState<PlanFeature>('catalog');
+  const requestUpgrade = usePlanStore((s) => s.requestUpgrade);
   const [run, setRun] = useState<Run | null>(null);
   /** This page started the job, or found it running, and waits on it. */
   const waiting = useRef(false);
@@ -132,6 +143,8 @@ export default function StylePage() {
     void generationStatus(projectId).then((status) => {
       if (!live || !status) return;
       setAiEnabled(status.enabled);
+      setPlanRefused(status.planRefused);
+      if (status.planRefused) setUpgradeFeature(status.planRefused.feature);
       follow(status);
     });
     return () => {
@@ -192,6 +205,11 @@ export default function StylePage() {
       layOutWithEngine(null);
       return;
     }
+    // The plan does not include the designer (said before the press): the engine, and the upgrade offered.
+    if (planRefused) {
+      layOutWithEngine('plan');
+      return;
+    }
     // The design's AI runs used up (the server counts them too): the engine, and the person told.
     if ((generation?.aiCount ?? 0) >= MAX_AI_GENERATIONS) {
       layOutWithEngine('limit');
@@ -201,7 +219,10 @@ export default function StylePage() {
     setRun({ kind: 'ai', stage: 'designing', fallback: null });
     const started = await startAiGeneration({ projectId, baseRev: useDesignStore.getState().baseRev ?? 0, locale: locale as 'ka' | 'en' | 'ru' });
     if ('job' in started) follow({ job: started.job, designGenerated: false });
-    else layOutWithEngine(started.refused);
+    else {
+      if (started.feature) setUpgradeFeature(started.feature);
+      layOutWithEngine(started.refused);
+    }
   };
 
   /** The overlay has finished: the studio — the engine's flat as it is here, the server's read again from the server. */
@@ -276,6 +297,18 @@ export default function StylePage() {
           />
         </section>
 
+        {/* Told before the generation: the plan does not include the AI designer, so the standard engine lays the flat out. */}
+        {aiEnabled && planRefused && (
+          <div className="mt-10 flex flex-wrap items-start gap-3 rounded-2xl bg-mist-light p-4 text-sm text-ink">
+            <Sparkles className="mt-0.5 h-4 w-4 shrink-0" />
+            <p className="min-w-0 flex-1">{t.decor.genAiPlanBefore}</p>
+            <Button size="sm" variant="outline" onClick={() => requestUpgrade({ feature: planRefused.feature })} className="gap-1.5">
+              {t.decor.genAiPlanUpgrade}
+              {planRefused.plan && <PlanBadge plan={planRefused.plan} iconOnly />}
+            </Button>
+          </div>
+        )}
+
         {error && <p className="mt-6 rounded-xl bg-coral-soft px-4 py-3 text-sm font-medium text-danger">{t.design.catalogError}</p>}
       </div>
 
@@ -292,7 +325,18 @@ export default function StylePage() {
       {hinge && (
         <HingeDialog open onOpenChange={setHinge} kind="design" save={saveBeforeGenerating} onConfirm={generateNow} />
       )}
-      <GenerationOverlay open={generating} ai={run?.kind === 'ai'} stage={run?.kind === 'ai' ? run.stage : 'done'} fallback={run?.fallback ?? null} onDone={opened} />
+      <GenerationOverlay
+        open={generating}
+        ai={run?.kind === 'ai'}
+        stage={run?.kind === 'ai' ? run.stage : 'done'}
+        fallback={run?.fallback ?? null}
+        onDone={opened}
+        // The studio opens with the upgrade dialogue over it (the engine's flat: no reload drops it).
+        onUpgrade={() => {
+          requestUpgrade({ feature: upgradeFeature });
+          opened();
+        }}
+      />
     </>
   );
 }

@@ -227,15 +227,33 @@ describe('a room the app tiles', () => {
     const oak = finish(13, 'laminate', ['floor'], { textureUrl: scandinavian.surfaces.floor.textureUrl! });
     const shop = [terracotta, slate, microcement, oak];
 
-    it('on a balcony, most often of all the tiles', () => {
-      const drawn = new Map<number, number>();
+    it('on a balcony and in a closed kitchen, every draw: the style’s own floor first (decision 6)', () => {
+      // Scandinavian's closed kitchen is terrazzo: a tile of its own look in the catalogue.
+      const terrazzo = finish(14, 'floor-tiles', ['floor', 'wall'], { wet: true, price: 39, textureUrl: scandinavian.rooms.kitchen!.floor!.textureUrl! });
+      const withTerrazzo = [...shop, terrazzo];
       for (let seed = 1; seed <= 200; seed++) {
-        const id = generatedFinish(balcony, 'floor', 'scandinavian', shop, seededRng(seed)).product!.productId;
-        drawn.set(id, (drawn.get(id) ?? 0) + 1);
+        expect(generatedFinish(balcony, 'floor', 'scandinavian', withTerrazzo, seededRng(seed)).product!.productId, `seed ${seed}`).toBe(terracotta.id);
+        expect(generatedFinish(closedKitchen, 'floor', 'scandinavian', withTerrazzo, seededRng(seed)).product!.productId, `seed ${seed}`).toBe(terrazzo.id);
       }
-      expect(drawn.get(oak.id)).toBeUndefined();
-      expect(drawn.get(terracotta.id) ?? 0).toBeGreaterThan(Math.max(drawn.get(slate.id) ?? 0, drawn.get(microcement.id) ?? 0));
       expect(styleFinishProduct(shop, balcony, 'floor', 'scandinavian')?.id).toBe(terracotta.id);
+    });
+
+    it('draws as before where the style has no floor of its own for the room, and the room’s walls are drawn as they were', () => {
+      // No terrazzo in the catalogue: the closed kitchen's floor is drawn among the tiles.
+      const drawn = new Set<number>();
+      for (let seed = 1; seed <= 200; seed++) drawn.add(generatedFinish(closedKitchen, 'floor', 'scandinavian', shop, seededRng(seed)).product!.productId);
+      expect(drawn.size).toBeGreaterThan(1);
+      expect(drawn.has(oak.id)).toBe(false);
+      // The floor's draw is still taken, so the wall after it draws the same numbers.
+      const walls = [finish(15, 'paint', ['wall']), finish(16, 'paint', ['wall']), finish(17, 'paint', ['wall'], { textureUrl: scandinavian.rooms.balcony!.wall!.textureUrl! })];
+      for (let seed = 1; seed <= 40; seed++) {
+        const rng = seededRng(seed);
+        generatedFinish(balcony, 'floor', 'scandinavian', [...shop, ...walls], rng);
+        const after = generatedFinish(balcony, 'wall', 'scandinavian', [...shop, ...walls], rng).product?.productId;
+        const alone = seededRng(seed);
+        alone();
+        expect(after).toBe(generatedFinish(balcony, 'wall', 'scandinavian', [...shop, ...walls], alone).product?.productId);
+      }
     });
 
     it('and the pass that keeps the style’s finishes keeps it there', () => {

@@ -172,7 +172,7 @@ fittings come from a shop below `FREE_DELIVERY_THRESHOLD_GEL`** — that shop wa
 charge for the van; the budget now says so.
 
 `priceScene` returns `lines` — one `BudgetLine` per product, finish (m²), door or
-window (its product, else an estimate — `OPENING_ESTIMATE_GEL`; a pair of interior door halves counted once),
+window (its product, else an estimate — `openingEstimate`: a window and a balcony door — a door on an outside wall that is not the flat's front door — by their area at the window rate and material, an interior door apiece, the front door at `ENTRANCE_DOOR_GEL`, each its own line key, `balcony_door` among them; a pair of interior door halves counted once),
 electrical kind (materials + per-point labour from the rate book: `electric_point`, with an
 LED strip or a furniture light counted as half a point — `ELECTRICAL_LABOUR`), technical point
 (`TECHNICAL_RATES`: `plumbing_install`, `radiator_mount`, `heating_piping`, `ac_install`,
@@ -282,7 +282,11 @@ it made to measure, a shop's unit makes it that unit (sized by the product, its 
 dropped). An item saved before `custom` was set is made to measure when it carries a material
 (every kitchen was given one then) or its product is a material, a shop's unit otherwise. Generating a design lays the kitchen's wall run made to
 measure in a material drawn for the style — and about a third of the time
-(`STORE_KITCHEN_SHARE`) a shop's unit that fits the run instead; an island is a shop's island
+(`STORE_KITCHEN_SHARE`) a shop's unit that fits the run instead (90–100 % of its length): taken by
+its kind, not its name (decision 9 — none of the shops' names says sink and hob, so none was ever
+generated), as long as it has a run's shape (`KIND_BOUNDS`: worktop-high, a cabinet's depth, 1.8 m or
+longer, not tall units alone — [catalog.md](catalog.md#what-generation-refuses)); in the 792 fixture
+flats 27 of 858 runs are a shop's (0 before). An island is a shop's island
 ([design-studio/layout-and-matching.md](design-studio/layout-and-matching.md#generating-is-random)).
 
 **Wall (hanging) cabinets are a piece of their own** (`kitchen_wall`, hung with their bottom at
