@@ -242,8 +242,8 @@ scene ──tightSpots──▶ amber warnings (not a rule)
   (`TV_UNIT_CLEAR_M`); with no spot that does, there is no TV unit (and so no TV).
 - **A bookcase stands beside or behind the sofa** (+8 behind, +4 beside), never on the TV's wall in
   its line of sight (−20). **A wardrobe stands beside the bed** (+6 on a side wall), never facing it
-  from its foot (−20), and every bedroom of 8 m² or more has one (the program has no gate, but the
-  archetype's 8 m² still applies — [generation-audit.md](generation-audit.md), M5).
+  from its foot (−20), and every bedroom has one, whatever its size — smaller where it must be
+  (the bedroom's ladder, below).
 - **Windows by style** (`windowDressing` in `rules.ts`, `LayoutOptions.styleId`): the program's
   curtain is a roller blind (`blind`, an archetype of the curtain's slot — sized to its window,
   `quantityFor` one a window) in a Modern or Industrial flat and in every kitchen, bathroom and
@@ -345,6 +345,34 @@ from it is in [overview.md](overview.md#generation-versions-and-undo).
 
 ## Layout fallbacks that keep rooms furnished (`autoLayout.ts`, `matcher.ts`)
 
+- **A bedroom's bed, nightstands and wardrobe are laid out together** (`layoutBedroom`, Nini's
+  decision 3.2 — [design-rules.md](design-rules.md#the-fourth-round-generation-decisions-nini-23-nov-2026)).
+  A room under 11 m² takes a single bed (`SINGLE_BED_UNDER_M2`, `resolveVariant`). The
+  bed is tried by its ladder (`bedRungs`), in her order: the 1.6 m double with its head on a wall,
+  the 1.4 m double (`NARROW_DOUBLE_BED_M`), each with **its long side on a wall**
+  (`placeBedAlongWall`: 2 cm off the wall, under a window whose sill clears the mattress —
+  `BED_SIDE_HEIGHT_M`, 60 cm — never along a door, best with its head in a corner with no window
+  behind the headboard, its open side 60 cm free, away from the door and out of its sight; its one
+  nightstand stands on the free side, as `placeRelative` finds the wall side shut), then the single
+  head on a wall and along one. With each bed, its nightstands as always, then the wardrobe: the
+  usual one (a niche, else 1.8 m narrowed to 1.44 and 1.17), else a compact one 1.0 or 0.8 m wide,
+  else a shallow one 38 cm deep, 1.2–0.8 m wide (`SMALLER_WARDROBES_M`); where none stands, one
+  nightstand in place of two (either side), else none. The first bed with which the wardrobe and a
+  nightstand stand is taken — a double "fits" when its essentials do, else the single — then the
+  first with its wardrobe (a must), the first with a nightstand, the first bed at all (the bed comes
+  first); with no bed, the wardrobe alone. A 1.6 m double that keeps one nightstand gives way to the
+  1.4 m one where that keeps both (her 1.4 m double ranks before one nightstand). The room's door
+  zone, her first fallback, is decision 12's (above). The first try is the room as it was always
+  laid out, with the room's draw; every fallback is laid at its best spot with no draw, so the room's
+  decor is drawn from the same numbers whichever bed it got (and a wardrobe in a room under the
+  archetype's 8 m², where none was laid before, is laid without a draw too). The essentials come
+  first in the program, so the chest of drawers, the rug, the lamps, the plant and the stool are laid
+  round them. Over the 792 audit flats: every bedroom has its bed (96 had none) and its wardrobe (100
+  had none), 26 have no nightstand (165); 192 doubles in rooms of 9–11 m² are singles by the 11 m²
+  rule; the fixtures' doubles all stand 1.6 m head on (the 1.4 m and side-on rungs are exercised by
+  the unit tests), 68 singles stand along a wall. Where the single's nightstand would take the only
+  wardrobe's floor (#389's 6.27 m² bedroom, open on two sides) the wardrobe wins.
+
 - Storage against a wall, the three-seat sofa and the desk (`NARROWABLE`) retry at 80 % and
   65 % of their default width when
   the full width finds no wall — and the matcher then scores down products wider than the slot
@@ -395,8 +423,15 @@ that fits takes it:
    a kindred tag — before 0);
 4. for a corner sofa, the other styles' three-seats.
 
-A double bed takes steps 1 and 3 only — never a single bed (the catalogue's "single beds" are day
-beds and a bunk). What a slot can hold (`slotPool`) and what the style keeps out of a flat
+A double bed takes steps 1 and 3 first, and **a single bed only after every style's doubles**
+(`SMALLER_KIND`, `SMALLER_LAST`: a double of another style before a single; Nini's last fallback,
+"a single bed when no double fits"). The passes are the outer loop, so a single that keeps a door's
+way and a radiator's floor clear is taken before a double that only stands in them. The single beds
+generation takes are ones a grown-up sleeps in — 80 cm wide and 1.8 m long or more (`KIND_BOUNDS`):
+of the six filed single, a 54 × 122 cm one is not to scale, a 1.31 × 1.66 m daybed is a sofa's length
+and a 1.97 m × 85 cm day bed is modelled sideways (RB5); the bed's slot is laid as high as a headboard
+(1.05 m), so it is never put under a window sill the catalogue's singles (1.2–1.6 m at the head)
+would block. What a slot can hold (`slotPool`) and what the style keeps out of a flat
 (`styleRejects`: nothing black in a Scandinavian one) hold at every step. **A product of another
 kind makes the piece that kind**: a three-seat in a corner sofa's slot is a `sofa_3seat` in the
 `sofa` slot — its label, its swap list and its box are a three-seat's — standing with its back on
@@ -782,7 +817,8 @@ fit with rooms, not through the end of a partial wall, the model filter, a produ
 corner of a room, a chair tucked under its table — both get products, no table over more than
 half the chair, a chair seated clear still in the table's way),
 `tests/unit/design/matcherStyle.test.ts` (a slot none of the style's own fits: a three-seat of the
-style in a corner sofa's slot, then the nearest other style's, a double bed never a single, no
+style in a corner sofa's slot, then the nearest other style's, a double bed's another style's double
+before a single and a single only where no double fits, no single that is not to scale, no
 black in a Scandinavian flat's way out, the same product for the same seed where an own one fits; a
 kind with no product takes its slot's other kinds'),
 `tests/unit/design/matcherFit.test.ts` (a slot that got no product in nothing's way; a door's
@@ -800,9 +836,15 @@ nothing of a layout standing through a wall, on project 219's corner),
 `tests/unit/design/layoutRules.test.ts` (the rules a room is laid out by, each on a small room: a
 living room open onto the next room has its TV unit on a wall with the whole of its back, on every
 draw, and one with no wall for it keeps its unit; a TV hangs across the joint of a wall drawn as
-two edges, clear of a window in the next edge; a 1.6 m bed on a 1.84 m wall; the washing machine in
+two edges, clear of a window in the next edge; a 1.6 m bed on a 1.84 m wall (`placeAdditional`); the washing machine in
 the hall, else in a studio's kitchen half, none in a flat with no bathroom — in a kitchen off the
 floor its corner is then built on, and kept where the kitchen has no other wall for it),
+`tests/unit/design/bedroomLadder.test.ts` (a single under 11 m², never under a sill; the bed's
+ladder in Nini's order; the 1.6 m double kept where it fits, the 1.4 m one where it keeps both
+nightstands, the double along a wall with its one nightstand on the free side, a single in a room of
+11 m² or more no double fits with its essentials; the wardrobe compact, shallow, in a room under
+8 m², taking a nightstand's floor in #389's bedroom; the essentials laid first; the single beds
+generation takes),
 `tests/unit/design/placementSettle.test.ts` (nightstands beside the bed's head, laid out and with a
 wider real bed; a shallower wardrobe kept on its wall; the bathroom mirror over the basin at eye level
 and only standing basins; a floor mirror standing; the desk chair under the desk; room to walk past a

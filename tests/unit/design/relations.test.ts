@@ -66,8 +66,8 @@ describe('what a kind is arranged off', () => {
   });
 
   it('lays a rug under its piece or the room\'s main piece — never under whatever stands first', () => {
-    // A bedroom too narrow for any bed gets its wardrobe, and no rug under it.
-    const narrow = rect('b', 'bedroom', 1.5, 6.4);
+    // A bedroom too narrow for any bed — a single's 95 cm either way — gets its wardrobe, and no rug under it.
+    const narrow = rect('b', 'bedroom', 0.9, 6.4);
     const laid = layoutRoom(narrow);
     expect(laid.some((i) => i.slot === 'bed')).toBe(false);
     expect(laid.some((i) => i.slot === 'wardrobe')).toBe(true);

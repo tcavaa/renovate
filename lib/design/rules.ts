@@ -317,6 +317,27 @@ export function doorZones(edge: Pick<PlanEdge, 'a' | 'b' | 'dir' | 'inward'>, op
 
 /** Free beside a double bed, each side: 60–70 cm. */
 export const BED_SIDE_FREE_M = 0.6;
+/** A bedroom under this takes a single bed, not a double (Nini, 23 Nov 2026, decision 3.2): 11 m². */
+export const SINGLE_BED_UNDER_M2 = 11;
+/** The narrower double a bedroom is tried with when the 1.6 m one finds no wall (decision 3.2). */
+export const NARROW_DOUBLE_BED_M = 1.4;
+/**
+ * How high a bed reaches along its long side — the mattress, not the headboard: a bed with its long
+ * side on a wall stands under a window whose sill is higher (decision 3.2's third fallback).
+ */
+export const BED_SIDE_HEIGHT_M = 0.6;
+/**
+ * The smaller wardrobes a bedroom is given when the usual one (1.8 m, narrowed to 1.44 and 1.17)
+ * finds no wall — a wardrobe is a must, smaller if need be (decision 3.2): compact ones a full
+ * wardrobe's depth, then shallow ones (`SHALLOW_WARDROBE_DEPTH_M`). Width × depth, metres.
+ */
+export const SMALLER_WARDROBES_M: ReadonlyArray<{ width: number; depth: number }> = [
+  { width: 1.0, depth: 0.62 },
+  { width: 0.8, depth: 0.62 },
+  { width: 1.2, depth: 0.38 },
+  { width: 1.0, depth: 0.38 },
+  { width: 0.8, depth: 0.38 },
+];
 /** From the sofa to the screen: 2.5–3.5 m. */
 export const SOFA_TV_M = { min: 2.5, max: 3.5 } as const;
 /** The coffee table's edge from the sofa's front: 40–45 cm. */

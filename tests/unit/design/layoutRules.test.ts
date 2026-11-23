@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { layoutPlan, layoutRoom } from '@/lib/design/autoLayout';
+import { layoutPlan, layoutRoom, placeAdditional } from '@/lib/design/autoLayout';
 import { fitKitchenCorners, kitchenLegOf } from '@/lib/design/kitchenCorner';
 import { pieceWall } from '@/lib/design/manipulate';
 import { isOpenEdge, refreshRoom } from '@/lib/design/planGeometry';
@@ -165,9 +165,9 @@ describe('bedrooms', () => {
 describe('a piece that fits its wall', () => {
   it('stands on it: a 1.6 m bed on a 1.84 m wall', () => {
     // Test project 388's bedroom, 1.84 × 4.94 m: each short wall has 12 cm to spare either side
-    // of the bed, and was passed over for being less than 25 cm longer than it.
-    const items = layoutRoom(room('n', 'bedroom', 1.84, 4.94));
-    const bed = items.find((i) => i.slot === 'bed');
+    // of the bed, and was passed over for being less than 25 cm longer than it. (Laid out, the room
+    // takes a single — it is under 11 m², and no nightstand stands beside a double there.)
+    const bed = placeAdditional(room('n', 'bedroom', 1.84, 4.94), 'bed_double', []);
     expect(bed?.kind).toBe('bed_double');
     expect(bed!.position.x - bed!.size.width / 2).toBeGreaterThan(0);
     expect(bed!.position.x + bed!.size.width / 2).toBeLessThan(1.84);

@@ -47,6 +47,9 @@ describe('generating whole flats', () => {
       'rule:socket_in_splash',
       'two_main_lights',
       'missing:living_room:sofa',
+      // Every bedroom has its bed and its wardrobe (Nini, decision 3.2: the bed's ladder, the wardrobe a must).
+      'missing:bedroom:bed',
+      'missing:bedroom:wardrobe',
       'basin_in_air',
       'hung_clash',
       'in_shower_tray',

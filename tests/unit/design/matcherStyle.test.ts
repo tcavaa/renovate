@@ -118,7 +118,7 @@ describe('a double bed slot none of the style\'s doubles fits', () => {
   const wideModern = product(11, 'bed_double', 240, 215, ['modern'], { categorySlug: 'beds' });
   const wardrobe = product(19, 'wardrobe', 180, 62, ['modern'], { categorySlug: 'wardrobes', heightCm: 225 });
 
-  it('takes another style\'s double that fits, never a single', () => {
+  it('takes another style\'s double that fits before a single, and a single when no double fits', () => {
     const single = product(12, 'bed_single', 95, 200, ['modern'], { categorySlug: 'beds' });
     const other = product(13, 'bed_double', 160, 205, ['scandinavian'], { categorySlug: 'beds' });
     for (const seed of [undefined, 1, 2]) {
@@ -126,10 +126,17 @@ describe('a double bed slot none of the style\'s doubles fits', () => {
       expect(bed.product?.productId).toBe(13);
       expect(bed.kind).toBe('bed_double');
     }
-    const [none] = match([bedSlot(), wardrobeSlot()], [wideModern, single, wardrobe], 'modern', [bedroom]);
-    expect(none.product).toBeNull();
-    // Not even where the catalogue has no double at all.
-    expect(match([bedSlot(), wardrobeSlot()], [single, wardrobe], 'modern', [bedroom])[0].product).toBeNull();
+    // No double of any style fits: the single (Nini, decision 3.2's last fallback), a single bed's slot.
+    const [smaller] = match([bedSlot(), wardrobeSlot()], [wideModern, single, wardrobe], 'modern', [bedroom]);
+    expect(smaller.product?.productId).toBe(12);
+    expect(smaller.kind).toBe('bed_single');
+    expect(smaller.slot).toBe('bed');
+    // A single another style's, where the flat's style has none.
+    const vintageSingle = product(14, 'bed_single', 90, 200, ['vintage'], { categorySlug: 'beds' });
+    expect(match([bedSlot(), wardrobeSlot()], [wideModern, vintageSingle, wardrobe], 'modern', [bedroom])[0].product?.productId).toBe(14);
+    // A "single" that is no bed to sleep in (54 × 122 cm, `KIND_BOUNDS`) is never taken.
+    const toy = product(15, 'bed_single', 54, 122, ['modern'], { categorySlug: 'beds' });
+    expect(match([bedSlot(), wardrobeSlot()], [wideModern, toy, wardrobe], 'modern', [bedroom])[0].product).toBeNull();
   });
 
   it('keeps the style\'s own wherever one fits', () => {

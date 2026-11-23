@@ -12,7 +12,7 @@
  */
 
 import type { RoomType } from '@/lib/calculator/types';
-import { COFFEE_TABLE_GAP_M, TV_CENTRE_M, WALL_UNIT_BOTTOM_M } from './rules';
+import { COFFEE_TABLE_GAP_M, SINGLE_BED_UNDER_M2, TV_CENTRE_M, WALL_UNIT_BOTTOM_M } from './rules';
 import type { SlotKind } from './types';
 
 export interface Size3 {
@@ -134,7 +134,9 @@ export const ARCHETYPES: Record<string, Archetype> = {
     labelEn: 'Single bed',
     labelRu: 'Односпальная кровать',
     categorySlug: 'beds',
-    size: { width: 0.95, depth: 2.0, height: 0.95 },
+    // As high as a double's headboard: the catalogue's single beds stand 1.2–1.6 m at the head, and a
+    // slot 95 cm high was laid under a window sill (90 cm) where none of them may stand (RB5).
+    size: { width: 0.95, depth: 2.0, height: 1.05 },
     placement: { type: 'wall', prefer: 'longest', clearanceM: 0.6 },
     priority: 100,
   },
@@ -689,8 +691,9 @@ export const ROOM_PROGRAMS: Record<RoomType, ProgramEntry[]> = {
   bedroom: [
     { kind: 'bed_double', count: 1 },
     { kind: 'nightstand', count: 2 },
-    // Always a wardrobe (the owner's notes): built into a niche when the room has one.
-    { kind: 'wardrobe', count: 1 },
+    // Always a wardrobe (the owner's notes), in a room of any size — smaller where it must be (Nini,
+    // decision 3.2; the layout's ladder, `layoutBedroom`): built into a niche when the room has one.
+    { kind: 'wardrobe', count: 1, minAreaM2: 0 },
     { kind: 'dresser', count: 1, minAreaM2: 13 },
     { kind: 'rug_bed', count: 1 },
     { kind: 'pendant', count: 1 },
@@ -804,7 +807,9 @@ export function resolveVariant(entry: ProgramEntry, roomAreaM2: number): string 
   if (entry.kind === 'sofa_3seat' && entry.preferAboveM2 && roomAreaM2 >= entry.preferAboveM2) {
     return 'sofa_corner';
   }
-  if (entry.kind === 'bed_double' && roomAreaM2 < 9) return 'bed_single';
+  // A bedroom under 11 m² takes a single bed (Nini, decision 3.2); a larger one whose doubles find no
+  // wall falls back to a single as the layout's last rung (`layoutBedroom`).
+  if (entry.kind === 'bed_double' && roomAreaM2 < SINGLE_BED_UNDER_M2) return 'bed_single';
   return entry.kind;
 }
 

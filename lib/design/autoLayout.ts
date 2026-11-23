@@ -56,6 +56,7 @@ import {
   BATH_PASSAGE_M,
   BATH_PASSAGE_MIN_M,
   BED_SIDE_FREE_M,
+  BED_SIDE_HEIGHT_M,
   BLIND_LOWERED,
   BLIND_OVER_HEAD_M,
   BLIND_OVERLAP_M,
@@ -63,7 +64,9 @@ import {
   DINING_SEAT_M,
   FACING_COUNTERS_M,
   KITCHEN_CIRCULATION_M,
+  NARROW_DOUBLE_BED_M,
   SHALLOW_WARDROBE_DEPTH_M,
+  SMALLER_WARDROBES_M,
   BATH_WITH_SHOWER_M2,
   SHOWER_FIRST_STYLES,
   SHOWER_LONG_M2,
@@ -418,7 +421,11 @@ function layoutArea(room: PlanRoom, options: LayoutOptions, idPrefix: string, do
     };
   };
 
+  // A bedroom's bed, nightstands and wardrobe are laid out together, by its ladder (`layoutBedroom`).
+  const together = room.type === 'bedroom' ? layoutBedroom({ room, edges, program, pieceOf, options, doorBands, state: { placed, occupied, passages }, stand, nextId }) : null;
+
   for (const [at, entry] of program.entries()) {
+    if (together?.has(entry)) continue;
     const piece = pieceOf(entry);
     if (!piece) continue;
     const { kind, archetype } = piece;
@@ -534,6 +541,243 @@ function additionalPiece(room: PlanRoom, kind: string, existing: PlacedItem[], s
     size: pose.size,
     product: null,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Bedrooms: the bed, the nightstands and the wardrobe together
+// ---------------------------------------------------------------------------
+
+/** What a room's layout has stood so far: its pieces, the floor taken, a wet room's passages. */
+interface LayoutState {
+  placed: PlacedItem[];
+  occupied: Box[];
+  passages: Box[];
+}
+
+/** One way a bedroom's bed is tried (`bedRungs`): its kind, its width, and whether its long side is on a wall. */
+export interface BedRung {
+  kind: 'bed_double' | 'bed_single';
+  width: number;
+  alongWall: boolean;
+}
+
+/**
+ * The beds a bedroom is tried with, in Nini's order (decision 3.2), the first that stands taken: the
+ * double 1.6 m wide with its head on a wall, then 1.4 m wide (`NARROW_DOUBLE_BED_M`), then each with
+ * its long side on a wall — one side reachable, the nightstand on the free side — and last a single,
+ * head on a wall, then along one. A room under 11 m² (`SINGLE_BED_UNDER_M2`, `resolveVariant`) is
+ * given the single's two alone. (The door's clear floor, her first fallback, is decision 12's.)
+ */
+export function bedRungs(kind: string): BedRung[] {
+  const double = ARCHETYPES.bed_double.size.width;
+  const single = ARCHETYPES.bed_single.size.width;
+  const singles: BedRung[] = [{ kind: 'bed_single', width: single, alongWall: false }, { kind: 'bed_single', width: single, alongWall: true }];
+  if (kind !== 'bed_double') return singles;
+  return [
+    { kind: 'bed_double', width: double, alongWall: false },
+    { kind: 'bed_double', width: NARROW_DOUBLE_BED_M, alongWall: false },
+    { kind: 'bed_double', width: double, alongWall: true },
+    { kind: 'bed_double', width: NARROW_DOUBLE_BED_M, alongWall: true },
+    ...singles,
+  ];
+}
+
+/** A piece a trial stood, in order: what `layoutBedroom` stands for real once it has chosen. */
+interface TrialStep {
+  kind: string;
+  archetype: Archetype;
+  pose: Pose;
+}
+
+/** What laying a bedroom out with one bed (`BedRung`) gave: the pieces in order, and what of the essentials stood. */
+interface BedroomTrial {
+  steps: TrialStep[];
+  bed: boolean;
+  nightstands: number;
+  wardrobe: boolean;
+}
+
+/**
+ * A bedroom's essentials laid out together (Nini, 23 Nov 2026, decision 3.2: "the wardrobe has to be
+ * in a bedroom, but smaller"): the bed by its ladder (`bedRungs`), its nightstands, and the wardrobe —
+ * the usual one, else a compact or a shallow one (`SMALLER_WARDROBES_M`), else with one nightstand in
+ * place of two, else with the next bed of the ladder. The first bed with which a wardrobe and a
+ * nightstand stand is taken; with none, the first with a wardrobe, then the first with a nightstand,
+ * then the first bed that stands at all (the bed always comes first); with no bed, the wardrobe
+ * alone. A 1.6 m double that keeps only one nightstand gives way to the 1.4 m one where that keeps
+ * both (her 1.4 m double ranks before one nightstand).
+ *
+ * The essentials take the floor before anything decorative (a chest of drawers, the rug, the lamps,
+ * the plant, the stool): they come first in the room's program, and the rest is laid out round them.
+ *
+ * The first try is the room as it was always laid out, with the room's draw; every fallback is laid
+ * at its best spot without a draw, so the room's decor is drawn from the same numbers whichever bed
+ * it got. Stands the chosen pieces into `state`; returns the program's entries it laid (none when
+ * the room's program has no bed).
+ */
+function layoutBedroom(ctx: {
+  room: PlanRoom;
+  edges: PlanEdge[];
+  program: ProgramEntry[];
+  pieceOf: (entry: ProgramEntry) => { kind: string; archetype: Archetype } | null;
+  options: LayoutOptions;
+  doorBands: Quad[];
+  state: LayoutState;
+  stand: (into: LayoutState, archetype: Archetype, kind: string, pose: Pose, id: string) => void;
+  nextId: (kind: string) => string;
+}): Set<ProgramEntry> {
+  const { room, edges, program, pieceOf, options, doorBands, state, stand } = ctx;
+  const slotOf = (entry: ProgramEntry) => getArchetype(entry.kind)?.slot;
+  const bedEntry = program.find((e) => slotOf(e) === 'bed');
+  const bedPiece = bedEntry ? pieceOf(bedEntry) : null;
+  if (!bedEntry || !bedPiece) return new Set();
+  const nightstandEntry = program.find((e) => slotOf(e) === 'nightstand');
+  const nightstand = nightstandEntry ? pieceOf(nightstandEntry) : null;
+  const nightstands = nightstandEntry && typeof nightstandEntry.count === 'number' ? nightstandEntry.count : 0;
+  const wardrobeEntry = program.find((e) => slotOf(e) === 'wardrobe');
+  const wardrobe = wardrobeEntry ? pieceOf(wardrobeEntry) : null;
+  const walled = edges.filter((e) => !isOpenEdge(room, e.index));
+  const anchors = options.anchors?.[room.id];
+
+  const copy = (from: LayoutState): LayoutState => ({ placed: [...from.placed], occupied: [...from.occupied], passages: [...from.passages] });
+  const rulesOf = (into: LayoutState): RuleContext => ({ doorBands, entranceBands: options.entranceSight?.[room.id] ?? [], placed: into.placed, passages: into.passages });
+  const put = (into: LayoutState, steps: TrialStep[], step: TrialStep) => {
+    stand(into, step.archetype, step.kind, step.pose, 'trial');
+    steps.push(step);
+  };
+
+  /** The bed of `rung` into `into`, with the room's draw or (`rng` undefined) at its best spot. */
+  const layBed = (into: LayoutState, rung: BedRung, rng: Rng | undefined): TrialStep | null => {
+    const own = getArchetype(rung.kind)!;
+    const archetype = rung.width === own.size.width ? own : { ...own, size: { ...own.size, width: rung.width } };
+    const occupied = inTheWay(into.occupied, archetype.size.height);
+    const pose = rung.alongWall
+      ? placeBedAlongWall(archetype, room, walled, occupied, rulesOf(into))
+      : resolvePose(archetype, 0, room, edges, into.placed, occupied, { anchors: anchorsFor(rung.kind, anchors), rng, rules: rulesOf(into) });
+    return pose ? { kind: rung.kind, archetype, pose } : null;
+  };
+
+  /** The nightstands of `indices` (0 its right, 1 its left first) beside the bed just stood. */
+  const layNightstands = (into: LayoutState, steps: TrialStep[], indices: number[], rng: Rng | undefined): number => {
+    if (!nightstand) return 0;
+    let count = 0;
+    for (const i of indices) {
+      const pose = resolvePose(nightstand.archetype, i, room, edges, into.placed, inTheWay(into.occupied, nightstand.archetype.size.height), { anchors: anchorsFor(nightstand.kind, anchors), rng, rules: rulesOf(into) });
+      // As in the program's loop: the second has no better chance than the first.
+      if (!pose) break;
+      put(into, steps, { kind: nightstand.kind, archetype: nightstand.archetype, pose });
+      count++;
+    }
+    return count;
+  };
+
+  /**
+   * The wardrobe: the usual one (into a niche, else 1.8 m narrowed to 1.17) with `rng` — the room's
+   * draw where a wardrobe was always laid (a room of its archetype's 8 m² or more), else none — then
+   * the smaller ones at their best spot.
+   */
+  const layWardrobe = (into: LayoutState, rng: Rng | undefined): TrialStep | null => {
+    if (!wardrobe) return null;
+    const base = wardrobe.archetype;
+    const drawn = room.areaM2 >= (base.minRoomAreaM2 ?? 0) ? rng : undefined;
+    const usual = resolvePose(base, 0, room, edges, into.placed, inTheWay(into.occupied, base.size.height), { anchors: anchorsFor(wardrobe.kind, anchors), rng: drawn, rules: rulesOf(into) });
+    if (usual) return { kind: wardrobe.kind, archetype: base, pose: usual };
+    for (const size of SMALLER_WARDROBES_M) {
+      const archetype = { ...base, size: { ...base.size, ...size } };
+      const pose = resolvePose(archetype, 0, room, edges, into.placed, inTheWay(into.occupied, archetype.size.height), { exact: true, rules: rulesOf(into) });
+      if (pose) return { kind: wardrobe.kind, archetype, pose };
+    }
+    return null;
+  };
+
+  /** The room laid out with one bed: the bed, both nightstands and a wardrobe — else one nightstand, so the wardrobe stands. */
+  const trial = (rung: BedRung, rng: Rng | undefined): BedroomTrial => {
+    const withBed = copy(state);
+    const bedSteps: TrialStep[] = [];
+    const bed = layBed(withBed, rung, rng);
+    if (!bed) return { steps: [], bed: false, nightstands: 0, wardrobe: false };
+    put(withBed, bedSteps, bed);
+    const into = copy(withBed);
+    const steps = [...bedSteps];
+    const count = layNightstands(into, steps, Array.from({ length: nightstands }, (_, i) => i), rng);
+    const robe = layWardrobe(into, rng);
+    if (robe) return { steps: [...steps, robe], bed: true, nightstands: count, wardrobe: true };
+    // One nightstand instead of two (decision 3.2's fifth fallback), either side, so the wardrobe
+    // stands; else none — the wardrobe is a must, and the ladder's next bed may give one back.
+    const fewer = [...(count > 1 ? [[0], [1]] : []), ...(count > 0 ? [[]] : [])];
+    for (const sides of fewer) {
+      const less = copy(withBed);
+      const lessSteps = [...bedSteps];
+      const kept = layNightstands(less, lessSteps, sides, undefined);
+      const smaller = layWardrobe(less, undefined);
+      if (smaller) return { steps: [...lessSteps, smaller], bed: true, nightstands: kept, wardrobe: true };
+    }
+    return { steps, bed: true, nightstands: count, wardrobe: false };
+  };
+
+  const rungs = bedRungs(bedPiece.kind);
+  const tried: BedroomTrial[] = [];
+  for (const [i, rung] of rungs.entries()) {
+    const result = trial(rung, i === 0 ? options.rng : undefined);
+    tried.push(result);
+    if (result.bed && result.wardrobe && result.nightstands > 0) break;
+  }
+  // The first bed with which its wardrobe and a nightstand stand — the essentials (a double "fits"
+  // when they do; else the single, "a single bed when no double fits"); else the first with its
+  // wardrobe (a must), the first with a nightstand, the first bed at all (the bed comes first);
+  // else the wardrobe alone.
+  const first = (test: (t: BedroomTrial) => boolean) => tried.find((t) => t.bed && test(t)) ?? null;
+  let chosen: BedroomTrial | null = first((t) => t.wardrobe && t.nightstands > 0) ?? first((t) => t.wardrobe) ?? first((t) => t.nightstands > 0) ?? first(() => true);
+  // A 1.6 m double with one nightstand: the 1.4 m one, where it keeps both and the wardrobe.
+  if (chosen && chosen === tried[0] && rungs[1]?.width === NARROW_DOUBLE_BED_M && !rungs[1].alongWall && chosen.nightstands < nightstands) {
+    const narrow = tried[1] ?? trial(rungs[1], undefined);
+    if (narrow.bed && narrow.wardrobe && narrow.nightstands > chosen.nightstands) chosen = narrow;
+  }
+  if (!chosen) {
+    const alone = copy(state);
+    const robe = layWardrobe(alone, options.rng);
+    chosen = { steps: robe ? [robe] : [], bed: false, nightstands: 0, wardrobe: !!robe };
+  }
+  for (const step of chosen.steps) stand(state, step.archetype, step.kind, step.pose, ctx.nextId(step.kind));
+  return new Set([bedEntry, ...(nightstandEntry ? [nightstandEntry] : []), ...(wardrobeEntry ? [wardrobeEntry] : [])]);
+}
+
+/**
+ * A bed with its long side on a wall (decision 3.2's third fallback): its side 2 cm off the wall, the
+ * wall's window sills over the mattress (`BED_SIDE_HEIGHT_M`), never along a door; best with its head
+ * in the corner on the wall there (no window behind the headboard), its open side free 60 cm for the
+ * step in and the nightstand (`BED_SIDE_FREE_M`), away from the door and out of its sight. Null where
+ * no wall takes it. No draw: the best spot.
+ */
+function placeBedAlongWall(archetype: Archetype, room: PlanRoom, edges: PlanEdge[], occupied: Box[], rules: RuleContext): Pose | null {
+  const { width, depth, height } = archetype.size;
+  const doorPoints = openingPoints(room, edges, isPassage);
+  const spots: Array<{ value: Pose; score: number }> = [];
+  for (const edge of edges) {
+    if (edge.length < depth) continue;
+    const blocked = room.openings.filter((o) => o.wallIndex === edge.index);
+    for (const t of sampleAlong(edge, depth)) {
+      if (coversOpening(edge, t, depth, BED_SIDE_HEIGHT_M, blocked)) continue;
+      const anchor = pointOnEdge(edge, t);
+      const position = { x: anchor.x + edge.inward.x * (width / 2 + 0.02), z: anchor.z + edge.inward.z * (width / 2 + 0.02) };
+      for (const way of [1, -1]) {
+        // Its foot towards `way` along the wall, its head the other way.
+        const rotation = Math.atan2(edge.dir.x * way, edge.dir.z * way);
+        const pose: Pose = { position, rotation, size: { width, depth, height }, elevationM: 0 };
+        if (!fitsInRoom(pose, room.polygon) || overlapsAny(boxFor(pose), occupied)) continue;
+        if (blocksWindow({ ...pose, slot: archetype.slot }, room)) continue;
+        const back = { x: -Math.sin(rotation), z: -Math.cos(rotation) };
+        const head = { x: position.x + back.x * (depth / 2), z: position.z + back.z * (depth / 2) };
+        let score = (rayToPolygon(head, back, room.polygon) ?? Infinity) < 0.05 ? 10 : 0;
+        const open: Pose = { position: { x: position.x + edge.inward.x * (width / 2 + BED_SIDE_FREE_M / 2), z: position.z + edge.inward.z * (width / 2 + BED_SIDE_FREE_M / 2) }, rotation, size: { width: BED_SIDE_FREE_M, depth, height }, elevationM: 0 };
+        if (fitsInRoom(open, room.polygon) && !overlapsAny(boxFor(open), occupied)) score += 12;
+        score += minDistance(position, doorPoints) * 3;
+        if (inSight(pose, rules.doorBands)) score -= 12;
+        spots.push({ value: pose, score });
+      }
+    }
+  }
+  return pickNearBest(spots, 0);
 }
 
 // ---------------------------------------------------------------------------

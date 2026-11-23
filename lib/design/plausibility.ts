@@ -56,6 +56,11 @@ export const KIND_BOUNDS: Readonly<Record<string, KindBounds>> = {
   // fixture flats) and a 6.88 m "system" are not one (K1, K2). A 35–40 cm deep one is a shallow
   // wardrobe, kept.
   wardrobe: { refuse: { height: { min: 1.6, max: 3 }, width: { min: 0.4, max: 4 } } },
+  // A single bed is one a grown-up sleeps in: 80 cm wide and 1.8 m long or more. Of the six filed
+  // single, a 54 × 122 cm one is not to scale, a 1.31 × 1.66 m daybed is a sofa's length and a
+  // 1.97 m × 85 cm day bed is modelled sideways (RB5); the three left (90 × 200, a bunk, a child's
+  // house bed) are what a bedroom under 11 m² is given (decision 3.2), any style's when its own has none.
+  bed_single: { refuse: { width: { min: 0.8 }, depth: { min: 1.8 } } },
   // A door mat is under 1.2 m either way (five of six are filed 2.03 × 1.27 m, K2). No least size
   // refused: the one left is filed 15 × 11 cm, and with a least size no hall would have a mat.
   door_mat: { refuse: { longSide: { max: 1.2 } }, list: { longSide: { min: 0.3 } } },

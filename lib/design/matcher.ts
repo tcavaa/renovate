@@ -116,9 +116,12 @@ const STRICT_STYLE_KINDS = new Set(['kitchen_run', 'kitchen_wall', 'kitchen_isla
 
 /**
  * The smaller piece a slot takes when none of its own kind fits it: a three-seat sofa where the
- * corner sofa was laid. A double bed has none — the catalogue's single beds are day beds and a bunk.
+ * corner sofa was laid; a single bed where no double fits (Nini, decision 3.2's last fallback — the
+ * single beds generation takes are ones a grown-up sleeps in, `KIND_BOUNDS`).
  */
-const SMALLER_KIND: Readonly<Record<string, string>> = { sofa_corner: 'sofa_3seat' };
+const SMALLER_KIND: Readonly<Record<string, string>> = { sofa_corner: 'sofa_3seat', bed_double: 'bed_single' };
+/** The kinds whose smaller piece is the last resort, after the other styles' own (`slotSteps`): a double of another style before a single. */
+const SMALLER_LAST: ReadonlySet<string> = new Set(['bed_double']);
 /**
  * A kind that is another kind's product laid in a place of its own: the bedroom's rug is laid as
  * `rug_bed` — the rug under the bed — and the catalogue's rugs are all `rug`. With no product of
@@ -504,7 +507,8 @@ export function kindPool(kind: string, catalog: CatalogProduct[], styleId: Style
  * of 16 Nov 2026: strict style has a way out, never an empty slot with the room arranged round it):
  * the slot's own products (the style's own for the big pieces); a smaller piece of the style where
  * the kind has one (`SMALLER_KIND`: a three-seat for a corner sofa); the other styles' products of
- * the slot's kind, the nearest style first; the other styles' smaller pieces.
+ * the slot's kind, the nearest style first; the other styles' smaller pieces. A single bed comes only
+ * after every style's doubles (`SMALLER_LAST`): a double of another style before a single.
  *
  * A kind the catalogue has no product of at all, and which is another kind's product laid in a
  * place of its own (`FILED_AS`: the bedroom's rug, laid as `rug_bed`, is a `rug`), takes that
@@ -517,12 +521,14 @@ function slotSteps(kind: string, poolOf: (kind: string) => KindPool): Array<{ ki
   const smaller = smallerKind ? poolOf(smallerKind) : null;
   const filedAs = main.first.length === 0 ? FILED_AS[kind] : undefined;
   const filed = filedAs ? poolOf(filedAs) : null;
+  const last = SMALLER_LAST.has(kind);
   return [
     { kind, pool: main.first },
-    ...(smaller ? [{ kind: smallerKind, pool: smaller.own }] : []),
+    ...(smaller && !last ? [{ kind: smallerKind, pool: smaller.own }] : []),
     // Drawn from the style's own alone: the others have not been tried yet.
     ...(main.own.length > 0 ? main.others.map((pool) => ({ kind, pool })) : []),
-    ...(smaller ? smaller.others.map((pool) => ({ kind: smallerKind, pool })) : []),
+    ...(smaller && last ? [{ kind: smallerKind, pool: smaller.first }] : []),
+    ...(smaller && (!last || smaller.own.length > 0) ? smaller.others.map((pool) => ({ kind: smallerKind, pool })) : []),
     ...(filed && filedAs ? [{ kind: filedAs, pool: filed.first }, ...(filed.own.length > 0 ? filed.others.map((pool) => ({ kind: filedAs, pool })) : [])] : []),
   ];
 }

@@ -371,7 +371,7 @@ describe('the designer is briefed from the flat the engine laid out (A3)', () =>
 
   it('gets every pick it offers taken, on the flat generated from the same seed', () => {
     const living = room('l', 'living_room', 5.2, 3.6, [{ kind: 'door', wallIndex: 3, t: 0.8, widthM: 0.9, heightM: 2.05, sillM: 0, exterior: false }, { kind: 'window', wallIndex: 1, t: 0.5, widthM: 1.4, heightM: 1.4, sillM: 0.9, exterior: true }]);
-    const flat = planOf(living, room('b', 'bedroom', 3.4, 3.1, [{ kind: 'door', wallIndex: 2, t: 0.3, widthM: 0.8, heightM: 2.05, sillM: 0, exterior: false }]));
+    const flat = planOf(living, room('b', 'bedroom', 3.6, 3.1, [{ kind: 'door', wallIndex: 2, t: 0.3, widthM: 0.8, heightM: 2.05, sillM: 0, exterior: false }]));
     const shop = [
       ...[180, 200, 220, 240, 260, 290, 320].map((w, i) => product(100 + i, 'sofa_3seat', w, 95, 85)),
       ...[100, 140, 180, 220].map((w, i) => product(120 + i, 'tv_unit', w, 45, 50)),

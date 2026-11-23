@@ -368,6 +368,25 @@ How stage 4 built it — **bedrooms**:
   hinged doors, 60 cm for sliding ones, else a shorter wall of wardrobe on the run whose front is
   clear (the chest of drawers then stays), else a shallow one, else the shop's wardrobe stays
   (`wallOfWardrobeFit` — [decor.md](decor.md)).
+- **The bed, its nightstands and the wardrobe, together** (the fourth round's decision 3.2, built in
+  its stage 2; `layoutBedroom` in `autoLayout.ts`, the numbers in `rules.ts`): a bedroom under 11 m²
+  takes a single bed (`SINGLE_BED_UNDER_M2`). A larger one tries, in Nini's order, the 1.6 m double
+  head on a wall, the 1.4 m double (`NARROW_DOUBLE_BED_M`), each with its long side on a wall — one
+  side reachable, the one nightstand on the free side, the mattress under a sill
+  (`BED_SIDE_HEIGHT_M`), never along a door — and last a single. **The wardrobe is a must**: in a room
+  of any size, the usual one, else compact (1.0 or 0.8 m), else shallow (38 cm,
+  `SMALLER_WARDROBES_M`), else with one nightstand instead of two, else none; then the next bed of the
+  ladder. A double "fits" when its wardrobe and a nightstand stand with it, else the single; with no
+  bed that leaves room for the wardrobe, the bed comes first. The essentials — the bed, the wardrobe
+  and a nightstand — take the floor before the chest of drawers, the rug, the lamps, the plant and the
+  stool, which are laid round them. Her first fallback, the door's smaller clear floor, is decision
+  12's. The matcher follows the same order: a double of another style before a single, a single where
+  no double fits — only a single a grown-up sleeps in (80 cm × 1.8 m or more, `KIND_BOUNDS`) — and
+  the bed's slot as high as a headboard, never under a sill. Over 792 fixture flats every bedroom has
+  its bed and its wardrobe (96 and 100 had none) — the numbers in
+  [generation-audit.md](generation-audit.md) (M1, RB1). Not built of 3.2: storage round the bed (no
+  product or joinery for it yet), and a sliding-door shop wardrobe (the catalogue does not say which
+  are; a built wall of wardrobe slides where 60–75 cm is clear, decision 4).
 - **Headboard** (B-6): a bed 1.2 m tall or more (`TALL_HEADBOARD_M`) has a headboard of its own; the
   AI designer's decor anchored on it is dropped (`proposalDecor`). The designer is told so per room
   (`bedText` in `aiDesign.ts`): whether the bed the engine laid takes decor behind it, and which of

@@ -87,7 +87,8 @@ at runtime yet; the last one was seen on the sample plan.
 - **The interior design rules, what is left** — the first brief (five stages), the second round
   (six stages), Nini's rulebook (six stages) and the fitted pieces (13 Nov) are built; left: island
   sockets, a bidet, a sofa floated to the TV's range, lamps with a colour temperature, a track
-  light, a dressing table, a wine cabinet and a clothes rack (no products yet), the shower glass and
+  light, a dressing table, a wine cabinet and a clothes rack (no products yet), a 1.4 m double and a
+  grown-up single bed in every style and storage round a bed ([design-rules.md](design-studio/design-rules.md), decision 3.2), the shower glass and
   a piece's housing following a live drag in 3D, the wardrobe against an en-suite's lobby,
   decor on the 2D board; from the rulebook: a cabinet's
   sections not editable on its card, a panel's door not built into the panel, the closet mirror by

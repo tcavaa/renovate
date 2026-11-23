@@ -289,7 +289,7 @@ Nothing after stage 4 re-runs the layout, and no stage verifies the flat as a wh
 
 | Room | Program, in order (gate) | Its own rules |
 |---|---|---|
-| Bedroom | double bed (single under 9 m²) · 2 nightstands · wardrobe (8 m², from the archetype) · dresser (13 m², 80 %) · rug (80 %, **no product**) · pendant · print (80 %) · curtains or blinds, one a window · plant (12 m², 70 %) · floor lamp (12 m², 95 %) · stool (12 m², 60 %) | bed on the wall furthest from the door, in the middle, room for both nightstands, out of the door's sight if it can; wardrobe in a niche first, beside the bed, never facing its foot; pass: a wall of wardrobe when 85 % of its wall is free |
+| Bedroom | double bed (single under 11 m²) · 2 nightstands · wardrobe (any size) · dresser (13 m², 80 %) · rug (80 %, **no product**) · pendant · print (80 %) · curtains or blinds, one a window · plant (12 m², 70 %) · floor lamp (12 m², 95 %) · stool (12 m², 60 %) | bed on the wall furthest from the door, in the middle, room for both nightstands, out of the door's sight if it can; wardrobe in a niche first, beside the bed, never facing its foot; the bed, nightstands and wardrobe laid together by Nini's ladder (1.6 → 1.4 m double → either along a wall → single; the wardrobe compact or shallow, a nightstand given up for it — `layoutBedroom`); pass: a wall of wardrobe when 85 % of its wall is free |
 | Living room | sofa (corner sofa from 22 m²) · coffee table · TV unit · TV · armchair (16 m², 75 %) · bookcase (15 m², 75 %) · rug (85 %) · floor lamp (11 m²) · pendant · print · plant (12 m²) · curtains · dining table and chairs (26 m²) | sofa on the longest wall, 2.5–3.5 m from the wall it faces, not facing a window, off the way between doors; TV unit across from it (1.5–4.2 m clear) and 60 cm from the coffee table, else none; armchair at the sofa's end turned 45° |
 | Kitchen | run · fridge · wall cabinets · table (10 m²) · chairs · island (17 m²) · pendant · blind | run on the water's wall, then a wall with no window, the longest; out of the entrance's sight; fridge at the run's end; table beyond 1.2 m of working floor, 1.2 m long at least, else against a wall; island 1.2 m clear all round; pass: an L for a run under 2.6 m |
 | Bathroom | WC · basin · bath (7.5 m²; 9 m² in Scandinavian and Industrial) · shower · washer (4.5 m²) · mirror · blind · towel shelf (6 m², top budget only) · stool (6 m², 60 %) | four fixture orders tried, the best kept; each fixture 40–60 cm of free floor; WC out of the door's sight, 80 cm wide; shower in a corner, 80 × 80 to 140 × 90 by area; mirror over the basin only; pass: vanity, tap, washer column, dryer, bath box, mixer; a box behind the WC |
@@ -372,7 +372,8 @@ Severity: **high** = seen by anyone who generates; **medium** = wrong in some ro
   - *The bed* is a 1.6 × 2.05 m double with its head on a wall, or a single only under 9 m²
     (`resolveVariant`, `catalog.ts:780-786`). No smaller double, no single when the double does not
     fit, no bed along a wall in a narrow room: a 9.9 m² bedroom 2.28 m wide gets a wardrobe, a lamp
-    and no bed.
+    and no bed. *Fixed by Nini's decision 3.2 (stage 2, RB1):* a single under 11 m², the bed's
+    ladder, the wardrobe a must — every bedroom of the 792 audit flats has its bed (96 had none).
   - *The sofa*: from 22 m² only the corner sofa (2.7 × 1.75 m) is tried; `NARROWABLE`
     (`autoLayout.ts:575`) has the three-seat only, and `placeAgainstWall` takes the full width on any
     wall before a narrower sofa on a better one (`:511-523`). No sofa → no coffee table, TV unit, TV
@@ -415,7 +416,9 @@ Severity: **high** = seen by anyone who generates; **medium** = wrong in some ro
   (`placeRelative`, `:929-930`): the balcony's is never laid (0 of 684) and the office's cannot be. An entry
   with no gate silently takes the archetype's (`:291`): a balcony's plants need 10 m² (92 % of
   balconies are empty), a closet's wardrobes 8 m² (40 % get them), the office's bookcase 14 m² (0 of
-  72), and the bedroom's "always a wardrobe" 8 m².
+  72), and the bedroom's "always a wardrobe" 8 m². *The bedroom's is fixed* (decision 3.2: a
+  wardrobe in a bedroom of any size, smaller where it must be — 100 bedrooms of 792 flats without
+  one → 0).
 - [ ] **M6 (medium) — Slots no product can fill.** Products are matched by exact kind
   (`candidatesFor`, `matcher.ts:698`). The bedroom's rug is kind `rug_bed`, which has **no product**
   (the 15 rugs are `rug`): the rug is laid in 77 % of bedrooms and dropped in all of them. The hall's
@@ -1559,11 +1562,29 @@ past a wall's end.
 **Bedrooms** — 47 bedrooms, 1,504 runs: no bed slot 160, a slot with no product 51, a double bed
 with fewer than two nightstands 135.
 
-- [ ] **RB1 (high) — No bed slot: five rooms each miss by centimetres, with no second try**
+- [x] **RB1 (high) — No bed slot: five rooms each miss by centimetres, with no second try**
   (`autoLayout.ts:627`); door zones refuse most spots. As a second try only, of the 160: a single
   bed with its side on a wall 160; a double side-on 96; a single head-on 128; a double under a
   window 64; a 1.2 m double 64; a 1.4 m double 32; a door zone 0.6 m deep 64 (0.7 m: none — it
   misses by 1–2 cm).
+  *Fixed by Nini's decision 3.2 (stage 2):* a single under 11 m²; the bed, its nightstands and the
+  wardrobe laid out together by her ladder — 1.6 m, 1.4 m, each along a wall, a single; the wardrobe
+  compact or shallow, one nightstand or none given up for it; the first bed with which the wardrobe
+  and a nightstand stand (`layoutBedroom`) — and the matcher's single where no double fits, after
+  every style's doubles (`SMALLER_LAST`). Over 792 flats (33 plans × 4 styles × 6 draws): bedrooms
+  with no bed 96 → 0, no wardrobe 100 → 0, no nightstand 165 → 26 (24 of them #389's 6.27 m²
+  bedroom open on two sides, where the single's nightstand stood on the only wardrobe's floor);
+  doubles 1,032 → 840, singles 144 → 432 (192 doubles in rooms of 9–11 m² by the 11 m² rule, 96 in
+  rooms that had no bed); laid, every double stands 1.6 m head on a wall and 68 singles along one —
+  the 1.4 m and side-on doubles are reached in no fixture room (the unit tests do). `bed_side_tight`
+  431 → 347. Worse, each in a room whose bed changed: `door_swing_blocked` 63 → 80 (#384's 10.63 m²
+  bedroom, which had no bed: its single's nightstand within the 1.46 m double door's leaf, deeper than
+  the 90 cm clear floor decision 12 keeps outside wet rooms), `radiator_blocked` 14 → 24 and
+  `on_keep_clear` 8 → 18 (#407's 10.2 m² bedroom, a single by the 11 m² rule: its nightstand,
+  re-measured beside the wider real bed, stands in the radiator's floor through the matcher's last
+  pass). No room of another type changed; in bedrooms the 11 m² singles lost 56 nightstands and 32
+  rugs (a real single wider than its slot), and 16 prints went in rooms that gained their bed (a tall
+  single's headboard leaves no room over it).
 - [x] **RB2 (high) — A slot with no product: the wardrobe's slot refuses the bed.** The engine lays
   the wardrobe 5 cm off the 1.6 m bed slot, and a slot not matched yet blocks at its archetype's
   size (`matcher.ts:383`): any bed over 1.74 m is refused — Modern's start at 1.81 m, Industrial's
@@ -1592,6 +1613,11 @@ with fewer than two nightstands 135.
   one modelled sideways, a bunk, a child's house bed), so "a single when the double fails" recovers
   slots, not beds to sleep in. And a single's slot may be laid under a window (0.95 m against a
   0.9 m sill passes by equality, `:1654`) where five of the six products are then refused.
+  *Partly:* generation refuses a single under 80 cm wide or 1.8 m long (`KIND_BOUNDS`: the 54 × 122
+  cm one, the 1.31 × 1.66 m daybed, the day bed modelled sideways), and the single's slot is laid
+  1.05 m high, never under a sill. Left: three singles — a 90 × 200 cm frame (Industrial, Vintage),
+  a bunk and a child's house bed (Scandinavian) — none Modern's own, no 1.4 m double in any style but
+  Vintage's 1.49 m one; the team's to add.
 - [ ] **RB6 (low) — Three plain bugs.** A wall must be 25 cm longer than the piece (`:606`): a
   1.84 m wall refuses a 1.6 m bed. One of a wall's two corner spots is always "outside the room"
   (the half-open point test, `planGeometry.ts:96`). A slot the matcher dropped still blocks what is
