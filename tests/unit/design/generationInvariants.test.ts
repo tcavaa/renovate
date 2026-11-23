@@ -46,6 +46,9 @@ describe('generating whole flats', () => {
       'socket_in_radiator',
       'rule:socket_in_splash',
       'two_main_lights',
+      // No spot under a hanging lamp, every lamp over what it lights (Nini, decision 10b).
+      'spot_under_pendant',
+      'pendant_off_surface',
       'missing:living_room:sofa',
       // Every bedroom has its bed and its wardrobe (Nini, decision 3.2: the bed's ladder, the wardrobe a must).
       'missing:bedroom:bed',

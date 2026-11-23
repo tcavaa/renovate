@@ -14,6 +14,7 @@ import { fitKitchenCorners } from './kitchenCorner';
 import { applyReviewFixes, clearOfDecor, proposalDecor, proposalNotes, proposalPicks, settleToWalls, standsAfterMove, underCeilingDecor, withoutArtOverDecor, withProposalFinishes, type AiProposal } from './aiProposal';
 import type { AiReview } from './aiReview';
 import { layoutPlan } from './autoLayout';
+import { hangPendants } from './ceilingLights';
 import { suggestElectrical, withFixtureProducts } from './electrical';
 import { applyBoardPicks, applyFinishPicks, applyFurniturePicks, type CalculatorPicks } from './fromCalculator';
 import { budgetLevel, matchProducts, type BudgetLevel, type CatalogProduct, type MatchOptions } from './matcher';
@@ -146,6 +147,9 @@ export function layOutFlat(input: Pick<GenerateSceneInput, 'plan' | 'styleId' | 
   // L-shaped kitchen): more of the same kitchen along the next wall, and its wall cabinets.
   items = fitKitchenCorners(underCeilings, items, [...fitted.decor, ...hall.decor, ...wardrobes.decor], radiators);
   if (calculatorPicks) items = withoutOrphans(items, placeableOnly(applyFurniturePicks(items, plan, calculatorPicks, catalog, kept)), plan.rooms);
+  // The pendants as matched, over what they light as it now stands: one large lamp, or two or three
+  // small ones down a long table or island (Nini, decision 10b) — the AI designer's lamp too.
+  items = hangPendants(items, underCeilings);
   // Every door and window is bought as a product where the catalogue has one.
   const rooms = withOpeningProducts(housed.rooms, catalog, styleId);
   const laid = rooms !== housed.rooms ? { ...housed, rooms } : housed;
@@ -181,7 +185,16 @@ export function generateScene(input: GenerateSceneInput): GeneratedScene {
   const dressed = calculatorPicks ? applyBoardPicks(laid, wired, calculatorPicks, catalog) : { plan: laid, electrical: wired };
   // Tidied once everything stands: every wall piece back on its wall, nothing in the decor, the
   // hanging lamps and ceiling points under a lowered ceiling hung from it.
-  items = clearOfDecor(settleToWalls(withoutArtOverDecor(items, decor, laid), laid), decor, laid);
+  const tidied = clearOfDecor(settleToWalls(withoutArtOverDecor(items, decor, laid), laid), decor, laid);
+  // A table the tidy-up moved (a coffee table with its sofa back to the wall) takes its lamp with
+  // it, and that room is wired again round the lamp where it now hangs.
+  items = hangPendants(tidied, plan.rooms);
+  const lampsMoved = new Set(items.filter((i) => i.slot === 'pendant' && !tidied.some((t) => t.id === i.id && t.position.x === i.position.x && t.position.z === i.position.z)).map((i) => i.roomId));
+  if (lampsMoved.size > 0) {
+    const rewired = withFixtureProducts(suggestElectrical(plan, items, known, styleId, decor), catalog, styleId, plan.rooms, items);
+    const again = calculatorPicks ? applyBoardPicks(laid, rewired, calculatorPicks, catalog).electrical : rewired;
+    dressed.electrical = [...dressed.electrical.filter((p) => !lampsMoved.has(p.roomId)), ...again.filter((p) => lampsMoved.has(p.roomId))];
+  }
   const ceiled = underCeilingDecor(items, dressed.electrical, decor, laid);
   const generation: GenerationRecord = proposal
     ? { by: 'ai', model: proposal.model, at: input.at, notes: proposalNotes(proposal), aiCount: input.aiCount, seed: input.seed }
@@ -231,7 +244,8 @@ export function reviewedScene(
     fixes = fixes.filter((fix) => !badly.includes(fix));
     fixed = checked(fixes);
   }
-  let items = placeableOnly(fixed.items);
+  // The pendants hung again over what they light, where the check moved a table or swapped a lamp.
+  let items = hangPendants(placeableOnly(fixed.items), scene.plan.rooms);
   // What the check did, as it is kept (`generation.reviewed`): the fixes kept that change the flat
   // each on its own — not those it asked for that changed nothing (a piece not there, a product
   // that does not fit, a piece already against its wall, a move that did not stand), nor a piece

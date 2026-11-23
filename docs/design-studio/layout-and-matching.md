@@ -835,8 +835,12 @@ own. The matcher re-measures every piece from the product it got, so the room st
   2.25 m whatever its length, so a 0.9 m one went through the ceiling; the slot takes only lamps
   short enough (`slotPool`) — and, where any of them is, one whose bottom also hangs clear of what
   stands under it by 12 cm (`MATCHED_ABOVE_GAP_M`): a lamp hung into a canopy bed 2.45 m tall
-  gives way to a shorter one. With none that clears, the lamps it had (a 2.7 m room over a canopy
-  bed leaves 13 cm, and the catalogue has no lamp that short).
+  gives way to a shorter one. With none that clears, the shortest of the lamps that hang (a 2.7 m
+  room over a canopy bed leaves 13 cm). Of those that clear, a large lamp where one hangs and small
+  ones where two or three will hang down a long table (`pendantSizing`); the pendant hangs over what
+  it lights — the dining table, the island, the coffee table, the bed's middle — and what hangs from
+  the ceiling is matched last, over the table as bought (Nini's decision 10b:
+  [technical-and-fittings.md](technical-and-fittings.md), `lib/design/ceilingLights.ts`).
 - **No tall product stands across a window** (`blocksWindow`, `lib/design/manipulate.ts`: a piece
   with its back to the window's wall, taller than the sill by 5 cm, across its width): the matcher
   passes over one (a wardrobe for a dresser slot under a window), and a shop's kitchen unit with

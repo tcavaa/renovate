@@ -51,6 +51,7 @@ import { kitchenCornerFloor, kitchenWorktopM } from './kitchenCorner';
 import { anchorsFor, type TechnicalAnchor } from './technical';
 import { pickNearBest, streamRng, weightedOrder, type RoomRng, type Rng } from './random';
 import { LAID_TO_ANOTHER } from './kinds';
+import { hangPendantSlots } from './ceilingLights';
 import {
   ARMCHAIR_DINING_GAP_M,
   BASIN_COMPACT_M,
@@ -708,7 +709,16 @@ function compacted(piece: { kind: string; archetype: Archetype } | null, relax: 
   return piece;
 }
 
+/**
+ * A room (a studio's half) laid out by its program, its pendant then hung over what it lights
+ * (`hangPendantSlots`: the dining table, the island, the coffee table, the bed — Nini, decision 10b),
+ * whatever came after it in the program.
+ */
 function layoutArea(room: PlanRoom, options: LayoutOptions, idPrefix: string, doorBands: Quad[] = [], order?: ProgramEntry[], relax: LayoutRelax = {}): PlacedItem[] {
+  return hangPendantSlots(room, layoutProgram(room, options, idPrefix, doorBands, order, relax));
+}
+
+function layoutProgram(room: PlanRoom, options: LayoutOptions, idPrefix: string, doorBands: Quad[] = [], order?: ProgramEntry[], relax: LayoutRelax = {}): PlacedItem[] {
   // A bathroom's or a toilet's fixtures are laid out in whichever of a few orders gives the best
   // room: the WC, then the most fixtures, each with a way past it. No one order serves every room —
   // the basin first gives a narrow bathroom its basin at the end, the shower first a square one its
@@ -2709,7 +2719,8 @@ function placeOnCeiling(
   room: PlanRoom,
   placed: PlacedItem[]
 ): Pose | null {
-  // Hang it over the table if there is one, otherwise over the middle of the room.
+  // Hang it over the table if there is one, otherwise over the middle of the room; once the room is
+  // laid out it is hung again over what it lights (`hangPendantSlots`: the coffee table, the bed too).
   const table = placed.find((p) => p.slot === 'dining_table' || p.slot === 'kitchen_island');
   const position = table ? table.position : polygonCentroid(room.polygon);
 

@@ -11,6 +11,7 @@
  */
 
 import { ELECTRICAL_KINDS, isLampOutlet, isLight } from './electrical';
+import { pendantSurface, TABLE_SURFACES } from './ceilingLights';
 import { ceilingHeightM } from './rules';
 import type { ElectricalKind, ElectricalPoint, FloorPlan, LightCategory, PlacedItem } from './types';
 
@@ -56,12 +57,13 @@ export function lightingPlan(plan: FloorPlan, items: PlacedItem[], electrical: E
       const onCeiling = info.placement === 'ceiling';
       add({ fixture: point.kind, purpose: point.category ?? info.category ?? 'primary', mount: onCeiling ? 'ceiling' : 'wall', heightM: onCeiling ? ceiling : (point.elevationM ?? info.defaultElevationM) });
     }
-    const tables = items.filter((i) => i.roomId === room.id && (i.slot === 'dining_table' || i.slot === 'kitchen_island'));
     for (const item of items) {
       if (item.roomId !== room.id || !LAMP_SLOTS.has(item.slot)) continue;
       if (item.slot === 'pendant') {
-        // Over a table it lights the table; else it is the room's main light.
-        const overTable = tables.some((t) => Math.hypot(t.position.x - item.position.x, t.position.z - item.position.z) < 0.5);
+        // Over a table or an island it lights the table (each of a line of two or three); else it
+        // is the room's main light (`pendantSurface`).
+        const surface = pendantSurface(room, items, item);
+        const overTable = !!surface && TABLE_SURFACES.has(surface.slot) && Math.hypot(surface.position.x - item.position.x, surface.position.z - item.position.z) <= Math.max(surface.size.width, surface.size.depth) / 2;
         add({ fixture: 'pendant', purpose: overTable ? 'furniture' : 'primary', mount: 'hanging', heightM: item.elevationM });
       } else {
         add({ fixture: 'floor_lamp', purpose: 'secondary', mount: 'floor', heightM: item.size.height });

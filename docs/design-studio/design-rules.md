@@ -115,7 +115,8 @@ in six stages:
 
 **Lighting**
 
-- Kitchen: three layers that keep apart — one pendant centred over the dining table, the main light
+- Kitchen: three layers that keep apart — the pendant centred over the dining table (one large, or
+  two or three small down a long table or island: decision 10b, stage 5 below), the main light
   (cylindrical spots, recessed spots or a track, by style) over the working area, and light under
   the wall cabinets onto the worktop.
 - Bedroom: one large light, or the main light with a pendant (or a track or spots, by style) each
@@ -417,7 +418,8 @@ How stage 5 built it — **the whole flat**:
   lights alone (no program pendant beside them — the screenshot's hall mixed the two). A
   Scandinavian, Modern or Vintage living room, bedroom or office of 10 m² or more keeps its one
   large ceiling light in the middle and gets four spots round it at the room's quarters
-  (`ringSpots`, category secondary).
+  (`ringSpots`, category secondary) — round the hanging lamp where it hangs once the ceiling light
+  is its outlet (over the bed or the coffee table: decision 10b, `ringAround`).
 - **Doors** (G-11, G-12, BA-25): laid out, an interior door takes an interior door product and the
   front door an entrance door when the catalogue has both — the flat's one front door (`frontDoor`:
   of the ways in, `isFrontDoor`, the hall's, else the first); any other door on an outside wall,
@@ -618,6 +620,33 @@ and mirror 1,433 → 1,049; decor on a radiator 255 → 0, on a tap or a wall mi
 lays no designer decor, so `pnpm audit:generation` is unchanged. Not built: the box's front taking
 the decor's own material for one continuous surface, a niche over the cistern, decor above a box
 under a window, and decor following a box moved by hand.
+
+**Stage 5's ceiling lighting (decision 10b) is built** (24 Nov 2026): the ceiling is laid out as one
+(`lib/design/ceilingLights.ts`). A pendant hangs centred over what it lights — a kitchen's dining
+table, else its island; a living room's dining table, else its coffee table; the bed's middle — and
+in the middle of the room over nothing to light, or where the bed is a four-poster no lamp may hang
+over. One pendant is a large one (round, 45 cm to 1 m across); over a dining table or an island of
+1.4 m or more, two small ones (round, 12–40 cm), from 1.8 m three, evenly down its length, the same
+lamp each (`PENDANT_*` in rules.ts: 1.4 m is where a table seats six; two lamps then hang 70 cm apart
+and three 60 cm, inside the seats). The matcher prefers the size among the lamps that hang clear and
+matches what hangs from the ceiling after what stands under it; the AI designer is offered only
+lamps of the size its slot takes, and its lamp is hung by the same rules. **Spots are moved, never
+dropped**, 30 cm clear of a shade (`SPOT_PENDANT_GAP_M`): a kitchen's row laid again symmetrically
+either side of the lamps (an odd row gains a spot), or moved whole up to 60 cm off them where the
+lamps take most of its length; an industrial bedroom's track moved whole; the ring of four round a
+large light laid round the lamp where it hangs. **No excess**: a hanging lamp over a coffee table or
+a bed is the room's main light (the ceiling light becomes its outlet, wherever it hangs); a lamp over
+a dining table or an island is the table's own layer (a kitchen keeps its row of spots and the light
+under the cabinets, a living room its ceiling light over the sitting area); never a ceiling light
+beside a lamp, never a spot under one. 792 flats: spots dropped for a lamp 342 → 0, spots under a
+shade 48 → 1, lamps centred over what they light 495 → 2,306 of 2,516, lone lamps a median 8 → 65 cm
+across, two or three small lamps over 142 kitchens' and 99 living rooms' tables, pendants into a bed
+gone from the baseline's flats; lights per m² — kitchen 0.29 → 0.32, living room 0.15 → 0.18,
+bedroom 0.25 → 0.27. The detail: [technical-and-fittings.md](technical-and-fittings.md),
+generation-audit.md O8. Not built: lamps over an island beside the kitchen's table, a lamp over the
+coffee table in a living room with a dining table, lamps following a table moved in the studio, and
+the catalogue's gaps (a four-poster in a small bedroom leaves only a tiny lamp; Scandinavian has three
+large round lamps, Vintage three small).
 
 ## The decisions (owner, 28 Oct 2026)
 
@@ -853,8 +882,9 @@ AI check's problems).
 
 - From the second round's lighting: no track-light product exists, so a track is a row of
   cylinder spots; bedside lighting is the wall lights over the nightstands (a pendant each side
-  would need a low-hung pendant model); a living room's large chandelier is the matcher's pendant,
-  not chosen by the room's size.
+  would need a low-hung pendant model); a living room's large chandelier is the matcher's pendant —
+  a large one (45 cm to 1 m) wherever one hangs alone since decision 10b, but not chosen by the
+  room's size.
 - From the second round: no dressing table in a large bedroom yet — the catalogue has no dressing
   table or stool (the owner is sending references); the bedroom keeps its dresser from 13 m². A
   wine cabinet is the bookcase until the catalogue has one; a bathroom's storage cabinet likewise

@@ -13,6 +13,10 @@ import { LIES_FLAT } from './kinds';
 import { getArchetype } from './catalog';
 import { decorFootprint } from './decor/joinery';
 import { isLampOutlet } from './electrical';
+import { clearsSurface, lampLine, pendantSurface, shadesIn, underShade } from './ceilingLights';
+
+/** How far a hanging lamp may be off the middle of what it lights before the check reports it. */
+const PENDANT_OFF_SURFACE_M = 0.1;
 import { blocksWindow, clearsUnder, footprintInRoom, footprintOf, inDoorway, pieceWall, type Footprint } from './manipulate';
 import { isOpenEdge, roomEdges } from './planGeometry';
 import { DEFAULT_SECTION_WIDTH_M, radiatorPoints, radiatorSections, radiatorWallSpot } from './radiators';
@@ -58,6 +62,10 @@ export type SceneIssueCode =
   | 'socket_in_radiator'
   /** A hanging lamp and a ceiling point that is a light of its own (not the lamp's outlet) at one spot: two main lights. */
   | 'two_main_lights'
+  /** A ceiling spot nearer a hanging lamp's shade than `SPOT_PENDANT_GAP_M` (decision 10b: spots are moved off a lamp, never left under it). */
+  | 'spot_under_pendant'
+  /** A hanging lamp (or the middle of its line of two or three) more than 10 cm off the middle of what it lights (`pendantSurface`). */
+  | 'pendant_off_surface'
   /** Something within 30 cm in front of a built wall of wardrobe: its doors cannot open. */
   | 'wardrobe_blocked'
   /** Joinery that leaves under 70 cm to the wall across. */
@@ -307,6 +315,25 @@ export function auditScene(scene: AuditedScene): SceneIssue[] {
       // outlet (`isLampOutlet`), which is that lamp: what the lighting plan lists as a second main light.
       const twin = electrical.find((p) => p.roomId === room.id && (p.kind === 'light_ceiling' || p.kind === 'light_spot') && !isLampOutlet(p, inRoom) && Math.hypot(p.position.x - pendant.position.x, p.position.z - pendant.position.z) < 0.35);
       if (twin) say('two_main_lights', `${pendant.kind} and ${twin.kind}`, pendant.id);
+    }
+
+    // --- the ceiling as one (decision 10b): no spot under a lamp, every lamp over what it lights
+    const shades = shadesIn(room.id, inRoom);
+    for (const spot of electrical) {
+      if (spot.roomId === room.id && spot.kind === 'light_spot' && underShade(spot.position, shades)) say('spot_under_pendant', spot.category ?? 'spot', spot.id);
+    }
+    const lampGroups = new Map<string, PlacedItem[]>();
+    for (const lamp of inRoom.filter((i) => i.slot === 'pendant')) {
+      const key = lampLine(lamp.id);
+      lampGroups.set(key, [...(lampGroups.get(key) ?? []), lamp]);
+    }
+    for (const group of lampGroups.values()) {
+      const surface = pendantSurface(room, inRoom, group[0]);
+      // A lamp that would hang into the bed under it hangs in the middle of the room instead.
+      if (!surface || (surface.slot === 'bed' && !clearsSurface(group[0], surface))) continue;
+      const x = group.reduce((sum, l) => sum + l.position.x, 0) / group.length;
+      const z = group.reduce((sum, l) => sum + l.position.z, 0) / group.length;
+      if (Math.hypot(x - surface.position.x, z - surface.position.z) > PENDANT_OFF_SURFACE_M) say('pendant_off_surface', `${group[0].kind} off ${surface.kind}`, group[0].id);
     }
   }
 

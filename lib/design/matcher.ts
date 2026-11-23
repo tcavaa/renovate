@@ -19,12 +19,13 @@ import { roomEdges } from './planGeometry';
 import { ISLAND_CLEAR_M, seatSlots } from './autoLayout';
 import { asPlacedKitchen, kitchenMaterialCandidates } from './kitchen';
 import { isCustomKitchenSlot, LAID_TO_ANOTHER, SIZED_BY_LAYOUT } from './kinds';
-import { BALCONY_CHAIR_MAX_M, BASIN_TOP_M, COMPACT_TABLE_SIDES_M, COMPACT_TABLE_SLACK_M, KITCHEN_CIRCULATION_M, TV_WIDTH_PER_INCH_M, WC_BOX_DEPTH_M, WC_SIDE_M, tvInchesFor } from './rules';
+import { BALCONY_CHAIR_MAX_M, BASIN_TOP_M, COMPACT_TABLE_SIDES_M, COMPACT_TABLE_SLACK_M, KITCHEN_CIRCULATION_M, MATCHED_ABOVE_GAP_M, PENDANT_BOTTOM_M, PENDANT_OVER_TABLE_BOTTOM_M, TV_WIDTH_PER_INCH_M, WC_BOX_DEPTH_M, WC_SIDE_M, tvInchesFor } from './rules';
 import { round2, wallBehind } from './pieceGeometry';
 import { styleAffinity } from './styles';
 import { guideFit, styleRejects } from './styleGuide';
 import { seededRng, weightedOrder, weightedPick, type RoomRng, type Rng } from './random';
 import { isStudio, partAt, partName, partOfId, partRoom, studioParts } from './studio';
+import { hangPendants, isLampClone, pendantRehung, pendantSizing } from './ceilingLights';
 import type { PlacedItem, PlanRoom, SceneProduct, StyleId, Vec2 } from './types';
 
 /** A catalogue row as the client receives it. */
@@ -212,7 +213,12 @@ export function matchProducts(
   // The rooms whose set of dining chairs has its first chair.
   const setStarted = new Set<string>();
 
-  const matched = items.map((slotItem, index) => {
+  // What hangs from the ceiling is matched last, once what stands under it has its product: a
+  // pendant is a large lamp or small ones by the table it hangs over as bought (`pendantSizing`) —
+  // a living room's dining table is laid out after its pendant. The flat comes back in its order.
+  const hangs = (item: PlacedItem) => getArchetype(item.kind)?.placement.type === 'ceiling';
+  const sequence = [...items.filter((i) => !hangs(i)), ...items.filter(hangs)];
+  const inSequence = sequence.map((slotItem, index) => {
     const rng = rngOf(slotItem);
     const finish = (matched: PlacedItem) => {
       if (matched.product) settled.push(matched);
@@ -224,7 +230,11 @@ export function matchProducts(
     // own seat first, then the seats that are no chair's (`seatsAtTable`).
     const seating = seatsAtTable(slotItem, items, settled, slots, seatings);
     if (seating && seating.seats.length === 0) return finish({ ...slotItem, product: null });
-    const item = seating ? { ...slotItem, position: seating.seats[0].position, rotation: seating.seats[0].rotation } : slotItem;
+    const seated = seating ? { ...slotItem, position: seating.seats[0].position, rotation: seating.seats[0].rotation } : slotItem;
+    // A pendant over what it lights as bought (`pendantRehung`): the table as matched, never a
+    // four-poster bed. The lamps hung beside it in its line are hung again with it, below.
+    const hungIn = hangs(seated) && !isLampClone(seated.id) ? roomsById.get(seated.roomId) : undefined;
+    const item = hungIn ? { ...seated, position: pendantRehung(hungIn, [...settled, ...sequence.slice(index + 1)], seated) } : seated;
 
     const candidates = poolOf(item.kind).first;
 
@@ -272,7 +282,7 @@ export function matchProducts(
       }
     }
     const room = roomsById.get(item.roomId);
-    const others = [...settled, ...items.slice(index + 1)];
+    const others = [...settled, ...sequence.slice(index + 1)];
     // The slot's own products first, as drawn; then, where none of them fits it, what else may
     // take it (`slotSteps`: a smaller piece of the style, the nearest other style's) — the first
     // that fits. A product of another kind makes the piece that kind: a three-seat in a corner
@@ -292,7 +302,7 @@ export function matchProducts(
       // What the slot can hold as laid out: a basin that stands on the floor (pedestal or vanity —
       // a countertop basin needs a counter the flat has not got), a mirror over a basin that hangs
       // flat and no taller than 1.2 m. The swap list still offers the rest.
-      const fitting = candidates.length > 0 ? slotPool(piece, candidates, room, settled, options.styleId, level) : [];
+      const fitting = candidates.length > 0 ? slotPool(piece, candidates, room, settled, options.styleId, level, others) : [];
       // No TV is better than one across the window beside its unit.
       // Nor a table for six in a compact table's slot (`compactTable`): the next style's small table
       // rather than the style's own large one.
@@ -319,6 +329,9 @@ export function matchProducts(
       let ranked: CatalogProduct[];
       if (step === 0) {
         chosen = chosenByRoom.get(roomKey);
+        // A studio's two pendants are one kind in one room, but the kitchen half's small lamps over a
+        // long table are not the living half's one large lamp: the room's lamp only where it is offered.
+        if (chosen && getArchetype(piece.kind)?.placement.type === 'ceiling' && !candidates.includes(chosen)) chosen = undefined;
         if (!chosen && options.picks?.[roomKey] != null) {
           const picked = candidates.find((p) => p.id === options.picks![roomKey]);
           if (picked) {
@@ -398,7 +411,11 @@ export function matchProducts(
     }
     return finish({ ...item, product: null });
   });
-  return pairsAlike(completePairs(matched, slots, poolOf, roomsById, options.keepClear), catalog, roomsById);
+  const matched = items.map((item) => inSequence[sequence.indexOf(item)]);
+  const paired = pairsAlike(completePairs(matched, slots, poolOf, roomsById, options.keepClear), catalog, roomsById);
+  // Each room's lamps hung over what they light as their product asks — one large, or two or three
+  // small (`hangPendants`) — so the studio's re-dressing (a new style, a new budget) keeps the rule.
+  return options.rooms ? hangPendants(paired, options.rooms) : paired;
 }
 
 /**
@@ -876,11 +893,15 @@ function seatsAtTable(
 /** The lowest a hanging lamp may come: 1.45 m over a table or an island, else 1.9 m. */
 function lowestPendant(item: PlacedItem, settled: PlacedItem[]): number {
   const overTable = settled.some((p) => p.roomId === item.roomId && (p.slot === 'dining_table' || p.slot === 'kitchen_island') && Math.hypot(p.position.x - item.position.x, p.position.z - item.position.z) < 0.4);
-  return overTable ? 1.45 : 1.9;
+  return overTable ? PENDANT_OVER_TABLE_BOTTOM_M : PENDANT_BOTTOM_M;
 }
 
-/** Products a slot can hold as the engine laid it out (`slotPool` is applied before the draw). */
-export function slotPool(item: PlacedItem, candidates: CatalogProduct[], room: PlanRoom | undefined, settled: PlacedItem[] = [], styleId?: StyleId, level?: BudgetLevel): CatalogProduct[] {
+/**
+ * Products a slot can hold as the engine laid it out (`slotPool` is applied before the draw).
+ * `around`: every piece of the flat as it stands, settled or still a slot — what a pendant lights is
+ * read off it (a living room's dining table is laid out, and matched, after its pendant).
+ */
+export function slotPool(item: PlacedItem, candidates: CatalogProduct[], room: PlanRoom | undefined, settled: PlacedItem[] = [], styleId?: StyleId, level?: BudgetLevel, around: readonly PlacedItem[] = settled): CatalogProduct[] {
   const wetRoom = room?.type === 'bathroom' || room?.type === 'toilet';
   if (item.slot === 'sink') {
     // A bathroom's basin sits on a vanity made to measure in every style but Vintage (the rulebook,
@@ -945,7 +966,7 @@ export function slotPool(item: PlacedItem, candidates: CatalogProduct[], room: P
   // and, where any does, clear of what stands under it by the gap a hung piece keeps over a piece
   // (`MATCHED_ABOVE_GAP_M`): a lamp hung into a canopy bed or a tall bookcase. It hangs from where
   // the slot's top is (`settledElevation`), so a shorter lamp hangs higher and never through the
-  // ceiling; with none that clears, the lamps that hang as before.
+  // ceiling; with none that clears, the shortest of the lamps that hang.
   if (getArchetype(item.kind)?.placement.type === 'ceiling') {
     const top = item.elevationM + item.size.height;
     const drop = top - lowestPendant(item, settled);
@@ -954,7 +975,17 @@ export function slotPool(item: PlacedItem, candidates: CatalogProduct[], room: P
       const size = sizeFromProduct(p, item);
       return standingBelow(item, size, settled).every((piece) => top - size.height >= piece.size.height + MATCHED_ABOVE_GAP_M);
     });
-    return clear.length > 0 ? clear : hanging;
+    // With none that clears, the shortest that hang: the least into what stands under the lamp.
+    if (clear.length === 0) {
+      const shortest = Math.min(...hanging.map((p) => p.heightCm ?? 0));
+      return hanging.filter((p) => (p.heightCm ?? 0) <= shortest + 5);
+    }
+    // Of those that clear, a large lamp where one hangs over what the slot lights, small ones where
+    // two or three will (Nini, decision 10b: `pendantSizing`, by the surface under the slot among
+    // `around`) — where the offer has any. Where none clears (a four-poster under the middle of a
+    // small room), no large lamp is pressed into it.
+    const sized = pendantSizing(clear, room, item, around);
+    return sized.length > 0 ? sized : clear;
   }
   // A hall's mirror is full height (the rulebook, E-8) on a wall free from the floor up: a tall flat
   // one when there is any. Over the console, or anything else standing under the slot, one that
@@ -1094,8 +1125,7 @@ function hungPosition(item: PlacedItem, size: PlacedItem['size'], elevationM: nu
   return { x: item.position.x + forward.x * shift, z: item.position.z + forward.z * shift };
 }
 
-/** The gap a hung piece keeps over what is under it once matched, where its archetype names none. */
-export const MATCHED_ABOVE_GAP_M = 0.12;
+export { MATCHED_ABOVE_GAP_M } from './rules';
 
 /**
  * The height a matched piece stands or hangs at. Floor pieces stay on the floor — a basin too

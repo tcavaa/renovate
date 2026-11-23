@@ -598,6 +598,9 @@ Severity: **high** = seen by anyone who generates; **medium** = wrong in some ro
   (`slotPool`, `MATCHED_ABOVE_GAP_M`), never through the ceiling, and with none the lamps it had —
   `hung_into_floor` 102 → 9 in 720 flats (96 of the 102 a pendant into a canopy bed); the 7 lamps
   left over a bed hang under 2.7 m ceilings where the catalogue has no lamp short enough (13 cm).
+  *Partly* (stage 5, decision 10b — O8): the pendant hangs over what it lights, never over a
+  four-poster, and where no lamp clears what stands under it the slot takes the shortest that
+  hang — pendants into a bed 4 → 0 of the 132 baseline flats, `hung_into_floor` 18 → 11 in 792.
   Left: the mirror's width over its basin (which mirror fits a basin is the owner's).
 - [x] **O5 (low) — Two main lights at one spot.** The program's `pendant` (an item with a product)
   and the wiring's ceiling light (a point with a product) are both put in the middle of the room —
@@ -607,7 +610,7 @@ Severity: **high** = seen by anyone who generates; **medium** = wrong in some ro
   lists two primary lights and a renovation's budget buys both (a design-only budget leaves
   generated points out, `pricing.ts:669`). In an L-shaped room the two middles differ (area
   centroid, `planGeometry.ts:78`, against the corners' mean, `electrical.ts:239`). *Fixed:* the
-  ceiling point under a hanging lamp is that lamp's outlet (`lampOutlets`, `isLampOutlet`,
+  ceiling point under a hanging lamp is that lamp's outlet (`composeCeiling` — once `lampOutlets`, which also made a spot under a lamp its outlet; now a spot is moved, O8 —, `isLampOutlet`,
   `ElectricalPoint.lampOutlet`): no product, not in the lighting plan, not bought, not given the
   flat's ceiling light (`dressBoard`), still wired — `two_main_lights` 213 → 0, which counts every
   ceiling point at a hanging lamp that is not its outlet; and both middles are the area's centre
@@ -616,6 +619,20 @@ Severity: **high** = seen by anyone who generates; **medium** = wrong in some ro
   lamp now hangs elsewhere — are ceiling lights with a lamp of their own. With the lamp deleted or
   moved off the point is given a lamp like any other fitting, and a lamp picked for it in its panel
   is put on it ([technical-and-fittings.md](technical-and-fittings.md), Known gaps, for when).
+- [x] **O8 (medium) — A spot under a pendant; the pendant over nothing in particular** (Nini,
+  decision 10b). A spot of a kitchen's row or an industrial bedroom's track that fell within 50 cm of
+  a hanging lamp became the lamp's outlet — dropped (342 spots in 792 flats, 318 of them a track's) —
+  and the lamp hung over the room's middle whatever stood there: 495 of 2,516 lamps with a table, an
+  island, a coffee table or a bed in their room within 10 cm of its middle; lone lamps a median 8 cm
+  across (61 % under 12 cm). *Fixed* (`lib/design/ceilingLights.ts`, `composeCeiling`): the lamp
+  hangs centred over what it lights, one large (45 cm–1 m) or two or three small down a long table or
+  island, and spots are moved off it as figures, never dropped. 792 flats: spots dropped 342 → 0;
+  spots within 30 cm of a shade's edge 48 → 1; lamps centred 495 → 2,306 (the 210 bedrooms off are
+  beds a lamp would hang into, lit from the room's middle); lone lamps a median 65 cm across, 2,340
+  of 2,495 large; 142 of 672 kitchens' and 99 of 744 living rooms' lamps two or three small ones;
+  `hung_into_floor` 18 → 11. The whole-flat check counts `spot_under_pendant` and
+  `pendant_off_surface`, both held at zero. What is left:
+  [technical-and-fittings.md](technical-and-fittings.md#known-gaps).
 - [x] **O7 (high) — The TV unit is stood on a room separator's open line.** `placeRelative` is
   handed the room's whole outline (`autoLayout.ts:468`, `:1031`: "the wall the sofa faces" is
   whatever the ray meets), not the walls: in a living room that opens onto the kitchen or the hall

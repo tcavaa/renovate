@@ -24,6 +24,7 @@ import { isOpenEdge, isPassage, openingSpanUp, pointInPolygon, pointOnEdge, poly
 import { inSplashZone, wetFootprints } from './ruleChecks';
 import { partAt, studioParts } from './studio';
 import { closestOnSegment } from './walls';
+import { lampLine, pendantSurface, pushClear, relayRow, ringAround, scaleRing, shadesIn, shiftRow, TABLE_SURFACES, underShade } from './ceilingLights';
 import { backMiddle, wallBehind } from './pieceGeometry';
 import { toSceneProduct, type CatalogProduct } from './matcher';
 import {
@@ -39,6 +40,7 @@ import {
   KITCHEN_SOCKET_M,
   KITCHEN_SPOT_AHEAD_M,
   KITCHEN_SPOT_SPACING_M,
+  SPOT_ROW_SHIFT_M,
   WET_ROOM_SPOTS,
   WET_SPOT_SPACING_M,
   NIGHTSTAND_SOCKET_ABOVE_M,
@@ -123,6 +125,18 @@ interface Builder {
   next: () => string;
   /** The flat's radiators and towel rails on their walls: no fitting is put in or behind one. */
   radiators: readonly RadiatorBody[];
+  /** The spots laid as one figure — a kitchen's row, an industrial bedroom's track, the ring round a main light — moved as one off a hanging lamp (`composeCeiling`). */
+  groups?: SpotGroup[];
+}
+
+/** Spots laid as one figure: a row (laid again either side of a lamp), a track (one rail, moved whole) or a ring round `about`, the room's main light as it was when the ring was laid. */
+interface SpotGroup {
+  roomId: string;
+  shape: 'row' | 'track' | 'ring';
+  points: ElectricalPoint[];
+  about?: { point: ElectricalPoint; at: Vec2 };
+  /** A kitchen's row: the way out from its worktop, the way it is moved first. */
+  ahead?: Vec2;
 }
 
 /** The height round a fitting that has to be clear of what stands or hangs at its wall. */
@@ -226,7 +240,7 @@ function wiredByHand(existing: ElectricalPoint[]): { kept: ElectricalPoint[]; sk
  */
 export function suggestElectrical(plan: FloorPlan, items: PlacedItem[], existing: ElectricalPoint[] = [], styleId?: StyleId | null, decor: readonly DecorPiece[] = []): ElectricalPoint[] {
   let counter = existing.length;
-  const b: Builder = { points: [], next: () => `e${Date.now().toString(36)}-${counter++}`, radiators: radiatorBodies(plan) };
+  const b: Builder = { points: [], next: () => `e${Date.now().toString(36)}-${counter++}`, radiators: radiatorBodies(plan), groups: [] };
   const { kept, skip } = wiredByHand(existing);
 
   for (const room of plan.rooms) {
@@ -237,7 +251,7 @@ export function suggestElectrical(plan: FloorPlan, items: PlacedItem[], existing
     const from = b.points.length;
     standardFor(b, ceiled, items, decor);
     furnitureFor(b, ceiled, items.filter((i) => i.roomId === room.id), plan.technical?.points ?? [], styleId ?? null);
-    lampOutlets(b, from, room, items);
+    composeCeiling(b, from, ceiled, items);
   }
 
   return [...kept, ...b.points];
@@ -259,7 +273,7 @@ export function standardElectrical(plan: FloorPlan, existing: ElectricalPoint[] 
     if (skip.has(room.id) || wallEdges(room).length === 0) continue;
     const from = b.points.length;
     standardFor(b, underCeiling(room, plan), items, decor);
-    lampOutlets(b, from, room, items);
+    composeCeiling(b, from, room, items);
   }
   return [...kept, ...b.points];
 }
@@ -268,27 +282,88 @@ export function standardElectrical(plan: FloorPlan, existing: ElectricalPoint[] 
 export const LAMP_OUTLET_NEAR_M = 0.5;
 
 /**
- * One main light, not two: a room's hanging lamp (the furniture's `pendant`, bought as an item) and
- * the wiring's main ceiling light are both put in the middle of the room, and were both bought. The
- * main ceiling point nearest each hanging lamp — within `LAMP_OUTLET_NEAR_M` of it — becomes that
- * lamp's outlet: a ceiling point where the lamp hangs, marked as one (`lampOutlet`), with no lamp of
- * its own. A lamp hanging somewhere else (over the table) leaves the room its ceiling light.
+ * The room's ceiling laid out as one round its hanging lamps (Nini, decision 10b; the lamps
+ * themselves hang over what they light: `hangPendants` in `lib/design/ceilingLights`).
+ *
+ * One main light, not two: a hanging lamp that is the room's own light — over a coffee table or the
+ * bed's middle — takes the room's main ceiling light (the one nearest it) as its **outlet**, moved
+ * to where the lamp hangs (the middle lamp of two or three): a ceiling point marked as one
+ * (`lampOutlet`) with no lamp of its own, the lamp being what is bought. A lamp over a dining table
+ * or an island is the table's light, a layer of its own: the room keeps its main light. Over either,
+ * or over nothing (in the middle of the room, where the main light is), only a ceiling light within
+ * `LAMP_OUTLET_NEAR_M` of the lamp becomes its outlet.
+ *
+ * No spot under a lamp: a spot never becomes an outlet and is never dropped for one — it is moved.
+ * A ring of spots round the main light goes round it where it now hangs (`ringAround`), and is
+ * drawn in or out, still symmetric, where a lamp is in its way (`scaleRing`); a row is laid again
+ * either side of the lamps it runs under, mirrored about them (`relayRow`), or moved whole off them
+ * where it has no room either side; a track — one rail — is moved whole (`shiftRow`). A spot of no
+ * figure, or one no move clears, is pushed just clear of the shade (`pushClear`).
  */
-function lampOutlets(b: Builder, from: number, room: PlanRoom, items: readonly PlacedItem[]): void {
+function composeCeiling(b: Builder, from: number, room: PlanRoom, items: readonly PlacedItem[]): void {
+  const lamps = items.filter((i) => i.roomId === room.id && i.slot === 'pendant');
+  if (lamps.length === 0) return;
+  const mine = () => b.points.slice(from).filter((p) => p.roomId === room.id);
   const taken = new Set<ElectricalPoint>();
-  for (const lamp of items) {
-    if (lamp.roomId !== room.id || lamp.slot !== 'pendant') continue;
+  // A first lamp and the ones hung beside it in its line (`-g2`, `-g3`) are one group; the outlet is
+  // under its middle lamp.
+  const groups = new Map<string, PlacedItem[]>();
+  for (const lamp of lamps) {
+    const key = lampLine(lamp.id);
+    groups.set(key, [...(groups.get(key) ?? []), lamp]);
+  }
+  for (const group of groups.values()) {
+    const cx = group.reduce((sum, l) => sum + l.position.x, 0) / group.length;
+    const cz = group.reduce((sum, l) => sum + l.position.z, 0) / group.length;
+    const lamp = [...group].sort((p, q) => Math.hypot(p.position.x - cx, p.position.z - cz) - Math.hypot(q.position.x - cx, q.position.z - cz))[0];
+    const surface = pendantSurface(room, items, lamp);
+    const ownLight = !!surface && !TABLE_SURFACES.has(surface.slot);
     let nearest: { point: ElectricalPoint; distance: number } | null = null;
-    for (const point of b.points.slice(from)) {
-      const main = point.kind === 'light_ceiling' || (point.kind === 'light_spot' && point.category === 'primary');
-      if (!main || taken.has(point)) continue;
+    for (const point of mine()) {
+      if (point.kind !== 'light_ceiling' || point.lampOutlet || taken.has(point)) continue;
       const distance = Math.hypot(point.position.x - lamp.position.x, point.position.z - lamp.position.z);
-      if (distance < LAMP_OUTLET_NEAR_M && (!nearest || distance < nearest.distance)) nearest = { point, distance };
+      if ((ownLight || distance < LAMP_OUTLET_NEAR_M) && (!nearest || distance < nearest.distance)) nearest = { point, distance };
     }
     if (!nearest) continue;
     taken.add(nearest.point);
     Object.assign(nearest.point, { kind: 'light_ceiling', category: 'primary', position: { ...lamp.position }, lampOutlet: true });
   }
+
+  const shades = shadesIn(room.id, items);
+  for (const group of (b.groups ?? []).filter((g) => g.roomId === room.id)) {
+    const at = group.points.map((p) => p.position);
+    let next: Vec2[] | null;
+    if (group.shape === 'ring') {
+      // Round the main light where it hangs now, where it moved to a lamp (ringAround lays it clear
+      // of every shade, or not at all); else the ring as laid, drawn in or out off a lamp.
+      const about = group.about;
+      const was = about?.at ?? polygonCentroid(room.polygon);
+      const moved = !!about && Math.hypot(about.point.position.x - was.x, about.point.position.z - was.z) > 0.05;
+      next = (moved ? ringAround(room.polygon, about!.point.position, shades) : null) ?? scaleRing(at, was, shades, room.polygon);
+    } else if (group.shape === 'row') {
+      // Laid again either side of the lamps; where that would cost the row a spot (three lamps down an
+      // island take most of its length), moved whole off them instead, away from the worktop first.
+      const relaid = relayRow(at, shades, room.polygon);
+      next = relaid && relaid.length >= at.length ? relaid : (shiftRow(at, shades, room.polygon, SPOT_ROW_SHIFT_M, group.ahead) ?? relaid ?? shiftRow(at, shades, room.polygon));
+    } else {
+      next = shiftRow(at, shades, room.polygon);
+    }
+    if (!next) continue;
+    const laid = next;
+    if (laid.length === group.points.length) {
+      group.points.forEach((p, i) => (p.position = { ...laid[i] }));
+      continue;
+    }
+    // Laid again with another count — one more where an odd row was split round a lamp.
+    const model = group.points[0];
+    const index = b.points.indexOf(model);
+    b.points = b.points.filter((p) => !group.points.includes(p));
+    const made = laid.map((position) => ({ ...model, id: b.next(), position: { ...position } }));
+    b.points.splice(index < 0 ? b.points.length : index, 0, ...made);
+    group.points = made;
+  }
+  // What no figure moved clear: pushed just off the shade.
+  for (const point of mine()) if (point.kind === 'light_spot' && underShade(point.position, shades)) point.position = pushClear(point.position, shades, room.polygon);
 }
 
 /**
@@ -591,10 +666,10 @@ export function bedsideSocketHeight(stand: PlacedItem | undefined): number {
 }
 
 /** The room's one ceiling light (the standard fittings') swapped for spots at these points — the main light all the same. */
-function replaceMainLight(b: Builder, room: PlanRoom, spots: Vec2[]): void {
+function replaceMainLight(b: Builder, room: PlanRoom, spots: Vec2[]): ElectricalPoint[] {
   const at = b.points.findIndex((p) => p.roomId === room.id && p.kind === 'light_ceiling');
   if (at >= 0) b.points.splice(at, 1);
-  for (const spot of spots) make(b, room, 'light_spot', spot, { category: 'primary' });
+  return spots.map((spot) => make(b, room, 'light_spot', spot, { category: 'primary' }));
 }
 
 /** What the furniture standing in a room calls for: sockets and lamps by the bed, the TV, the sofa, the desk, the kitchen, the washing machine, the basin. */
@@ -605,10 +680,11 @@ function furnitureFor(b: Builder, room: PlanRoom, here: PlacedItem[], technical:
   if (room.type === 'bedroom' && styleId === 'industrial' && beds.length > 0) {
     const centre = roomMiddle(room);
     const across = { x: Math.cos(beds[0].rotation), z: -Math.sin(beds[0].rotation) };
-    replaceMainLight(b, room, Array.from({ length: TRACK_SPOTS }, (_, i) => {
+    const track = replaceMainLight(b, room, Array.from({ length: TRACK_SPOTS }, (_, i) => {
       const off = (i - (TRACK_SPOTS - 1) / 2) * TRACK_SPOT_SPACING_M;
       return { x: centre.x + across.x * off, z: centre.z + across.z * off };
     }));
+    b.groups?.push({ roomId: room.id, shape: 'track', points: track });
   }
   for (const bed of beds) {
     const wall = backWall(room, bed);
@@ -638,8 +714,10 @@ function furnitureFor(b: Builder, room: PlanRoom, here: PlacedItem[], technical:
   // One large main light in the middle and spots round it (the rulebook, Y-3, Y-4, Y-6): in a
   // Scandinavian, Modern or Vintage living room, bedroom or office of 10 m² or more, four spots at the
   // quarters of the room round its one ceiling light — same spots, one model, a ring of point light.
-  if (styleId && RING_STYLES.includes(styleId) && RING_ROOMS.includes(room.type) && room.areaM2 >= RING_MIN_M2 && b.points.some((p) => p.roomId === room.id && p.kind === 'light_ceiling')) {
-    for (const at of ringSpots(room)) make(b, room, 'light_spot', at, { category: 'secondary' });
+  const main = b.points.find((p) => p.roomId === room.id && p.kind === 'light_ceiling');
+  if (styleId && RING_STYLES.includes(styleId) && RING_ROOMS.includes(room.type) && room.areaM2 >= RING_MIN_M2 && main) {
+    const ring = ringSpots(room).map((at) => make(b, room, 'light_spot', at, { category: 'secondary' }));
+    b.groups?.push({ roomId: room.id, shape: 'ring', points: ring, about: { point: main, at: { ...main.position } } });
   }
 
   // Every TV unit, sofa, desk and basin the room has its own sockets — a second sofa as the first. A
@@ -707,8 +785,8 @@ function furnitureFor(b: Builder, room: PlanRoom, here: PlacedItem[], technical:
     // the main light, the light under the cabinets). A kitchen's own ceiling light gives way to
     // them; a studio's stays for its living half.
     const spots = kitchenSpots(room, run, here.find((i) => i.slot === 'dining_table'));
-    if (room.type === 'kitchen') replaceMainLight(b, room, spots);
-    else for (const at of spots) make(b, room, 'light_spot', at, { category: 'primary' });
+    const row = room.type === 'kitchen' ? replaceMainLight(b, room, spots) : spots.map((at) => make(b, room, 'light_spot', at, { category: 'primary' }));
+    b.groups?.push({ roomId: room.id, shape: 'row', points: row, ahead: { x: Math.sin(run.rotation), z: Math.cos(run.rotation) } });
   }
   const fridge = here.find((i) => i.slot === 'fridge');
   if (fridge) {

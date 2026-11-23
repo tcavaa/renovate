@@ -171,6 +171,44 @@ export const TRACK_SPOT_SPACING_M = 0.7;
 export const WET_ROOM_SPOTS = 3;
 export const WET_SPOT_SPACING_M = 1;
 
+/**
+ * The ceiling laid out as one (Nini, 23 Nov 2026, decision 10b; `lib/design/ceilingLights.ts`). A
+ * pendant hangs centred over what it lights — the dining table, the kitchen island, the coffee table,
+ * the bed's middle. One pendant is a large one, `PENDANT_LARGE_M` across; over a long dining table
+ * or island, two small ones (`PENDANT_SMALL_M`) from `PENDANT_PAIR_FROM_M` and three from
+ * `PENDANT_TRIO_FROM_M`, in a line down its length, each the same distance from its neighbour as
+ * the end ones from half that to the table's ends. 1.4 m is where a table seats six rather than
+ * four: a table for four reads as one place, under one lamp; two lamps over 1.4 m hang 70 cm apart
+ * and three over 1.8 m 60 cm apart — the 60–75 cm lighting designers space a row of shades at, each
+ * end shade 30–35 cm in from the table's end, inside the seats. Round shades only
+ * (`PENDANT_ROUND_RATIO`): a linear chandelier or a beam of bulbs is neither.
+ */
+export const PENDANT_LARGE_M = { min: 0.45, max: 1 } as const;
+export const PENDANT_SMALL_M = { min: 0.12, max: 0.4 } as const;
+export const PENDANT_ROUND_RATIO = 1.5;
+export const PENDANT_PAIR_FROM_M = 1.4;
+export const PENDANT_TRIO_FROM_M = 1.8;
+/** The gap a hung piece keeps over what is under it once matched, where its archetype names none (a pendant over a bed). */
+export const MATCHED_ABOVE_GAP_M = 0.12;
+/**
+ * The lowest a hanging lamp comes: 1.9 m, clear of a head, or 1.45 m over a dining table or an
+ * island, where nobody walks. A bed standing taller than 1.9 m less that gap (a four-poster) has no
+ * lamp over it: the lamp hangs in the middle of the room.
+ */
+export const PENDANT_BOTTOM_M = 1.9;
+export const PENDANT_OVER_TABLE_BOTTOM_M = 1.45;
+/**
+ * A spot never shines into a pendant's shade: it keeps `SPOT_PENDANT_GAP_M` clear of the shade's
+ * edge — moved, never dropped. Spots laid again round a pendant stay `SPOT_WALL_GAP_M` off the walls
+ * and `SPOT_MIN_SPACING_M` from each other (40 cm: closer, two downlights read as one). A kitchen's
+ * row moved whole off the lamps over an island goes no further than `SPOT_ROW_SHIFT_M`, so it still
+ * lights the working floor.
+ */
+export const SPOT_PENDANT_GAP_M = 0.3;
+export const SPOT_WALL_GAP_M = 0.3;
+export const SPOT_MIN_SPACING_M = 0.4;
+export const SPOT_ROW_SHIFT_M = 0.6;
+
 export const WARM_LIGHT_K = { min: 2700, max: 3000 } as const;
 export const NEUTRAL_LIGHT_K = { min: 3500, max: 4000 } as const;
 

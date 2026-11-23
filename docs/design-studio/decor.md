@@ -551,8 +551,9 @@ the project opens furnished afterwards.
    (`laidPool`: `pickPool` on each of the kind's slots as laid, with the pieces matched before it as
    they were matched — the kind's pool for the style, the style's own for the big pieces, nothing
    the style keeps out, `kindPool`, held to what the slot can hold, `slotPool`: a countertop basin on
-   a bathroom's vanity, a flat mirror over the basin, a pendant that clears a head, the bath of the
-   style — and, where the engine's own product fits its place keeping clear all the matcher keeps
+   a bathroom's vanity, a flat mirror over the basin, a pendant that clears a head — a large one
+   where one hangs alone, small ones where two or three hang down a long table, decision 10b — the
+   bath of the style — and, where the engine's own product fits its place keeping clear all the matcher keeps
    clear, only the products that fit it so too, `placeFitting` with the floor kept clear and every
    piece as built: there a pick that does not loses to one that does) that fits the room
    (`fitsRoom`) — the style's own and the well-priced more likely

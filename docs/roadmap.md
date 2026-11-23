@@ -102,6 +102,11 @@ at runtime yet; the last one was seen on the sample plan.
   sections not editable on its card, a panel's door not built into the panel, the closet mirror by
   its corners —
   [design-studio/design-rules.md](design-studio/design-rules.md#known-gaps).
+- **The ceiling as one (Nini's decision 10b), what is left** — lamps over a kitchen's island beside
+  its table, a lamp over the coffee table in a living room with a dining table, lamps following a
+  table moved in the studio, a lamp anywhere near a four-poster in a small bedroom, more round lamps
+  in Scandinavian (large) and Vintage (small) —
+  [design-studio/technical-and-fittings.md](design-studio/technical-and-fittings.md#known-gaps).
 - **AI generation, what is left** — phase 1 and the wall decor are built
   ([design-studio/decor.md](design-studio/decor.md#the-ai-designer)); next: the rules module and
   metrics, layout intent per piece (phase 2), an evaluation set, a retry with violations —

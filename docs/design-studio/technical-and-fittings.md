@@ -28,6 +28,7 @@ priced) · [../3d-assets.md](../3d-assets.md) (`models:fixtures`, `models:radiat
 | `lib/design/existing.ts` | what the flat already has (`EXISTING_KEYS`, `defaultExistingForHomeState`) — [overview.md](overview.md#what-the-flat-already-has-libdesignexistingts) |
 | `lib/design/technicalRates.ts` | estimate prices and labour keys: `ELECTRICAL_LABOUR` (`electric_point`), `TECHNICAL_RATES` (`plumbing_install`, `radiator_mount`, `heating_piping`, `ac_install`, `extractor_install`), `OPENING_ESTIMATE_GEL`, `ENTRANCE_DOOR_GEL`, `TRIM_INSTALL_DEFAULT_GEL` |
 | `lib/design/electrical.ts` | sockets, switches, lights: `standardElectrical` (what every room gets), `suggestElectrical` (that and the furniture's), `placeElectrical`, `reprojectElectrical`, `slideAlongWall`, `fittingClashes`, fixture products (`FIXTURE_PRODUCT_KIND`, `withFixtureProducts`, `fixtureCandidates`, `fixtureQuantity`) |
+| `lib/design/ceilingLights.ts` | the ceiling laid out as one (Nini's decision 10b): what a pendant lights (`pendantSurface`), how many hang there (`pendantCount`) and of what size (`pendantClass`, `pendantSizing` — the matcher's), the layout's and generation's hanging (`hangPendantSlots`, `hangPendants`), and the spots moved off the lamps (`relayRow`, `shiftRow`, `ringAround`, `scaleRing`, `pushClear` — what the wiring's `composeCeiling` uses) |
 | `lib/design/boardPicks.ts` | `dressBoard`: a product chosen for the whole flat on every door, window, radiator or fitting of its kind (the calculator's `boardWithPicks`, the design's `applyBoardPicks`) |
 | `lib/design/radiators.ts` | sections per room, `suggestRadiators`, radiator products (`withRadiatorProducts`, `radiatorCandidates`), a radiator as it hangs on its wall (`radiatorBody`, `radiatorWallBlocks`) |
 | `lib/design/equipment.ts` | the points that are equipment (`EQUIPMENT_KINDS`), what each is bought as (`equipmentProductKind`: an extractor is a cooker hood in a kitchen, a fan elsewhere), `equipmentCandidates`, `withEquipmentProduct(s)`, `equipmentSignature` |
@@ -176,8 +177,8 @@ kitchen's main light is a row of spots over the working floor** (`kitchenSpots`:
 of the run, never nearer than 10 cm in front of the worktop's edge, `KITCHEN_SPOT_*`), replacing
 the room's one ceiling light (a studio keeps it for its living half): the owner's three layers,
 apart from each other — the
-pendant over the table (furniture, `placeOnCeiling`), the spots over the run, the light under the
-wall cabinets. **An industrial bedroom's main light is a track** of three cylinder spots across the
+pendant or pendants over the table or the island (furniture, `hangPendants` — below), the spots over
+the run, the light under the wall cabinets. **An industrial bedroom's main light is a track** of three cylinder spots across the
 room's middle, square to the bed (`TRACK_SPOTS`); `suggestElectrical` takes the style for it. An
 industrial spot or ceiling light whose name says cylinder, tube or track goes first
 (`fixtureCandidates`); a desk's
@@ -245,14 +246,60 @@ is in the cabinets, not on the wall: it goes where they are whatever is behind t
 and the studio's own "wire it" (`designStore.suggestElectrical`) both hand the wiring the furniture
 and the decor, so neither puts a switch or a socket inside built joinery.
 
+**The ceiling laid out as one** (Nini, 23 Nov 2026, decision 10b; `lib/design/ceilingLights.ts`).
+**A hanging lamp hangs centred over what it lights** (`pendantSurface`, by the type of the room or
+the studio's half): a kitchen's dining table, else its island; a living room's dining table, else
+its coffee table; a bedroom's bed — its middle — unless the bed stands taller than a lamp may come
+down to (`PENDANT_BOTTOM_M` 1.9 m less the 12 cm a hung piece keeps over another: a four-poster),
+when the lamp hangs in the middle of the room; an office, a kitchen with no table, anything else: the
+middle of the room. The layout hangs the program's one pendant there once the room is laid out
+(`hangPendantSlots` — a living room's dining table comes after its pendant in the program), the
+matcher matches what hangs from the ceiling last, over the table as bought (`pendantRehung`), and
+generation hangs the lamps as matched (`hangPendants`, in `layOutFlat` and again after the AI
+designer's check moves or swaps pieces, `reviewedScene`). **One pendant is a large one; over a long
+dining table or island, two or three small ones**: from 1.4 m two, from 1.8 m three
+(`PENDANT_PAIR_FROM_M`, `PENDANT_TRIO_FROM_M` — 1.4 m is where a table seats six: two lamps 70 cm
+apart, three 60 cm, the end ones 30–35 cm in from the ends), evenly down its length, the same small
+lamp each (`-g2`, `-g3` after the first lamp's id), turned along the table. The matcher's pendant
+slot prefers, of the lamps that hang clear (head height, what stands under them), the large ones —
+round, 45 cm to 1 m across (`PENDANT_LARGE_M`) — where one hangs, the small ones — round, 12–40 cm
+(`PENDANT_SMALL_M`) — where two or three will (`pendantSizing`); a lamp of neither size (a linear
+chandelier, a bulb filed 5 cm across) hangs alone. Where no lamp clears what stands under it, the
+shortest that hang (the least into a canopy). The AI designer's pendant pick goes through the same
+`slotPool` (it is offered only lamps of the size its slot takes, `pickPool`) and the same hanging.
+
+**Which lights a room keeps.** A kitchen: the lamps over its table or island, the row of spots over
+the run, the light under the wall cabinets — no ceiling light of its own. A living room, a bedroom or
+an office: its hanging lamp is its main light (below), with the ring of spots round it in a
+Scandinavian, Modern or Vintage room of 10 m² or more; an industrial bedroom its track. A living room
+with a dining table: the lamp lights the table, and the room keeps its ceiling light (and ring) over
+the sitting area — two zones. Never a ceiling light beside a hanging lamp, never a spot under one.
+
+**No spot under a lamp: spots are moved, never dropped** (`composeCeiling`, which finishes every
+room `suggestElectrical` and `standardElectrical` wire). A spot keeps 30 cm clear of a shade's edge
+(`SPOT_PENDANT_GAP_M`; a shade counts as 20 cm across at least). The figures the wiring laid are
+moved as figures: **a row** (a kitchen's) is laid again either side of the lamps it runs under,
+mirrored about their middle — half its spots each side, an odd row gaining one, within the row's own
+length (`relayRow`); where that would leave it fewer (three lamps down an island take most of the
+row), the row is moved whole, square to itself, up to 60 cm away from the worktop first
+(`shiftRow`, `SPOT_ROW_SHIFT_M`); **a track** (an industrial bedroom's) is one rail and is only ever
+moved whole; **a ring** round a main light that became a lamp's outlet is laid round the lamp where
+it hangs, at the room's quarters from it and 30 cm off the walls, symmetric (`ringAround`), and a
+ring a lamp is in the way of is drawn in or out about its middle (`scaleRing`). What no figure
+clears is pushed just off the shade (`pushClear`). The whole-flat check counts a spot under a lamp
+(`spot_under_pendant`) and a lamp more than 10 cm off the middle of what it lights
+(`pendant_off_surface`); both are held at zero.
+
 **One main light, not two.** A room's hanging lamp is furniture (an item of slot `pendant`, bought
-as the item) and hangs in the middle of the room, where the wiring puts the main ceiling light: the
-two used to be listed and bought side by side. `suggestElectrical` and `standardElectrical` now
-finish each room with `lampOutlets`: the main ceiling point nearest each hanging lamp, within 50 cm
-of it (`LAMP_OUTLET_NEAR_M`, the distance at which the 3D view draws only the point's rose) —
-the ceiling light, or the spot of a kitchen's row or an industrial bedroom's track that falls there
-— becomes that lamp's **outlet**: a `light_ceiling` point exactly where the lamp hangs, marked as one
-(`ElectricalPoint.lampOutlet`, kept by the save schema), with no product. `isLampOutlet(point,
+as the item); the wiring puts the main ceiling light in the middle of the room: the two used to be
+listed and bought side by side. In `composeCeiling` a lamp that is the room's own light — over a
+coffee table or a bed — takes the room's main ceiling light, the one nearest it wherever it hangs;
+a lamp over a dining table or an island (the table's own layer) or over nothing takes a ceiling
+light only within 50 cm of it (`LAMP_OUTLET_NEAR_M`, the distance at which the 3D view draws only
+the point's rose). The point becomes that lamp's **outlet** (under the middle lamp of two or three):
+a `light_ceiling` point exactly where the lamp hangs, marked as one
+(`ElectricalPoint.lampOutlet`, kept by the save schema), with no product. A spot never becomes an
+outlet. `isLampOutlet(point,
 items)` is the one test of it — a marked ceiling point carrying no product at which a `pendant` of
 its room hangs within 50 cm. It goes by what hangs there, not by which lamp the point was made
 for: generating again numbers the lamps anew, and a room whose wiring is kept (one fitting edited
@@ -266,8 +313,7 @@ an ordinary ceiling light again: `withFixtureProducts` gives it the catalogue's 
 fitting (the studio's `ensureFixtureProducts`, the next wiring or generation), and until then it is
 an estimate. A lamp the person picks for the outlet in its panel is put on it
 (`withFixtureProduct`): the point is then a light of its own, with the hanging lamp beside it by
-their choice. A lamp hanging somewhere else (over the dining table) leaves the room its own
-ceiling light.
+their choice. A lamp over the dining table leaves the room its own ceiling light.
 
 **Two fittings may not hold the same piece of wall** (`fittingClashes`). The rule is about
 plates, not points: two argue only when their footprints overlap *both* along the wall and
@@ -835,6 +881,17 @@ have no tests of their own.
 
 ## Known gaps
 
+- **The ceiling as one (decision 10b), what is left.** A kitchen with both a dining table and an
+  island hangs its lamps over the table alone. A living room with a dining table lights the table
+  with its pendant and keeps its ceiling light over the sitting area, no lamp over the coffee table
+  (240 of 504 living rooms in 792 flats); a studio's living half with no coffee table keeps the
+  studio's ceiling light beside its lamp (20 of 240). Moving a table in the studio does not move its
+  lamps (they are hung again at the next generation; the studio's "wire it" moves only the spots).
+  A four-poster in a small bedroom leaves no lamp anywhere in the room that clears it but one a few
+  centimetres across (148 of 2,495 lone lamps under 12 cm in 792 flats, all of them so) — the
+  catalogue's tall beds under 2.7–2.8 m ceilings. The catalogue's round lamps are few in places:
+  Scandinavian has three large ones (45, 65 and 97 cm, the last 1.53 m long and so hung only over a
+  table), Vintage three small ones (31–32 cm).
 - **A housed boiler outlives its section in the studio.** A boiler the hall wardrobe's section
   houses (`housed`, `cabinet: null`) keeps no cabinet when the person deletes or shortens the
   wardrobe by hand, or drags the boiler out of it: its cabinet comes back only at the next generation
