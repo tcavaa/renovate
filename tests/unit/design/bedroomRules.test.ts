@@ -39,19 +39,81 @@ describe('a bedroom\'s wall of wardrobe', () => {
     expect(items).toEqual([wardrobe]);
   });
 
-  it('builds it only where the floor before its doors is as clear as the engine keeps it before a wardrobe, else keeps the shop\'s wardrobe', () => {
+  describe('the floor before its doors (decision 4)', () => {
+    // A bedroom 4 × 3.6 m, the wardrobe on the east wall (x = 4) facing west: a wall of wardrobe
+    // 60 cm deep has its doors at x = 3.4.
     const bedroom = room('f', 'bedroom', 4, 3.6, [door(2, 0.85)]);
     const wardrobe = item('w', 'f', 'wardrobe', 3.7, 0.9, -Math.PI / 2, 1.5, 0.6);
-    // A nightstand 50 cm in front of where the wall of wardrobe's doors would be: in their way.
-    const nightstand = item('n', 'f', 'nightstand', 4 - 0.6 - 0.5 - 0.2, 2.9, Math.PI / 2, 0.45, 0.4, 0.5);
-    const blocked = fitWardrobes({ rooms: [bedroom], items: [wardrobe, nightstand], catalog: [material], styleId: 'modern' });
-    expect(blocked.decor).toHaveLength(0);
-    expect(blocked.items).toEqual([wardrobe, nightstand]);
-    // 80 cm in front, past the wardrobe's 75 cm: the wall is built. A rug in front is in nobody's way.
-    const away = { ...nightstand, position: { x: 4 - 0.6 - 0.8 - 0.2, z: 2.9 } };
-    const rug = { ...item('r', 'f', 'rug', 2.8, 1.8, 0, 2, 1.6, 0.01), slot: 'rug' as const };
-    const built = fitWardrobes({ rooms: [bedroom], items: [wardrobe, away, rug], catalog: [material], styleId: 'modern' });
-    expect(built.decor).toHaveLength(1);
+    const fit = (...others: PlacedItem[]) => fitWardrobes({ rooms: [bedroom], items: [wardrobe, ...others], catalog: [material], styleId: 'modern' });
+    /** A desk along the whole wall, `gap` in front of a 60 cm deep wall of wardrobe's doors. */
+    const deskAt = (gap: number) => item('k', 'f', 'desk', 3.4 - gap - 0.25, 1.8, Math.PI / 2, 3.4, 0.5, 0.75);
+
+    it('builds it the whole wall long with hinged doors where 75 cm before it is clear — a rug in nobody\'s way', () => {
+      const away = item('n', 'f', 'nightstand', 4 - 0.6 - 0.8 - 0.2, 2.9, Math.PI / 2, 0.45, 0.4, 0.5);
+      const rug = { ...item('r', 'f', 'rug', 2.8, 1.8, 0, 2, 1.6, 0.01), slot: 'rug' as const };
+      const built = fit(away, rug);
+      expect(built.decor).toHaveLength(1);
+      expect(built.decor[0].span.to - built.decor[0].span.from).toBeCloseTo(3.6, 2);
+      expect(built.decor[0].params.sliding).toBeUndefined();
+    });
+
+    it('builds it with sliding doors where only 60–75 cm before it is clear', () => {
+      const built = fit(deskAt(0.65));
+      expect(built.decor).toHaveLength(1);
+      expect(built.decor[0].params.sliding).toBe(true);
+      expect(built.decor[0].span.to - built.decor[0].span.from).toBeCloseTo(3.6, 2);
+      expect(built.decor[0].params.depthMm).toBe(600);
+    });
+
+    it('builds it shorter, on the run of the wall whose front is clear, before giving up — and keeps the chest of drawers beside a shorter one', () => {
+      // A nightstand 50 cm in front of where the doors would be, near the wall's south end.
+      const nightstand = item('n', 'f', 'nightstand', 4 - 0.6 - 0.5 - 0.2, 2.9, Math.PI / 2, 0.45, 0.4, 0.5);
+      const dresser = item('d', 'f', 'dresser', 2, 3.3, Math.PI, 1, 0.45, 0.8);
+      const built = fit(nightstand, dresser);
+      expect(built.decor).toHaveLength(1);
+      const span = built.decor[0].span;
+      // From the north corner to the nightstand's side, hinged.
+      expect(span.from).toBeCloseTo(0, 3);
+      expect(span.to).toBeLessThanOrEqual(2.9 - 0.225 + 1e-6);
+      expect(span.to - span.from).toBeGreaterThanOrEqual(1.5 - 1e-6);
+      expect(built.decor[0].params.sliding).toBeUndefined();
+      expect(built.items.map((i) => i.id).sort()).toEqual(['d', 'n']);
+    });
+
+    it('builds a shallow one where a 60 cm deep one does not fit, else keeps the shop\'s wardrobe', () => {
+      // 50 cm before a 60 cm deep one's doors along the whole wall: 72 cm before a shallow one's.
+      const shallow = fit(deskAt(0.5));
+      expect(shallow.decor).toHaveLength(1);
+      expect(shallow.decor[0].params.depthMm).toBe(380);
+      expect(shallow.decor[0].params.sliding).toBe(true);
+      // 30 cm: 52 cm before a shallow one — too little for sliding doors. The shop's wardrobe stays.
+      const desk = deskAt(0.3);
+      const kept = fit(desk);
+      expect(kept.decor).toHaveLength(0);
+      expect(kept.items).toEqual([wardrobe, desk]);
+    });
+
+    it('never takes the floor beside the bed or its nightstand: the bed and the wardrobe are judged together', () => {
+      const kinds = new Set<string>();
+      for (const gap of [0.85, 0.95, 1.0, 1.1, 1.2, 1.3, 1.45]) {
+        // The bed's head on the north wall, its long side `gap` off the east wall, a nightstand at its head.
+        const bed = item('b', 'f', 'bed', 4 - gap - 0.8, 1.025, 0, 1.6, 2.05, 1);
+        const nightstand = item('n', 'f', 'nightstand', 4 - gap + 0.25, 0.2, 0, 0.4, 0.4, 0.5);
+        const shop = item('w', 'f', 'wardrobe', 3.7, 2.85, -Math.PI / 2, 1.2, 0.6);
+        const built = fitWardrobes({ rooms: [bedroom], items: [shop, bed, nightstand], catalog: [material], styleId: 'modern' }).decor[0];
+        if (!built) continue;
+        const depth = (built.params.depthMm ?? 600) / 1000;
+        kinds.add(`${depth}${built.params.sliding ? ' sliding' : ''}${Math.abs(built.span.to - built.span.from) < 3.5 ? ' shorter' : ''}`);
+        const [lo, hi] = [Math.min(built.span.from, built.span.to), Math.max(built.span.from, built.span.to)];
+        // Along the bed's length (z 0–2.05) or the nightstand's, its doors 60 cm at least off the bed's side.
+        const besideBed = lo < 2.05 && hi > 0;
+        if (besideBed) expect(gap - depth, `gap ${gap}`).toBeGreaterThanOrEqual(0.6 - 1e-6);
+        // Never over the nightstand.
+        if (lo < 0.4 && hi > 0) expect(4 - depth, `gap ${gap}`).toBeGreaterThanOrEqual(4 - gap + 0.45 - 1e-6);
+      }
+      // The ladder ran: some of the rooms got a shorter, a sliding or a shallow one.
+      expect([...kinds].length, [...kinds].join(', ')).toBeGreaterThanOrEqual(2);
+    });
   });
 
   it('lays a stool out in a bedroom with room for one', () => {

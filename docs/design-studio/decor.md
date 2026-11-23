@@ -144,8 +144,23 @@ The reference library's rules, as code:
   offered to it); every style takes it (`STYLE_DECOR_FAMILIES`). Not in `STANDS_OUT`: what it
   houses — the basin on the vanity, the washer in its column — stays where it stands. Built by the
   bathroom pass (vanity, washer column), the hall pass (`lib/design/hall.ts`: the hall's wardrobe
-  with the boiler's section) and the bedroom pass (`lib/design/bedroom.ts`: a wall of wardrobe); the
-  AI room check sees them as fixed (`ENGINE_DECOR` in `aiReview.ts`).
+  with the boiler's section where the flat's boiler hangs on its stretch —
+  [technical-and-fittings.md](technical-and-fittings.md)) and the bedroom pass
+  (`lib/design/bedroom.ts`: a wall of wardrobe, below); the AI room check sees them as fixed
+  (`ENGINE_DECOR` in `aiReview.ts`).
+- **A wall of wardrobe** (`fitWardrobes`, `wallOfWardrobeFit`; Nini, 23 Nov 2026, decision 4): on
+  the shop wardrobe's wall when that wall is otherwise empty (its free stretch `freeStretch` the
+  whole side), judged with the bed and the nightstands where the layout put them — the floor before
+  its doors clear 75 cm for hinged doors (the wardrobe archetype's `clearanceM`), 60 cm for sliding
+  doors (`SLIDING_WARDROBE_CLEAR_M`, `params.sliding`): the longest run of the wall whose front is so
+  clear (`clearRuns`), the whole wall where it is, else **shorter**; at the wardrobe's depth, then —
+  for a 60 cm one — **shallow** (`SHALLOW_WARDROBE_DEPTH_M`, 38 cm); sliding only where it gives a
+  longer run than hinged. Taken only when at least as long as `MIN_BUILT_M` (1.2 m) and as the shop
+  wardrobe it replaces; else the shop's wardrobe stays. The bed's sides and a nightstand stand in
+  that front, so a run never takes their floor. A chest of drawers gives way only to a full-length
+  one (B-10); beside a shorter one it stays and is kept clear of its doors. Sliding doors are drawn
+  as leaves on two tracks across the door sections, no wider than a metre, a rail along the top
+  (`addSlidingLeaves`), and priced as hinged ones: by the façade.
 
 ## What it costs (`quantities.ts`)
 

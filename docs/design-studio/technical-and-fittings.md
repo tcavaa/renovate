@@ -394,7 +394,26 @@ hood is a round one first, then a thick one (`equipmentCandidates`).
 
 The boiler goes into the hall wardrobe's boiler section when the generation built one
 (`housedBoilerSpot`, `lib/design/hall.ts`; `suggestTechnical` takes the decor) and takes no cabinet of
-its own there (`cabinet: null`) — the wardrobe is its cupboard (the rulebook, E-4).
+its own there (`cabinet: null`, `housed`) — the wardrobe is its cupboard (the rulebook, E-4).
+
+**A boiler already hanging where the hall wardrobe is built** (Nini, 23 Nov 2026, decision 5 —
+`fitHall`): where it hangs in the front hall on the stretch of wall the wardrobe takes, in a hall
+wide enough for its cupboard (`BOILER_HALL_MIN_WIDTH_M`), the wardrobe takes it in — a ventilated
+`boiler` section of its own at the boiler's real position (`BOILER_SECTION_M`, 65 cm, or the
+boiler's width and 10 cm either side when wider; a bit of wall under 30 cm beside it joined to it),
+the wardrobe run on along its stretch to reach it, the coats (80 cm at least, by the door where they
+fit) and the shoes (60 cm) either side or both on one side with a plain cupboard on the other, in the
+wardrobe's material — and that boiler's own cabinet comes off (`withHousedBoiler`: `cabinet: null`,
+`housed: true`), so there is one enclosure and one charge: no cabinet line in the budget, the section
+bought with the wardrobe's façade, no cupboard drawn in 3D. A separate cupboard stays where the
+section would cost the essential storage (the coats' and the shoes' room no longer fit beside it) or
+the access (the boiler half off the stretch, a shallow wardrobe in a hall under 1.4 m), and for a
+cabinet the person chose (`cabinetChosen`); the wardrobe is then built clear of that cupboard
+(`clearOfBoilers` — a hall with no stretch left long enough keeps its coat rack and shoe cabinet).
+Never a section where no boiler hangs. A boiler marked `housed` that a later generation builds no
+section round gets the first cabinet for its room back; a cabinet the person took off (null, not
+`housed`) stays off. The boiler's card says it is in the hall wardrobe's section
+(`boilerCabinetHoused`); a material picked there clears `housed`.
 
 **In a furnished flat the automatic placements read the furniture and the decor first**
 (`lib/design/wallClear.ts`, the owner's notes of 13 Nov 2026 — a towel rail had been hung through a
@@ -810,6 +829,12 @@ prices are refused), `e2e/design-studio.spec.ts` (going on through the checks). 
 have no tests of their own.
 
 ## Known gaps
+
+- **A housed boiler outlives its section in the studio.** A boiler the hall wardrobe's section
+  houses (`housed`, `cabinet: null`) keeps no cabinet when the person deletes or shortens the
+  wardrobe by hand, or drags the boiler out of it: its cabinet comes back only at the next generation
+  (`withHousedBoiler`); the card can add one meanwhile. A boiler the person drags onto a wardrobe's
+  stretch is not taken in until the flat is generated again.
 
 - **A door with no product on an outside wall is estimated at the entrance door's price**
   (`openingEstimate`, `ENTRANCE_DOOR_GEL`), a balcony's included, in the calculation's sheet and the

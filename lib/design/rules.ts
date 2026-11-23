@@ -289,6 +289,12 @@ export const WALL_UNIT_BOTTOM_M = KITCHEN_WORKTOP_M + WALL_UNIT_OVER_WORKTOP_M;
 /** A wardrobe's depth: 60 cm, or a shallow one 35–40 cm. */
 export const WARDROBE_DEPTH_M = 0.6;
 export const SHALLOW_WARDROBE_DEPTH_M = 0.38;
+/**
+ * The clear floor a built wall of wardrobe needs before its doors (Nini, 23 Nov 2026, decision 4):
+ * 75 cm for hinged doors — the wardrobe archetype's `clearanceM`, what the layout keeps before a
+ * shop's wardrobe — and 60 cm for sliding doors.
+ */
+export const SLIDING_WARDROBE_CLEAR_M = 0.6;
 /** A shower: at least 80 × 80, preferably 90 × 90. */
 export const SHOWER_MIN_M = 0.8;
 /**

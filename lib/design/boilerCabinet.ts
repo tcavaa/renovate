@@ -100,8 +100,37 @@ export function boilerCabinetCandidates(catalog: CatalogProduct[], styleId: Styl
 
 /** The boiler with its cabinet in `material` (or none), bought by its façade; `chosen` when the person picked it. */
 export function withBoilerCabinet(point: TechnicalPoint, material: CatalogProduct | null, room?: CabinetRoom, chosen = false): TechnicalPoint {
-  const { cabinetChosen: _was, ...rest } = point;
+  const { cabinetChosen: _was, housed: _housed, ...rest } = point;
   return { ...rest, cabinet: material ? toSceneProduct(material, boilerCabinetFacadeM2(point, room)) : null, ...(chosen ? { cabinetChosen: true } : {}) };
+}
+
+/**
+ * The plan with the boiler `housedId` hung in the hall wardrobe's ventilated section (`fitHall`):
+ * it takes no cabinet of its own — one enclosure for one boiler, one charge (Nini, 23 Nov 2026,
+ * decision 5) — marked `housed`, so a later generation that builds no section round it gives it
+ * back the first cabinet for its room (none when the catalogue has no material). A cabinet the
+ * person took off (null, not `housed`) stays off. The same plan comes back when nothing changed.
+ */
+export function withHousedBoiler(plan: FloorPlan, housedId: string | null, catalog: CatalogProduct[], styleId: StyleId): FloorPlan {
+  const points = plan.technical?.points ?? [];
+  let changed = false;
+  const next = points.map((point) => {
+    if (point.kind !== 'boiler') return point;
+    if (point.id === housedId) {
+      if (point.housed && point.cabinet === null) return point;
+      changed = true;
+      const { cabinetChosen: _was, ...rest } = point;
+      return { ...rest, cabinet: null, housed: true };
+    }
+    if (!point.housed) return point;
+    changed = true;
+    const room = boilerRoom(plan, point);
+    const first = boilerCabinetCandidates(catalog, styleId, room)[0];
+    if (first) return withBoilerCabinet(point, first, room);
+    const { housed: _housed, cabinet: _cabinet, ...rest } = point;
+    return rest;
+  });
+  return changed ? { ...plan, technical: { ...plan.technical, points: next } } : plan;
 }
 
 /**

@@ -756,6 +756,7 @@ function BoilerCabinetFields({ point, room, catalog, styleId, locale, actions }:
       <p className="mb-1 text-[11px] leading-snug text-ink-muted">
         {fill(outdoor ? t.build.boilerCabinetOutdoorHint : t.build.boilerCabinetHint, { w: Math.round(size.width * 100), h: Math.round(size.height * 100), d: Math.round(size.depth * 100), m2: formatM2(m2) })}
       </p>
+      {point.housed && point.cabinet === null && <p className="mb-1 text-[11px] font-medium leading-snug text-ink">{t.build.boilerCabinetHoused}</p>}
       {point.cabinet && (
         <div className="mb-1.5 grid grid-cols-3 gap-1.5">
           <NumberField label={t.decor.width} value={size.width} min={0.3} max={3} step={0.05} onCommit={(widthM) => actions.updateTechnical(point.id, { cabinetSize: { ...point.cabinetSize, widthM } })} />

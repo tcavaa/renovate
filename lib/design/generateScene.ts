@@ -19,6 +19,7 @@ import { applyBoardPicks, applyFinishPicks, applyFurniturePicks, type Calculator
 import { budgetLevel, matchProducts, type BudgetLevel, type CatalogProduct, type MatchOptions } from './matcher';
 import { fitBathrooms } from './bathroom';
 import { fitHall } from './hall';
+import { withHousedBoiler } from './boilerCabinet';
 import { fitWardrobes } from './bedroom';
 import { withOpeningProducts } from './openings';
 import { rngStreams, roomStreams, type RoomRng, type Rng } from './random';
@@ -133,10 +134,11 @@ export function layOutFlat(input: Pick<GenerateSceneInput, 'plan' | 'styleId' | 
   // bath boxed or enclosed and its mixer at its head.
   const fitted = fitBathrooms({ rooms: underCeilings, items, catalog, styleId, level, roomRng: roomStreams(streams, 'bathroom'), keepClear: kept, radiators: radiatorBodies(plan) });
   items = fitted.items;
-  // The hall's built-in wardrobe by the front door (coats, the boiler's cupboard, shoes) and the
-  // full-height mirror across from it.
+  // The hall's built-in wardrobe by the front door (coats, the boiler's section, shoes) and the
+  // full-height mirror across from it. A boiler its section takes in has no cabinet of its own.
   const hall = fitHall({ rooms: underCeilings, items, catalog, styleId, technical: plan.technical?.points ?? [], radiators: radiatorBodies(plan) });
   items = hall.items;
+  const housed = withHousedBoiler(plan, hall.housed, catalog, styleId);
   // A bedroom's wall of wardrobe where the wardrobe's wall is otherwise empty (no chest besides).
   const wardrobes = fitWardrobes({ rooms: underCeilings, items, catalog, styleId, radiators: radiatorBodies(plan) });
   items = wardrobes.items;
@@ -145,11 +147,11 @@ export function layOutFlat(input: Pick<GenerateSceneInput, 'plan' | 'styleId' | 
   items = fitKitchenCorners(underCeilings, items, [...fitted.decor, ...hall.decor, ...wardrobes.decor], radiators);
   if (calculatorPicks) items = withoutOrphans(items, placeableOnly(applyFurniturePicks(items, plan, calculatorPicks, catalog, kept)), plan.rooms);
   // Every door and window is bought as a product where the catalogue has one.
-  const rooms = withOpeningProducts(plan.rooms, catalog, styleId);
-  const laid = rooms !== plan.rooms ? { ...plan, rooms } : plan;
+  const rooms = withOpeningProducts(housed.rooms, catalog, styleId);
+  const laid = rooms !== housed.rooms ? { ...housed, rooms } : housed;
   // A box behind every WC for its concealed cistern (the design rules), whoever designed the rest.
   const boxes = wcBoxes(laid.rooms, items, catalog);
-  return { plan, laid, rooms: underCeilings, placed, matched, items, built: [...fitted.decor, ...hall.decor, ...wardrobes.decor, ...boxes], level, kept };
+  return { plan: housed, laid, rooms: underCeilings, placed, matched, items, built: [...fitted.decor, ...hall.decor, ...wardrobes.decor, ...boxes], level, kept };
 }
 
 export function generateScene(input: GenerateSceneInput): GeneratedScene {

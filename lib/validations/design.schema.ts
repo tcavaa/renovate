@@ -127,6 +127,8 @@ export const technicalPointSchema = z.object({
   cabinet: sceneProductSchema.nullable().optional(),
   // The person picked that material themselves: the app does not change it for the room's.
   cabinetChosen: z.boolean().optional(),
+  // It hangs in the hall wardrobe's ventilated section: the app took its own cabinet off.
+  housed: z.boolean().optional(),
   // The cabinet's own width, height and height off the floor, as the person set them.
   cabinetSize: z.object({ widthM: z.number().min(0.1).max(5).optional(), heightM: z.number().min(0.1).max(5).optional(), bottomM: z.number().min(0).max(5).optional() }).optional(),
   // A piece of equipment: its product's size, for the 3D view.
@@ -318,6 +320,7 @@ export const decorPieceSchema = z.object({
       path: z.enum(['cove', 'line']).optional(),
       full: z.boolean().optional(),
       corner: z.enum(['left', 'right']).optional(),
+      sliding: z.boolean().optional(),
       wallUnits: z.object({ from: z.number().min(-1).max(100), to: z.number().min(-1).max(100), bottomMm: z.number().min(0).max(4000), heightMm: z.number().min(100).max(2000), depthMm: z.number().min(100).max(900) }).optional(),
       sections: z
         .array(

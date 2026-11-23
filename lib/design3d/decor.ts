@@ -407,6 +407,7 @@ function buildCabinet(piece: DecorPiece): THREE.Group {
   const face = decorMaterial(piece.materials.face, '#E9E4DC', 0.6);
   const gap = plain('#2A2622', 0.9);
   const t = CARCASS_M;
+  const sliding = piece.params.sliding === true;
   // A corner leg's wall cabinets, hung over it in the same fronts.
   const hung = piece.params.wallUnits;
   if (hung && hung.to - hung.from > 0.05) {
@@ -455,6 +456,8 @@ function buildCabinet(piece: DecorPiece): THREE.Group {
     const plinth = section.kind === 'basin' ? 0 : 0.08;
     g.add(mesh(metreBox(w, h - plinth, d), face, cx, plinth + (h - plinth) / 2, d / 2));
     if (plinth > 0) g.add(mesh(metreBox(w, plinth, d - 0.05), gap, cx, plinth / 2, (d - 0.05) / 2));
+    // Sliding doors are drawn across the whole wardrobe once its carcasses stand (below).
+    if (sliding && section.kind === 'doors') continue;
     // The doors: as many as keep each under 60 cm, a shadow gap between them; a tall section is split at 2.1 m too.
     const doors = Math.max(1, Math.ceil(w / 0.6 - 1e-6));
     for (let i = 1; i < doors; i++) g.add(mesh(metreBox(0.004, h - plinth - 0.01, 0.004), gap, x0 + (w * i) / doors, plinth + (h - plinth) / 2, d + 0.001));
@@ -465,7 +468,43 @@ function buildCabinet(piece: DecorPiece): THREE.Group {
       for (const band of [h - 0.35, plinth + 0.08]) for (let k = 0; k < 5; k++) g.add(mesh(metreBox(w - 0.08, 0.008, 0.006), gap, cx, band + k * 0.05, d + 0.002));
     }
   }
+  if (sliding) addSlidingLeaves(g, piece, face, gap);
   return g;
+}
+
+/** A sliding leaf's thickness, how far the two tracks stand apart, and the widest leaf drawn. */
+const LEAF_M = 0.02;
+const TRACK_M = 0.025;
+const LEAF_MAX_M = 1.0;
+
+/**
+ * A wall of wardrobe's sliding doors (`params.sliding`): leaves of equal width across its door
+ * sections, each no wider than a metre, overlapping 3 cm, on two tracks in front of the carcass
+ * (the front one and the back one in turn), a rail along the top.
+ */
+function addSlidingLeaves(g: THREE.Group, piece: DecorPiece, face: THREE.Material, gap: THREE.Material): void {
+  const spans = sectionSpans(piece).filter((s) => s.section.kind === 'doors');
+  if (spans.length === 0) return;
+  const x0 = Math.min(...spans.map((s) => s.x0));
+  const x1 = Math.max(...spans.map((s) => s.x1));
+  const h = Math.max(...spans.map((s) => s.section.heightMm)) / 1000;
+  const d = Math.max(...spans.map((s) => s.section.depthMm)) / 1000;
+  const w = x1 - x0;
+  if (w < 0.05) return;
+  const leaves = Math.max(2, Math.ceil(w / LEAF_MAX_M - 1e-6));
+  const overlap = 0.03;
+  const leaf = (w + overlap * (leaves - 1)) / leaves;
+  const bottom = 0.03;
+  const top = h - 0.06;
+  for (let i = 0; i < leaves; i++) {
+    const from = x0 + i * (leaf - overlap);
+    const z = d + (i % 2 === 0 ? TRACK_M : 0) + LEAF_M / 2;
+    g.add(mesh(metreBox(leaf, top - bottom, LEAF_M), face, from + leaf / 2, bottom + (top - bottom) / 2, z));
+    // A vertical pull along the leaf's free edge.
+    g.add(mesh(metreBox(0.012, 0.6, 0.004), gap, from + (i % 2 === 0 ? leaf - 0.04 : 0.04), 1.05, z + LEAF_M / 2 + 0.002));
+  }
+  // The rail they hang from.
+  g.add(mesh(metreBox(w, 0.05, TRACK_M + LEAF_M + 0.01), gap, x0 + w / 2, h - 0.03, d + (TRACK_M + LEAF_M + 0.01) / 2));
 }
 
 /**

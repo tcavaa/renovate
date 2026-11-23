@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ENSUITE_DEPTH_M, ENTRY_DEPTH_M, PASSAGE_M, withGeneratedPartitions } from '@/lib/design/autoPartitions';
+import { ENSUITE_DEPTH_M, ENTRY_DEPTH_M, OPEN_LINE_WAY_M, OPEN_LINE_WAY_MIN_M, PASSAGE_M, SCREEN_OPENING_CLEAR_M, withGeneratedPartitions } from '@/lib/design/autoPartitions';
 import { footprintOf } from '@/lib/design/manipulate';
 import { roomEdges } from '@/lib/design/planGeometry';
 import { STYLE_IDS } from '@/lib/design/styles';
@@ -106,38 +106,104 @@ describe('the entrance out of the living room\'s sight', () => {
     }),
   });
 
-  it('never runs a screen on into a window, a door or an archway on the wall it would join: with no other way to close that end, there is none', () => {
-    // The front door 0.6 m along the north wall: its screen, 1.35 m in, would join the west wall
-    // at z 1.5 (its 10 cm across z 1.45–1.55).
-    const door = withDoor(living, roomId, edgeAtZ(0.15), 0.6, { exterior: true });
-    expect(withGeneratedPartitions(door).added).toHaveLength(1);
-    for (const extra of [{ kind: 'window' as const }, { kind: 'archway' as const, sillM: 0, heightM: 2.1, exterior: false }, { kind: 'door' as const, widthM: 0.8, sillM: 0, heightM: 2.05, exterior: false }]) {
-      expect(withGeneratedPartitions(onWest(door, 1.6, extra)).added, extra.kind).toHaveLength(0);
-    }
-    // A window whose frame it would only touch (4 cm of it, within `ONTO_WINDOW_M`), or one further
-    // along the wall, leaves it joined as before.
-    const touching = withGeneratedPartitions(onWest(door, 1.55 - 0.04 + 0.6, { kind: 'window' })).added;
-    expect(touching).toHaveLength(1);
-    const along = withGeneratedPartitions(onWest(door, 3.5, { kind: 'window' })).added;
-    expect(along).toHaveLength(1);
-    expect(Math.min(along[0].a.x, along[0].b.x)).toBeCloseTo(0, 2);
-  });
-
-  it('still runs a screen on to a room separator\'s open line, as before: no opening is walled across there', () => {
-    // The west wall is a separator (the room open to the next one there): the screen's short end
-    // meets its line, which has no window, door or archway to build into — it is run on to it as
-    // the module always did (whether a screen should end free on an open line is the owner's call).
-    const door = withDoor(living, roomId, edgeAtZ(0.15), 0.6, { exterior: true });
-    const west = edgeAtX(0.15)(door.rooms[0]);
-    const open: FloorPlan = {
-      ...door,
-      walls: door.walls!.map((w) => (w.id === 'w' ? { ...w, separator: true } : w)),
-      rooms: door.rooms.map((r) => ({ ...r, open: [west] })),
+  describe('a screen whose end would run into an opening or meet an open line (decision 11)', () => {
+    /** The screen and how it was built, for the front door `along` metres along the north wall (x = 0.15 + along), and the west wall's opening. */
+    const built = (along: number, west?: Partial<Opening> & { z: number }) => {
+      const door = withDoor(living, roomId, edgeAtZ(0.15), along, { exterior: true });
+      const plan = west ? onWest(door, west.z, west) : door;
+      const result = withGeneratedPartitions(plan);
+      return { ...result, screen: result.added[0], how: result.screens[0]?.how };
     };
-    const added = withGeneratedPartitions(open).added;
-    expect(added).toHaveLength(1);
-    // Its end on the open line (the separator is no wall to run into the middle of).
-    expect(Math.min(added[0].a.x, added[0].b.x)).toBeCloseTo(0.15, 2);
+
+    it('builds it shorter first: 20 cm clear of a window on the wall it would join, its end free', () => {
+      // The door 1 m along: its screen, 1.35 m in, would join the west wall at z 1.5, in a window.
+      const { screen, how } = built(1.0, { z: 1.6, kind: 'window' });
+      expect(how).toBe('shortened');
+      expect(screen.a.z).toBeCloseTo(0.15 + ENTRY_DEPTH_M + 0.05, 2);
+      expect(Math.min(screen.a.x, screen.b.x)).toBeCloseTo(0.15 + SCREEN_OPENING_CLEAR_M, 3);
+      // Still across the door (x 0.7–1.6).
+      expect(Math.max(screen.a.x, screen.b.x)).toBeGreaterThan(1.6);
+    });
+
+    it('stops a shorter screen out of a door\'s swing and way on that wall too, which leaves a way through to it', () => {
+      const { screen, how } = built(1.6, { z: 1.6, kind: 'door', widthM: 0.8, sillM: 0, heightM: 2.05, exterior: false });
+      expect(how).toBe('shortened');
+      const end = Math.min(screen.a.x, screen.b.x);
+      expect(end - 0.15).toBeGreaterThanOrEqual(0.9 + SCREEN_OPENING_CLEAR_M - 1e-6);
+      expect(end - 0.15).toBeGreaterThanOrEqual(PASSAGE_M);
+      // Across the door (x 1.3–2.2).
+      expect(end).toBeLessThanOrEqual(1.3 + 1e-6);
+    });
+
+    it('then makes the lobby shallower — the screen nearer the door, never shallower than a way through — where a shorter one would not cover the door', () => {
+      // The door 0.6 m along (x 0.3–1.2): a door in the west wall at z 1.2–2.0. Stopped out of its way the screen would leave the front door open.
+      const { screen, how } = built(0.6, { z: 1.6, kind: 'door', widthM: 0.8, sillM: 0, heightM: 2.05, exterior: false });
+      expect(how).toBe('shallower');
+      const z = screen.a.z;
+      expect(z).toBeLessThan(0.15 + ENTRY_DEPTH_M + 0.05);
+      expect(z - 0.05 - 0.15).toBeGreaterThanOrEqual(PASSAGE_M - 1e-6);
+      // Joined to the west wall below the door (its 10 cm clear of z 1.2).
+      expect(z + 0.05).toBeLessThanOrEqual(1.2 + 1e-6);
+      expect(Math.min(screen.a.x, screen.b.x)).toBeCloseTo(0, 2);
+    });
+
+    it('then turns it square to the entrance wall, beside the door, a corridor along the wall it could not join — and keeps that corridor free when laid out again', () => {
+      // A window in the west wall over every depth a lobby can have.
+      const { screen, how, plan: next, keepouts } = built(0.6, { z: 1.6, kind: 'window' });
+      expect(how).toBe('turned');
+      expect(screen.id.endsWith('-turned')).toBe(true);
+      // Square to the north wall, 20 cm past the door's east edge (x 1.2), into its centreline, `ENTRY_DEPTH_M` into the room.
+      expect(screen.a.x).toBeCloseTo(1.2 + SCREEN_OPENING_CLEAR_M, 3);
+      expect(screen.b.x).toBeCloseTo(screen.a.x, 3);
+      expect(Math.min(screen.a.z, screen.b.z)).toBeCloseTo(0, 2);
+      expect(Math.max(screen.a.z, screen.b.z)).toBeCloseTo(0.15 + ENTRY_DEPTH_M, 3);
+      const id = next.rooms[0].id;
+      const [corridor] = keepouts[id];
+      expect(corridor.minX).toBeCloseTo(0.15, 3);
+      expect(corridor.maxX).toBeCloseTo(1.4 + 0.05, 3);
+      const again = withGeneratedPartitions(next);
+      expect(again.added).toHaveLength(0);
+      expect(again.keepouts[id]).toHaveLength(1);
+      expect(again.keepouts[id][0].minX).toBeCloseTo(corridor.minX, 3);
+      expect(again.keepouts[id][0].maxX).toBeCloseTo(corridor.maxX, 3);
+      expect(again.keepouts[id][0].maxZ).toBeCloseTo(corridor.maxZ, 3);
+    });
+
+    it('never runs it on into an archway either, and builds none where nothing else helps', () => {
+      expect(built(0.6, { z: 1.6, kind: 'archway', sillM: 0, heightM: 2.1, exterior: false }).how).toBe('turned');
+      // Turned, the screen would hide nothing: a room only 2.2 m wide past the door.
+      const narrow = planOf([wall('n', 0, 0, 2.5, 0), wall('e', 2.5, 0, 2.5, 5), wall('s', 2.5, 5, 0, 5), wall('w', 0, 5, 0, 0)], () => 'living_room');
+      const door = withDoor(narrow, narrow.rooms[0].id, edgeAtZ(0.15), 0.6, { exterior: true });
+      expect(withGeneratedPartitions(onWest(door, 1.6, { kind: 'window' })).added).toHaveLength(0);
+    });
+
+    it('stops a screen whose short end meets a room separator\'s open line short of it: a way through of 90 cm, 80 where 90 would leave the door open', () => {
+      const open = (along: number): FloorPlan => {
+        const door = withDoor(living, roomId, edgeAtZ(0.15), along, { exterior: true });
+        const west = edgeAtX(0.15)(door.rooms[0]);
+        return { ...door, walls: door.walls!.map((w) => (w.id === 'w' ? { ...w, separator: true } : w)), rooms: door.rooms.map((r) => ({ ...r, open: [west] })) };
+      };
+      const wide = withGeneratedPartitions(open(1.6));
+      expect(wide.screens[0].how).toBe('shortened');
+      expect(Math.min(wide.added[0].a.x, wide.added[0].b.x) - 0.15).toBeCloseTo(OPEN_LINE_WAY_M, 3);
+      const tight = withGeneratedPartitions(open(1.3));
+      expect(tight.screens[0].how).toBe('shortened');
+      expect(Math.min(tight.added[0].a.x, tight.added[0].b.x) - 0.15).toBeCloseTo(OPEN_LINE_WAY_MIN_M, 3);
+      // Never run on to the open line any more.
+      for (const along of [0.6, 1.0, 1.3, 1.6]) {
+        for (const w of withGeneratedPartitions(open(along)).added) expect(Math.min(w.a.x, w.b.x) - 0.15, `${along}`).toBeGreaterThanOrEqual(OPEN_LINE_WAY_MIN_M - 1e-6);
+      }
+    });
+
+    it('still joins a wall where its end only touches a window\'s frame, or the window is further along', () => {
+      const door = withDoor(living, roomId, edgeAtZ(0.15), 0.6, { exterior: true });
+      expect(withGeneratedPartitions(door).screens[0].how).toBe('full');
+      const touching = withGeneratedPartitions(onWest(door, 1.55 - 0.04 + 0.6, { kind: 'window' }));
+      expect(touching.screens[0].how).toBe('full');
+      const along = withGeneratedPartitions(onWest(door, 3.5, { kind: 'window' }));
+      expect(along.screens[0].how).toBe('full');
+      expect(Math.min(along.added[0].a.x, along.added[0].b.x)).toBeCloseTo(0, 2);
+    });
   });
 
   it('adds nothing when the front door opens into a hall, or the room is too shallow', () => {

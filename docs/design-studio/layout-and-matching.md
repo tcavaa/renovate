@@ -138,15 +138,24 @@ scene ──tightSpots──▶ amber warnings (not a rule)
   (`ENTRY_DEPTH_M`), an en-suite's door a lobby 1.1 m deep in its bedroom (`ENSUITE_DEPTH_M`, a
   bedroom from 12 m²) — parallel to the door's wall, across the door and 30 cm past it, an end
   within 90 cm of a wall run on to it (`PASSAGE_M`), the other end leaving a way through. An end is
-  never run on into an opening of the wall it would join (`joinable`): not into a door's or an
+  never run on into an opening of the wall it would join (`openingAt`): not into a door's or an
   archway's width at all, not onto a window further than a piece may stand onto one
-  (`ONTO_WINDOW_M`); such an end can be neither closed nor left a way through, so the door gets no
-  screen, as one with no way past either side. An end that meets a room separator's open line is
-  run on to that line and ends free there (it has no opening to build into). The room
-  stays one (`keepWhole`) and the floor behind the screen is an obstacle for the layout. A flat laid
-  out again keeps its screens and adds none twice — and the floor behind every screen that stands
-  is kept free again, read off the wall as it is (`standingScreens`, `floorBehind`: between the
-  screen and the room's wall parallel to it with a door within the screen's length), whether or
+  (`ONTO_WINDOW_M`). There, in Nini's order (23 Nov 2026, decision 11 —
+  [design-rules.md](design-rules.md#the-fourth-round-generation-decisions-nini-23-nov-2026)): a
+  **shorter** screen, its end free 20 cm clear of the window (`SCREEN_OPENING_CLEAR_M`) — of a door
+  or an archway out of its swing and way too (90 cm + 20, which leaves a way through to it) —
+  where it still covers the door; else a **shallower** lobby, the screen 5 cm nearer the door at a
+  time, never shallower than a way through nor the door's leaf; else the screen **turned** square
+  to the entrance wall, 20 cm past the door's far edge, `depth` into the room, the lobby a corridor
+  along the wall it could not join (id `…-turned`; only where the corridor is a way through and the
+  room runs on 1.8 m past it); else none (`doorScreen` returns `how`: `full`, `shortened`,
+  `shallower`, `turned`; `PartitionResult.screens`). An end that meets a room separator's open line
+  stops short of it with a way through of 90 cm, 80 where 90 would leave the door uncovered
+  (`OPEN_LINE_WAY_M`), else the ladder goes on. The room stays one (`keepWhole`) and the floor
+  behind the screen is an obstacle for the layout. A flat laid out again keeps its screens and adds
+  none twice — and the floor behind every screen that stands is kept free again, read off the wall
+  as it is (`standingScreens`, `floorBehind`: between the screen and the room's wall parallel to it
+  with a door within the screen's length; a turned one's corridor, `corridorBehind`), whether or
   not today's rules would build that screen (another style, a studio under 30 m²): nothing is laid
   out through a wall that is there. A screen whose door is gone is a wall like any other.
 - **The rulebook's bathrooms** (6 Nov 2026, [design-rules.md](design-rules.md#the-third-round-the-rulebook-nini-6-nov-2026)):
@@ -168,7 +177,10 @@ scene ──tightSpots──▶ amber warnings (not a rule)
   in the most open spot; the big pieces strictly the style's own (`STRICT_STYLE_KINDS`) — which
   narrows "every product can appear" below to the other kinds.
 - **The rulebook's entrance, living room and bedrooms** (stages 3–4): the hall's wardrobe and mirror
-  (`lib/design/hall.ts`), a bedroom's wall of wardrobe (`lib/design/bedroom.ts`), a stool in a bedroom
+  (`lib/design/hall.ts`, the boiler in a ventilated section of it where it hangs on its stretch —
+  [technical-and-fittings.md](technical-and-fittings.md)), a bedroom's wall of wardrobe
+  (`lib/design/bedroom.ts`: hinged with 75 cm clear before it, sliding with 60, shorter or shallow
+  before the shop's stays — [decor.md](decor.md)), a stool in a bedroom
   from 12 m², every window dressed, the sofa–TV floor off the ways between doors, no entrance screen in
   Industrial or a small studio.
 - **The washing machine** is the bathroom's (from 4.5 m²); when no bathroom has room for it, the
@@ -720,8 +732,9 @@ rule: the layout is still saved as arranged.
 `tests/unit/design/showerGlass.test.ts` (the tray found from the piece, the glass off the walls
 and round the matched column, following the shower, resized with its wall side kept),
 `tests/unit/design/autoPartitions.test.ts` (the entrance screen run to the corner, a free one, none
-into a hall or a shallow room, none run on into a window, a door or an archway, an en-suite's
-lobby, nothing added twice and the floor behind a screen that stands — the entrance's and the
+into a hall or a shallow room, none run on into a window, a door or an archway — shorter, then a
+shallower lobby, then turned, then none — a screen stopped short of an open line with a way through
+of 90 or 80 cm, an en-suite's lobby, nothing added twice and the floor behind a screen that stands — the entrance's and the
 en-suite's — kept free when the flat is laid out again; the fixture plans altered to qualify
 generated with their screens),
 `tests/unit/design/styleRules.test.ts` (the flat's one floor and wall, an open kitchen and a

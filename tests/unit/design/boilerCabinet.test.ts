@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { boilerCabinetCandidates, boilerCabinetFacadeM2, boilerCabinetSize, boilerRoom, isOutdoorCabinet, isThermalCabinet, withBoilerCabinet, withBoilerCabinets } from '@/lib/design/boilerCabinet';
+import { boilerCabinetCandidates, boilerCabinetFacadeM2, boilerCabinetSize, boilerRoom, isOutdoorCabinet, isThermalCabinet, withBoilerCabinet, withBoilerCabinets, withHousedBoiler } from '@/lib/design/boilerCabinet';
 import { withEquipmentProducts } from '@/lib/design/equipment';
 import { priceScene } from '@/lib/design/pricing';
 import { tickFor } from '@/lib/design/ticks';
@@ -58,6 +58,29 @@ describe('the boiler’s ventilated cabinet', () => {
     expect(line.total).toBeCloseTo(380 * boilerCabinetFacadeM2(boiler), 2);
     expect(line.tick).toBe(tickFor.cabinet(2));
     expect(line.estimated).toBe(false);
+  });
+
+  it('is taken off a boiler the hall wardrobe\'s section houses — one enclosure, one charge — and given back when no section houses it (decision 5)', () => {
+    const catalog = [material(2, 380), material(3, 520, ['modern'])];
+    const given = withBoilerCabinet(boiler, catalog[1]);
+    const housed = withHousedBoiler(planWith([given]), 'b', catalog, 'modern');
+    const point = housed.technical!.points[0];
+    expect(point.cabinet).toBeNull();
+    expect(point.housed).toBe(true);
+    // Nothing more to change: the same plan; and the app's own pass leaves the housed boiler bare.
+    expect(withHousedBoiler(housed, 'b', catalog, 'modern')).toBe(housed);
+    expect(withBoilerCabinets(housed, catalog, 'modern')).toBe(housed);
+    // No cabinet line in the budget: the wardrobe's section is bought with the wardrobe.
+    const scene: DesignScene = { styleId: 'modern', mode: 'design_only', budgetGel: null, items: [], finishes: [], electrical: [] };
+    expect(priceScene(housed, scene).lines.some((l) => l.tick === tickFor.cabinet(3) || l.tick === tickFor.cabinet(2))).toBe(false);
+    // A later generation with no section round it: the first cabinet for its room again.
+    const back = withHousedBoiler(housed, null, catalog, 'modern').technical!.points[0];
+    expect(back.cabinet?.productId).toBe(3);
+    expect(back.housed).toBeUndefined();
+    // One the person took off stays off; a material picked on its card is the person's, not housed.
+    const off = planWith([withBoilerCabinet(given, null)]);
+    expect(withHousedBoiler(off, null, catalog, 'modern')).toBe(off);
+    expect(withBoilerCabinet(point, catalog[0], undefined, true).housed).toBeUndefined();
   });
 });
 

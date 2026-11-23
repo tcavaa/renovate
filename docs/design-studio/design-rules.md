@@ -181,7 +181,10 @@ door opening into a living room or a studio gets a screen parallel to its wall 1
 the door and 30 cm past it; a bathroom whose doors all open into one bedroom (12 m² or more) gets a
 lobby in the bedroom 1.1 m deep the same way (the wardrobe can stand against its far side). An end
 that would leave less than 90 cm to a wall runs on to that wall and joins it; the other end must
-leave a way through, or there is no screen. The screen joins one wall at most, so the room stays
+leave a way through, or there is no screen. Where the joined end would land in a window, a door or
+an archway, or meets a room separator's open line, the fourth round's decision 11 applies (a shorter
+screen, a shallower lobby, the screen turned, none; a way through of 90 or 80 cm at an open line —
+[layout-and-matching.md](layout-and-matching.md)). The screen joins one wall at most, so the room stays
 one room (`keepWhole`, no separator drawn on from it); the floor behind it is kept free of
 furniture — when the flat is laid out again too, behind every screen that still stands. A screen is a 10 cm plasterboard wall, `origin: 'generated'`, priced like any partition.
 
@@ -359,10 +362,10 @@ How stage 4 built it — **bedrooms**:
   bedroom's wardrobe stands on is otherwise free for 85 % of its length or more (a niche's back counts),
   a `cabinet` piece fills that stretch to the ceiling, in sections of 1.2 m at most, in place of the
   shop's wardrobe; and the room's chest of drawers goes (a desk or a dressing table is another slot
-  and stays). Only where the floor before its doors, the whole length of it, is as clear as the
-  layout keeps it before a wardrobe (the archetype's `clearanceM`, 75 cm; `clearInFront` — a rug or
-  the chest of drawers that goes is in nobody's way): with the bed or a nightstand there, the shop's
-  wardrobe stays.
+  and stays). The floor before its doors is judged by the fourth round's decision 4: 75 cm clear for
+  hinged doors, 60 cm for sliding ones, else a shorter wall of wardrobe on the run whose front is
+  clear (the chest of drawers then stays), else a shallow one, else the shop's wardrobe stays
+  (`wallOfWardrobeFit` — [decor.md](decor.md)).
 - **Headboard** (B-6): a bed 1.2 m tall or more (`TALL_HEADBOARD_M`) has a headboard of its own; the
   AI designer's decor anchored on it is dropped (`proposalDecor`). The designer is told so per room
   (`bedText` in `aiDesign.ts`): whether the bed the engine laid takes decor behind it, and which of

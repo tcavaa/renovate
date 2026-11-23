@@ -210,6 +210,12 @@ export interface TechnicalPoint {
   cabinetSize?: { widthM?: number; heightM?: number; bottomM?: number };
   /** The person picked the cabinet's material themselves: it is not changed for the room's (a thermal one on a balcony). */
   cabinetChosen?: boolean;
+  /**
+   * The boiler hangs in the hall wardrobe's ventilated section (`fitHall`, `housedBoilerSpot`): the
+   * wardrobe is its cupboard, so its own `cabinet` is null — set by the app, not taken off by the
+   * person, and given back when a later generation builds no section round it (`withHousedBoiler`).
+   */
+  housed?: boolean;
   /** A piece of equipment: its product's size, what the 3D view draws its model at (absent: the model's own). */
   sizeM?: { width: number; depth: number; height: number } | null;
   origin: ElementOrigin;
@@ -691,6 +697,8 @@ export interface DecorParams {
   sections?: CabinetSection[];
   /** A kitchen run's corner leg (an L-shaped kitchen): the end of the run it turns the corner at. */
   corner?: 'left' | 'right';
+  /** A wall of wardrobe whose doors slide (60 cm clear before it instead of hinged doors' 75 cm): drawn as sliding leaves, priced by the same façade. */
+  sliding?: boolean;
   /** A corner leg's wall cabinets, when its run has them: the stretch of the wall they hang on (clear of windows), their bottom, height and depth. */
   wallUnits?: { from: number; to: number; bottomMm: number; heightMm: number; depthMm: number };
 }

@@ -3,6 +3,7 @@ import { layoutRoom } from '@/lib/design/autoLayout';
 import { suggestTechnical } from '@/lib/design/autoTechnical';
 import { sectionSpans } from '@/lib/design/decor/joinery';
 import { fitHall, housedBoilerSpot, widthInFront } from '@/lib/design/hall';
+import { generateScene } from '@/lib/design/generateScene';
 import { matchProducts, type CatalogProduct } from '@/lib/design/matcher';
 import { refreshRoom, roomEdges } from '@/lib/design/planGeometry';
 import { radiatorBodies } from '@/lib/design/radiators';
@@ -39,7 +40,7 @@ describe('the entrance hall', () => {
     expect(housedBoilerSpot([hall], decor)).toBeNull();
   });
 
-  it('gives the wardrobe a boiler\'s section only where the flat\'s boiler hangs at it, in the hall, with no cabinet of its own', () => {
+  it('takes the flat\'s boiler hanging on its stretch in, in a ventilated section where it hangs, and that boiler has no cabinet of its own (decision 5)', () => {
     const items = layoutRoom(hall, {}).map((i) => ({ ...i, product: null }));
     const plain = fitHall({ rooms: [hall], items, catalog: [material], styleId: 'modern' }).decor[0];
     const edge = roomEdges(hall.polygon).find((e) => e.index === plain.wallIndex)!;
@@ -47,20 +48,127 @@ describe('the entrance hall', () => {
     const end = Math.abs(edge.a.x + edge.dir.x * plain.span.from) < Math.abs(edge.a.x + edge.dir.x * plain.span.to) ? plain.span.from + 0.3 : plain.span.to - 0.3;
     const position = { x: edge.a.x + edge.dir.x * end + edge.inward.x * 0.2, z: edge.a.z + edge.dir.z * end + edge.inward.z * 0.2 };
     const boiler: TechnicalPoint = { id: 'b', kind: 'boiler', roomId: 'h', position, origin: 'generated' };
-    const sections = (technical: TechnicalPoint[]) => sectionSpans(fitHall({ rooms: [hall], items, catalog: [material], styleId: 'modern', technical }).decor[0]).map((s) => s.section.kind);
-    const housed = fitHall({ rooms: [hall], items, catalog: [material], styleId: 'modern', technical: [boiler] }).decor;
-    expect(sectionSpans(housed[0]).map((s) => s.section.kind)).toContain('boiler');
+    const fit = (technical: TechnicalPoint[]) => fitHall({ rooms: [hall], items, catalog: [material], styleId: 'modern', technical });
+    const sections = (technical: TechnicalPoint[]) => sectionSpans(fit(technical).decor[0]).map((s) => s.section.kind);
+    const housed = fit([boiler]);
+    expect(sectionSpans(housed.decor[0]).map((s) => s.section.kind)).toContain('boiler');
+    expect(housed.housed).toBe('b');
     // The section is where the boiler hangs.
-    expect(Math.hypot(housedBoilerSpot([hall], housed)!.position.x - position.x, housedBoilerSpot([hall], housed)!.position.z - position.z)).toBeLessThan(0.33);
-    // A boiler with a cabinet of its own, one in another room, or none: no section.
+    expect(Math.hypot(housedBoilerSpot([hall], housed.decor)!.position.x - position.x, housedBoilerSpot([hall], housed.decor)!.position.z - position.z)).toBeLessThan(0.33);
+    // A boiler with the cabinet the app gave it is taken in too — one enclosure, not a cupboard beside the wardrobe.
     const cabinet = { productId: 1, nameKa: 'c', slug: 'c', brand: null, pricePerUnit: 1, unit: 'm2', qty: 1, totalPrice: 1, imageUrl: null, colorHex: null, textureUrl: null, model3dUrl: null, categorySlug: null, store: null };
-    expect(sections([{ ...boiler, cabinet }])).not.toContain('boiler');
+    expect(sections([{ ...boiler, cabinet }])).toContain('boiler');
+    expect(fit([{ ...boiler, cabinet }]).housed).toBe('b');
+    // One whose cabinet the person chose keeps it, and the wardrobe stands clear of that cupboard.
+    const chosen = fit([{ ...boiler, cabinet, cabinetChosen: true }]);
+    expect(chosen.housed).toBeNull();
+    for (const piece of chosen.decor) {
+      expect(sectionSpans(piece).map((s) => s.section.kind)).not.toContain('boiler');
+      // Its cupboard: the boiler's 42 cm and 10 cm either side, about where it hangs.
+      const [lo, hi] = [Math.min(piece.span.from, piece.span.to), Math.max(piece.span.from, piece.span.to)];
+      if (piece.wallIndex === edge.index) expect(hi <= end - 0.31 + 1e-6 || lo >= end + 0.31 - 1e-6).toBe(true);
+    }
+    // One in another room, or none: no section.
     expect(sections([{ ...boiler, roomId: 'balcony', position: { x: 9, z: 9 } }])).not.toContain('boiler');
     expect(sections([])).not.toContain('boiler');
+    expect(fit([]).housed).toBeNull();
     // A boiler the technical button hangs later goes where the boiler's spot is, with its own cupboard.
     let n = 0;
     const later = suggestTechnical(plan(hall), items, () => `t${n++}`, [plain]).points.find((p) => p.kind === 'boiler');
     expect(later?.cabinet).not.toBeNull();
+  });
+
+  describe('the boiler in it (decision 5)', () => {
+    // A hall 5 × 2.2 m, the front door in its short west wall, a door in its east wall near the
+    // north corner: the wardrobe goes along the south wall (z = 2.2), from the door's end.
+    const long = room('l5', 'hallway', 5, 2.2, [door(3, 0.5, true), door(1, 0.25)]);
+    const items = layoutRoom(long, {}).map((i) => ({ ...i, product: null }));
+    const plain = fitHall({ rooms: [long], items, catalog: [material], styleId: 'modern' }).decor[0];
+    const edge = roomEdges(long.polygon).find((e) => e.index === plain.wallIndex)!;
+    /** A boiler hung `s` metres along the wardrobe's wall, 20 cm off it. */
+    const boilerAt = (s: number, extra: Partial<TechnicalPoint> = {}): TechnicalPoint => ({ id: 'b', kind: 'boiler', roomId: long.id, position: { x: edge.a.x + edge.dir.x * s + edge.inward.x * 0.2, z: edge.a.z + edge.dir.z * s + edge.inward.z * 0.2 }, origin: 'generated', ...extra });
+    const fit = (boiler: TechnicalPoint) => fitHall({ rooms: [long], items, catalog: [material], styleId: 'modern', technical: [boiler] });
+    /** Along the wall from the front door's end. */
+    const fromDoor = (s: number) => (Math.abs(edge.a.x + edge.dir.x * plain.span.from) < Math.abs(edge.a.x + edge.dir.x * plain.span.to) ? plain.span.from + s : plain.span.to - s);
+
+    it('puts the section where the boiler really hangs — the coats by the door one side of it, the shoes the other', () => {
+      const s = fromDoor(1.3);
+      const out = fit(boilerAt(s));
+      expect(out.housed).toBe('b');
+      const spans = sectionSpans(out.decor[0]);
+      const kinds = spans.map((x) => x.section.kind);
+      expect(kinds).toContain('boiler');
+      const section = spans.find((x) => x.section.kind === 'boiler')!;
+      // The boiler's 42 cm inside its section, and the section no narrower than 65 cm.
+      expect(section.x0).toBeLessThanOrEqual(s - 0.21 + 1e-6);
+      expect(section.x1).toBeGreaterThanOrEqual(s + 0.21 - 1e-6);
+      expect(section.x1 - section.x0).toBeGreaterThanOrEqual(0.65 - 1e-3);
+      // Its own compartment: the coats and the shoes either side, the coats nearer the door.
+      const i = kinds.indexOf('boiler');
+      expect(i).toBeGreaterThan(0);
+      expect(i).toBeLessThan(kinds.length - 1);
+      const doorSide = spans.filter((x) => Math.abs(fromDoor(0) - (x.x0 + x.x1) / 2) < Math.abs(fromDoor(0) - s));
+      expect(doorSide.map((x) => x.section.kind)).toContain('coats');
+      expect(kinds.filter((k) => k === 'coats')).toHaveLength(1);
+      expect(kinds.filter((k) => k === 'shoes')).toHaveLength(1);
+      expect(spans.find((x) => x.section.kind === 'coats')!.x1 - spans.find((x) => x.section.kind === 'coats')!.x0).toBeGreaterThanOrEqual(0.8 - 1e-3);
+      expect(spans.find((x) => x.section.kind === 'shoes')!.x1 - spans.find((x) => x.section.kind === 'shoes')!.x0).toBeGreaterThanOrEqual(0.6 - 1e-3);
+    });
+
+    it('in a generated flat: the boiler\'s own cabinet comes off where the section takes it in, and comes back when a later generation does not', () => {
+      const cabinet = { productId: 1, nameKa: 'c', slug: 'c', brand: null, pricePerUnit: 600, unit: 'm2', qty: 1.5, totalPrice: 900, imageUrl: null, colorHex: null, textureUrl: null, model3dUrl: null, categorySlug: 'boiler-cabinet', store: null };
+      const boilerMaterial = { id: 1, nameKa: 'c', nameEn: 'c', slug: 'c', categorySlug: 'boiler-cabinet', unit: 'm2', pricePerUnit: 600, model3dKind: null, model3dUrl: null, styleTags: ['modern'] } as unknown as CatalogProduct;
+      const generate = (points: TechnicalPoint[]) => generateScene({ plan: { ...plan(long), technical: { points } }, styleId: 'modern', budgetGel: null, catalog: [material, boilerMaterial], proposal: null, finishes: [], electrical: [], seed: 1, at: '2026-11-23T00:00:00.000Z', aiCount: 0 });
+      // The boiler hung in the middle of the wardrobe the flat is generated with.
+      const base = generate([]).decor.find((d) => d.id.endsWith('-hall-wardrobe'))!;
+      const wall = roomEdges(long.polygon).find((e) => e.index === base.wallIndex)!;
+      const s = (base.span.from + base.span.to) / 2;
+      const scene = generate([{ ...boilerAt(0, { cabinet }), position: { x: wall.a.x + wall.dir.x * s + wall.inward.x * 0.2, z: wall.a.z + wall.dir.z * s + wall.inward.z * 0.2 } }]);
+      const point = scene.plan.technical!.points[0];
+      expect(point.cabinet).toBeNull();
+      expect(point.housed).toBe(true);
+      const wardrobe = scene.decor.find((d) => d.id.endsWith('-hall-wardrobe'))!;
+      expect(sectionSpans(wardrobe).map((x) => x.section.kind)).toContain('boiler');
+      // The same boiler moved out of the hall: no section, and its cupboard back.
+      const moved = generate([{ ...point, roomId: 'elsewhere', position: { x: 9, z: 9 } }]);
+      expect(moved.decor.flatMap((d) => sectionSpans(d).map((x) => x.section.kind))).not.toContain('boiler');
+      expect(moved.plan.technical!.points[0].cabinet?.productId).toBe(1);
+      expect(moved.plan.technical!.points[0].housed).toBeUndefined();
+    });
+
+    it('runs the wardrobe on along its stretch to a boiler past its own length', () => {
+      expect(Math.abs(plain.span.to - plain.span.from)).toBeLessThanOrEqual(2.8 + 1e-3);
+      const s = fromDoor(3.4);
+      const out = fit(boilerAt(s));
+      expect(out.housed).toBe('b');
+      const [lo, hi] = [Math.min(out.decor[0].span.from, out.decor[0].span.to), Math.max(out.decor[0].span.from, out.decor[0].span.to)];
+      expect(lo).toBeLessThanOrEqual(s - 0.21);
+      expect(hi).toBeGreaterThanOrEqual(s + 0.21);
+    });
+
+    it('leaves the boiler a cupboard of its own where its section would cost the coats\' or the shoes\' room, and is not built over it', () => {
+      // A hall 2.4 × 2 m: its one stretch, 2.4 m, takes coats, shoes and a section only with the boiler at an end.
+      const small = room('s2', 'hallway', 2.4, 2, [door(3, 0.25, true), door(1, 0.75)]);
+      const smallItems: PlacedItem[] = [];
+      const bare = fitHall({ rooms: [small], items: smallItems, catalog: [material], styleId: 'modern' }).decor[0];
+      expect(bare).toBeDefined();
+      const wall = roomEdges(small.polygon).find((e) => e.index === bare.wallIndex)!;
+      const at = (s: number): TechnicalPoint => ({ id: 'b', kind: 'boiler', roomId: small.id, position: { x: wall.a.x + wall.dir.x * s + wall.inward.x * 0.2, z: wall.a.z + wall.dir.z * s + wall.inward.z * 0.2 }, origin: 'generated' });
+      // 45 cm of wall one side of its section, 1.3 m the other: neither the coats and the shoes together, nor one each side.
+      const middle = fitHall({ rooms: [small], items: smallItems, catalog: [material], styleId: 'modern', technical: [at(0.45 + 0.325)] });
+      expect(middle.housed).toBeNull();
+      for (const piece of middle.decor.filter((d) => d.family === 'cabinet')) {
+        expect(sectionSpans(piece).map((x) => x.section.kind)).not.toContain('boiler');
+        const [lo, hi] = [Math.min(piece.span.from, piece.span.to), Math.max(piece.span.from, piece.span.to)];
+        if (piece.wallIndex === wall.index) expect(hi <= 0.775 - 0.31 + 1e-6 || lo >= 0.775 + 0.31 - 1e-6).toBe(true);
+      }
+      // A generated flat: no cupboard for it, the wardrobe not over it.
+      const cabinet = { productId: 1, nameKa: 'c', slug: 'c', brand: null, pricePerUnit: 1, unit: 'm2', qty: 1, totalPrice: 1, imageUrl: null, colorHex: null, textureUrl: null, model3dUrl: null, categorySlug: null, store: null };
+      const kept = generateScene({ plan: { ...plan(small), technical: { points: [{ ...at(0.775), cabinet }] } }, styleId: 'modern', budgetGel: null, catalog: [material], proposal: null, finishes: [], electrical: [], seed: 1, at: '2026-11-23T00:00:00.000Z', aiCount: 0 });
+      expect(kept.plan.technical!.points[0].cabinet).toEqual(cabinet);
+      // At the end of the stretch it is taken in.
+      expect(fitHall({ rooms: [small], items: smallItems, catalog: [material], styleId: 'modern', technical: [at(0.35)] }).housed).toBe('b');
+    });
   });
 
   it('builds the wardrobe clear of a radiator', () => {

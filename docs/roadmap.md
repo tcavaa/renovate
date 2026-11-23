@@ -50,6 +50,8 @@ at runtime yet; the last one was seen on the sample plan.
   design's budget lays it as laminate) — [budget.md](budget.md#known-gaps).
 - A door with no product on an outside wall is estimated at the entrance door's price, a balcony's
   included — [technical-and-fittings.md](design-studio/technical-and-fittings.md#known-gaps).
+- A boiler housed in the hall wardrobe's section keeps no cabinet when the wardrobe is deleted or the
+  boiler dragged out of it in the studio, until the next generation — [technical-and-fittings.md](design-studio/technical-and-fittings.md#known-gaps).
 - A calculator pick that moves to a free spot leaves its rug, TV and joinery at its old slot; picks
   applied in the studio keep no radiator strip clear — [project-flow.md](project-flow.md#18-known-gaps).
 - Inferred doors can leave a flat with no front door (windows are placed first; the sample

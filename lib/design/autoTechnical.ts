@@ -194,7 +194,7 @@ export function suggestTechnical(plan: FloorPlan, items: PlacedItem[], nextId: (
     const spot = housed ?? boilerSpot(plan, items, [...existing, ...points], decor, boilerSizeFor(catalog, styleId));
     if (spot) {
       add(spot.room, 'boiler', spot.position, technicalElevation('boiler', underCeiling(spot.room, plan)));
-      if (housed) points[points.length - 1].cabinet = null;
+      if (housed) Object.assign(points[points.length - 1], { cabinet: null, housed: true });
     }
   }
   // The boiler's cold in and hot out, under it.

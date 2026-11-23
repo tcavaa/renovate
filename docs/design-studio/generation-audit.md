@@ -1159,6 +1159,16 @@ outputs were read, not re-run.
   lost. The app's check then sees the shop's wardrobe beside the bed where it did not see the wall
   of wardrobe (`ruleViolations` reads furniture, not joinery): `rule:bed_side_tight` 146 → 162, every
   one of the 16 in a room that had a wall of wardrobe along the same wall before.
+  *Fixed (decision 4, 23 Nov 2026):* 75 cm clear for hinged doors, 60 cm for sliding ones, else
+  shorter on the run whose front is clear, else shallow, else the shop's (`wallOfWardrobeFit`,
+  [decor.md](decor.md)). In 396 flats (the 33 fixture plans × 4 styles × 3 draws) walls of wardrobe
+  42 → 129: the 42 as before, and 87 more — 60 shorter with hinged doors, 18 the whole wall made
+  shallow, 9 with sliding doors (3 whole, 6 shorter); 34 made shallow in all. Shop wardrobes left
+  546 → 459, bedrooms with none 48 → 48, `wardrobe_blocked` 0. In the 792 flats of six draws
+  `rule:bed_side_tight` 409 → 397 and `rule:door_swing_blocked` 53 → 48 (the shop's wardrobe gone
+  from beside the bed and out of the door's swing), nothing worse. One room of 2,436 has a piece
+  fewer: its chest of drawers given way to a full-length shallow wall of wardrobe (B-10, as it always
+  did beside a full-length one; beside a shorter one it now stays).
 - [x] **W4 (medium) — The designer's decor is fitted without the engine's joinery.**
   `proposalDecor(laid, proposal, items, catalog)` is given the furniture only
   (`generateScene.ts:122`), after the passes have swapped the shop's wardrobe for a built one: slats,
@@ -1193,6 +1203,17 @@ outputs were read, not re-run.
   wardrobe's stretch and length are as they were, the coats taking the section's room. On the test
   plans every hall boiler has a cabinet of its own: boiler sections 164 → 0 of 164 hall wardrobes
   in 360 flats.
+  *Fixed (decision 5, 23 Nov 2026):* a boiler hanging on the wardrobe's stretch is taken in where
+  it hangs, its own cabinet off (`housed`, `withHousedBoiler`), a cupboard of its own only where the
+  section would cost the coats' and shoes' room or the access, the wardrobe then built clear of it
+  ([technical-and-fittings.md](technical-and-fittings.md)). No fixture plan hangs its boiler on a
+  hall wardrobe's stretch (five hall boilers: #412's cabinet is the person's, the rest off the
+  stretches), so their flats keep 0 sections and 0 double enclosures. With a boiler and the app's
+  cabinet slid every 10 cm along every wall of the front hall of the 15 fixture plans that build a
+  hall wardrobe (2,526 positions): before, 0 sections, and in 418 positions the wardrobe stood over
+  the boiler's cupboard; now 499 taken into a section with no cabinet of its own, 0 wardrobes over a
+  cupboard, 0 sections with no boiler; in 23 (#381's shallow hall, #371) the cupboard leaves no
+  stretch long enough and the hall keeps its coat rack and shoe cabinet.
 - [x] **W7 (medium) — Tall joinery and the openings round the corner.** A wall of wardrobe stands
   in front of 6–23 cm of a window on the next wall (15 in 360 flats) and in the sweep of a door's
   leaf by 15 cm or more (30). `cornerClearance` allows 25 cm of an opening
@@ -1640,6 +1661,17 @@ no table in 60 of the 416 runs of 10 m² or more; an island 0 of 96.
   draws) a dining chair stands on the floor behind the entrance screen in 6 of the 60 flats with a
   screen, one 10 cm through it — the layout's or the matcher's, an open test in
   `autoPartitions.test.ts`; and the whole-flat check does not read a piece through a partition.
+  *Fixed (decision 11, 23 Nov 2026):* an end that would run into an opening makes a shorter screen
+  20 cm clear of it (of a door's or an archway's way too), else a shallower lobby, else the screen
+  turned square to the entrance wall, else none; an end at a room separator's open line stops short
+  with a way through of 90 cm, else 80 (`doorScreen`'s `how`, [layout-and-matching.md](layout-and-matching.md)).
+  With a 0.9 m door slid every 5 cm along every wall of 1.2 m or more of every living room, studio
+  and bedroom of the 33 fixture plans (14,119 positions clear of the openings there): before, 8,407
+  screens and 5,712 none; now 8,225 as before, 1,466 shorter (1,407 that had none, 59 that ran on to
+  an open line), 406 in a shallower lobby, 339 turned (256 that had none, 83 at an open line) and
+  3,683 none (40 that ran on to an open line where no screen stopped short still covers the door).
+  The altered plans' screens are as they were (every one built whole). Left: the dining chair behind
+  the screen, above.
 - [x] **Q5 (medium) — Doors and windows never follow a change of style** (`openings.ts:584`: any
   product already on an opening is kept — a style's own choice is not told from a person's, as it is
   for finishes): of 1,219 that should have changed, none did.

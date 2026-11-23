@@ -35,7 +35,7 @@
     "on_keep_clear": 3,
     "on_open_line": 24,
     "rule:basin_height": 21,
-    "rule:bed_side_tight": 62,
+    "rule:bed_side_tight": 60,
     "rule:door_swing_blocked": 6,
     "rule:radiator_blocked": 4,
     "rule:sofa_tv_distance": 26,
