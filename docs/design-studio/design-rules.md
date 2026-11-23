@@ -520,6 +520,13 @@ Not built of stage 1: outdoor-rated balcony finishes (no finish says it is), a c
 continuing the living room's floor, finishes chosen as one design across the flat, and a zone relaxed
 where the swing, the access and the way on all pass.
 
+**Stage 2's bedroom (3.2) is built** (23 Nov 2026): a single bed under 11 m², and where the bed has no
+slot the 1.4 m double, the bed's long side on a wall, one nightstand, then a single; the wardrobe always
+comes back, smaller if need be — bedrooms without a bed 96 → 0 and without a wardrobe 100 → 0 in 792
+flats (the detail in the bedrooms section above and in layout-and-matching.md). Not built: storage round
+the bed, a sliding-door shop wardrobe (no product or joinery for either), and the catalogue has no 1.4 m
+double but Vintage's 1.49 m bed, no Modern single and no Industrial compact wardrobe.
+
 **Stage 2's bathroom (3.1) is built** (23 Nov 2026): where a bathroom or a toilet would go without an
 essential — the WC, the basin, its mirror, a bathroom's shower or bath — her fallbacks are tried in her
 order, each only then: the shower across the end of a narrow bathroom (glass in front; no curtain —
