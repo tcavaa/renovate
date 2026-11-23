@@ -103,14 +103,19 @@ describe('bathrooms', () => {
     // along that wall, and the kitchen had no corner (plan #393's studio, every flat).
     const bath = room('b', 'bathroom', 2, 2, [door(2, 0.5)]);
     for (const kitchen of [room('k', 'kitchen', 3.4, 3, [door(3, 0.5, true), window(0, 0.5)], 2.2), room('k', 'kitchen', 2.6, 3.4, [door(3, 0.5, true), window(0, 0.5)], 2.2)]) {
+      let legs = 0;
       for (const rng of [undefined, ...SEEDS.map((seed) => seededRng(seed))]) {
         const items = layoutPlan([bath, kitchen], { rng });
         const washer = items.find((i) => i.slot === 'washer');
         expect(washer?.roomId).toBe('k');
         const without = cornerLeg([bath, kitchen], items.filter((i) => i !== washer));
-        expect(without).not.toBeNull();
-        expect(cornerLeg([bath, kitchen], items)?.size.width).toBe(without!.size.width);
+        // A run laid along the whole of its wall turns no corner (some draws of the first kitchen,
+        // its fridge in the corner by the door): no corner's floor for the machine to keep off.
+        if (!without) continue;
+        legs++;
+        expect(cornerLeg([bath, kitchen], items)?.size.width).toBe(without.size.width);
       }
+      expect(legs).toBeGreaterThan(SEEDS.length / 2);
     }
   });
 

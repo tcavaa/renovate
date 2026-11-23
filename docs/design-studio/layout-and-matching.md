@@ -22,7 +22,7 @@ as products).
 | `lib/design/relations.ts` | who belongs to whom, every relation between two pieces from one source (the archetypes' rules): `arrangedOff` (which piece a kind is arranged off), `withoutOrphans` (a piece that is gone takes what was arranged off it), `laidOffSlots`, `measuredOff` / `placedOff` / `inFrontOf` (what is stood again off, moved with, its anchor), `seatedAt` (the table a dining chair is seated round), `tucksUnder` (a chair and the top it slides under) — which chairs are seated or tuck is written there, the piece each goes with read off the chair's own rule, the bathroom pass's companions (`companionId`, `companionsOf`, `hostOf`) |
 | `lib/design/random.ts` | seeded randomness for generating (`seededRng`, `randomSeed`, a stream per key — `streamRng`, `rngStreams`, `roomStreams` — `weightedPick`, `weightedOrder`, `pickNearBest`) |
 | `lib/design/clearance.ts` | `tightSpots`, `tightSpotsByItem` |
-| `lib/design/pieceGeometry.ts` | a piece's geometry written once for the engine, the matcher, the studio, the checks, the wiring and the decor: `wallBehind` (the wall a piece has its back to — by its gap or its distance, square to it or not, measured along from its back's middle or its own, each caller's own tolerances: `pieceWall`, `backWallOf`, the matcher's `backOnWall` / `backGap`, the wiring's `backWall`, the decor's `wallBehind`, the layout's TV-over-unit and beside-a-piece spots, the builders' `wallOf` and `backWall`), the floor a piece covers — `axisBox` (squared at right angles for the studio and the matcher, `footprintOf`; as the cosine comes for the engine, `boxFor`) and `boxesOverlap`, `turnedQuad` (the checks' `footprintQuad`) and `quadsOverlap`, the tolerance passed at each call (the engine 0, two pieces 2 cm — `PIECE_TOUCH_M`, the checks 1 cm — `QUAD_TOUCH_M`) — `doorFloor` (the floor in front of a door or an archway, each caller's depth and width: the engine's `doorKeepouts`, `inDoorway`, the check's door swing, `tightSpots`), `backMiddle`, `distanceToSegment`, `round2` |
+| `lib/design/pieceGeometry.ts` | a piece's geometry written once for the engine, the matcher, the studio, the checks, the wiring and the decor: `wallBehind` (the wall a piece has its back to — by its gap or its distance, square to it or not, measured along from its back's middle or its own, each caller's own tolerances: `pieceWall`, `backWallOf`, the matcher's `backOnWall` / `backGap`, the wiring's `backWall`, the decor's `wallBehind`, the layout's TV-over-unit and beside-a-piece spots, the builders' `wallOf` and `backWall`), the floor a piece covers — `axisBox` (squared at right angles for the studio and the matcher, `footprintOf`; as the cosine comes for the engine, `boxFor`) and `boxesOverlap`, `turnedQuad` (the checks' `footprintQuad`) and `quadsOverlap`, the tolerance passed at each call (the engine 0, two pieces 2 cm — `PIECE_TOUCH_M`, the checks 1 cm — `QUAD_TOUCH_M`) — `doorFloor` (the floor in front of a door or an archway at a depth and width: the door's clear floor, `rules.ts`'s `doorZones`, for the engine's `doorKeepouts`, `inDoorway` and the joinery; the check's door swing and `tightSpots` with their own), `backMiddle`, `distanceToSegment`, `round2` |
 | `lib/design/footprintMasks.ts` | a model's real footprint when it is not its box (filled by `lib/design3d/modelLoader.ts`) |
 | `lib/design/styles.ts`, `styleQuiz.ts` | the style a design is matched to |
 | `store/designStore.ts` → `generate` | layout + matching + fittings + openings' products, the hinge of the journey ([overview.md](overview.md)) |
@@ -37,6 +37,37 @@ scene ──tightSpots──▶ amber warnings (not a rule)
 ```
 
 ## The design rules in the layout (`lib/design/rules.ts`, [design-rules.md](design-rules.md))
+
+- **A door's clear floor, one rule by room** (the owner's decision 12 —
+  [design-rules.md](design-rules.md#the-fourth-round-generation-decisions-nini-23-nov-2026);
+  `doorClearFloor` / `doorZones` in `rules.ts`, drawn by `doorFloor`): in a bathroom or a toilet 70 cm
+  deep (`WET_DOOR_FLOOR_DEPTH_M`) and the door's own width; in every other room 90 cm
+  (`DOOR_FLOOR_DEPTH_M`) and the door's width with 10 cm either side (`DOOR_FLOOR_SIDE_M`); an
+  archway 55 cm (`ARCHWAY_FLOOR_DEPTH_M`). It lies in the room it is measured in — each room's copy
+  of an opening is measured by that room's type, so a door between a hall and a bathroom keeps 90 cm
+  on the hall's side and 70 on the bathroom's. In a bathroom or a toilet a door that swings into it
+  (`swing` not `out`) keeps its leaf's sweep free besides — its width across and deep — where that
+  reaches past the 70 cm (a 75 or 80 cm door): the 70 cm is "where the door still opens". Elsewhere
+  90 cm is a single leaf's depth; a wider door (a double door, a front door over 90 cm) is kept to
+  the 90 cm — its whole leaf there cost studios their kitchen run (1.46 m double doors) for no
+  gain. One rule for the engine (`doorKeepouts`, each rectangle squared onto the room's axes), the
+  later passes, the matcher and the whole-flat check (`inDoorway`: the axis box of each rectangle)
+  and generation's joinery (`cornerClearance`, `freeStretch` — the door's own wall too, its 10 cm
+  either side, and the axis box so joinery keeps clear of what `inDoorway` tests). Before it the
+  engine kept 95 cm × the door + 20 cm everywhere, `inDoorway` 90 cm × the door and the joinery 90
+  cm; a bathroom's door took 95 cm of a 2.3 m room, and its WC, basin or shower with it. The
+  door-swing check (`doorSwings`, the leaf's square) and the tight passages (`tightSpots`, a point 45
+  cm in) test other things and keep their own measures. *Not built:* Nini's note that the swing,
+  access and the way on are checked apart and a layout that passes them is not refused for the zone
+  alone — the zone is a hard keep-out; the swing check and `tightSpots` do already test the other
+  two, as warnings.
+- **A WC is laid out as deep as it will stand** (`WC_AS_BUILT_DEPTH_M`: a wall-hung WC's 54 cm in
+  front of its 20 cm box, `wcBoxes`): its spot is looked for that deep, then it stands at its slot's
+  size with its back on the wall. The box built behind it stands it out by 20 cm (`clearOfDecor`),
+  and with the 70 cm zone (the engine's 95 cm had kept 5 cm over `inDoorway`'s 90) it stood out
+  into the bathroom's door; where that push was refused it stood inside its own box. **Nothing is
+  pushed onto a door's clear floor** by the tidying passes either (`shiftWithFront` refuses a move
+  that takes a piece onto it).
 
 - **What is seen through a doorway** (`roomSightBands`: a band as wide as the opening, from it to
   the far wall). A WC never stands in one when any other spot on its walls fits (its spots in a
@@ -451,7 +482,7 @@ ways out (above) — the slot stays empty. Before this a 3.2 m sofa in a 2.4 m r
 window.
 
 **A product keeps clear what the layout kept clear, wherever one can** (the slot's second test,
-tried first): a door's way (`inDoorway`: 90 cm into the room, the opening's width), the floor the
+tried first): a door's way (`inDoorway`: its clear floor by the room, above), the floor the
 layout was told to keep clear (`MatchOptions.keepClear`, which `generateScene` fills with the
 layout's own `obstacles` — the strip before each radiator, the columns, the floor behind a
 partition; under a towel rail, only for a product that reaches up to the rail's bottom) and, for anything but the kitchen's own furniture (the run, the wall cabinets, the
@@ -490,7 +521,9 @@ takes the first product that lies inside its room — its edge by the door, ease
 one drawn. (The catalogue files five of six door mats 2.03 × 1.27 m and a cluster of lamps
 3.16 × 3.96 m.) The mat is not tested for the door's way: the layout lays it inside the front door. On the fixture flats this took the floor pieces within 90 cm of a door from 146 to 25
 in 360 flats (the 25: kitchen runs and their legs, and chairs seated round a table, which have no
-other place to stand).
+other place to stand). With the door's clear floor by room (23 Nov) it is 51 in 792 flats, all
+dining chairs and a few nightstands: a chair re-seated round a smaller real table where none of
+its table's seats keeps clear stands in the way in the last passes (`fitPasses`).
 
 **The other pieces are the ones that stand**: those already matched at the size they got, those
 still to be matched at their archetype's. A slot that got no product is not there — it is in no
@@ -796,6 +829,11 @@ whole. `lib/design/matcher.ts` is in the coverage gate.
 
 ## Known gaps
 
+- **A chair re-seated round its real table may stand on a door's clear floor** (`fitPasses`' last
+  passes keep the piece where no seat keeps clear): 48 of the 51 floor pieces in a door's way in
+  792 fixture flats, 24 of them in one kitchen (#359, every draw), where the 90 cm zone lets the
+  table stand nearer the door than the 95 cm did. Which seat gives way is the owner's (decision 13's kind of
+  ladder).
 - **The generation audit of 16 Nov 2026** ([generation-audit.md](generation-audit.md)) lists what
   the engine and the matcher leave out, where they clash and what they can never place, measured on
   1,080 generated flats. Its ticked items are fixed (the matcher's: a way out of the strict style,

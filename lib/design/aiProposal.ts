@@ -335,7 +335,8 @@ function shiftWithFront(item: PlacedItem, step: number, out: PlacedItem[], room:
   const rest = out.filter((p) => !ids.has(p.id) && !ids.has(hostOf(p, out)?.id ?? ''));
   // Tested as what each is on the floor (`solid`): a ghost's archetype is a rendering hint, not floor
   // nobody needs — a floor mixer neither stands in a piece nor has a piece pushed into it.
-  return moved.every((p, k) => isPlacementValid(room, p, rest, rooms, true) && (!inRoom(group[k]) || inRoom(p))) ? moved : null;
+  // Nor is a piece moved onto a door's clear floor it was clear of (`inDoorway`).
+  return moved.every((p, k) => isPlacementValid(room, p, rest, rooms, true) && (!inRoom(group[k]) || inRoom(p)) && (inDoorway(group[k], room) || !inDoorway(p, room))) ? moved : null;
 }
 
 /**

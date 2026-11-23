@@ -332,14 +332,17 @@ surround are one thing to the person and two records here — a `PlacedItem` wit
   over the joinery's top (`StretchOptions.radiators`, `radiatorBodies`: generation's bathroom, hall
   and bedroom passes read them; the studio's builder does not yet); and it keeps off a corner whose
   other wall has a door or a window it would stand in front of (`cornerClearance`). Generation's
-  joinery (`StretchOptions.strict`, which the bathroom, hall and bedroom passes pass) keeps 90 cm off
-  a door or an archway it would reach into by any of its width (the way `inDoorway` keeps clear)
-  and 40 cm off a window it would stand in front of by more than the 5 cm a piece may stand onto
-  one (`ONTO_WINDOW_M`), whatever stands in that corner, and keeps out of every door's way (the
-  door's width, 90 cm into the room) across the room too; so does a piece set down from the
-  catalogue (`houseItem`). The studio's own builder for what a person drags or resizes
+  joinery (`StretchOptions.strict`, which the bathroom, hall and bedroom passes pass) keeps off
+  a door's or an archway's clear floor it would reach into by any of its width (`doorClearFloor`:
+  70 cm in a bathroom or a toilet, 90 cm and the door's width with 10 cm either side elsewhere, 55
+  cm for an archway — the way `inDoorway` keeps clear) and 40 cm off a window it would stand in
+  front of by more than the 5 cm a piece may stand onto one (`ONTO_WINDOW_M`), whatever stands in
+  that corner, and keeps off every door's clear floor (`doorZones`, its axis box) across the room
+  and on its own wall too; so does a piece set down from the catalogue (`houseItem`). The bathroom
+  pass's washer column of its own stops at a vanity planned round the corner (it was built into
+  the basin's vanity). The studio's own builder for what a person drags or resizes
   (`freeExtent`, and a housing following its piece in `settleFitted`) keeps the older
-  corner — 90 cm off a door, 40 cm off any other opening, only where it would stand in front of
+  corner — a door's clear floor, 40 cm off any other opening, only where it would stand in front of
   25 cm or more of it, and not at all for a piece that stands in that corner — and reads no door
   across the room; so does the kitchen's corner leg (`kitchenCorner.ts`).
   Only a side that was dragged is held back. The other way round, a piece of furniture being moved keeps out of

@@ -584,6 +584,17 @@ in English — `ruleProblem` into `reviewFindings`' PROBLEMS) and the foot of th
   rooms with water, the kitchen too, are `WATER_ROOM_TYPES`).
 - `minDoorWidthM(type)` and `doorWidthFor(type, other)`: a new door is 80 cm, 70 cm when either
   room is a bathroom or toilet, 90 cm to the outside (`addOpening`; `deriveOpenings` too).
+- **A door's clear floor** (decision 12): `doorClearFloor(roomType, opening)` — in a bathroom or a
+  toilet 70 cm deep × the door's width (`WET_DOOR_FLOOR_DEPTH_M`), in every other room 90 cm × the
+  door + 10 cm either side (`DOOR_FLOOR_DEPTH_M`, `DOOR_FLOOR_SIDE_M`), an archway 55 cm
+  (`ARCHWAY_FLOOR_DEPTH_M`); measured in the room it lies in (each room's copy of the opening by
+  that room's type); in a bathroom or a toilet also the leaf's sweep of a door swinging into it
+  that is wider than 70 cm, so the door still opens. `doorZones(edge, opening, roomType)` draws it
+  (`doorFloor`) for the layout engine's keep-outs, `inDoorway` (the later passes, the matcher, the
+  whole-flat audit) and generation's joinery
+  ([layout-and-matching.md](layout-and-matching.md#the-design-rules-in-the-layout-libdesignrulests)).
+  `WC_AS_BUILT_DEPTH_M` (a wall-hung WC's 54 cm and its box's 20) is how deep the layout lays a WC
+  out, so its box does not stand it into that floor.
 - The layout's numbers (`BED_SIDE_FREE_M`, `SOFA_TV_M`, `COFFEE_TABLE_GAP_M`, `TV_CENTRE_M`,
   `DINING_SEAT_M`, `FACING_COUNTERS_M`, `WALL_UNIT_BOTTOM_M`, the wardrobe depths, `SHOWER_MIN_M`,
   `WC_SIDE_M`, `BASIN_TOP_M`, `SPLASH_ZONE_M`) and the geometry they need — the archetypes read

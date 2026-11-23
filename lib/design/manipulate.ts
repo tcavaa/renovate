@@ -28,8 +28,9 @@ import { footprintMaskFor } from './footprintMasks';
 import { floorTaken } from './shower';
 import { tucksUnder } from './relations';
 import { LAID_TO_ANOTHER, LIES_FLAT } from './kinds';
-import { axisBox, boxesOverlap, doorFloor, rightAngleTrig, wallBehind, type Box } from './pieceGeometry';
+import { axisBox, boxesOverlap, rightAngleTrig, wallBehind, type Box } from './pieceGeometry';
 import type { PlacedItem, PlanRoom, Vec2 } from './types';
+import { doorZones } from './rules';
 
 /** Axis-aligned box in the ground plane (`pieceGeometry`'s `Box`). */
 export type Footprint = Box;
@@ -769,7 +770,12 @@ export function blocksWindow(item: Pick<PlacedItem, 'position' | 'rotation' | 's
   });
 }
 
-/** Whether a piece on the floor stands in the way of a door or an archway: within 90 cm of it, inside the room. */
+/**
+ * Whether a piece on the floor stands in the way of a door or an archway: on its clear floor inside
+ * the room (`doorZones` — a bathroom's 70 cm × the door, another room's 90 cm × the door and 10 cm
+ * either side, an archway's 55 cm; and the leaf's sweep of a door opening into the room where it
+ * reaches further).
+ */
 export function inDoorway(item: Pick<PlacedItem, 'position' | 'rotation' | 'size' | 'elevationM'>, room: PlanRoom): boolean {
   if (item.elevationM >= 0.05) return false;
   const box = footprintOf(item.position, item.size, item.rotation);
@@ -778,8 +784,7 @@ export function inDoorway(item: Pick<PlacedItem, 'position' | 'rotation' | 'size
     if (!isPassage(o)) return false;
     const edge = edges.find((e) => e.index === o.wallIndex);
     if (!edge) return false;
-    // The door's width, 90 cm into the room (`doorFloor`'s axis box).
-    return footprintsOverlap(box, doorFloor(edge, o.t, o.widthM, 0, 0.9).box, 0);
+    return doorZones(edge, o, room.type).some((zone) => footprintsOverlap(box, zone.box, 0));
   });
 }
 

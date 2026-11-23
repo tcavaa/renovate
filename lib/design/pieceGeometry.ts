@@ -4,8 +4,8 @@
  * AI check, the wiring and the decor alike: which wall a piece has its back to, the floor it covers
  * (an axis box, or the quad turned with it) and whether two of them overlap, a door's clear floor,
  * and the small measures under them. Each caller passes its own tolerances — they differ on
- * purpose, and choosing one set is the owner's (X5 lists the doors') — so this module holds the
- * geometry, never a number of the rules.
+ * purpose — so this module holds the geometry, never a number of the rules (a door's clear floor
+ * is `rules.ts`'s `doorZones`, drawn here).
  *
  * Pure: no React, no three.js.
  */
@@ -123,11 +123,13 @@ export function quadsOverlap(a: Vec2[], b: Vec2[], tolerance: number): boolean {
 // ---------------------------------------------------------------------------
 
 /**
- * The floor in front of a door or an archway — what each caller keeps clear there, with its own
- * numbers (generation-audit X5 lists them for the owner): the opening's middle on its wall
- * (`anchor`), a point `d` metres into the room straight in front of it (`ahead`), and the
- * rectangle `widthAlong` wide across it from `from` to `to` metres in (`quad`, back-left first,
- * going round, each corner the point `ahead` and then along the wall; `box`, its axis box).
+ * The floor in front of a door or an archway: the opening's middle on its wall (`anchor`), a point
+ * `d` metres into the room straight in front of it (`ahead`), and the rectangle `widthAlong` wide
+ * across it from `from` to `to` metres in (`quad`, back-left first, going round, each corner the
+ * point `ahead` and then along the wall; `box`, its axis box). The clear floor kept in front of a
+ * door — one rule by room for the engine, the matcher, the joinery and the check — is
+ * `doorZones` (`rules.ts`); the door's swing (`doorSwings`, the leaf's square) and a tight
+ * passage's point (`tightSpots`) pass their own measures.
  */
 export interface DoorFloor {
   anchor: Vec2;

@@ -38,9 +38,9 @@ export type SceneIssueCode =
   | 'in_joinery'
   /** A basin lifted to washing height with nothing built under it. */
   | 'basin_in_air'
-  /** A floor piece within 90 cm in front of a door or an archway (`inDoorway`). */
+  /** A floor piece on a door's or an archway's clear floor (`inDoorway`, `doorZones`). */
   | 'door_zone'
-  /** Joinery or a box within 90 cm in front of a door or an archway. */
+  /** Joinery or a box on a door's or an archway's clear floor (`inDoorway`). */
   | 'joinery_in_door_zone'
   /** Two floor pieces in each other. */
   | 'floor_overlap'

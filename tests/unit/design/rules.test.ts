@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ARCHETYPES } from '@/lib/design/catalog';
-import { COFFEE_TABLE_GAP_M, COLD_WATER_SLOTS, HOT_WATER_SLOTS, KITCHEN_WORKTOP_M, TV_CENTRE_M, WALL_UNIT_BOTTOM_M, WALL_UNIT_OVER_WORKTOP_M, WET_ROOM_TYPES, doorWidthFor, entranceSightBands, kitchenRunZones, minDoorWidthM, roomNiches } from '@/lib/design/rules';
+import { COFFEE_TABLE_GAP_M, COLD_WATER_SLOTS, HOT_WATER_SLOTS, KITCHEN_WORKTOP_M, TV_CENTRE_M, WALL_UNIT_BOTTOM_M, WALL_UNIT_OVER_WORKTOP_M, WET_ROOM_TYPES, doorClearFloor, doorWidthFor, entranceSightBands, kitchenRunZones, minDoorWidthM, roomNiches } from '@/lib/design/rules';
 import { BATH_ROOM_TYPES, WATER_ROOM_TYPES } from '@/lib/calculator/constants';
 import { isWetRoomType } from '@/lib/design/surfaces';
 import { TECHNICAL_KINDS } from '@/lib/design/technical';
@@ -9,6 +9,7 @@ import { addOpening } from '@/lib/design/openings';
 import { seededRng } from '@/lib/design/random';
 import { radiatorKeepouts, ruleViolations } from '@/lib/design/ruleChecks';
 import { refreshRoom } from '@/lib/design/planGeometry';
+import { inDoorway } from '@/lib/design/manipulate';
 import { addWalls, rebuildRooms, wallsForRectangle } from '@/lib/design/walls';
 import type { ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, TechnicalPoint, Vec2, Wall } from '@/lib/design/types';
 
@@ -163,6 +164,39 @@ describe('the layout rules', () => {
     expect(doorWidthFor('hallway', null)).toBe(0.9);
     const rooms = addOpening([rect('h', 'hallway', 0, 0, 2, 3), rect('w', 'toilet', 2.12, 0, 1.2, 1.6)], 'h', 'door', 1, 0.12, { t: 0.25 }).rooms;
     expect(rooms[0].openings[0].widthM).toBe(0.7);
+  });
+});
+
+describe('a door\'s clear floor', () => {
+  const opening = (kind: 'door' | 'archway', widthM: number, swing?: 'in' | 'out') => ({ kind, widthM, swing });
+
+  it('is 70 cm deep and the door\'s width in a bathroom or a toilet, 90 cm and 10 cm either side elsewhere, 55 cm for an archway', () => {
+    expect(doorClearFloor('bathroom', opening('door', 0.7))).toEqual([{ widthAlong: 0.7, depth: 0.7 }]);
+    expect(doorClearFloor('toilet', opening('door', 0.7))).toEqual([{ widthAlong: 0.7, depth: 0.7 }]);
+    expect(doorClearFloor('hallway', opening('door', 0.8))).toEqual([{ widthAlong: 1, depth: 0.9 }]);
+    expect(doorClearFloor('bedroom', opening('door', 0.8, 'out'))).toEqual([{ widthAlong: 1, depth: 0.9 }]);
+    expect(doorClearFloor('living_room', opening('archway', 1.2))).toEqual([{ widthAlong: 1.4, depth: 0.55 }]);
+    expect(doorClearFloor('bathroom', opening('archway', 0.8))).toEqual([{ widthAlong: 0.8, depth: 0.55 }]);
+  });
+
+  it('keeps the leaf of a wider door that opens into a bathroom free too, so the door still opens', () => {
+    expect(doorClearFloor('bathroom', opening('door', 0.8))).toEqual([{ widthAlong: 0.8, depth: 0.7 }, { widthAlong: 0.8, depth: 0.8 }]);
+    // One that opens into the other room keeps the 70 cm; a wide door elsewhere keeps the 90 cm.
+    expect(doorClearFloor('bathroom', opening('door', 0.8, 'out'))).toEqual([{ widthAlong: 0.8, depth: 0.7 }]);
+    expect(doorClearFloor('hallway', opening('door', 1.2))).toEqual([{ widthAlong: 1.4, depth: 0.9 }]);
+  });
+
+  it('lies in the room it is measured in: a door between a hall and a toilet keeps 90 cm on the hall\'s side, 70 on the toilet\'s', () => {
+    const rooms = addOpening([rect('h', 'hallway', 0, 0, 2, 3), rect('w', 'toilet', 2.12, 0, 1.2, 1.6)], 'h', 'door', 1, 0.12, { t: 0.25 }).rooms;
+    const [hall, toilet] = rooms;
+    expect(toilet.openings).toHaveLength(1);
+    // A piece 20 cm deep, square to the door (z 0.75), its near side 80 cm off the door's wall.
+    const piece = (x: number, roomId: string): PlacedItem => ({ id: 'p', roomId, slot: 'console', kind: 'console_table', position: P(x, 0.75), rotation: 0, elevationM: 0, size: { width: 0.2, depth: 0.4, height: 0.8 }, product: null });
+    expect(inDoorway(piece(2 - 0.8 - 0.1, 'h'), hall)).toBe(true);
+    expect(inDoorway(piece(2.12 + 0.8 + 0.1, 'w'), toilet)).toBe(false);
+    expect(inDoorway(piece(2.12 + 0.6 + 0.1, 'w'), toilet)).toBe(true);
+    // 95 cm off it, clear of either.
+    expect(inDoorway(piece(2 - 0.95 - 0.1, 'h'), hall)).toBe(false);
   });
 });
 

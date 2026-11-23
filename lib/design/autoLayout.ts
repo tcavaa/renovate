@@ -46,7 +46,7 @@ import {
 import type { Opening, PlacedItem, PlanRoom, StyleId, Vec2 } from './types';
 import { isLargeSize, isTightPassage, longSideGaps } from './clearance';
 import { blocksWindow, clearsUnder, pieceWall, type KeepClear } from './manipulate';
-import { axisBox, backMiddle, boxesOverlap, doorFloor, QUAD_TOUCH_M, wallBehind } from './pieceGeometry';
+import { axisBox, backMiddle, boxesOverlap, QUAD_TOUCH_M, wallBehind } from './pieceGeometry';
 import { kitchenCornerFloor } from './kitchenCorner';
 import { anchorsFor, type TechnicalAnchor } from './technical';
 import { pickNearBest, weightedOrder, type RoomRng, type Rng } from './random';
@@ -72,8 +72,11 @@ import {
   SOFA_TV_M,
   TV_UNIT_CLEAR_M,
   WARDROBE_DEPTH_M,
+  WC_AS_BUILT_DEPTH_M,
   WC_SIDE_M,
   WET_ROOM_TYPES,
+  doorClearFloor,
+  doorZones,
   footprintQuad,
   quadsOverlap,
   rayToPolygon,
@@ -624,11 +627,18 @@ function placeAgainstWall(
 
   for (const width of widths) {
     // A WC is placed with 40 cm from its centre to either side (`WC_SIDE_M`): its spot is looked
-    // for as that wide, then it stands at its own size in the middle of it.
+    // for as that wide, then it stands at its own size in the middle of it. And as deep as it will
+    // stand once the box of its cistern is built behind it (`WC_AS_BUILT_DEPTH_M`, `wcBoxes`), so
+    // the box does not stand it out into a door's clear floor or the fixture laid before it; it is
+    // put with its back on the wall, the rest of that depth in front of it.
     const wc = archetype.slot === 'toilet';
-    const search = { ...archetype.size, width: wc ? Math.max(width, 2 * WC_SIDE_M) : width };
+    const search = wc ? { ...archetype.size, width: Math.max(width, 2 * WC_SIDE_M), depth: Math.max(archetype.size.depth, WC_AS_BUILT_DEPTH_M) } : { ...archetype.size, width };
     const found = bestAlongWalls(archetype, search, room, edges, occupied, prefer, clearanceM, doorPoints, windowPoints, anchors, rng, beside, rules);
-    if (found) return wc ? { ...found, size: { ...found.size, width } } : found;
+    if (found && wc) {
+      const back = (search.depth - archetype.size.depth) / 2;
+      return { ...found, position: { x: found.position.x - Math.sin(found.rotation) * back, z: found.position.z - Math.cos(found.rotation) * back }, size: { ...found.size, width, depth: archetype.size.depth } };
+    }
+    if (found) return found;
   }
   return null;
 }
@@ -1720,7 +1730,7 @@ function fitsInRoom(pose: Pose, polygon: Vec2[]): boolean {
   return boxInPolygon(boxFor(pose), polygon);
 }
 
-/** Blocks the approach to every door so furniture never lands in a doorway. */
+/** Blocks the approach to every door so furniture never lands in a doorway: its clear floor (`doorZones`). */
 function doorKeepouts(room: PlanRoom, edges: PlanEdge[]): Box[] {
   const boxes: Box[] = [];
 
@@ -1729,18 +1739,21 @@ function doorKeepouts(room: PlanRoom, edges: PlanEdge[]): Box[] {
     const edge = edges.find((e) => e.index === opening.wallIndex);
     if (!edge) continue;
 
-    // 95 cm into the room (an archway 55), the door's width and 10 cm either side (`doorFloor`),
-    // squared onto the room's axes by the way the wall runs.
-    const swingDepth = opening.kind === 'archway' ? 0.55 : 0.95;
-    const centre = doorFloor(edge, opening.t, opening.widthM + 0.2, 0, swingDepth).ahead(swingDepth / 2);
-
-    const halfAlong = (opening.widthM + 0.2) / 2;
-    const sideways = Math.abs(edge.dir.x) > 0.5;
-    boxes.push({
-      minX: centre.x - (sideways ? halfAlong : swingDepth / 2),
-      maxX: centre.x + (sideways ? halfAlong : swingDepth / 2),
-      minZ: centre.z - (sideways ? swingDepth / 2 : halfAlong),
-      maxZ: centre.z + (sideways ? swingDepth / 2 : halfAlong),
+    // The door's clear floor by the room (`doorClearFloor`: a bathroom's 70 cm × the door, another
+    // room's 90 cm × the door and 10 cm either side, an archway's 55 cm, and the leaf's sweep of a
+    // door opening into the room where it reaches further), each rectangle squared onto the room's
+    // axes by the way the wall runs.
+    const floors = doorZones(edge, opening, room.type);
+    doorClearFloor(room.type, opening).forEach(({ widthAlong, depth }, k) => {
+      const centre = floors[k].ahead(depth / 2);
+      const halfAlong = widthAlong / 2;
+      const sideways = Math.abs(edge.dir.x) > 0.5;
+      boxes.push({
+        minX: centre.x - (sideways ? halfAlong : depth / 2),
+        maxX: centre.x + (sideways ? halfAlong : depth / 2),
+        minZ: centre.z - (sideways ? depth / 2 : halfAlong),
+        maxZ: centre.z + (sideways ? depth / 2 : halfAlong),
+      });
     });
   }
 

@@ -18,7 +18,7 @@ import { isPassage, ONTO_WINDOW_M, roomEdges, type PlanEdge } from '@/lib/design
 import { wallBehind } from '@/lib/design/pieceGeometry';
 import type { CabinetSection, DecorMaterial, DecorPiece, Opening, PlacedItem, PlanRoom, StyleId } from '@/lib/design/types';
 import { decorDepth, freeSpans } from './layout';
-import { WC_BOX_DEPTH_M, WC_BOX_WIDTH_M, WC_SIDE_M } from '@/lib/design/rules';
+import { doorClearFloor, doorZones, WC_BOX_DEPTH_M, WC_BOX_WIDTH_M, WC_SIDE_M } from '@/lib/design/rules';
 import { floorTaken } from '@/lib/design/shower';
 import type { RadiatorBody } from '@/lib/design/radiators';
 import { alongWall, floorCorners } from '@/lib/design/wallClear';
@@ -172,8 +172,7 @@ export function cabinetDepth(piece: Pick<DecorPiece, 'params'>): number {
 
 /** Decor that takes floor — a cabinet, a box, a niche wall: what joinery may not be built into. */
 const SOLID_DECOR = new Set<string>(['cabinet', 'box', 'niche']);
-/** The way kept clear in front of a door, as deep as `inDoorway`'s (90 cm); and the little a window round the corner keeps. */
-const DOOR_WAY_M = 0.9;
+/** The little a window round the corner keeps (a door keeps its clear floor, `doorClearFloor`). */
 const CORNER_WINDOW_CLEAR_M = 0.4;
 /** How much of an opening round the corner the studio's own builder lets joinery stand in front of. */
 const CORNER_OVERLAP_M = 0.25;
@@ -192,12 +191,13 @@ export function decorFootprint(piece: Pick<DecorPiece, 'family' | 'params' | 'wa
 
 /**
  * How far joinery `depth` deep keeps off each end of a wall, for an opening on the wall round the
- * corner it would stand in front of. `strict` (generation): a door or an archway it would stand in
- * front of by any of its width needs its way kept clear (90 cm), and a window it would stand in
+ * corner it would stand in front of. `strict` (generation): a door or an archway whose clear floor
+ * (`doorClearFloor`: the room's depth, the door's width — 10 cm either side outside a bathroom) it
+ * would stand on by any of its width needs that floor kept clear, and a window it would stand in
  * front of by more than a piece may reach onto one (`ONTO_WINDOW_M`) is not built over (40 cm).
  * Otherwise (the studio's own builder, as a person drags and resizes joinery): only an opening it
- * would stand in front of by 25 cm or more — a door's 90 cm, any other's 40 cm. `[from, to]` along
- * the wall.
+ * would stand in front of by 25 cm or more — a door's clear floor, any other's 40 cm. `[from, to]`
+ * along the wall.
  */
 export function cornerClearance(room: PlanRoom, edge: PlanEdge, depth: number, strict = false): [number, number] {
   const edges = roomEdges(room.polygon);
@@ -208,19 +208,22 @@ export function cornerClearance(room: PlanRoom, edge: PlanEdge, depth: number, s
     const other = edges.find((e) => e.index === opening.wallIndex);
     // Only a wall that meets this one at a corner: one across the room is no concern of the joinery's.
     if (!other || Math.abs(other.dir.x * edge.dir.x + other.dir.z * edge.dir.z) > 0.3) continue;
-    const centre = opening.t * other.length;
-    const ends = [centre - opening.widthM / 2, centre + opening.widthM / 2].map((s) => ({ x: other.a.x + other.dir.x * s, z: other.a.z + other.dir.z * s }));
-    const off = ends.map((p) => (p.x - edge.a.x) * edge.inward.x + (p.z - edge.a.z) * edge.inward.z);
-    // How much of the opening the joinery would stand in front of. Generation: none of a door's
-    // way; of a window, no more than a piece may stand onto one. The studio lives with less than
-    // 25 cm of either (a hall 1.8 m wide, its door in the middle of the end wall).
+    // How much of the opening the joinery would stand in front of — of a door, its clear floor's
+    // width. Generation: none of a door's way; of a window, no more than a piece may stand onto one.
+    // The studio lives with less than 25 cm of either (a hall 1.8 m wide, its door in the middle of
+    // the end wall).
     const passage = strict ? isPassage(opening) : opening.kind === 'door';
-    const overlap = Math.min(Math.max(...off), depth) - Math.max(Math.min(...off), 0);
-    if (strict ? overlap <= (passage ? 1e-6 : ONTO_WINDOW_M) : overlap < CORNER_OVERLAP_M) continue;
-    const along = ends.map((p) => (p.x - edge.a.x) * edge.dir.x + (p.z - edge.a.z) * edge.dir.z);
-    const clear = passage ? DOOR_WAY_M : CORNER_WINDOW_CLEAR_M;
-    if (Math.max(...along) < 0.3) lo = Math.max(lo, clear);
-    else if (Math.min(...along) > edge.length - 0.3) hi = Math.min(hi, edge.length - clear);
+    const centre = opening.t * other.length;
+    // Each rectangle of a door's clear floor (the zone, the leaf where it reaches further), or the window.
+    for (const { widthAlong, depth: clear } of passage ? doorClearFloor(room.type, opening) : [{ widthAlong: opening.widthM, depth: CORNER_WINDOW_CLEAR_M }]) {
+      const ends = [centre - widthAlong / 2, centre + widthAlong / 2].map((s) => ({ x: other.a.x + other.dir.x * s, z: other.a.z + other.dir.z * s }));
+      const off = ends.map((p) => (p.x - edge.a.x) * edge.inward.x + (p.z - edge.a.z) * edge.inward.z);
+      const overlap = Math.min(Math.max(...off), depth) - Math.max(Math.min(...off), 0);
+      if (strict ? overlap <= (passage ? 1e-6 : ONTO_WINDOW_M) : overlap < CORNER_OVERLAP_M) continue;
+      const along = ends.map((p) => (p.x - edge.a.x) * edge.dir.x + (p.z - edge.a.z) * edge.dir.z);
+      if (Math.max(...along) < 0.3) lo = Math.max(lo, clear);
+      else if (Math.min(...along) > edge.length - 0.3) hi = Math.min(hi, edge.length - clear);
+    }
   }
   // To the millimetre the joinery is measured in, on the clear side: a span rounded to it
   // (`cabinetPiece`) does not then reach a fraction of a millimetre into the door's way.
@@ -300,7 +303,7 @@ export function freeStretch(
   }
   // What is in the way, as its corners: a piece of furniture, or decor that takes floor — and how
   // far in front of the joinery's face it still counts.
-  const blocks: Array<{ corners: Array<{ x: number; z: number }>; gap: number }> = [];
+  const blocks: Array<{ corners: Array<{ x: number; z: number }>; gap: number; door?: true }> = [];
   for (const item of items) {
     if (item.roomId !== room.id || except.includes(item.id) || item.elevationM > HUNG_OVER_JOINERY_M || NOT_IN_THE_WAY.has(item.slot) || OVER_JOINERY.has(item.slot)) continue;
     if (item.slot !== 'toilet') {
@@ -320,16 +323,16 @@ export function freeStretch(
     const corners = decorFootprint(piece, room);
     if (corners) blocks.push({ corners, gap: FACE_GAP_M });
   }
-  // A door's way, wherever the door is — across the room too, or round a corner of an L: as deep
-  // into the room as `inDoorway` keeps it, the door's width wide.
+  // A door's way, wherever the door is — on this wall too (its 10 cm either side), across the room,
+  // or round a corner of an L: its clear floor in this room as `inDoorway` keeps it (`doorZones`,
+  // the axis box — a hair larger than the floor itself on a wall a little off square).
   for (const opening of strict ? room.openings : []) {
-    if (opening.wallIndex === edge.index || !isPassage(opening)) continue;
+    if (!isPassage(opening)) continue;
     const other = roomEdges(room.polygon).find((e) => e.index === opening.wallIndex);
     if (!other) continue;
-    const at = (s: number, off: number) => ({ x: other.a.x + other.dir.x * s + other.inward.x * off, z: other.a.z + other.dir.z * s + other.inward.z * off });
-    const lo = opening.t * other.length - opening.widthM / 2;
-    const hi = opening.t * other.length + opening.widthM / 2;
-    blocks.push({ corners: [at(lo, 0), at(hi, 0), at(hi, DOOR_WAY_M), at(lo, DOOR_WAY_M)], gap: 0 });
+    for (const { box } of doorZones(other, opening, room.type)) {
+      blocks.push({ corners: [{ x: box.minX, z: box.minZ }, { x: box.maxX, z: box.minZ }, { x: box.maxX, z: box.maxZ }, { x: box.minX, z: box.maxZ }], gap: 0, door: true });
+    }
   }
   for (const body of options.radiators ?? []) {
     if (body.room.id !== room.id || (options.top != null && body.bottom >= options.top)) continue;
@@ -337,11 +340,13 @@ export function freeStretch(
     const at = (s: number, off: number) => ({ x: e.a.x + e.dir.x * s + e.inward.x * off, z: e.a.z + e.dir.z * s + e.inward.z * off });
     blocks.push({ corners: [at(body.from, 0), at(body.to, 0), at(body.to, body.depthM), at(body.from, body.depthM)], gap: FACE_GAP_M });
   }
-  for (const { corners, gap } of blocks) {
-    // The footprint as seen along the wall, where it comes within the joinery's depth of it.
+  for (const { corners, gap, door } of blocks) {
+    // The footprint as seen along the wall, where it comes within the joinery's depth of it — a
+    // door's floor to the millimetre the joinery is measured in, on the clear side, as
+    // `cornerClearance` keeps it (a span rounded to it does not reach into the door's way).
     const seen = alongWall(edge, corners, depth + gap - 1e-6);
     if (!seen) continue;
-    const [lo, hi] = seen;
+    const [lo, hi] = door ? [Math.floor(seen[0] * 1000 + 1e-6) / 1000, Math.ceil(seen[1] * 1000 - 1e-6) / 1000] : seen;
     if (hi <= a || lo >= b) continue;
     if (hi <= at + 1e-6) a = Math.max(a, hi);
     else if (lo >= at - 1e-6) b = Math.min(b, lo);

@@ -298,10 +298,12 @@ describe('joinery never runs into anything', () => {
 
   it('keeps off a corner whose other wall has a door within its depth', () => {
     // A door 5–75 cm from the corner on the wall round it: 65 cm of joinery would stand across it.
+    // A bathroom keeps its door's clear floor 70 cm deep (`doorClearFloor`), a hall 90 cm.
     const cornered = room([door(1, 0.16)]);
     const edge = roomEdges(cornered.polygon)[0];
-    expect(cornerClearance(cornered, edge, 0.65)).toEqual([0, 2.1]);
-    expect(freeStretch(cornered, edge, 1.5, [], [], 0.65)).toEqual([0, 2.1]);
+    expect(cornerClearance(cornered, edge, 0.65)).toEqual([0, 2.3]);
+    expect(cornerClearance(room([door(1, 0.16)], 'hallway'), edge, 0.65)).toEqual([0, 2.1]);
+    expect(freeStretch(cornered, edge, 1.5, [], [], 0.65)).toEqual([0, 2.3]);
     // In the studio, what already stands in that corner keeps its cupboard.
     expect(freeStretch(cornered, edge, 2.6, [], [], 0.65)).toEqual([0, 3]);
     // Generation keeps the door's way clear whatever stands in that corner: no cupboard round it.
@@ -309,18 +311,19 @@ describe('joinery never runs into anything', () => {
     // A door whose way the joinery would reach into by only 10 cm: lived with in the studio, kept
     // clear by generation…
     expect(cornerClearance(room([door(1, 0.9 / 2.5)]), edge, 0.65)).toEqual([0, 3]);
-    expect(cornerClearance(room([door(1, 0.9 / 2.5)]), edge, 0.65, true)).toEqual([0, 2.1]);
+    expect(cornerClearance(room([door(1, 0.9 / 2.5)]), edge, 0.65, true)).toEqual([0, 2.3]);
     // …and one past its depth is no concern of either.
     expect(cornerClearance(room([door(1, 1.1 / 2.5)]), edge, 0.65, true)).toEqual([0, 3]);
   });
 
   it('keeps generated joinery out of the way of a door across the room', () => {
-    // A hall 1.2 m wide, a door 70 cm wide in the middle of the far wall: its way reaches 30 cm off this wall.
+    // A hall 1.2 m wide, a door 70 cm wide in the middle of the far wall: its way — 90 cm deep, the
+    // door's width and 10 cm either side — reaches 30 cm off this wall.
     const narrow = room([door(2, 0.5)], 'hallway', 3, 1.2);
     const edge = roomEdges(narrow.polygon)[0];
     const strict = { strict: true };
-    expect(freeStretch(narrow, edge, 0.5, [], [], 0.65, [], [], strict)).toEqual([0, 1.15]);
-    expect(freeStretch(narrow, edge, 2.5, [], [], 0.65, [], [], strict)).toEqual([1.85, 3]);
+    expect(freeStretch(narrow, edge, 0.5, [], [], 0.65, [], [], strict)).toEqual([0, 1.05]);
+    expect(freeStretch(narrow, edge, 2.5, [], [], 0.65, [], [], strict)).toEqual([1.95, 3]);
     expect(freeStretch(narrow, edge, 1.5, [], [], 0.65, [], [], strict)).toBeNull();
     // Joinery 30 cm deep stops short of it.
     expect(freeStretch(narrow, edge, 1.5, [], [], 0.3, [], [], strict)).toEqual([0, 3]);

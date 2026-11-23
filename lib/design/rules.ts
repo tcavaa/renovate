@@ -11,7 +11,7 @@
  */
 
 import { isOpenEdge, isPassage, pointOnEdge, roomEdges, wallEdges, type PlanEdge } from './planGeometry';
-import { QUAD_TOUCH_M, quadsOverlap as outlinesOverlap, turnedQuad, wallBehind, type Quad } from './pieceGeometry';
+import { doorFloor, QUAD_TOUCH_M, quadsOverlap as outlinesOverlap, turnedQuad, wallBehind, type DoorFloor, type Quad } from './pieceGeometry';
 import type { Opening, PlacedItem, PlanRoom, SlotKind, StyleId, TechnicalPoint, Vec2 } from './types';
 
 // ---------------------------------------------------------------------------
@@ -267,6 +267,50 @@ export function doorWidthFor(type: PlanRoom['type'], other: PlanRoom['type'] | n
   return other === null ? ENTRANCE_DOOR_M : Math.min(minDoorWidthM(type), minDoorWidthM(other));
 }
 
+/**
+ * A door's clear floor — the floor kept free in front of a door or an archway, in the room it is
+ * measured in (the owner's decision 12, 23 Nov 2026): a bathroom or a toilet 70 cm deep and the
+ * door's own width; every other room 90 cm deep and the door's width with 10 cm either side; an
+ * archway 55 cm deep. A door between a hall and a bathroom keeps 70 cm on the bathroom's side and
+ * 90 cm on the hall's. In a bathroom or a toilet a door that swings into it keeps its leaf's sweep
+ * free besides — its width across, its width deep — where that reaches past the 70 cm (a 75 or
+ * 80 cm door): the owner's 70 cm is "where the door still opens". Elsewhere the 90 cm is a single
+ * leaf's depth (a wider door is a double door or a front door: kept to the 90 cm, as the layout
+ * kept 95 before; the app's swing check still reads its whole width). One rule for the
+ * layout engine (`doorKeepouts`), the later passes, the matcher and the whole-flat check
+ * (`inDoorway`) and the joinery (`cornerClearance`, `freeStretch`). The app's door-swing check
+ * (`doorSwings`) and a tight passage (`tightSpots`) test other things and keep their own measures.
+ */
+export const DOOR_FLOOR_DEPTH_M = 0.9;
+export const WET_DOOR_FLOOR_DEPTH_M = 0.7;
+export const ARCHWAY_FLOOR_DEPTH_M = 0.55;
+/** Past either side of the door, outside a bathroom or toilet. */
+export const DOOR_FLOOR_SIDE_M = 0.1;
+
+/** A rectangle of a door's clear floor: `widthAlong` across the opening (centred on it, metres along its wall), `depth` into the room. */
+export interface DoorClearRect {
+  widthAlong: number;
+  depth: number;
+}
+
+/**
+ * The clear floor in front of an opening, in a room of `roomType`, as one or two rectangles
+ * centred on it: the zone, and in a bathroom or a toilet the leaf's sweep of a door that swings
+ * into it where it reaches deeper (a door swinging `out` swings into the other room).
+ */
+export function doorClearFloor(roomType: PlanRoom['type'], opening: Pick<Opening, 'kind' | 'widthM' | 'swing'>): DoorClearRect[] {
+  const wet = WET_ROOM_TYPES.includes(roomType);
+  const depth = opening.kind === 'archway' ? ARCHWAY_FLOOR_DEPTH_M : wet ? WET_DOOR_FLOOR_DEPTH_M : DOOR_FLOOR_DEPTH_M;
+  const zone = { widthAlong: opening.widthM + (wet ? 0 : 2 * DOOR_FLOOR_SIDE_M), depth };
+  const leaf = wet && opening.kind === 'door' && opening.swing !== 'out' && opening.widthM > depth ? [{ widthAlong: opening.widthM, depth: opening.widthM }] : [];
+  return [zone, ...leaf];
+}
+
+/** The clear floor in front of `opening` on `edge`, inside a room of `roomType`: `doorFloor` for each of `doorClearFloor`'s rectangles. */
+export function doorZones(edge: Pick<PlanEdge, 'a' | 'b' | 'dir' | 'inward'>, opening: Pick<Opening, 'kind' | 'widthM' | 't' | 'swing'>, roomType: PlanRoom['type']): DoorFloor[] {
+  return doorClearFloor(roomType, opening).map(({ widthAlong, depth }) => doorFloor(edge, opening.t, widthAlong, 0, depth));
+}
+
 // ---------------------------------------------------------------------------
 // Layout (the brief's part 2 and 3)
 // ---------------------------------------------------------------------------
@@ -341,6 +385,12 @@ export const WC_SIDE_M = 0.4;
 export const WC_BOX_DEPTH_M = 0.2;
 export const WC_BOX_HALF_M = 1.0;
 export const WC_BOX_WIDTH_M = 0.8;
+/**
+ * How deep the layout lays a WC out from its wall: a wall-hung WC (most of the catalogue's are
+ * 52–55 cm) in front of its box — the floor it takes once the box is built behind it, so the box
+ * does not stand it out into a door's clear floor (`doorClearFloor`) or the fixture laid before it.
+ */
+export const WC_AS_BUILT_DEPTH_M = 0.54 + WC_BOX_DEPTH_M;
 /** A basin's top: 85 cm (the check allows a few centimetres either way). */
 export const BASIN_TOP_M = 0.85;
 export const BASIN_TOP_TOLERANCE_M = 0.07;

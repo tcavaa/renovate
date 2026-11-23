@@ -30,6 +30,9 @@ at runtime yet; the last one was seen on the sample plan.
   way**: a vanity that cannot be cut back to a washer's column without becoming narrower than its
   basin (2 of 1,440 flats) and a basin 1.9 cm past a vanity cut back to a corner column (1) —
   [design-studio/decor.md](design-studio/decor.md#known-gaps).
+- A dining chair re-seated round its real table stands on a door's clear floor where none of the
+  table's seats keeps clear (48 of the 51 floor pieces in a door's way on 792 fixture flats, 24 in one kitchen)
+  — which seat gives way is the owner's: [design-studio/layout-and-matching.md](design-studio/layout-and-matching.md#known-gaps).
 - The studio's joinery builder reads no radiators (a bath's box run on to a radiator is re-centred
   on the first drag of any piece, 3 of 1,440 fixture flats) and keeps the older corner rule for a
   person's own drag and resize; a basin too tall for any vanity and a mirror over a

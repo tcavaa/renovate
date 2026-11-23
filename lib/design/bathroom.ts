@@ -171,9 +171,12 @@ export function fitBathrooms(input: BathroomInput): { items: PlacedItem[]; decor
           }
         }
       }
-      // A column of its own where the machine stands.
+      // A column of its own where the machine stands — stopped at the vanities still to be built on
+      // the walls round it (round a corner a basin's vanity reaches past where the column would
+      // start; one on its own wall gives way to the column, `clearOfBuilt`).
       const wall = wallOf(washer, room);
-      const stretch = wall && freeStretch(room, wall.edge, wall.along, items, [washer.id], WASHER_COLUMN_DEPTH_M, [], [], { radiators, strict: true });
+      const planned = [...vanities].filter(([, v]) => v.edge.index !== wall?.edge.index).map(([sinkId, v]) => cabinetPiece(`decor-${room.id}-joinery-${sinkId}`, room, v.edge, v.from, [{ kind: 'basin', widthMm: mm(v.to - v.from), heightMm: mm(v.height), depthMm: mm(VANITY_DEPTH_M), itemId: sinkId }], face));
+      const stretch = wall && freeStretch(room, wall.edge, wall.along, items, [washer.id], WASHER_COLUMN_DEPTH_M, planned, [], { radiators, strict: true });
       // Round the machine, at the end of the wall when that is a sliver away (BA-14).
       const from = wall && stretch ? columnStart(stretch, wall.along, columnW) : null;
       if (wall && stretch && from != null) {

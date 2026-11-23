@@ -21,9 +21,10 @@ const plan = (...rooms: PlanRoom[]): FloorPlan => ({ rooms, metresPerPixel: null
 const material = { id: 50, nameKa: 'MDF', nameEn: 'MDF', slug: 'mdf', categorySlug: 'kitchen-custom', unit: 'm2', pricePerUnit: 600, model3dKind: 'kitchen_run', model3dUrl: null, styleTags: ['modern'] } as unknown as CatalogProduct;
 
 describe('the entrance hall', () => {
-  // A hall 3.6 × 2.2 m, the front door in the middle of its short wall: a wardrobe along a long
-  // wall stands clear of its way (in a hall 1.8 m wide it would stand 15 cm into it, and is not built).
-  const hall = room('h', 'hallway', 3.6, 2.2, [door(3, 0.5, true), door(1, 0.5)]);
+  // A hall 3.6 × 2.4 m, the front door in the middle of its short wall: a wardrobe along a long
+  // wall stands clear of its way — the door's width and 10 cm either side, `doorClearFloor` (in a
+  // hall 2.2 m wide it would stand 5 cm into it, and is not built).
+  const hall = room('h', 'hallway', 3.6, 2.4, [door(3, 0.5, true), door(1, 0.5)]);
 
   it('builds one wardrobe to the ceiling by the front door — the coats, the shoes — in place of the coat rack and shoe cabinet', () => {
     const items = layoutRoom(hall, {}).map((i) => ({ ...i, product: null }));
@@ -138,7 +139,9 @@ describe('the entrance hall', () => {
 
     it('runs the wardrobe on along its stretch to a boiler past its own length', () => {
       expect(Math.abs(plain.span.to - plain.span.from)).toBeLessThanOrEqual(2.8 + 1e-3);
-      const s = fromDoor(3.4);
+      // 3.2 m from the door's end: past the wardrobe's own 2.8 m, short of the front door's clear floor
+      // (90 cm in, the door and 10 cm either side — decision 12), which the wardrobe never runs into.
+      const s = fromDoor(3.2);
       const out = fit(boilerAt(s));
       expect(out.housed).toBe('b');
       const [lo, hi] = [Math.min(out.decor[0].span.from, out.decor[0].span.to), Math.max(out.decor[0].span.from, out.decor[0].span.to)];
@@ -199,7 +202,7 @@ describe('the entrance hall', () => {
     expect(wardrobe).toBeDefined();
     // 1.3 m wide: a shallow one, 80 cm and more left to pass (60 cm deep, it left 70).
     expect(sectionSpans(wardrobe!).every((s) => s.section.depthMm === SHALLOW_WARDROBE_DEPTH_M * 1000)).toBe(true);
-    // The rectangular hall 2.2 m wide still takes one 60 cm deep.
+    // The rectangular hall 2.4 m wide still takes one 60 cm deep.
     const rect = fitHall({ rooms: [hall], items: layoutRoom(hall, {}).map((i) => ({ ...i, product: null })), catalog: [material], styleId: 'modern' }).decor[0];
     expect(sectionSpans(rect).every((s) => s.section.depthMm === WARDROBE_DEPTH_M * 1000)).toBe(true);
   });

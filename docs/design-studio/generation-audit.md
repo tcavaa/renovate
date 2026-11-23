@@ -164,7 +164,8 @@ bathrooms with no shower or bath 36 %, no mirror about 30 %, no WC 11 %; studios
     as before: whether it should, or be left short with the way through the separator, is a rule.
 12. *A door's clear floor* (X5) is one function now, but five callers still pass five sets of numbers
     (the engine's 0.95 m × the door + 20 cm, the matcher's 0.90 m × the door, the check's leaf, the
-    passage check's 45 cm, the joinery's 0.90 m): which one is the rule?
+    passage check's 45 cm, the joinery's 0.90 m): which one is the rule? *Decided and built*: one
+    rule by room (X5).
 13. *A calculator pick that fits nowhere* (Q1, D4) keeps its slot at its own size, as it always
     did, so the person's choice is never lost: in 264 fixture flats with 4,053 picks that leaves 135
     pieces out of the room and 127 overlapping (the engine's own flats have none). Should it stay
@@ -365,7 +366,7 @@ Severity: **high** = seen by anyone who generates; **medium** = wrong in some ro
   first failure (`autoLayout.ts:304-310`) and nothing retries with a smaller piece or a relaxed rule.
   The cases behind the table above (each traced to its rule, with what one change recovers, in L):
   - *The door zone* is 0.95 m deep and the door plus 20 cm wide for every piece
-    (`autoLayout.ts:1608-1634`). On the 19 bathrooms of 2.5–5.5 m², laying them out again with a zone
+    (`autoLayout.ts:1608-1634`). (*Since X5:* 70 cm × the door in a bathroom or a toilet.) On the 19 bathrooms of 2.5–5.5 m², laying them out again with a zone
     0.70 m deep and the door's own width brought back **every** missing WC and basin (89 % → 100 %,
     97 % → 100 %) and a third of the missing showers (52 % → 69 %).
   - *The bed* is a 1.6 × 2.05 m double with its head on a wall, or a single only under 9 m²
@@ -802,7 +803,7 @@ pieces a room has, the kitchen, the joinery, taps, lamps on the wiring, radiator
 - [ ] **X4 — A mirror's height**: 1.55 m in the archetype, 1.5 m in the matcher (which wins),
   another rule in the hall pass (`catalog.ts:541`, `matcher.ts:656`, `hall.ts:108`); the gap over a
   piece is 15 cm in the engine and 12 cm in the matcher.
-- [ ] **X5 — A door's clear floor, five ways**: 0.95 m × door + 20 cm (archway 0.55) in the engine;
+- [x] **X5 — A door's clear floor, five ways**: 0.95 m × door + 20 cm (archway 0.55) in the engine;
   0.90 m × the door in `inDoorway`; the leaf's square, inward doors only, in the check; a point 45 cm
   in with 30 cm round it in `tightSpots`; 0.90 m in the joinery. The matcher uses none.
   *Partly:* one function draws the floor in front of an opening (`doorFloor`,
@@ -819,6 +820,25 @@ pieces a room has, the kitchen, the joinery, taps, lamps on the wiring, radiator
   4. the tight passages (`tightSpots`): a point 45 cm in front of the opening's middle, nothing
      within 30 cm of it (`DOOR_CLEARANCE_M`), every door and archway;
   5. the joinery (`decor/joinery.ts`, the builders' file, not moved onto `doorFloor`): 90 cm in.
+
+  *Fixed* (the owner's decision 12, 23 Nov 2026): one rule by room, its numbers once in `rules.ts`
+  (`doorClearFloor`, drawn by `doorZones` → `doorFloor`) — a bathroom or a toilet 70 cm deep × the
+  door's width (and the leaf's sweep of a wider door swinging into it, so the door still opens),
+  every other room 90 cm × the door + 10 cm either side, an archway 55 cm, each in the room it is
+  measured in. 1, 2 and 5 are it (the engine's keep-outs, `inDoorway` for the later passes, the
+  matcher and this audit's `door_zone`, and generation's joinery, the door's own wall included); 3
+  and 4 test the swing and a passage and keep their measures. The engine lays a WC out as deep as
+  it stands in front of its box (`WC_AS_BUILT_DEPTH_M`) and the tidying passes push nothing onto a
+  door's clear floor — the 95 cm had kept 5 cm over the 90 cm the box's push used. On 792 flats (6
+  draws): a bathroom without its WC 72 → 24, basin 56 → 28, shower or bath 244 → 208, mirror 224 →
+  168; bedrooms without a bed 96 → 96; `door_zone` 50 → 51 (now measured by the new rule — wider
+  outside a bathroom; bathrooms 1 → 0, kitchen runs 24 → 0, dining chairs 23 → 48: a chair
+  re-seated round a smaller real table in `fitPasses`' last passes, 24 of them one kitchen, #359);
+  `door_swing_blocked` 53 → 70 (bathrooms 6 → 0; the same chairs 21 → 43); `wc_faces_door` 185 →
+  212 and `basin_height` 117 → 128 (bathrooms that now have the WC or the basin — a small room's WC
+  may face the door, with a warning — and Vintage's pedestal basins); `bed_side_tight` 409 → 424
+  (bedrooms whose 90 cm zone, from 95, lets the bed stand nearer the door); `joinery_tight` 0 → 6 (a
+  washer moved to a hall, #381, its bathroom now furnished — the washer's room is stage 4's).
 - [ ] **X6 — Free floor in front of kitchen units**: 1.2 m (`KITCHEN_CIRCULATION_M`), 0.9 m for a
   leg (`kitchenCorner.ts:39`), 0.38 m when the run itself is placed (`0.95 × 0.4`,
   `autoLayout.ts:816`); the island's 1.2 m is declared twice.

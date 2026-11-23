@@ -209,9 +209,9 @@ describe('the bathroom pass', () => {
 
   it('runs the vanity and the washer column on as one piece, the column at the wall\'s end', () => {
     const big = room('j', 'bathroom', 3.4, 2.6, [door(3, 0.8)]);
-    // The room's shower stands in the corner at the far end of the basin's wall; without it there
-    // the column goes to that end.
-    const items = matched(big, 'modern').filter((i) => i.slot !== 'shower');
+    // The room's bath stands along the end wall, from near the far end of the basin's wall; without
+    // it (nor the shower) there the column goes to that end.
+    const items = matched(big, 'modern').filter((i) => i.slot !== 'shower' && i.slot !== 'bathtub');
     const sink = items.find((i) => i.slot === 'sink')!;
     const washer = items.find((i) => i.slot === 'washer')!;
     // The washer on the basin's wall (wall 0), away from it, as the engine might leave it — its back on the wall.
@@ -262,7 +262,7 @@ describe('the bathroom pass', () => {
 
   it('moves the washer beside the vanity only where it stands clear, else builds its column where the engine put it', () => {
     const big = room('j', 'bathroom', 3.4, 2.6, [door(3, 0.8)]);
-    const items = matched(big, 'modern').filter((i) => i.slot !== 'shower');
+    const items = matched(big, 'modern').filter((i) => i.slot !== 'shower' && i.slot !== 'bathtub');
     const sink = items.find((i) => i.slot === 'sink')!;
     const washer = items.find((i) => i.slot === 'washer')!;
     // The basin's wall is wall 0 (z = 0): the machine 1.2 m along it from the basin, its back 2 cm
@@ -309,13 +309,13 @@ describe('the bathroom pass', () => {
 
   it('builds the washer\'s column and its dryer clear of the mirror over the basin where any spot is, else hangs a mirror the catalogue has that clears the dryer', () => {
     const big = room('j', 'bathroom', 3.4, 2.6, [door(3, 0.8)]);
-    const items = matched(big, 'modern').filter((i) => i.slot !== 'shower');
+    const items = matched(big, 'modern').filter((i) => i.slot !== 'shower' && i.slot !== 'bathtub');
     const sink = items.find((i) => i.slot === 'sink')!;
     const washer = items.find((i) => i.slot === 'washer')!;
     const mirror = items.find((i) => i.slot === 'mirror')!;
     // A mirror 2.4 m wide over the basin, as the matcher may hang one (1.29 m over a 55 cm basin), out
-    // over the wall's end where the column would go beside the vanity; the washer on the WC's wall,
-    // past the WC and clear of the bath.
+    // over the wall's end where the column would go beside the vanity; the washer on the end wall,
+    // clear of the WC (the bath and the shower, which stand along that wall and in its corner, taken out).
     const wide = { ...mirror, size: { ...mirror.size, width: 2.4 } };
     const away = { ...washer, position: { x: 3.4 - 0.02 - washer.size.depth / 2, z: 2.2 }, rotation: -Math.PI / 2 };
     const { items: out, decor } = fitBathrooms({ rooms: [big], items: items.map((i) => (i.id === washer.id ? away : i.id === mirror.id ? wide : i)), catalog: CATALOG, styleId: 'modern', level: 'premium' });
