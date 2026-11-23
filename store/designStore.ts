@@ -23,7 +23,7 @@ import { z } from 'zod';
 import { historyGroup } from '@/lib/design/historyGroup';
 import { decorPieceSchema, electricalPointSchema, floorPlanSchema, placedItemSchema, styleProfileSchema, surfaceFinishSchema, MAX_VERSIONS } from '@/lib/validations/design.schema';
 import { decorContext, type AiProposal } from '@/lib/design/aiProposal';
-import { defaultFinishes, generateScene, keepChosen, placeableOnly } from '@/lib/design/generateScene';
+import { defaultFinishes, generateScene, keepChosen, keptClear, placeableOnly } from '@/lib/design/generateScene';
 import { reanchorDecor, withPlacement } from '@/lib/design/decor/resolve';
 import { adoptHoused, carryCompanions, carryHoused, carryRiders, cabinetAtExtent, freeExtent, isKitchenLeg } from '@/lib/design/decor/housing';
 import { joineryFace, joineryMaterial } from '@/lib/design/decor/joinery';
@@ -37,7 +37,8 @@ import { decorMaterialKind, isDecorMaterial } from '@/lib/design/decor/materials
 import { defaultFinish, finishFromProduct, styleFinish, withStyleFinishes } from '@/lib/design/surfaces';
 import { randomSeed } from '@/lib/design/random';
 import { finishQuantity } from '@/lib/design/finishQuantity';
-import { applyBoardPicks, applyFinishPicks, applyFurniturePicks, picksFromCalculator, type CalculatorPicks } from '@/lib/design/fromCalculator';
+import { applyBoardPicks, applyFinishPicks, placeFurniturePicks, picksFromCalculator, type CalculatorPicks } from '@/lib/design/fromCalculator';
+import { unplacedPicksOf } from '@/lib/design/pickFit';
 import type { HomeState, Room, RoomSplit, RoomType, SelectedProduct, WorkChoices } from '@/lib/calculator/types';
 import { defaultSplit } from '@/lib/design/studio';
 import { divideAlongPartialWall, joinRoom, withPartialWallSeparators, withSplitRoomTypes, withoutWall } from '@/lib/design/separators';
@@ -510,7 +511,8 @@ export interface DesignActions {
    * it, a click sets it down where it fits, Escape (`cancelCarry`) removes it again. With no
    * room (the whole flat) it starts in the first room that has space, largest first.
    */
-  beginAdd: (product: CatalogProduct, roomId: string | null) => string | null;
+  /** With `pickedFor`, a calculator pick placed by hand (the studio's picks list): it is the pick, for the room it was picked for (`PlacedItem.pickedFor`). */
+  beginAdd: (product: CatalogProduct, roomId: string | null, pickedFor?: string | null) => string | null;
   /** The piece on the pointer was set down; with the catalogue, what is built for it is made in the joiner's material. */
   finishCarry: (catalog?: CatalogProduct[]) => void;
   cancelCarry: () => void;
@@ -1557,7 +1559,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
         },
 
         applyPendingPicks: (catalog) => {
-          const { plan, items, finishes, electrical, calculatorPicks, pendingPicks } = get();
+          const { plan, styleId, items, finishes, electrical, decor, generation, calculatorPicks, pendingPicks } = get();
           if (!pendingPicks) return;
           if (!plan || !calculatorPicks) {
             set({ pendingPicks: false });
@@ -1565,8 +1567,14 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
           }
           // The doors, windows, radiators and fittings too, as the calculation priced them.
           const dressed = applyBoardPicks(plan, electrical, calculatorPicks, catalog);
+          // Into the flat as it stands (Nini's decision 13): its own pieces stay where the person has
+          // them — only what was arranged off a piece a pick replaced makes way — and a pick with no
+          // place in its room, nor in another of its type, is left out and listed as such.
+          const picked = placeFurniturePicks(items, plan, calculatorPicks, catalog, { keepClear: keptClear(plan, styleId), built: decor, rearrange: false });
+          const unplacedPicks = unplacedPicksOf(picked.outcomes);
           set({
-            items: placeableOnly(applyFurniturePicks(items, plan, calculatorPicks, catalog)),
+            items: placeableOnly(picked.items),
+            ...(generation ? { generation: { ...generation, unplacedPicks } } : {}),
             finishes: applyFinishPicks(finishes, plan, calculatorPicks, catalog),
             ...(dressed.plan !== plan ? { plan: dressed.plan } : {}),
             ...(dressed.electrical !== electrical ? { electrical: dressed.electrical } : {}),
@@ -1665,7 +1673,7 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
           return id;
         },
 
-        beginAdd: (product, roomId) => {
+        beginAdd: (product, roomId, pickedFor = null) => {
           const { plan } = get();
           // Whatever is still riding on the pointer goes back: choosing a second tile off the
           // shelf is changing your mind about the first, not asking for both. Without this
@@ -1707,7 +1715,9 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             product: null,
           };
           const id = `${extra.id}-${Date.now().toString(36)}`;
-          const placed = applySwap([...items, { ...extra, id }], id, product);
+          const swapped = applySwap([...items, { ...extra, id }], id, product);
+          // A calculator pick the flat had no place for, placed by hand: still the calculation's pick.
+          const placed = pickedFor ? swapped.map((item) => (item.id === id ? { ...item, origin: 'calculator' as const, pickedFor } : item)) : swapped;
           // Not a step of history yet: a carry is one step, recorded when the piece is set down
           // (`finishCarry`), and none at all when Escape gives it up.
           set({ items: placed, selectedItemId: id, carryingItemId: id, carryRestore: null, selectedElement: null });

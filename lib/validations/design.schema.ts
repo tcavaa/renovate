@@ -208,6 +208,8 @@ export const placedItemSchema = z.object({
   legCorner: z.enum(['left', 'right']).optional(),
   // A shower's glass (`PlacedItem.glass`).
   glass: z.object({ thicknessM: z.number().positive().max(0.2), heightM: z.number().positive().max(4) }).optional(),
+  // A calculator pick moved to another room of the same type: the room it was picked for (`PlacedItem.pickedFor`).
+  pickedFor: z.string().max(64).optional(),
 });
 
 export const finishZoneSchema = z.object({
@@ -356,6 +358,8 @@ export const generationRecordSchema = z.object({
   reviewed: z.number().int().min(0).max(1000).optional(),
   /** The seed the flat was drawn from (`randomSeed`: below 2³¹; any 32-bit seed draws). */
   seed: z.number().int().min(0).max(2 ** 32 - 1).optional(),
+  /** The calculator's picks generation could not fit anywhere (`lib/design/pickFit`). */
+  unplacedPicks: z.array(z.object({ roomId: z.string().max(64).nullable(), productId: z.number().int().positive() })).max(300).optional(),
 });
 
 const styleIdSchema = z.enum(['modern', 'scandinavian', 'industrial', 'vintage']);

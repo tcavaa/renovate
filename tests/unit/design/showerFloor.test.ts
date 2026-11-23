@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { matchProducts, type CatalogProduct } from '@/lib/design/matcher';
+import { builtFloor, matchProducts, type CatalogProduct } from '@/lib/design/matcher';
 import { applyFurniturePicks } from '@/lib/design/fromCalculator';
-import { isPlacementValid, snapPlacement } from '@/lib/design/manipulate';
+import { footprintsOverlap, isPlacementValid, snapPlacement } from '@/lib/design/manipulate';
 import { tightSpots } from '@/lib/design/clearance';
 import { reviewFindings } from '@/lib/design/aiReview';
 import { ruleViolations } from '@/lib/design/ruleChecks';
@@ -102,15 +102,18 @@ describe('the matcher', () => {
 });
 
 describe('a calculator pick', () => {
-  it('is fitted as before: a WC clear of the shower\'s column stands where it belongs, its box not measured', () => {
+  it('is fitted as built: a WC its cistern\'s box would stand into the tray stands elsewhere in the room, never in it', () => {
     // A bathroom 1.7 m wide, the tray in the corner to x 0.9, the WC's slot on the wall across: the
-    // 65 cm WC picked in the calculator stands flush to its wall (x 1.375) as it always did.
+    // 65 cm WC picked in the calculator, flush to its wall (x 1.375), would be stood 20 cm further out
+    // by its box, 5 cm into the tray — so it takes another stretch of wall (Nini's decision 13).
     const narrowRoom = refreshRoom({ id: 'b', type: 'bathroom', name: 'b', polygon: [{ x: 0, z: 0 }, { x: 1.7, z: 0 }, { x: 1.7, z: 2.4 }, { x: 0, z: 2.4 }], heightM: 2.8, areaM2: 0, perimeterM: 0, openings: [] });
     const plan: FloorPlan = { rooms: [narrowRoom], metresPerPixel: null, bounds: { width: 1.7, depth: 2.4 }, source: 'manual', imageUrl: null, wallThicknessM: 0.12, wallHeightM: 2.8, walls: [] };
     const across = { ...piece('wc', 'toilet', 'toilet', 1.7 - 0.34, 0.6, [0.4, 0.68, 0.82]), rotation: -Math.PI / 2 };
     const [, picked] = applyFurniturePicks([shower(), across], plan, { furniture: [], productIds: [4] }, [product(4, 'toilet', 40, 65, 82)]);
     expect(picked.product?.productId).toBe(4);
-    expect(picked.position.x).toBeCloseTo(1.375, 6);
+    expect(picked.size).toEqual({ width: 0.4, depth: 0.65, height: 0.82 });
+    const tray = { minX: 0, maxX: 0.9, minZ: 0, maxZ: 0.9 };
+    expect(footprintsOverlap(builtFloor(picked, narrowRoom), tray, 0.01)).toBe(false);
   });
 });
 

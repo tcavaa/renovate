@@ -16,7 +16,8 @@ import type { AiReview } from './aiReview';
 import { layoutPlan } from './autoLayout';
 import { hangPendants } from './ceilingLights';
 import { suggestElectrical, withFixtureProducts } from './electrical';
-import { applyBoardPicks, applyFinishPicks, applyFurniturePicks, type CalculatorPicks } from './fromCalculator';
+import { applyBoardPicks, applyFinishPicks, placeFurniturePicks, type CalculatorPicks } from './fromCalculator';
+import { unplacedPicksOf, type PickOutcome } from './pickFit';
 import { budgetLevel, matchProducts, type BudgetLevel, type CatalogProduct, type MatchOptions } from './matcher';
 import { fitBathrooms } from './bathroom';
 import { fitHall } from './hall';
@@ -66,6 +67,8 @@ export interface GeneratedScene {
   decor: DecorPiece[];
   electrical: ElectricalPoint[];
   generation: GenerationRecord;
+  /** What became of each of the calculation's picks (`placeFurniturePicks`); empty without picks. Not stored: the generation record keeps those left out. */
+  picks?: PickOutcome[];
 }
 
 /**
@@ -97,6 +100,8 @@ export interface LaidOutFlat {
   level: BudgetLevel;
   /** The floor kept clear it was laid out with, per room. */
   kept: Record<string, KeepClear[]>;
+  /** What became of each of the calculation's furniture picks (`placeFurniturePicks`, Nini's decision 13). */
+  picks?: PickOutcome[];
 }
 
 export function layOutFlat(input: Pick<GenerateSceneInput, 'plan' | 'styleId' | 'budgetGel' | 'catalog' | 'proposal' | 'calculatorPicks' | 'seed'>): LaidOutFlat {
@@ -146,7 +151,15 @@ export function layOutFlat(input: Pick<GenerateSceneInput, 'plan' | 'styleId' | 
   // A kitchen whose run is short of a kitchen turns the corner where the next wall is free (an
   // L-shaped kitchen): more of the same kitchen along the next wall, and its wall cabinets.
   items = fitKitchenCorners(underCeilings, items, [...fitted.decor, ...hall.decor, ...wardrobes.decor], radiators);
-  if (calculatorPicks) items = withoutOrphans(items, placeableOnly(applyFurniturePicks(items, plan, calculatorPicks, catalog, kept)), plan.rooms);
+  // The calculation's furniture: each pick in its room, else moved or turned there, else with the
+  // room's secondary pieces making way, else in another room of its type, else left out of the 3D
+  // (Nini's decision 13) — clear of the joinery built so far.
+  let picks: PickOutcome[] = [];
+  if (calculatorPicks) {
+    const picked = placeFurniturePicks(items, plan, calculatorPicks, catalog, { keepClear: kept, built: [...fitted.decor, ...hall.decor, ...wardrobes.decor] });
+    items = withoutOrphans(items, placeableOnly(picked.items), plan.rooms);
+    picks = standingOutcomes(picked.outcomes, items);
+  }
   // The pendants as matched, over what they light as it now stands: one large lamp, or two or three
   // small ones down a long table or island (Nini, decision 10b) — the AI designer's lamp too.
   items = hangPendants(items, underCeilings);
@@ -155,12 +168,18 @@ export function layOutFlat(input: Pick<GenerateSceneInput, 'plan' | 'styleId' | 
   const laid = rooms !== housed.rooms ? { ...housed, rooms } : housed;
   // A box behind every WC for its concealed cistern (the design rules), whoever designed the rest.
   const boxes = wcBoxes(laid.rooms, items, catalog);
-  return { plan: housed, laid, rooms: underCeilings, placed, matched, items, built: [...fitted.decor, ...hall.decor, ...wardrobes.decor, ...boxes], level, kept };
+  return { plan: housed, laid, rooms: underCeilings, placed, matched, items, built: [...fitted.decor, ...hall.decor, ...wardrobes.decor, ...boxes], level, kept, picks };
+}
+
+/** The picks' outcomes as the flat stands: one whose piece went after all (what it stood off taken away) is one left out. */
+function standingOutcomes(outcomes: PickOutcome[], items: readonly PlacedItem[]): PickOutcome[] {
+  const ids = new Set(items.map((item) => item.id));
+  return outcomes.map((outcome) => (outcome.itemId && !ids.has(outcome.itemId) ? { ...outcome, step: 'unplaced', itemId: null, placedIn: null } : outcome));
 }
 
 export function generateScene(input: GenerateSceneInput): GeneratedScene {
   const { styleId, catalog, proposal = null, calculatorPicks = null } = input;
-  const { plan, laid, items: furnished, built } = layOutFlat(input);
+  const { plan, laid, items: furnished, built, picks = [] } = layOutFlat(input);
   let items = furnished;
   const streams = rngStreams(input.seed);
   // Every floor and wall is the style's product for its room — tiles in the bathroom, laminate
@@ -184,8 +203,9 @@ export function generateScene(input: GenerateSceneInput): GeneratedScene {
   // stays its choice — the catalogue's product, from its shop.
   const dressed = calculatorPicks ? applyBoardPicks(laid, wired, calculatorPicks, catalog) : { plan: laid, electrical: wired };
   // Tidied once everything stands: every wall piece back on its wall, nothing in the decor, the
-  // hanging lamps and ceiling points under a lowered ceiling hung from it.
-  const tidied = clearOfDecor(settleToWalls(withoutArtOverDecor(items, decor, laid), laid), decor, laid);
+  // hanging lamps and ceiling points under a lowered ceiling hung from it. A calculation's pick stays
+  // where it was found to fit (`placeFurniturePicks`): pushed to a wall, it went into the joinery there.
+  const tidied = clearOfDecor(settleToWalls(withoutArtOverDecor(items, decor, laid), laid, (item) => item.origin !== 'calculator'), decor, laid);
   // A table the tidy-up moved (a coffee table with its sofa back to the wall) takes its lamp with
   // it, and that room is wired again round the lamp where it now hangs.
   items = hangPendants(tidied, plan.rooms);
@@ -196,10 +216,11 @@ export function generateScene(input: GenerateSceneInput): GeneratedScene {
     dressed.electrical = [...dressed.electrical.filter((p) => !lampsMoved.has(p.roomId)), ...again.filter((p) => lampsMoved.has(p.roomId))];
   }
   const ceiled = underCeilingDecor(items, dressed.electrical, decor, laid);
+  const unplacedPicks = unplacedPicksOf(picks);
   const generation: GenerationRecord = proposal
-    ? { by: 'ai', model: proposal.model, at: input.at, notes: proposalNotes(proposal), aiCount: input.aiCount, seed: input.seed }
-    : { by: 'engine', at: input.at, aiCount: input.aiCount, seed: input.seed };
-  return { plan: dressed.plan, items: ceiled.items, finishes, decor, electrical: ceiled.electrical, generation };
+    ? { by: 'ai', model: proposal.model, at: input.at, notes: proposalNotes(proposal), aiCount: input.aiCount, seed: input.seed, ...(unplacedPicks ? { unplacedPicks } : {}) }
+    : { by: 'engine', at: input.at, aiCount: input.aiCount, seed: input.seed, ...(unplacedPicks ? { unplacedPicks } : {}) };
+  return { plan: dressed.plan, items: ceiled.items, finishes, decor, electrical: ceiled.electrical, generation, picks };
 }
 
 /**
@@ -306,7 +327,7 @@ function changedRooms(before: { items: PlacedItem[]; decor: DecorPiece[] }, afte
  * the floor behind a partition screen that stands (`withGeneratedPartitions` on a plan that has its
  * screens adds none and keeps their floor) — what `generateScene` hands the layout and the matcher.
  */
-function keptClear(plan: FloorPlan, styleId: StyleId | null): Record<string, Footprint[]> {
+export function keptClear(plan: FloorPlan, styleId: StyleId | null): Record<string, Footprint[]> {
   const radiators = radiatorKeepouts(plan);
   const partitions = withGeneratedPartitions(plan, styleId);
   const behind = partitions.added.length === 0 ? partitions.keepouts : {};

@@ -79,6 +79,10 @@ export function ItemCard({ item, variant = 'tooltip', className }: ItemCardProps
                 ? t.design.originStudio
                 : t.design.originStyle}
           </p>
+          {/* A calculator pick that did not fit in the room it was picked for (`lib/design/pickFit`). */}
+          {item.origin === 'calculator' && item.pickedFor && item.pickedFor !== item.roomId && (
+            <p className={cn('mb-0.5 leading-snug text-ink', compact ? 'text-[11px]' : 'text-[10px]')}>{t.design.pickMovedHere}</p>
+          )}
           <p className={cn('truncate font-bold leading-snug tracking-tight text-ink', compact ? 'text-sm' : 'text-[13px]')}>
             {product ? localizedName(locale, product) : '—'}
           </p>

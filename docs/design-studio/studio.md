@@ -28,6 +28,7 @@ doors and windows) · [plan-board.md](plan-board.md) (the 2D view) ·
 | `components/studio/CatalogBrowser.tsx` + `lib/design/catalogBrowser.ts` | the whole catalogue as a modal (search, filters with counts, details, "place") |
 | `components/studio/OwnModelDialog.tsx` | adding a person's own furniture ([../catalog.md](../catalog.md)) |
 | `components/studio/FurnitureDrawer.tsx`, `RoomItemsPanel.tsx` | what is placed, by room, with its total (a made-to-measure kitchen at what it is made for — `itemCostGel`) |
+| `components/studio/PicksPanel.tsx` | the calculation's furniture picks: placed, moved to another room, or not in the 3D and why, with "place" ([below](#the-calculators-picks-in-the-studio)) |
 | `components/design/SwapPanel.tsx`, `ItemCard.tsx`, `HoverCard.tsx` | the selected piece's card (turn, mirror, duplicate, lock, delete, angle, its product's material variants — [material-variants.md](material-variants.md) — a made-to-measure kitchen's material, alternatives); the hover card |
 | `components/studio/FixturePanel.tsx`, `OpeningPanel.tsx`, `VersionsPanel.tsx` | a fitting's card, a door/window's card, the versions list |
 | `components/studio/DecorPanel.tsx` | a custom wall decor piece's card: its size (width, height, off the floor), materials per part, colours, light line, cost; selected, the piece has arrows in 3D to resize it ([decor.md](decor.md#the-studio-decorpanel)) |
@@ -333,6 +334,36 @@ A spot that does not fit leaves the item on the pointer, outlined red, for the p
 With the whole flat selected, `beginAdd(product, null)` tries the rooms largest first and
 starts in the first with space. The items list opens on the whole flat as well, grouped under
 room names, and with no room in focus the finishes tray applies to every room.
+
+## The calculator's picks in the studio
+
+A design carried in from the calculator puts its furniture picks into the flat in Nini's order for a
+pick that does not fit (decision 13, [layout-and-matching.md](layout-and-matching.md#a-calculator-pick-that-fits-nowhere-placefurniturepicks-libdesignpickfitts)):
+in its room, elsewhere in it, with the room's secondary pieces making way, in another room of the
+same type, else left out of the 3D. The studio tells placed picks from the rest:
+
+- **The picks list** (`components/studio/PicksPanel.tsx`, above "what is placed" in the furniture
+  category's right panel when the calculation picked furniture): "გამომთვლელში არჩეული ავეჯი" and
+  "3D დიზაინშია 5 / 6" (red while any is not), open by itself while one is not placed. A row per
+  pick (`pickStatuses`, `lib/design/pickFit`: a pick of one product for one room matched to the
+  pieces in turn, the calculator's own first): in its room ("დგას ოთახში „…“", green — a click selects
+  it); moved ("გადატანილია ოთახში „…“ — ოთახში „…“ არ ჩაეტია"); or not placed ("3D დიზაინში არ არის
+  განთავსებული", red), with why — it fitted nowhere when the flat was laid out
+  (`generation.unplacedPicks`: Nini's message, "ეს ნივთი არჩეულ ოთახში ვერ ჩაეტია. ის შენს ავეჯის
+  სიაში დარჩა, მაგრამ 3D დიზაინში არ განთავსდა. შეგიძლია აირჩიო უფრო პატარა ალტერნატივა ან
+  განლაგება ხელით შეცვალო."), it was taken out since, or its product has no 3D model — and
+  **"განთავსება"** (place), which puts the product on the pointer in the room it was picked for, as
+  a tile off the shelf does (`beginAdd(product, roomId, pickedFor)`): set down, it is the pick
+  (`origin: 'calculator'`, `pickedFor`), on every plan (the save route lets a pick in — `sceneGuard`).
+  A whole-flat pick (a WC from the materials catalogue) no slot could take is listed too.
+- **A word over the canvas**, with the tray's hints: "შენი არჩეულიდან 2 ნივთი 3D-ში ვერ განთავსდა"
+  (or, with none left out, "… სხვა ოთახში გადავიტანეთ"), hidden while the list is open, until the
+  person clicks it — it opens the furniture category with nothing selected, where the list is.
+- **The piece's card** says a moved pick was "chosen for another room — it did not fit there, so it
+  was moved here" (`ItemCard`, `pickedFor`).
+
+Every pick stays in the calculation's list and its summary, where picks are priced and ordered from;
+the design's budget prices what stands in the 3D, as for any piece.
 
 ## Direct manipulation (`lib/design/manipulate.ts`)
 

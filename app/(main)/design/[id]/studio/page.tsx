@@ -32,6 +32,8 @@ import { NavHelp } from '@/components/studio/NavHelp';
 import { VersionsPanel } from '@/components/studio/VersionsPanel';
 import { FixturePanel } from '@/components/studio/FixturePanel';
 import { FurnitureDrawer } from '@/components/studio/FurnitureDrawer';
+import { PicksPanel, type PickRow } from '@/components/studio/PicksPanel';
+import { pickStatuses } from '@/lib/design/pickFit';
 import { OpeningPanel } from '@/components/studio/OpeningPanel';
 import { DecorPanel } from '@/components/studio/DecorPanel';
 import { useShallow } from 'zustand/react/shallow';
@@ -160,6 +162,8 @@ export default function StudioPage() {
     canRedo,
     saveState,
     pendingPicks,
+    calculatorPicks,
+    generation,
     selectedRoomPart,
     versionCount,
     planSerial,
@@ -187,6 +191,8 @@ export default function StudioPage() {
       canRedo: s.history.future.length > 0,
       saveState: s.saveState,
       pendingPicks: s.pendingPicks,
+      calculatorPicks: s.calculatorPicks,
+      generation: s.generation,
       selectedRoomPart: s.selectedRoomPart,
       versionCount: s.versions.length,
       planSerial: s.planSerial,
@@ -201,6 +207,22 @@ export default function StudioPage() {
   useEffect(() => {
     if (pendingPicks && products.length > 0) store.applyPendingPicks(products);
   }, [pendingPicks, products, store]);
+
+  // The calculation's furniture picks and where each stands — in its room, moved to another of its
+  // type, or not in the 3D (Nini's decision 13): the furniture panel lists them, and a pick left out
+  // is said once over the canvas until the person looks.
+  const pickRows = useMemo<PickRow[]>(() => {
+    if (!calculatorPicks || pendingPicks) return [];
+    const rows: PickRow[] = pickStatuses(calculatorPicks.furniture, items, generation);
+    // A pick for the whole flat (a WC from the materials catalogue) that no slot could take.
+    (generation?.unplacedPicks ?? []).forEach((entry, i) => {
+      if (entry.roomId === null && !items.some((item) => item.product?.productId === entry.productId)) rows.push({ index: rows.length + i, roomId: null, productId: entry.productId, state: 'unplaced', itemId: null, placedIn: null, reason: 'no_fit' });
+    });
+    return rows;
+  }, [calculatorPicks, pendingPicks, items, generation]);
+  const unplacedPicks = pickRows.filter((row) => row.state === 'unplaced' && row.reason === 'no_fit').length;
+  const movedPicks = pickRows.filter((row) => row.state === 'moved').length;
+  const [picksNoticeSeen, setPicksNoticeSeen] = useState(false);
 
   // Every door and window is a product where the catalogue has one — also in a design
   // saved before doors and windows were products, and one dropped on the 2D board, which
@@ -1333,19 +1355,35 @@ export default function StudioPage() {
                 />
               </FloatingPanel>
             ) : itemsPanelOpen ? (
-              <FurnitureDrawer
-                items={items}
-                rooms={plan.rooms}
-                focusRoomId={focusRoomId}
-                selectedItemId={selectedItemId}
-                roomLabel={focusRoom ? focusRoom.name : t.design.wholeFlat}
-                onSelect={(id) => {
-                  store.selectItem(id);
-                  const room = items.find((i) => i.id === id)?.roomId;
-                  if (room && focusRoomId && room !== focusRoomId) store.setFocusRoom(room);
-                }}
-                onRemove={(id) => gate('catalog') && store.removeItem(id)}
-              />
+              <div className="flex min-h-0 flex-col gap-2">
+                <PicksPanel
+                  rows={pickRows}
+                  rooms={plan.rooms}
+                  products={products}
+                  onSelect={(id) => {
+                    store.selectItem(id);
+                    const room = items.find((i) => i.id === id)?.roomId;
+                    if (room && focusRoomId && room !== focusRoomId) store.setFocusRoom(room);
+                  }}
+                  // On the pointer as from the shelf, in the room it was picked for — still the calculation's pick.
+                  onPlace={(row, product) => {
+                    store.beginAdd(product, row.roomId ?? focusRoomId, row.roomId);
+                  }}
+                />
+                <FurnitureDrawer
+                  items={items}
+                  rooms={plan.rooms}
+                  focusRoomId={focusRoomId}
+                  selectedItemId={selectedItemId}
+                  roomLabel={focusRoom ? focusRoom.name : t.design.wholeFlat}
+                  onSelect={(id) => {
+                    store.selectItem(id);
+                    const room = items.find((i) => i.id === id)?.roomId;
+                    if (room && focusRoomId && room !== focusRoomId) store.setFocusRoom(room);
+                  }}
+                  onRemove={(id) => gate('catalog') && store.removeItem(id)}
+                />
+              </div>
             ) : selectedElement && selectedElement.kind !== 'room' ? (
               <FloatingPanel title={elementTitle(selectedElement.kind, t)} onClose={() => store.selectElement(null)} className="h-full rounded-2xl">
                 <ElementInspector plan={plan} electrical={electrical} finishes={finishes} selection={selectedElement} actions={inspectorActions} locked={structureLocked} catalog={products} styleId={styleId} wallBuilding={wallBuilding} className="border-0" />
@@ -1380,6 +1418,22 @@ export default function StudioPage() {
                     <AlertTriangle className="h-3 w-3 shrink-0" />
                     <span className="truncate">{t.design.tightPassageHint}</span>
                   </p>
+                )}
+                {/* Calculator picks left out of the 3D, or moved to another room: once, until the person opens the list. */}
+                {!picksNoticeSeen && (unplacedPicks > 0 || movedPicks > 0) && !(category === 'furniture' && itemsPanelOpen) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPicksNoticeSeen(true);
+                      setCategory('furniture');
+                      store.selectItem(null);
+                      store.selectElement(null);
+                    }}
+                    className="pointer-events-auto flex max-w-full items-center gap-1.5 rounded-full bg-sun px-2.5 py-0.5 text-[10px] font-bold text-ink"
+                  >
+                    <AlertTriangle className="h-3 w-3 shrink-0" />
+                    <span className="truncate">{unplacedPicks > 0 ? t.design.picksNotice.replace('{n}', String(unplacedPicks)) : t.design.picksMovedNotice.replace('{n}', String(movedPicks))}</span>
+                  </button>
                 )}
                 {/* The design rules' warnings for the room in focus (or the flat): a WC facing the door, a bed squeezed, a radiator blocked… */}
                 <RuleWarnings plan={plan} items={items} electrical={electrical} roomId={focusRoom?.id ?? null} onSelectItem={(id) => store.selectItem(id)} />

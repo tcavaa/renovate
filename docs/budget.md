@@ -60,6 +60,14 @@ up: `usePickStores` → `GET /api/products?ids=…` + `/api/stores` on the clien
 (`loadProductStores`) on the server; the board's own doors, radiators and fittings carry theirs.
 Units are the dictionary's (`unitLabel`: "ერთ.", "სექცია", …).
 
+**A calculator pick left out of the 3D** (Nini's decision 13: it fitted nowhere —
+`generation.unplacedPicks`, [layout-and-matching.md](design-studio/layout-and-matching.md#a-calculator-pick-that-fits-nowhere-placefurniturepicks-libdesignpickfitts))
+is still a line of the calculator's summary (`furniture:<room>:<product>:<n>`, priced from the
+calculation's own selection, which generation never touches) and ordered from it like any pick; the
+design's budget prices what stands in the 3D (`priceScene` over the scene's pieces), as it does for
+a pick the person took out in the studio. The studio lists the picks not placed
+([studio.md](design-studio/studio.md#the-calculators-picks-in-the-studio)).
+
 - **Shown once, under whoever sells it.** Everything a shop sells stands in that shop's card —
   that is who is asked for it and what its delivery is charged on — with the ticks, the
   quantities and a box at the head that takes the whole shop in or out. What nobody sells (bulk

@@ -743,7 +743,7 @@ export function placeFitting(
  * the WC that much further out (`clearOfDecor`) — a WC matched flush to the wall beside a shower
  * was pushed out by its box into the shower's tray; anything else its own box.
  */
-function builtFloor(item: PlacedItem, room: PlanRoom): Footprint {
+export function builtFloor(item: PlacedItem, room: PlanRoom): Footprint {
   if (item.slot !== 'toilet' || item.elevationM >= 0.05 || !pieceWall(item, room)) return floorFootprint(item);
   const { forward } = axes(item.rotation);
   const ahead = WC_BOX_DEPTH_M / 2;

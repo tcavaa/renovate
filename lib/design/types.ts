@@ -434,6 +434,12 @@ export interface PlacedItem {
   legCorner?: 'left' | 'right';
   /** A shower's glass, as the person set it (`lib/design/shower`): unset, 3 cm thick and 2 m tall. */
   glass?: { thicknessM: number; heightM: number };
+  /**
+   * A calculator pick standing in another room than the one it was picked for: that room's id. It
+   * fitted nowhere there and was moved to another room of the same type (Nini's decision 13,
+   * `lib/design/pickFit`); the studio says so. Absent for a pick in its own room and any other piece.
+   */
+  pickedFor?: string;
 }
 
 /** The product data the 3D scene and its hover card need. Denormalised on purpose. */
@@ -757,6 +763,13 @@ export interface GenerationRecord {
    * style, budget, picks and proposal it lays the same flat out again. Absent on flats generated before it was kept.
    */
   seed?: number;
+  /**
+   * The calculator's picks that fitted nowhere when the flat was laid out — not in their room, not
+   * after the room's own pieces made way, not in another room of the same type — and were left out
+   * of the 3D (Nini's decision 13, `lib/design/pickFit`). Still in the person's calculator list and
+   * its summary; the studio lists them as not placed. `roomId` null: a pick for the whole flat.
+   */
+  unplacedPicks?: Array<{ roomId: string | null; productId: number }>;
 }
 
 export interface DesignScene {

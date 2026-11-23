@@ -648,6 +648,31 @@ coffee table in a living room with a dining table, lamps following a table moved
 the catalogue's gaps (a four-poster in a small bedroom leaves only a tiny lamp; Scandinavian has three
 large round lamps, Vintage three small).
 
+**Stage 5's calculator picks (decision 13) are built** (24 Nov 2026): a furniture pick that fits
+neither its slot nor its kind's spot is tried, in her order, elsewhere in its room — every stretch of
+every wall with its back to it, a bed, a desk or a table with its side to it, free floor for a table
+or a chair (`pickPoses`); then with the room's secondary pieces making way — the fewest and least
+important first, each moved, else given a smaller product of its kind ("resize" is a smaller product,
+never a stretched model), else taken out; never a pick, a piece placed in the studio, a locked one, a
+piece a pick stands at, nor what the room is for (the bed, the wardrobe, the sofa, the TV unit, the
+kitchen, the bathroom's fixtures, the desk, a kitchen's table — `pickKeeps`); then in another room of
+the same type, the piece saying the room it was picked for (`pickedFor`); and else it is left out of
+the 3D, its slot keeping the style's piece, recorded in the generation (`unplacedPicks`) and still in
+the calculation's list and summary. Each step keeps a door's way clear first; a pick is fitted as
+built (no shower's tray, a WC's box), clear of the joinery, at its own size, never out of the room or
+in another piece. The studio lists the picks — in their room, moved (and from where), or not placed
+with her message ("This item could not fit in the selected room…", in Georgian, English and Russian)
+and a "place" button that puts it on the pointer — says over the canvas how many were left out or
+moved, and a moved piece's card says so. In 264 fixture flats with 5,016 picks: out of the room 373 →
+0, in another piece 302 → 0, in a shower's tray or joinery 198 → 0, dropped without a word 228 → 0;
+73 moved to another room, 398 left out and listed (the detail: [layout-and-matching.md](layout-and-matching.md#a-calculator-pick-that-fits-nowhere-placefurniturepicks-libdesignpickfitts),
+[studio.md](studio.md#the-calculators-picks-in-the-studio), generation-audit.md Q1). Not built: a pick
+may still stand on a door's clear floor or a radiator's strip where only the last pass (the room and
+the pieces alone) has a place for it (169 and 32 of 4,283 placed) — whether it should rather be left
+out is hers; a moved pick leaves the rug, the TV and the joinery of the piece it replaced at the old
+slot; picks put into a flat already laid out (in the studio) skip the second step, the flat being the
+person's.
+
 ## The decisions (owner, 28 Oct 2026)
 
 **Part 1 — technical**

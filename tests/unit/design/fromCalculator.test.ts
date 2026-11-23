@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyFinishPicks, applyFurniturePicks, picksFromCalculator, type CalculatorPicks } from '@/lib/design/fromCalculator';
+import { applyFinishPicks, applyFurniturePicks, picksFromCalculator, placeFurniturePicks, type CalculatorPicks } from '@/lib/design/fromCalculator';
 import { catalogProductFromPick } from '@/lib/calculator/roomFinishes';
 import { refreshRoom } from '@/lib/design/planGeometry';
 import { footprintInRoom, footprintOf, footprintsOverlap, inDoorway } from '@/lib/design/manipulate';
@@ -168,10 +168,12 @@ describe('the calculator’s furniture in 3D', () => {
     expect(clashes(next, dresser)).toEqual([]);
   });
 
-  it('stay the person’s choice where they fit nowhere: placed in their slot as before, not dropped', () => {
+  it('where they fit nowhere, are left out of the 3D and said so — never stood out of the room or in a piece, the slot keeping its piece', () => {
     const huge = furniture(13, 'wardrobe', 600, 70, 220);
-    const next = picked([styleWardrobe, styleDresser, huge], [{ roomId: 'bed', productId: 13 }]);
-    expect(next.find((i) => i.id === 'wardrobe')?.product?.productId).toBe(13);
+    const { items: next, outcomes } = placeFurniturePicks(items, flat, { furniture: [{ roomId: 'bed', productId: 13 }], productIds: [] }, [styleWardrobe, styleDresser, huge]);
+    expect(next.some((i) => i.product?.productId === 13)).toBe(false);
+    expect(next.find((i) => i.id === 'wardrobe')?.product?.productId).toBe(1);
+    expect(outcomes).toEqual([{ roomId: 'bed', productId: 13, step: 'unplaced', itemId: null, placedIn: null }]);
   });
 });
 
@@ -220,11 +222,11 @@ describe('what a calculator pick brings with it', () => {
       expect(floor.filter((o) => footprintsOverlap(box(placed), box(o), 0.01))).toEqual([]);
     });
 
-    it('where it fits nowhere, stays in the run as before, at the run’s size', () => {
+    it('where it fits nowhere, is left out of the 3D and the run stays made to measure, never stretched to the run’s size', () => {
       const huge = furniture(37, 'kitchen_run', 600, 63, 90);
-      const placed = pick(huge).find((i) => i.product?.productId === 37)!;
-      expect(placed.id).toBe('run');
-      expect(placed.size).toEqual(run.size);
+      const next = pick(huge);
+      expect(next.some((i) => i.product?.productId === 37)).toBe(false);
+      expect(next.find((i) => i.id === 'run')).toEqual(run);
     });
 
     it('has no wall cabinets made to measure over it, as a shop’s run the matcher lays has none', () => {

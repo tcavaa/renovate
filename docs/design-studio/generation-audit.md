@@ -173,7 +173,9 @@ floor for, and one room 36 cm wide.
 13. *A calculator pick that fits nowhere* (Q1, D4) keeps its slot at its own size, as it always
     did, so the person's choice is never lost: in 264 fixture flats with 4,053 picks that leaves 135
     pieces out of the room and 127 overlapping (the engine's own flats have none). Should it stay
-    there for the person to move, or be left out with a word that it did not fit?
+    there for the person to move, or be left out with a word that it did not fit? *Decided and
+    built* (stage 5, 24 Nov 2026): another place in its room, the room's secondary pieces making way,
+    another room of its type, else left out of the 3D and listed (Q1).
 
 ## How it was audited
 
@@ -985,7 +987,9 @@ pieces a room has, the kitchen, the joinery, taps, lamps on the wiring, radiator
   the matcher does, changed no count in 264 fixture flats with 4,053 picks (one hung clash more)
   and was not kept: the picks' clashes there (135 out of the room, 127 overlaps, where the engine's
   own flats have none) are those Q1 leaves — a pick that fits nowhere keeps its slot, and one moved
-  to a free spot leaves what was laid off its old slot behind.
+  to a free spot leaves what was laid off its old slot behind. *Since* (Nini's decision 13, 24 Nov
+  2026) a pick is fitted as built (`asBuilt`: no shower's tray, a WC's box) and clear of the joinery
+  built, and one that fits nowhere is no longer placed at all (Q1).
 - [x] **D5 — "What stands in front of this wall", twice**: `wallBlocks` + `clearOf`
   (`wallClear.ts`) and `freeStretch`'s own loop (`decor/joinery.ts:207-230`), with different lists of
   what does not count; the margin round an opening is 0, 5, 8 or 10 cm by caller.
@@ -1786,9 +1790,18 @@ no table in 60 of the 416 runs of 10 m² or more; an island 0 of 96.
   (showers 40 → 5). Fits nowhere, so placed as before: 99 of 1,451 slot picks (into their slot at
   their size) and 174 of 971 picks with no slot (97 at a spot found for the kind's typical size, 77
   dropped) — counted before the careful-first order, which moves picks between slot and spot only.
-  Left open: a pick that moves to a free spot leaves the rug laid under it, the TV over it and the
-  joinery built for the piece it replaced at its old slot, and picks applied in the studio
-  (`applyPendingPicks`) keep no radiator strip, column or partition floor clear
+  *Then, Nini's decision 13 (24 Nov 2026):* a pick that fits neither its slot nor its spot is tried
+  elsewhere in its room (every stretch of wall, its side to a wall, free floor — `pickPoses`), then
+  with the room's secondary pieces moved, made smaller or taken out (`yieldsToPick`), then in another
+  room of the same type (`pickedFor`), and else left out of the 3D (`generation.unplacedPicks`, the
+  studio's picks list) — fitted as built, clear of the joinery, never resized
+  ([layout-and-matching.md](layout-and-matching.md#a-calculator-pick-that-fits-nowhere-placefurniturepicks-libdesignpickfitts)).
+  264 fixture flats with 5,016 picks (3,489 into a slot, 1,527 of a kind with no slot): picks out of
+  the room 373 → 0, in another piece 302 → 0, in a shower's tray 77 → 0, in joinery 121 → 0, dropped
+  without a word 228 → 0; 73 moved to another room, 398 left out and listed; 140 generated pieces
+  moved, 51 made smaller, 28 taken out for them. On a door's floor 139 → 169 (the last pass).
+  Left open: a pick that moves leaves the rug laid under it, the TV over it and the joinery built for
+  the piece it replaced at its old slot; picks applied in the studio skip the second step
   ([project-flow.md](../project-flow.md#18-known-gaps)).
 - [x] **Q2 (medium) — Three more things a pick does not do.** A picked kitchen is not made a
   kitchen piece (no `asPlacedKitchen`: a 12,000 ₾ shop's unit stays "made to measure" at the slot's
@@ -1803,7 +1816,8 @@ no table in 60 of the 416 runs of 10 m² or more; an island 0 of 96.
   fixtures (Modern, 2 seeds, 2,800 picks): out of the room 0, standing through wall cabinets 0, more
   than 5 cm into a floor piece 0 (taking it at its own size with no test had made them 1,580, 1,856
   and 1,614); 753 take the run, 467 a free spot elsewhere, and 1,580 fit nowhere — 1,473 of them
-  wider than their run — and stay in the run at the run's size, made to measure, as before. What hangs over a
+  wider than their run — and stayed in the run at the run's size, made to measure (since decision 13
+  they are left out of the 3D, the run staying made to measure). What hangs over a
   picked piece (`placement.above`) is hung again (`rehung`): a TV inside a picked unit 269 of 432 →
   50: 46 where the unit fitted only at a free spot elsewhere and the TV stayed on its wall (with the
   careful pass first a few more units take a spot that keeps a door clear: 43 in all before it), 4

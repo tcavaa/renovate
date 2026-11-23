@@ -25,6 +25,7 @@ as products).
 | `lib/design/pieceGeometry.ts` | a piece's geometry written once for the engine, the matcher, the studio, the checks, the wiring and the decor: `wallBehind` (the wall a piece has its back to — by its gap or its distance, square to it or not, measured along from its back's middle or its own, each caller's own tolerances: `pieceWall`, `backWallOf`, the matcher's `backOnWall` / `backGap`, the wiring's `backWall`, the decor's `wallBehind`, the layout's TV-over-unit and beside-a-piece spots, the builders' `wallOf` and `backWall`), the floor a piece covers — `axisBox` (squared at right angles for the studio and the matcher, `footprintOf`; as the cosine comes for the engine, `boxFor`) and `boxesOverlap`, `turnedQuad` (the checks' `footprintQuad`) and `quadsOverlap`, the tolerance passed at each call (the engine 0, two pieces 2 cm — `PIECE_TOUCH_M`, the checks 1 cm — `QUAD_TOUCH_M`) — `doorFloor` (the floor in front of a door or an archway at a depth and width: the door's clear floor, `rules.ts`'s `doorZones`, for the engine's `doorKeepouts`, `inDoorway` and the joinery; the check's door swing and `tightSpots` with their own), `backMiddle`, `distanceToSegment`, `round2` |
 | `lib/design/footprintMasks.ts` | a model's real footprint when it is not its box (filled by `lib/design3d/modelLoader.ts`) |
 | `lib/design/styles.ts`, `styleQuiz.ts` | the style a design is matched to |
+| `lib/design/fromCalculator.ts` → `placeFurniturePicks`, `lib/design/pickFit.ts` | the calculation's furniture picks put into the flat in Nini's order for a pick that does not fit (decision 13): `pickPoses` (every other place in the room), `yieldsToPick` / `pickKeeps` (what gives way to a pick), `PickOutcome`, `unplacedPicksOf`, `pickStatuses` (what the studio's picks list shows) — see "A calculator pick that fits nowhere" below |
 | `store/designStore.ts` → `generate` | layout + matching + fittings + openings' products, the hinge of the journey ([overview.md](overview.md)) |
 
 ## Flow
@@ -667,9 +668,10 @@ tested itself — and a WC with its back on a wall the box of its concealed cist
 out, `clearOfDecor`). The fit test measured the column and the WC as matched: a WC across a
 narrow bathroom from the shower was pushed into the tray by its box (or, where that push was
 refused, stood inside its own box). A WC that fits only into a tray still stands there in the last
-passes rather than not at all. A calculator pick is fitted by the old two (`fitPick` passes
-`asBuilt` false): a pick is not measured against a shower's tray or with its WC's box, nor kept
-round a WC or an island. **The AI designer's
+passes rather than not at all. A calculator pick is fitted as built too (`fitPick` passes
+`asBuilt`): it stands in no shower's tray and clear of a WC's box, and its careful pass keeps what is
+kept round a WC or an island — a pick never stands in another object (Nini's decision 13, below).
+**The AI designer's
 pick is held to the same** (`MatchOptions.picks`): a pick that fits its slot only by standing in a
 door's way, on keep-clear floor or on a run's working floor gives way to a product that keeps them
 clear — the room's other candidates, then the slot's ways out — and takes the slot only when no
@@ -707,6 +709,64 @@ the six chairs stay a set. Only the engine's tucks count, read off the slots as 
 Letting any chair and table overlap freely, as the studio does for a person, let bigger table
 products stand over chairs the engine had seated clear — some chairs all but wholly under —
 and changed the table in 53 local rooms where the engine had tucked no chair.
+
+## A calculator pick that fits nowhere (`placeFurniturePicks`, `lib/design/pickFit.ts`)
+
+A furniture pick from the calculator is the person's choice: never replaced by another product,
+never resized, and — Nini's decision 13 ([design-rules.md](design-rules.md#the-fourth-round-generation-decisions-nini-23-nov-2026))
+— never out of its room or in another object. `placeFurniturePicks` (`applyFurniturePicks` is its
+items alone) puts each pick into the laid-out flat after the bathroom, hall and bedroom passes and
+the corner kitchens, in her order, each step tried only when the one before has no place:
+
+0. **Its slot, else its kind's spot** — the room's slot of its kind (or its slot kind) through the
+   matcher's fit test (`fitPick` → `placeFitting` as built), else the spot its kind's rule gives it
+   at its own size (`placeAdditional`). Clear of the joinery built so far (a wall of wardrobe, a
+   vanity, a column, a bath's box — `decorFootprint`, but what was built for the piece it replaces),
+   a WC with its cistern's box in front of it (`builtFloor`); a door mat or a hanging lamp only where
+   it lies or hangs within the room.
+1. **Another place in the room** (`pickPoses`): its back to every stretch of every wall, every 10 cm
+   (the walls before a room separator's open line), the nearest the slot first; a bed, a desk or a
+   table its long side to a wall too; a table, an armchair or a chair on the free floor as well.
+2. **The room's secondary pieces make way** (generation only): a place where only pieces that give
+   way stand (`yieldsToPick`: laid by the engine, on the floor, nobody's choice — not a pick, not
+   placed in the studio, not locked or pinned — not what the room is for, `pickKeeps`: the bed, the
+   wardrobe, the sofa, the TV unit, the kitchen, the bathroom's fixtures, the desk, a kitchen's or a
+   studio's dining table; nor a piece a pick in the room is arranged off), the fewest and least
+   important first (100 + the archetype's priority each). Each is then moved to a free spot in the
+   room (its kind's rule first), else given a smaller product of its kind — the closest in look, the
+   largest first, eight tried — at its place or a free spot, else taken out (what was arranged off it
+   goes with it, `withoutOrphans`). The same is done to what the engine placed off the piece a pick
+   replaced that cannot be seated again beside it (the nightstands of a wider bed).
+3. **Another room of the same type** (`plan.rooms`, the largest first), steps 0–2 again there; the
+   piece carries `pickedFor` — the room it was picked for — so the studio can say so, and a pick put
+   in again counts for that room (`holds`), not placed twice.
+4. **Left out of the 3D**: its slot keeps the style's piece, and the outcome is `unplaced` —
+   `generateScene` keeps those in `generation.unplacedPicks` (`unplacedPicksOf`), the studio lists
+   them ([studio.md](studio.md#the-calculators-picks-in-the-studio)). Every pick stays in the
+   calculation's list and summary, where picks are priced and ordered from.
+
+Steps 0–2 keep a door's way and the kept-clear floor clear first in the pick's room, then in the
+others of its type, and only then all of it again by the room and the pieces alone — a door's way
+is part of where a piece can go. Whole-flat fixtures picked in the catalogue (a WC, a pendant) go
+into every slot of their kind through steps 0–2 in that slot's room; a room with no place keeps the
+style's piece, and one no slot in the flat could take is left out (`roomId` null). Picks applied
+to a flat already laid out (`applyPendingPicks` in the studio) keep the floor `generateScene` keeps
+clear (`keptClear`) and the joinery, but skip step 2 and only *move* what was placed off a replaced
+piece — the flat is the person's, and a save that swaps or removes their pieces is refused on a plan
+without the catalogue (`sceneGuard`). The tidy-up after generation does not push a pick to a wall
+(`settleToWalls` skips them): pushed, a free-standing pick went into the joinery there.
+
+Measured on the fixture plans (264 flats — 33 plans × 4 styles × 2 draws — each room picking half
+its floor pieces again in a random product of their kind, 3,489 picks, and one piece of a kind it
+had no slot for, 1,527 picks; the scratch script is not in the repo): picks out of the room 373 → 0,
+in another piece 302 → 0, in a shower's tray 77 → 0, in joinery 121 → 0; dropped without a word
+228 → 0. Of the slot picks: 2,175 in their slot, 725 elsewhere in the room (474 at their kind's spot,
+251 turned or along another wall), 54 with the room's pieces making way, 29 in another room, 171
+left out (335 the room already held). Of the picks with no slot: 903 at their kind's spot, 283 along
+another wall, 58 with pieces making way, 44 in another room, 227 left out. Generated pieces given up
+for picks: 140 moved, 51 smaller, 28 taken out. A pick on a door's clear floor (the last pass):
+slot picks 103 → 69, no-slot picks 36 → 100 — the no-slot picks that stood out of the room or in a
+piece before now stand, some only there. `pnpm audit:generation --seeds 6` (no picks) is unchanged.
 
 ## Pieces measured from the real products (`settledPosition`, `settledElevation`)
 
@@ -940,6 +1000,12 @@ rule: the layout is still saved as arranged.
 
 ## Tests
 
+`tests/unit/design/pickFit.test.ts` (decision 13: a pick stood elsewhere in its room before
+anything moves, the bookshelf making way for a long sofa and never the wardrobe or the desk, nothing
+moved in the studio, another bedroom taking the bed its own room has no place for — `pickedFor`, not
+placed twice — and none of another type, what gives way, every other place in a room, the studio's
+statuses, the scene's schema keeping both records, and a real plan's flat with every piece picked
+again in the largest product of its kind: no pick out of its room or in another piece),
 `tests/unit/design/bathroomFallbacks.test.ts` (a small bathroom's fallbacks: the shower across the
 end of a narrow room with its glass in front only, a smaller WC and a compact basin, a 70 × 90 shower
 last and named by the check, a roomy bathroom without either, the mirror near a basin under a window,
@@ -1032,6 +1098,13 @@ whole. `lib/design/matcher.ts` is in the coverage gate.
   792 fixture flats, 24 of them in one kitchen (#359, every draw), where the 90 cm zone lets the
   table stand nearer the door than the 95 cm did. Which seat gives way is the owner's (decision 13's kind of
   ladder).
+- **A calculator pick may stand on a door's clear floor or a radiator's strip** where only the last
+  pass (the room and the pieces alone) has a place for it, before it would be left out: 169 of 4,283
+  picks placed in 264 fixture flats on a door's floor, 32 on a strip. Whether a pick should rather be
+  left out (or moved to another room) than stand there is the owner's. A pick that moves still leaves
+  what was built or hung for the piece it replaced at its old slot (the joinery, a rug under it, the
+  TV over it), and a pick applied in the studio only moves what was placed off the piece it replaced
+  — one that cannot be moved stays in its way ([project-flow.md](../project-flow.md#18-known-gaps)).
 - **The generation audit of 16 Nov 2026** ([generation-audit.md](generation-audit.md)) lists what
   the engine and the matcher leave out, where they clash and what they can never place, measured on
   1,080 generated flats. Its ticked items are fixed (the matcher's: a way out of the strict style,

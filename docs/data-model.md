@@ -114,11 +114,11 @@ column, as the flow uses it, is [project-flow.md §6](project-flow.md); in short
   a technical point its `product` (a radiator, a piece of equipment) and, equipment, the
   product's `sizeM`, a boiler its `cabinet` (the joiner's material, bought by the façade; null
   when taken off) `cabinetChosen` (the person picked that material) and `cabinetSize` (the cabinet's width, height and height off the floor as the person set them); `technical.ceilingDropM` (the new ceiling's drop); all JSON, no migration — `lib/validations/design.schema.ts`), **`scene`**
-  (items — a made-to-measure kitchen with its `kitchenMaterial` (a corner's leg names its run: `legOf`, `legCorner`), the maker's product bought by
+  (items — a calculator pick moved to another room names the room it was picked for, `pickedFor`; a made-to-measure kitchen with its `kitchenMaterial` (a corner's leg names its run: `legOf`, `legCorner`), the maker's product bought by
   the façade — finishes incl. per-wall and zones — a base floor two products share carries each
   one's `share` — electrical, **decor** (the code-built wall decor: family, wall, stretch,
   height, knobs and per-slot materials — [design-studio/decor.md](design-studio/decor.md)),
-  **generation** (engine or AI, the model, the per-room notes, the AI run count, the seed it was drawn from), style profile,
+  **generation** (engine or AI, the model, the per-room notes, the AI run count, the seed it was drawn from, the calculator's picks it left out of the 3D — `unplacedPicks`, `{ roomId, productId }`, [design-studio/layout-and-matching.md](design-studio/layout-and-matching.md#a-calculator-pick-that-fits-nowhere-placefurniturepicks-libdesignpickfitts)), style profile,
   excluded, quantities, progress; a finish's product snapshot carries how it is sold, `sale`),
   **`versions`** (`DesignVersion[]` — 0006);
 - concurrency: **`calculatorRev` / `designRev`** (each half's revision; a save from an older one

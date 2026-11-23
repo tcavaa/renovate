@@ -71,8 +71,10 @@ at runtime yet; the last one was seen on the sample plan.
   coolers are listed, not refused — [catalog.md](catalog.md#known-gaps).
 - A boiler housed in the hall wardrobe's section keeps no cabinet when the wardrobe is deleted or the
   boiler dragged out of it in the studio, until the next generation — [technical-and-fittings.md](design-studio/technical-and-fittings.md#known-gaps).
-- A calculator pick that moves to a free spot leaves its rug, TV and joinery at its old slot; picks
-  applied in the studio keep no radiator strip clear — [project-flow.md](project-flow.md#18-known-gaps).
+- A calculator pick that moves leaves its rug, TV and joinery at its old slot; picks applied in the
+  studio skip Nini's second step (the room's pieces making way); a pick may stand on a door's floor
+  where only the last pass has room — whether to leave it out instead is the owner's —
+  [project-flow.md](project-flow.md#18-known-gaps), [layout-and-matching.md](design-studio/layout-and-matching.md#known-gaps).
 - Inferred doors can leave a flat with no front door (windows are placed first; the sample
   plan has none) — [design-studio/plan-reading.md](design-studio/plan-reading.md#known-gaps).
 - The admin is cut off on a phone: its sidebar keeps 240 px at every width —

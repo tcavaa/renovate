@@ -15,13 +15,18 @@ import { calculatorSurfaceFinishes, type LaidFinish } from '@/lib/calculator/roo
 import { placeAdditional } from './autoLayout';
 import { getArchetype, isKitchenMaterial } from './catalog';
 import type { CatalogProduct } from './matcher';
-import { placeFitting, quantityFor, rehung, sizeFromProduct, toSceneProduct } from './matcher';
-import { footprintOf, footprintsOverlap, type Footprint } from './manipulate';
+import { builtFloor, placeFitting, quantityFor, rehung, sizeFromProduct, toSceneProduct } from './matcher';
+import { floorFootprint, footprintInRoom, footprintOf, footprintsOverlap, PIECE_TOUCH_M, type Footprint } from './manipulate';
 import { asPlacedKitchen } from './kitchen';
 import { finishFromProduct, isSurfaceProduct, isWetRoomType, surfaceSpecs } from './surfaces';
 import { dressBoard, pickTarget } from './boardPicks';
 import { hasTrims, trimFromProduct } from './trims';
-import type { ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, SurfaceFinish } from './types';
+import { decorFootprint } from './decor/joinery';
+import { LIES_FLAT } from './kinds';
+import { polygonCentroid } from './planGeometry';
+import { tucksUnder } from './relations';
+import { pickPoses, yieldsToPick, type PickOutcome, type PickPose, type PickStep } from './pickFit';
+import type { DecorPiece, ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, SurfaceFinish } from './types';
 
 export interface CalculatorPicks {
   /** Furniture chosen per room on /calculator/furniture. */
@@ -57,132 +62,386 @@ export function picksFromCalculator(
   };
 }
 
+/** How a calculation's furniture picks are put into a flat (`placeFurniturePicks`). */
+export interface PickOptions {
+  /** The floor the layout kept clear, per room: kept, with a door's way, in the careful pass. */
+  keepClear?: Record<string, Footprint[]>;
+  /** The joinery and boxes built (a wall of wardrobe, a vanity, a bath's box): no pick stands in them. */
+  built?: readonly DecorPiece[];
+  /**
+   * Nini's second step — the room's own pieces moved, made smaller or taken out for a pick that fits
+   * nowhere else in its room (`yieldsToPick`). On at generation; off in the studio, where the flat
+   * laid out is the person's and only what was arranged off the piece a pick replaced moves.
+   */
+  rearrange?: boolean;
+}
+
+/** The pieces with the picks in them, as `placeFurniturePicks` lays them. */
+export function applyFurniturePicks(items: PlacedItem[], plan: FloorPlan, picks: CalculatorPicks, catalog: CatalogProduct[], keepClear: Record<string, Footprint[]> = {}): PlacedItem[] {
+  return placeFurniturePicks(items, plan, picks, catalog, { keepClear }).items;
+}
+
 /**
- * Puts the user's furniture into the laid-out flat.
+ * Puts the user's furniture into the laid-out flat, in the order Nini gave for a pick that does not
+ * fit where it was picked for (decision 13, `lib/design/pickFit`).
  *
- * For each pick, the slot of that kind in that room takes the product and is pinned — the way
- * the matcher gives a slot a product (`placeFitting`): stood where the real product belongs (its
- * back on the slot's wall, a nightstand beside the real bed), kept inside the room and tested
- * against the other pieces, the windows, a door's way and the floor the layout kept clear
- * (`keepClear`). What the engine placed off the piece (the nightstands off the bed, the coffee
- * table off the sofa) is measured again off the product. When the slot cannot take it, or the room
- * has no such slot — a bed for the living room — a free spot is looked for with the product's own
- * size. Slot and spot are tried keeping a door's way and the kept-clear floor clear first, and only
- * then by the room and the pieces alone, as the matcher tries its careful pass first. A shop's
- * kitchen unit is tested at its own size like any floor piece, and takes down the wall cabinets
- * over the run it took (`cabinetsOver`). A pick is the person's choice: it is never replaced by
- * another product. Where it fits nowhere it goes where it always did — into its slot at its size (a
- * shop's kitchen unit into the run at the run's size), or into a spot found for the kind's typical
- * size — and a pick with no slot and no spot at all is dropped: the summary still prices it.
+ * For each pick, the slot of that kind in that room takes the product and is pinned — the way the
+ * matcher gives a slot a product (`placeFitting`): stood where the real product belongs (its back on
+ * the slot's wall, a nightstand beside the real bed), kept inside the room and tested against the
+ * other pieces as built (a shower's tray, a WC's box), the joinery, the windows, a door's way and
+ * the floor the layout kept clear (`keepClear`). What the engine placed off the piece (the
+ * nightstands off the bed, the coffee table off the sofa) is measured again off the product. When
+ * the slot cannot take it, or the room has no such slot, a free spot is looked for with the
+ * product's own size (`placeAdditional`). Slot and spot are tried keeping a door's way and the
+ * kept-clear floor clear first, and only then by the room and the pieces alone. Where neither does:
+ *
+ * 1. every other place in the room — each stretch of each wall, its back or its side to it, the
+ *    free floor (`pickPoses`) — keeping a door's way clear, then
+ * 2. (with `rearrange`) the room's secondary pieces moved, given a smaller product or taken out for
+ *    it, the fewest and least important first (`yieldsToPick`); then both again by the room and the
+ *    pieces alone;
+ * 3. another room of the same type, the largest first, all of it again there — the piece marked
+ *    with the room it was picked for (`pickedFor`), so the studio can say so;
+ * 4. nowhere: left out of the 3D (`outcomes`: `unplaced`), its slot keeping the style's piece. It
+ *    stays in the calculation's list and summary, where picks are priced and ordered from.
+ *
+ * A pick is the person's choice: never replaced by another product, never resized, never out of the
+ * room or in another piece. A shop's kitchen unit is tested at its own size like any floor piece,
+ * and takes down the wall cabinets over the run it took (`cabinetsOver`).
  */
-export function applyFurniturePicks(
-  items: PlacedItem[],
-  plan: FloorPlan,
-  picks: CalculatorPicks,
-  catalog: CatalogProduct[],
-  keepClear: Record<string, Footprint[]> = {}
-): PlacedItem[] {
+export function placeFurniturePicks(items: PlacedItem[], plan: FloorPlan, picks: CalculatorPicks, catalog: CatalogProduct[], options: PickOptions = {}): { items: PlacedItem[]; outcomes: PickOutcome[] } {
+  const keepClear = options.keepClear ?? {};
+  const rearrange = options.rearrange ?? true;
+  const built = options.built ?? [];
   const byId = new Map(catalog.map((p) => [p.id, p]));
-  const next = [...items];
+  let next = [...items];
   const taken = new Set<string>();
   // The wall cabinets a shop's kitchen unit took the run from (`cabinetsOver`).
   const dropped = new Set<string>();
+  const outcomes: PickOutcome[] = [];
   // What each room already has of each product. Picks are put into a design more than once —
   // every "see it in 3D" from the calculator's summary brings them again — and a pick the room
-  // already holds (placed last time, or chosen in the studio) is satisfied, not placed twice.
+  // already holds (placed last time, or chosen in the studio) is satisfied, not placed twice. A pick
+  // moved to another room counts for the room it was picked for.
   const holds = new Map<string, number>();
   for (const item of items) {
     if (!item.product) continue;
-    const key = `${item.roomId}:${item.product.productId}`;
+    const key = `${item.pickedFor ?? item.roomId}:${item.product.productId}`;
     holds.set(key, (holds.get(key) ?? 0) + 1);
   }
 
+  /** A pick put down where it was found to fit: into the slot it took, or as a piece of its own; what it brings comes with it. */
+  const commit = (found: FoundPlace, product: CatalogProduct, pickedFor: string | null) => {
+    const placed: PlacedItem = { ...asPick(found.laid, product), ...(pickedFor ? { pickedFor } : {}) };
+    if (found.index >= 0) next[found.index] = placed;
+    else next.push(placed);
+    taken.add(placed.id);
+    cabinetsOver(next, placed, found.slotItem).forEach((id) => dropped.add(id));
+    reseatPlacedOff(next, placed, found.room, byId, keepClear[found.room.id] ?? []);
+    rehangOver(next, placed, found.slotItem, byId);
+    // Step 2's pieces, and what was placed off the piece the pick replaced that does not stand beside
+    // it: moved, made smaller or taken out.
+    const way = makeWay(next, placed, found.room, found.blockers, catalog, byId, keepClear[found.room.id] ?? [], solidIn(built, found.room, null), rearrange);
+    next = way.items;
+    return { placed, moved: way.moved, swapped: way.swapped, removed: way.removed };
+  };
+
   for (const pick of picks.furniture) {
-    const held = holds.get(`${pick.roomId}:${pick.productId}`) ?? 0;
+    const holdKey = `${pick.roomId}:${pick.productId}`;
+    const held = holds.get(holdKey) ?? 0;
     if (held > 0) {
-      holds.set(`${pick.roomId}:${pick.productId}`, held - 1);
+      holds.set(holdKey, held - 1);
+      outcomes.push({ roomId: pick.roomId, productId: pick.productId, step: 'held', itemId: null, placedIn: null });
       continue;
     }
     const product = byId.get(pick.productId);
     const kind = product?.model3dKind;
-    if (!product || !kind || !product.model3dUrl) continue;
     const room = plan.rooms.find((r) => r.id === pick.roomId);
-    if (!room) continue;
-
-    // The room's slot for this *kind of thing* — a bunk bed picked for a bedroom takes the
-    // bed's place, whatever bed the style had put there; a corner sofa takes the sofa's.
-    const slot = getArchetype(kind)?.slot;
-    const free = (i: PlacedItem) =>
-      i.roomId === room.id && !taken.has(i.id) && i.origin !== 'calculator' && i.origin !== 'studio';
-    let index = next.findIndex((i) => free(i) && i.kind === kind);
-    if (index < 0 && slot) index = next.findIndex((i) => free(i) && i.slot === slot);
-    const clear = keepClear[room.id] ?? [];
-    const slotItem = index >= 0 ? { ...next[index], kind } : null;
-    const others = index >= 0 ? next.filter((_, i) => i !== index) : next;
-    // At its slot, else at a free spot found for its own size — first keeping a door's way and the
-    // kept-clear floor clear, then by the room and the pieces alone, as the matcher's careful pass
-    // comes before its careless one; else as it always was.
-    let laid: PlacedItem | null = null;
-    for (const careful of [clear, null]) {
-      laid = slotItem ? fitPick(slotItem, product, room, others, careful) : null;
-      if (laid) break;
-      const spot = placeAdditional(room, kind, others, slotItem ? sizeFromProduct(product, slotItem) : ownSize(product), careful ?? []);
-      laid = spot ? fitPick(slotItem ? { ...slotItem, position: spot.position, rotation: spot.rotation, elevationM: spot.elevationM } : spot, product, room, others, careful) : null;
-      if (laid) break;
+    if (!product || !kind || !product.model3dUrl || !getArchetype(kind) || !room) {
+      // Nothing to draw it with (or no room left to put it in): it stays in the calculation's list.
+      outcomes.push({ roomId: pick.roomId, productId: pick.productId, step: 'unplaced', itemId: null, placedIn: null });
+      continue;
     }
-    if (!laid && !slotItem) {
-      const extra = placeAdditional(room, kind, next);
-      if (!extra) continue;
-      laid = { ...extra, size: sizeFromProduct(product, extra) };
+    const context: PlaceContext = { items: next, taken, keepClear, built, rearrange };
+    // Steps 0–2 in its own room, then step 3 in each other room of its type, the largest first —
+    // keeping a door's way and the kept-clear floor clear; only then all of it again by the room and
+    // the pieces alone: a door's way is part of where a piece can go (the doors, the circulation).
+    const sameType = plan.rooms.filter((r) => r.id !== room.id && r.type === room.type).sort((a, b) => b.areaM2 - a.areaM2);
+    let found: FoundPlace | null = null;
+    let pickedFor: string | null = null;
+    for (const careful of [true, false]) {
+      found = findPlace(room, kind, product, context, careful);
+      if (found) break;
+      for (const other of sameType) {
+        found = findPlace(other, kind, product, context, careful);
+        if (found) break;
+      }
+      if (found) {
+        pickedFor = room.id;
+        break;
+      }
     }
-    // Fitting nowhere, it takes its slot as it always did — a shop's kitchen unit the run as it was.
-    const placed = laid ? asPick(laid, product) : asBefore(slotItem!, product);
-    if (index >= 0) next[index] = placed;
-    else next.push(placed);
-    taken.add(placed.id);
-    if (laid) cabinetsOver(next, placed, slotItem).forEach((id) => dropped.add(id));
-    reseatPlacedOff(next, placed, room, byId, clear);
-    rehangOver(next, placed, slotItem, byId);
+    if (!found) {
+      outcomes.push({ roomId: pick.roomId, productId: pick.productId, step: 'unplaced', itemId: null, placedIn: null });
+      continue;
+    }
+    const done = commit(found, product, pickedFor);
+    outcomes.push({
+      roomId: pick.roomId,
+      productId: pick.productId,
+      step: pickedFor ? 'other_room' : found.step,
+      itemId: done.placed.id,
+      placedIn: pickedFor ? found.room.id : null,
+      ...(done.moved.length ? { moved: done.moved } : {}),
+      ...(done.swapped.length ? { swapped: done.swapped } : {}),
+      ...(done.removed.length ? { removed: done.removed } : {}),
+    });
   }
 
-  // Fixtures picked from the materials catalogue — a toilet, a pendant — have no room of
-  // their own, so they go wherever the flat has a slot of that kind: each stood in its slot as a
-  // room's pick is (`fitPick`), and where it does not fit there, in the slot at its size as before.
+  // Fixtures picked from the materials catalogue — a toilet, a pendant — have no room of their own,
+  // so they go into every slot of that kind the flat has: each stood in its slot as a room's pick is,
+  // else elsewhere in that room (steps 1 and 2). Where a room has no place for it, its slot keeps the
+  // style's piece; a pick no slot in the flat could take is left out, as a room's pick is.
   for (const id of picks.productIds) {
     const product = byId.get(id);
     const kind = product?.model3dKind;
     if (!product || !kind || !product.model3dUrl) continue;
-    for (let i = 0; i < next.length; i++) {
-      const item = next[i];
-      if (item.kind !== kind || taken.has(item.id) || item.origin === 'calculator' || item.origin === 'studio') continue;
-      const room = plan.rooms.find((r) => r.id === item.roomId);
-      const others = next.filter((_, j) => j !== i);
-      const laid = room ? (fitPick(item, product, room, others, keepClear[room.id] ?? []) ?? fitPick(item, product, room, others, null)) : null;
-      next[i] = laid ? asPick(laid, product) : asBefore(item, product);
-      if (laid) cabinetsOver(next, next[i], item).forEach((cabinet) => dropped.add(cabinet));
-      taken.add(item.id);
-      if (room) {
-        reseatPlacedOff(next, next[i], room, byId, keepClear[room.id] ?? []);
-        rehangOver(next, next[i], item, byId);
-      }
+    const slots = next.filter((item) => item.kind === kind && !taken.has(item.id) && item.origin !== 'calculator' && item.origin !== 'studio').map((item) => item.id);
+    if (slots.length === 0) continue;
+    let anywhere = false;
+    for (const slotId of slots) {
+      const slot = next.find((item) => item.id === slotId);
+      const room = slot ? plan.rooms.find((r) => r.id === slot.roomId) : undefined;
+      if (!room) continue;
+      const context: PlaceContext = { items: next, taken, keepClear, built, rearrange, slotId };
+      const found = findPlace(room, kind, product, context, true) ?? findPlace(room, kind, product, context, false);
+      if (!found) continue;
+      commit(found, product, null);
+      anywhere = true;
     }
+    outcomes.push({ roomId: null, productId: id, step: anywhere ? 'slot' : 'unplaced', itemId: null, placedIn: null });
   }
   // A person's own pick of wall cabinets stays wherever it hangs.
-  return dropped.size > 0 ? next.filter((item) => !dropped.has(item.id) || taken.has(item.id)) : next;
+  return { items: dropped.size > 0 ? next.filter((item) => !dropped.has(item.id) || taken.has(item.id)) : next, outcomes };
+}
+
+/** What `findPlace` reads: the pieces as they stand now, those picks have taken, the floor kept clear and the joinery. */
+interface PlaceContext {
+  items: PlacedItem[];
+  taken: ReadonlySet<string>;
+  keepClear: Record<string, Footprint[]>;
+  built: readonly DecorPiece[];
+  rearrange: boolean;
+  /** This slot and no other (a whole-flat pick goes into each slot of its kind in turn). */
+  slotId?: string;
+}
+
+/** Where a pick was found to fit in a room, and how: the piece laid, the slot it takes (index −1: none) and what must make way for it. */
+interface FoundPlace {
+  room: PlanRoom;
+  laid: PlacedItem;
+  index: number;
+  slotItem: PlacedItem | null;
+  step: Exclude<PickStep, 'held' | 'other_room' | 'unplaced'>;
+  /** Step 2: the room's pieces in its way, to be moved, made smaller or taken out. */
+  blockers: PlacedItem[];
+}
+
+/**
+ * Steps 0 to 2 for one pick in one room, nothing changed yet: its slot, the spot its kind's rule
+ * gives it, every other place in the room (`pickPoses`), then (`rearrange`) a place the room's
+ * secondary pieces would make way for — `careful`, keeping a door's way and the kept-clear floor
+ * clear, else by the room and the pieces alone. Null where it has no place in this room.
+ */
+function findPlace(room: PlanRoom, kind: string, product: CatalogProduct, context: PlaceContext, careful: boolean): FoundPlace | null {
+  const { items, taken } = context;
+  const archetype = getArchetype(kind);
+  if (!archetype) return null;
+  // The room's slot for this *kind of thing* — a bunk bed picked for a bedroom takes the bed's
+  // place, whatever bed the style had put there; a corner sofa takes the sofa's.
+  const free = (i: PlacedItem) => i.roomId === room.id && !taken.has(i.id) && i.origin !== 'calculator' && i.origin !== 'studio';
+  let index = context.slotId ? items.findIndex((i) => i.id === context.slotId) : items.findIndex((i) => free(i) && i.kind === kind);
+  if (index < 0 && !context.slotId) index = items.findIndex((i) => free(i) && i.slot === archetype.slot);
+  const slotItem = index >= 0 ? { ...items[index], kind } : null;
+  const others = index >= 0 ? items.filter((_, i) => i !== index) : items;
+  const clear = careful ? (context.keepClear[room.id] ?? []) : null;
+  // The joinery in the room, but what was built for the piece the pick replaces (its vanity, its column).
+  const solid = solidIn(context.built, room, slotItem);
+  const fit = (piece: PlacedItem, among: PlacedItem[], careful: readonly Footprint[] | null) => {
+    const laid = fitPick(piece, product, room, among, careful);
+    return laid && clearOfSolid(laid, solid, room) ? laid : null;
+  };
+  const found = (laid: PlacedItem, step: FoundPlace['step'], blockers: PlacedItem[] = []): FoundPlace => ({ room, laid, index, slotItem, step, blockers });
+  const size = slotItem ? sizeFromProduct(product, slotItem) : ownSize(product);
+
+  // Only a piece on the floor has anywhere else to go: one that hangs or lies flat takes its slot or its spot, or has none.
+  const base: PlacedItem = slotItem ?? {
+    id: `${room.id}-${kind}-extra-${items.filter((i) => i.roomId === room.id && i.kind === kind).length}`,
+    roomId: room.id,
+    slot: archetype.slot,
+    kind,
+    position: polygonCentroid(room.polygon),
+    rotation: 0,
+    elevationM: 0,
+    size: size ?? archetype.size,
+    product: null,
+  };
+  const floor = standsOnFloor(base);
+  const poses = floor ? pickPoses(room, base.slot, sizeFromProduct(product, base), slotItem?.position ?? polygonCentroid(room.polygon)) : [];
+  const at = (pose: PickPose): PlacedItem => ({ ...base, position: pose.position, rotation: pose.rotation, elevationM: 0 });
+  // At its slot, else at the spot its kind's rule gives it, at its own size.
+  const atSlot = slotItem ? fit(slotItem, others, clear) : null;
+  if (atSlot) return found(atSlot, 'slot');
+  const spot = placeAdditional(room, kind, others, size, clear ?? []);
+  const atSpot = spot ? fit(slotItem ? { ...slotItem, position: spot.position, rotation: spot.rotation, elevationM: spot.elevationM } : spot, others, clear) : null;
+  if (atSpot) return found(atSpot, 'spot');
+  if (!floor) return null;
+  // Step 1: anywhere else in the room, turned to its wall or across it.
+  for (const pose of poses) {
+    const laid = fit(at(pose), others, clear);
+    if (laid) return found(laid, 'turned');
+  }
+  // Step 2: where the room's secondary pieces would make way — the fewest and least important.
+  if (!context.rearrange) return null;
+  const yielding = others.filter((o) => yieldsToPick(o, room, items));
+  if (yielding.length === 0) return null;
+  const without = others.filter((o) => !yielding.includes(o));
+  let best: { laid: PlacedItem; blockers: PlacedItem[]; cost: number } | null = null;
+  for (const piece of [...(slotItem ? [slotItem] : []), ...poses.map(at)]) {
+    const laid = fit(piece, without, clear);
+    if (!laid) continue;
+    const cost = makeWayCost(yielding, laid);
+    if (best && cost >= best.cost) continue;
+    // With only those out of the way, it stands.
+    const blockers = inTheWayOf(yielding, laid);
+    const verified = fit(piece, others.filter((o) => !blockers.includes(o)), clear);
+    if (!verified) continue;
+    best = { laid: verified, blockers: inTheWayOf(yielding, verified), cost: makeWayCost(yielding, verified) };
+  }
+  return best ? found(best.laid, 'rearranged', best.blockers) : null;
+}
+
+/** The pieces among `pieces` whose floor a laid pick stands on. */
+function inTheWayOf(pieces: readonly PlacedItem[], laid: PlacedItem): PlacedItem[] {
+  const box = floorFootprint(laid);
+  return pieces.filter((o) => footprintsOverlap(floorFootprint(o), box, PIECE_TOUCH_M));
+}
+
+/** What making way costs: each piece in the way, the more important (the archetype's priority) the dearer. */
+function makeWayCost(pieces: readonly PlacedItem[], laid: PlacedItem): number {
+  return inTheWayOf(pieces, laid).reduce((sum, piece) => sum + 100 + (getArchetype(piece.kind)?.priority ?? 50), 0);
+}
+
+/** Whether a piece stands on the floor and takes it: what has anywhere else in a room to be tried (`pickPoses`). */
+function standsOnFloor(item: PlacedItem): boolean {
+  const archetype = getArchetype(item.kind);
+  const rule = archetype?.placement.type;
+  return item.elevationM < 0.05 && !LIES_FLAT.has(item.slot) && !archetype?.ghost && rule !== 'wall-mounted' && rule !== 'ceiling' && rule !== 'window' && rule !== 'wall-run';
+}
+
+/** The floor the joinery and boxes built in a room stand on (`decorFootprint`), but what was built for `except`. */
+function solidIn(built: readonly DecorPiece[], room: PlanRoom, except: PlacedItem | null): Footprint[] {
+  const boxes: Footprint[] = [];
+  for (const piece of built) {
+    if (piece.roomId !== room.id) continue;
+    if (except && (piece.itemId === except.id || (piece.params.sections ?? []).some((s) => s.itemId === except.id))) continue;
+    const corners = decorFootprint(piece, room);
+    if (!corners) continue;
+    boxes.push({ minX: Math.min(...corners.map((c) => c.x)), maxX: Math.max(...corners.map((c) => c.x)), minZ: Math.min(...corners.map((c) => c.z)), maxZ: Math.max(...corners.map((c) => c.z)) });
+  }
+  return boxes;
+}
+
+/** A piece on the floor clear of the joinery (pieces may touch it); a hung one is not measured against it here. */
+function clearOfSolid(item: PlacedItem, solid: readonly Footprint[], room: PlanRoom): boolean {
+  if (solid.length === 0 || item.elevationM >= 0.05 || LIES_FLAT.has(item.slot) || getArchetype(item.kind)?.ghost) return true;
+  // As built: a WC stood out from its wall by the box of its cistern (`builtFloor`).
+  const box = builtFloor(item, room);
+  return !solid.some((s) => footprintsOverlap(box, s, PIECE_TOUCH_M));
+}
+
+/** How many smaller products of a piece's kind are tried before it is taken out (step 2). */
+const SMALLER_TRIED = 8;
+
+/**
+ * Nini's second step, done: each generated piece in a pick's way — those step 2 chose, and any piece
+ * the engine placed off the piece the pick replaced that could not be seated again beside it — is
+ * moved to a free spot in the room (`placeAdditional`, the kind's own rule first), else given a
+ * smaller product of its kind that stands at its place or a free spot ("resize" is a smaller
+ * product, never a model stretched), else taken out. Kept clear of a door's way and the kept-clear
+ * floor; nothing a person chose is touched. Without `rearrange` (the studio, where the flat laid out
+ * is the person's and a save that swaps or removes their pieces is refused on a plan without the
+ * catalogue — `sceneGuard`) a piece is only moved, as it always was, never swapped or taken out.
+ */
+function makeWay(items: PlacedItem[], pick: PlacedItem, room: PlanRoom, blockers: readonly PlacedItem[], catalog: CatalogProduct[], byId: ReadonlyMap<number, CatalogProduct>, keepClear: Footprint[], solid: Footprint[], rearrange: boolean): { items: PlacedItem[]; moved: string[]; swapped: string[]; removed: string[] } {
+  const moved: string[] = [];
+  const swapped: string[] = [];
+  const removed: string[] = [];
+  if (!standsOnFloor(pick)) return { items, moved, swapped, removed };
+  const pickBox = floorFootprint(pick);
+  const chosen = new Set(blockers.map((b) => b.id));
+  const inWay = items.filter(
+    (o) =>
+      o.id !== pick.id &&
+      o.roomId === room.id &&
+      (chosen.has(o.id) || (o.origin !== 'calculator' && o.origin !== 'studio' && !o.locked && standsOnFloor(o) && !tucksUnder(pick, o) && footprintsOverlap(floorFootprint(o), pickBox, PIECE_TOUCH_M)))
+  );
+  let next = items;
+  for (const piece of inWay) {
+    const rest = next.filter((o) => o.id !== piece.id);
+    const current = piece.product ? byId.get(piece.product.productId) : undefined;
+    const settle = (candidate: PlacedItem, product: CatalogProduct): PlacedItem | null => {
+      const laid = fitPick(candidate, product, room, rest, keepClear);
+      return laid && clearOfSolid(laid, solid, room) ? laid : null;
+    };
+    const spotFor = (product: CatalogProduct, size: PlacedItem['size']): PlacedItem | null => {
+      const spot = placeAdditional(room, piece.kind, rest, size, keepClear);
+      return spot ? settle({ ...piece, position: spot.position, rotation: spot.rotation, elevationM: spot.elevationM, size }, product) : null;
+    };
+    const replace = (laid: PlacedItem) => (next = next.map((o) => (o.id === piece.id ? laid : o)));
+    // Moved, as it is.
+    const there = current ? spotFor(current, piece.size) : null;
+    if (there) {
+      replace({ ...piece, position: there.position, rotation: there.rotation, elevationM: there.elevationM });
+      moved.push(piece.id);
+      continue;
+    }
+    if (!rearrange) continue;
+    // A smaller product of its kind, the nearest in look and the largest first.
+    const area = piece.size.width * piece.size.depth;
+    const smaller = catalog
+      .filter((p) => p.model3dKind === piece.kind && p.model3dUrl && !p.own && !p.pending && p.id !== current?.id && p.widthCm && p.depthCm && p.heightCm && (p.widthCm * p.depthCm) / 10000 < area * 0.95)
+      .sort((a, b) => sharedStyles(b, current) - sharedStyles(a, current) || b.widthCm! * b.depthCm! - a.widthCm! * a.depthCm!)
+      .slice(0, SMALLER_TRIED);
+    let swappedTo: PlacedItem | null = null;
+    for (const product of smaller) {
+      const size = sizeFromProduct(product, piece);
+      const laid = settle({ ...piece, size }, product) ?? spotFor(product, size);
+      if (!laid) continue;
+      swappedTo = { ...piece, position: laid.position, rotation: laid.rotation, elevationM: laid.elevationM, size, product: toSceneProduct(product, quantityFor(piece)) };
+      break;
+    }
+    if (swappedTo) {
+      replace(swappedTo);
+      swapped.push(piece.id);
+      continue;
+    }
+    next = rest;
+    removed.push(piece.id);
+  }
+  return { items: next, moved, swapped, removed };
+}
+
+/** How many style tags two products share: a smaller piece in the same look comes first. */
+function sharedStyles(a: CatalogProduct, b: CatalogProduct | undefined): number {
+  const tags = (p: CatalogProduct | undefined): unknown[] => (p && Array.isArray(p.styleTags) ? (p.styleTags as unknown[]) : []);
+  const own = new Set(tags(b));
+  return tags(a).filter((t) => own.has(t)).length;
 }
 
 /** A pick laid where it fits, as the product makes it: a kitchen maker's material the piece made to measure in it, a shop's unit a unit (`asPlacedKitchen`). */
 function asPick(laid: PlacedItem, product: CatalogProduct): PlacedItem {
   return asPlacedKitchen({ ...laid, product: toSceneProduct(product, quantityFor(laid)), pinned: true, origin: 'calculator' }, product);
-}
-
-/**
- * A pick that fits nowhere, as picks were always placed: in its slot at the product's size — a
- * kitchen run at the run's own, the run left as it was laid.
- */
-function asBefore(slot: PlacedItem, product: CatalogProduct): PlacedItem {
-  const size = slot.slot === 'kitchen_run' ? slot.size : sizeFromProduct(product, slot);
-  return { ...slot, size, product: toSceneProduct(product, quantityFor(slot)), pinned: true, origin: 'calculator' };
 }
 
 /**
@@ -306,13 +565,22 @@ export function applyBoardPicks(plan: FloorPlan, electrical: ElectricalPoint[], 
  * measure to fit, and a shop's unit is the size it is.
  */
 function fitPick(piece: PlacedItem, product: CatalogProduct, room: PlanRoom, others: PlacedItem[], keepClear: readonly Footprint[] | null): PlacedItem | null {
-  const settled = others.filter((other) => !placedOff(other, piece));
+  // What the engine placed off the piece moves to it afterwards (`reseatPlacedOff`); somebody's own
+  // choice placed off it — a picked nightstand beside the bed a later pick replaces — stays in its way.
+  const settled = others.filter((other) => !placedOff(other, piece) || other.origin === 'calculator' || other.origin === 'studio');
   const tested: PlacedItem = piece.slot === 'kitchen_run' && !isKitchenMaterial(product) ? { ...piece, slot: 'fridge' } : piece;
   const slots = new Map([...others, tested].map((item) => [item.id, item]));
-  // Each piece its own box, as picks were always fitted (`placeFitting`'s `asBuilt` false): a pick
-  // is not measured against a shower's tray or with its WC's box, nor kept round a WC or an island.
-  const fit = placeFitting(tested, product, [], room, others, slots, settled, keepClear, false);
-  return fit ? rehung(piece, { ...piece, position: fit.position, size: sizeFromProduct(product, piece) }, product, settled) : null;
+  // Every piece the floor it takes once built (`placeFitting`'s `asBuilt`): a pick stands in no
+  // shower's tray and clear of a WC's box — and, in the careful pass, of what is kept round a WC or an
+  // island (decision 13: never in another object).
+  const fit = placeFitting(tested, product, [], room, others, slots, settled, keepClear, true);
+  if (!fit) return null;
+  // A door mat or a hanging lamp is in no piece's way, but lies or hangs within its room: the matcher
+  // keeps the one drawn where none does; a pick that does not is not stood out of the room.
+  const size = sizeFromProduct(product, piece);
+  const within = piece.slot === 'door_mat' || getArchetype(piece.kind)?.placement.type === 'ceiling';
+  if (within && !footprintInRoom(footprintOf(fit.position, size, piece.rotation), room.polygon)) return null;
+  return rehung(piece, { ...piece, position: fit.position, size }, product, settled);
 }
 
 /** Whether the engine placed `other` off `piece` (`placement.type === 'relative'`): a nightstand off the bed, the coffee table off the sofa. */
