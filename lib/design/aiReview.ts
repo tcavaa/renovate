@@ -319,7 +319,9 @@ export function buildReviewBrief(request: AiReviewRequest): { text: string; offe
         continue;
       }
       decorIds.set(d.id, room.id);
-      lines.push(`- ${d.id}: built-in decor, ${d.family}${d.wallIndex == null ? ' — a lowered ceiling panel with a light cove' : ` on wall ${d.wallIndex}, ${round2(d.span.from)}–${round2(d.span.to)} m along, ${round2(d.height.from)}–${round2(d.height.to)} m high, ${Math.round(decorDepth(d) * 100)} cm deep`}${problems.length ? ` — PROBLEMS: ${problems.join('; ')}` : ''}`);
+      // Over low joinery it stands as the designer placed it (decision 8): behind, above or beside it — by design, no problem.
+      const over = d.placement ? `, placed ${d.placement === 'full' ? 'full height behind' : d.placement === 'partial' ? 'partly behind' : d.placement} the low joinery on its wall` : '';
+      lines.push(`- ${d.id}: built-in decor, ${d.family}${d.wallIndex == null ? ' — a lowered ceiling panel with a light cove' : ` on wall ${d.wallIndex}, ${round2(d.span.from)}–${round2(d.span.to)} m along, ${round2(d.height.from)}–${round2(d.height.to)} m high, ${Math.round(decorDepth(d) * 100)} cm deep${over}`}${problems.length ? ` — PROBLEMS: ${problems.join('; ')}` : ''}`);
     }
   }
 

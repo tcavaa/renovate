@@ -708,6 +708,9 @@ export interface DecorParams {
  * along the edge from its first corner, as a finish's span) and a band of its height. A light cove
  * runs round the room and has no wall.
  */
+/** How wall decor stands against the low joinery on its wall (`lib/design/decor/overBuilt`, Nini's decision 8). */
+export type DecorPlacement = 'full' | 'above' | 'partial' | 'beside';
+
 export interface DecorPiece {
   id: string;
   roomId: string;
@@ -723,7 +726,13 @@ export interface DecorPiece {
   note?: string | null;
   origin?: 'ai' | 'studio';
   /** What it was centred on (the bed, the kitchen run…): it follows that piece to its wall (`reanchorDecor`). */
-  anchor?: 'bed' | 'tv' | 'sofa' | 'desk' | 'dining' | 'kitchen' | 'wall' | 'room' | 'wc' | 'joinery' | 'bath' | null;
+  anchor?: 'bed' | 'tv' | 'sofa' | 'desk' | 'dining' | 'kitchen' | 'toilet' | 'wall' | 'room' | 'wc' | 'joinery' | 'bath' | null;
+  /**
+   * How it stands against the low joinery on its wall — a WC's box, a vanity, a machine's column, a
+   * bath's box (`lib/design/decor/overBuilt`): floor to ceiling behind it, above it, at the height
+   * asked, or beside it. Set where its wall has low joinery when it was fitted; absent elsewhere.
+   */
+  placement?: DecorPlacement | null;
   /**
    * The piece of furniture it is built for — a box's WC, an enclosure's bath, a corner leg's
    * kitchen run: it goes where that piece goes (`lib/design/decor/housing`). A cabinet's sections

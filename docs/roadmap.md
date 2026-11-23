@@ -112,9 +112,10 @@ at runtime yet; the last one was seen on the sample plan.
   ([3d-assets.md](3d-assets.md#known-gaps)); coffee machines, an oven and range cookers are filed as
   kitchen runs, and only TVs of the electronics are placed
   ([design-studio/layout-and-matching.md](design-studio/layout-and-matching.md#known-gaps)).
-- **Decor, what is left**: moving, resizing and adding a decor piece by hand in the studio (and
-  decor without a key); a labour line for fitting it; coves in L-shaped rooms; sockets and
-  radiators on a decorated wall ([design-studio/decor.md](design-studio/decor.md#known-gaps)).
+- **Decor, what is left**: adding a decor piece by hand in the studio (and decor without a key); a
+  labour line for fitting it; coves in L-shaped rooms; over low joinery (decision 8), a WC's box
+  taking the full-height decor's material, a niche over the cistern, decor above a box under a
+  window and decor following a box moved by hand ([design-studio/decor.md](design-studio/decor.md#known-gaps)).
 
 - **Material variants, what is left**: the generation never picks one, the public catalogue and
   product page do not show them, no SKU or stock per variant —

@@ -15,7 +15,8 @@ import { localizedName } from '@/lib/i18n/labels';
 import { unitLabel } from '@/lib/i18n/labels';
 import { cn, formatGEL } from '@/lib/utils';
 import type { CatalogProduct } from '@/lib/design/matcher';
-import type { DecorFamily, DecorParams, DecorPiece, DecorSlot, PlanRoom } from '@/lib/design/types';
+import type { DecorFamily, DecorParams, DecorPiece, DecorPlacement, DecorSlot, PlanRoom } from '@/lib/design/types';
+import { DECOR_PLACEMENTS } from '@/lib/design/decor/overBuilt';
 import { DECOR_FAMILIES, decorSlots } from '@/lib/design/decor/families';
 import { decorMaterialsOf, defaultDecorMaterial } from '@/lib/design/decor/materials';
 import { decorWall, paramsOf } from '@/lib/design/decor/layout';
@@ -46,6 +47,10 @@ function slotLabel(t: Dictionary, slot: DecorSlot): string {
   return map[slot];
 }
 
+function placementLabel(t: Dictionary, placement: DecorPlacement): string {
+  return { full: t.decor.placementFull, above: t.decor.placementAbove, partial: t.decor.placementPartial, beside: t.decor.placementBeside }[placement];
+}
+
 function ledLabel(t: Dictionary, led: NonNullable<DecorParams['led']>): string {
   return { none: t.decor.ledNone, bottom: t.decor.ledBottom, top: t.decor.ledTop, halo: t.decor.ledHalo, inside: t.decor.ledInside }[led];
 }
@@ -57,6 +62,8 @@ export function DecorPanel({
   onMaterial,
   onColor,
   onParams,
+  over = null,
+  onPlacement,
   onSize,
   onRemove,
 }: {
@@ -66,6 +73,10 @@ export function DecorPanel({
   onMaterial: (slot: DecorSlot, product: CatalogProduct | null) => void;
   onColor: (slot: DecorSlot, colorHex: string | null) => void;
   onParams: (patch: DecorParams) => void;
+  /** Where it stands against the low joinery on its wall (`placementOver`) — null where its wall has none. */
+  over?: 'behind' | 'above' | 'beside' | null;
+  /** Fitted again over that joinery in another placement (Nini's decision 8). */
+  onPlacement?: (placement: DecorPlacement) => void;
   /** A size typed on the card: its width, its height, its bottom off the floor, or how far its near side is from the wall's start (metres). */
   onSize: (size: { widthM?: number; heightM?: number; bottomM?: number; leftM?: number }) => void;
   onRemove: () => void;
@@ -117,6 +128,20 @@ export function DecorPanel({
             {!standsOnFloor(piece) && <NumberField label={t.decor.fromFloor} value={extent.height.from} min={0} max={room.heightM} step={0.05} onCommit={(bottomM) => onSize({ bottomM })} />}
           </div>
           <p className="mt-1 text-[11px] text-ink-soft">{t.decor.resizeHint}</p>
+        </div>
+      )}
+
+      {over && onPlacement && (
+        <div>
+          <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-ink-muted">{t.decor.placement}</p>
+          <div className="flex flex-wrap gap-1">
+            {DECOR_PLACEMENTS.map((placement) => (
+              <Chip key={placement} small active={(piece.placement ?? (over === 'behind' ? 'partial' : over)) === placement} onClick={() => onPlacement(placement)}>
+                {placementLabel(t, placement)}
+              </Chip>
+            ))}
+          </div>
+          <p className="mt-1 text-[11px] text-ink-soft">{t.decor.placementHint}</p>
         </div>
       )}
 

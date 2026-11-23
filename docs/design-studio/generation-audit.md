@@ -154,7 +154,8 @@ floor for, and one room 36 cm wide.
    flagged dry, so no bathroom gets it — catalogue data.
 7. *A door with no product on an outside wall* is estimated at the entrance door's price, a
    balcony's included (Q7b's remainder; the calculator's estimate would change).
-8. *Decor beside low joinery* loses the wall above it (W4).
+8. *Decor beside low joinery* loses the wall above it (W4). *Decided (Nini, decision 8) and built
+   24 Nov 2026: full height, above, partial or beside, above by default — W4.*
 9. *Catalogue data* (K1–K4, P1): products filed under the wrong kind or with wrong sizes, and shop
    kitchens never generated (their names do not say sink and hob) — admin's, or a rule.
 10. *An AI start refused by the plan's locks* is told as a failure (subscriptions), and *a row or
@@ -1249,6 +1250,17 @@ outputs were read, not re-run.
   decor over joinery instead would change the height the designer asked for — the owner's choice.
   *Open:* the re-fit opens the joinery's stretch for every intent of the room, so a second intent on
   that wall that cleared the joinery (hung above it) is fitted beside it too.
+  *Fixed (decision 8, 24 Nov 2026):* decor is a finish of the wall — over low joinery (top no higher
+  than 1.3 m: a WC's box, a vanity, a washer's column, a bath's box) it is placed full height behind
+  it, above it, partly or beside it as the designer asks (`placement`), above by default; tall joinery
+  and a corner leg's wall cabinets keep it beside; each intent is fitted on its own (`resolveDecor`
+  with the joinery and the radiators — `clearOfBuilt` is gone, and with it the open item above), and
+  every placement keeps clear of the mirror, the basin, its tap, a wall mixer and a radiator. A
+  stand-in designer asking slab, cladding, panel and slats on each of the 1,350 bathroom and toilet
+  walls with low joinery in 792 flats (5,400 asks): above 0 → 3,414, beside 4,036 → 1,261 (204 of the
+  4,036 had run 2–10 cm into the joinery, 0 now), left out 1,364 → 725; asked full height, 2,779
+  behind the joinery floor to ceiling; on a radiator 255 → 0, on a tap 15 → 0, on a bath's wall mixer
+  15 → 0 ([decor.md](decor.md#decor-over-low-joinery-overbuiltts)).
 - [x] **W5 (medium) — Decor behind the bed is dropped in most bedrooms.** A bed 1.2 m tall or more
   takes none (`aiProposal.ts:91-94`, the rulebook's B-6), and two thirds of the beds placed are
   that tall (322 of 485): of the intents anchored on the bed 57 % are dropped for it and 14 % for

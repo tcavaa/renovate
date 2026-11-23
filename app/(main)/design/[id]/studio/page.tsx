@@ -48,6 +48,7 @@ import { RuleWarnings } from '@/components/studio/RuleWarnings';
 import { underCeiling } from '@/lib/design/rules';
 import { resizeDecor, type DecorExtent, type DecorPlace } from '@/lib/design/decor/resize';
 import { adoptHoused } from '@/lib/design/decor/housing';
+import { placementOver } from '@/lib/design/decor/overBuilt';
 import { lacksHousing } from '@/lib/design/fitted';
 import { kitchenLegLength, kitchenLegOf } from '@/lib/design/kitchenCorner';
 import { equipmentSignature } from '@/lib/design/equipment';
@@ -1318,6 +1319,8 @@ export default function StudioPage() {
                   onMaterial={(slot, product) => gate('catalog') && store.setDecorMaterial(selectedElement.id, slot, product)}
                   onColor={(slot, colorHex) => gate('catalog') && store.setDecorColor(selectedElement.id, slot, colorHex)}
                   onParams={(patch) => gate('catalog') && store.setDecorParams(selectedElement.id, patch)}
+                  over={placementOver(decor.find((d) => d.id === selectedElement.id)!, decor)}
+                  onPlacement={(placement) => gate('catalog') && store.setDecorPlacement(selectedElement.id, placement)}
                   onSize={(size) => {
                     // Its distance from the wall's start slides it; the other sizes resize it.
                     const piece = decor.find((d) => d.id === selectedElement.id);

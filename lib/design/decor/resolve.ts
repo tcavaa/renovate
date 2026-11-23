@@ -12,13 +12,14 @@ import { roomEdges, wallEdges, type PlanEdge } from '@/lib/design/planGeometry';
 import { wallBehind as pieceWallBehind } from '@/lib/design/pieceGeometry';
 import type { CatalogProduct } from '@/lib/design/matcher';
 import { toSceneProduct } from '@/lib/design/matcher';
-import type { DecorFamily, DecorMaterial, DecorParams, DecorPiece, DecorSlot, Opening, PlacedItem, PlanRoom, SlotKind } from '@/lib/design/types';
+import type { DecorFamily, DecorMaterial, DecorParams, DecorPiece, DecorPlacement, DecorSlot, Opening, PlacedItem, PlanRoom, SlotKind } from '@/lib/design/types';
 import { DECOR_FAMILIES, DECOR_FAMILY_LIST, decorSlots, slotTakes } from './families';
 import { freeSpans } from './layout';
 import { LAID_TO_ANOTHER } from '@/lib/design/kinds';
 import { decorMaterialKind, decorSpecs, defaultDecorMaterial, isDecorMaterial } from './materials';
+import { alongOverlaps, bandOverlaps, builtRectsOnWall, DECOR_PLACEMENTS, DEFAULT_PLACEMENT, MIN_ABOVE_M, OVER_BUILT_FAMILIES, type BuiltRect } from './overBuilt';
 
-export const DECOR_ANCHORS = ['bed', 'tv', 'sofa', 'desk', 'dining', 'kitchen', 'wall', 'room'] as const;
+export const DECOR_ANCHORS = ['bed', 'tv', 'sofa', 'desk', 'dining', 'kitchen', 'toilet', 'wall', 'room'] as const;
 export type DecorAnchor = (typeof DECOR_ANCHORS)[number];
 
 /** What a designer asks for, before it is measured. */
@@ -37,6 +38,30 @@ export interface DecorIntent {
   params?: DecorParams | null;
   materials?: Array<{ slot: DecorSlot; productId: number | null; colorHex?: string | null }> | null;
   note?: string | null;
+  /**
+   * How it stands against low joinery on its wall — a WC's box, a vanity (`overBuilt.ts`): floor to
+   * ceiling behind it, above it, at the height asked, or beside it; null for the engine's default
+   * (`DEFAULT_PLACEMENT`). Read only where its wall has low joinery.
+   */
+  placement?: DecorPlacement | null;
+  /** For anchor `wall`: the point along the wall it centres on, metres from its first corner (a piece re-fitted where it stands); null for the clear stretch's middle. */
+  atM?: number | null;
+}
+
+/** A radiator on a wall, as decor keeps off it (a `RadiatorBody` in its wall's frame). */
+export interface WallRect {
+  roomId: string;
+  wallIndex: number;
+  from: number;
+  to: number;
+  bottom: number;
+  top: number;
+}
+
+/** What decor is fitted against besides the room and its furniture: the joinery and boxes built there, the radiators. */
+export interface DecorContext {
+  built?: readonly DecorPiece[];
+  radiators?: readonly WallRect[];
 }
 
 /** A catalogue material as a slot wears it: the snapshot, the specs it draws with, and a colour where it takes one. */
@@ -53,10 +78,10 @@ export function decorMaterialFrom(product: CatalogProduct, colorHex: string | nu
   return { product: toSceneProduct(product, 1), ...(tint ? { colorHex: tint } : {}), ...(Object.keys(kept).length ? { specs: kept } : {}) };
 }
 
-export const ANCHOR_SLOT: Partial<Record<DecorAnchor, SlotKind>> = { bed: 'bed', tv: 'tv_unit', sofa: 'sofa', desk: 'desk', dining: 'dining_table', kitchen: 'kitchen_run' };
+export const ANCHOR_SLOT: Partial<Record<DecorAnchor, SlotKind>> = { bed: 'bed', tv: 'tv_unit', sofa: 'sofa', desk: 'desk', dining: 'dining_table', kitchen: 'kitchen_run', toilet: 'toilet' };
 
-/** How far past the piece it is anchored to a field runs, each side, by default. */
-const ANCHOR_MARGIN: Partial<Record<DecorAnchor, number>> = { bed: 0.75, tv: 0.6, sofa: 0.35, desk: 0.3, dining: 0.4, kitchen: 0 };
+/** How far past the piece it is anchored to a field runs, each side, by default (past a WC: about its box's width). */
+const ANCHOR_MARGIN: Partial<Record<DecorAnchor, number>> = { bed: 0.75, tv: 0.6, sofa: 0.35, desk: 0.3, dining: 0.4, kitchen: 0, toilet: 0.3 };
 
 const HEX = /^#[0-9a-f]{6}$/i;
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -150,16 +175,23 @@ function along(edge: PlanEdge, point: { x: number; z: number }): number {
 /** Decor that covers its stretch of wall: nothing hangs over it, and it keeps off what must hang there. */
 export const COVERS_WALL = new Set<string>(['slats', 'slab', 'panel', 'cladding', 'mural', 'tile', 'niche']);
 
+/** What hangs in a bathroom or toilet and is no fixture decor keeps off: a window's curtain, a print (left out over decor), the WC. */
+const NOT_A_WET_FIXTURE = new Set<SlotKind>(['curtain', 'artwork', 'toilet']);
+/** How far under decor a wet room's fixture is still kept clear of it (a tap under a slab placed above a vanity), metres. */
+const WET_FIXTURE_GAP_M = 0.05;
+
 /**
- * What hangs on this wall for use and must stay — a mirror over a basin in a bathroom or toilet,
- * kitchen wall cabinets — as openings for `freeSpans` (its stretch along the wall, 10 cm aside).
+ * What hangs on this wall for use and must stay — in a bathroom or toilet the mirror over the basin,
+ * the basin on its vanity, its wall tap, a bath's wall mixer; kitchen wall cabinets — as openings for
+ * `freeSpans` (its stretch along the wall, 10 cm aside).
  */
 function fixturesOnWall(edge: PlanEdge, room: PlanRoom, items: PlacedItem[], band?: { from: number; to: number }): Opening[] {
   const wet = room.type === 'bathroom' || room.type === 'toilet';
   return items
-    .filter((i) => i.roomId === room.id && i.elevationM >= 0.05 && (i.slot === 'kitchen_wall' || (wet && i.slot === 'mirror')))
-    // Only what hangs at the decor's height: a backsplash runs under the wall cabinets.
-    .filter((i) => !band || (i.elevationM < band.to - 0.02 && i.elevationM + i.size.height > band.from + 0.02))
+    .filter((i) => i.roomId === room.id && i.elevationM >= 0.05 && (i.slot === 'kitchen_wall' || (wet && !NOT_A_WET_FIXTURE.has(i.slot))))
+    // Only what hangs at the decor's height: a backsplash runs under the wall cabinets. A wet room's
+    // fixture just under it counts too — a tap whose top is at a slab's bottom would touch it.
+    .filter((i) => !band || (i.elevationM < band.to - 0.02 && i.elevationM + i.size.height > band.from + (wet && i.slot !== 'kitchen_wall' ? -WET_FIXTURE_GAP_M : 0.02)))
     .filter((i) => wallBehind(i, room)?.index === edge.index)
     .map((i) => ({ id: `fixture-${i.id}`, kind: 'window' as const, wallIndex: edge.index, t: along(edge, i.position) / edge.length, widthM: i.size.width + 0.2, heightM: i.size.height, sillM: i.elevationM, roomId: room.id, exterior: false }));
 }
@@ -288,7 +320,7 @@ function isBacksplash(intent: DecorIntent, runWall: PlanEdge | null): boolean {
  * One intent made a piece in a room laid out with `items`, or null when it cannot be: an unknown
  * family, an anchor the room does not have, no wall clear enough.
  */
-export function resolveDecor(intent: DecorIntent, room: PlanRoom, items: PlacedItem[], catalog: CatalogProduct[], id: string): DecorPiece | null {
+export function resolveDecor(intent: DecorIntent, room: PlanRoom, items: PlacedItem[], catalog: CatalogProduct[], id: string, context: DecorContext = {}): DecorPiece | null {
   if (!DECOR_FAMILY_LIST.includes(intent.family)) return null;
   const family = intent.family;
   const params = sanitizeParams(family, intent.params);
@@ -326,6 +358,7 @@ export function resolveDecor(intent: DecorIntent, room: PlanRoom, items: PlacedI
     anchorWidth = piece.size.width;
   } else if (anchor === 'wall' && intent.wallIndex != null) {
     edge = wallEdges(room).find((e) => e.index === intent.wallIndex) ?? null;
+    if (edge) centre = num(intent.atM);
   }
   edge ??= longestClearWall(room);
   if (!edge) return null;
@@ -345,29 +378,77 @@ export function resolveDecor(intent: DecorIntent, room: PlanRoom, items: PlacedI
   // over a door is no niche), else centred on its anchor and kept to the clear stretch it is in.
   let from: number;
   let to: number;
+  let placement: DecorPlacement | null = null;
   if (family === 'moulding') {
     from = 0;
     to = edge.length;
   } else {
+    const wall = edge;
     // Clear of the openings and, for decor that covers its stretch, of what hangs there for use —
-    // the mirror over a basin, the wall cabinets: the niche goes beside the mirror, not over it. A
-    // build-out (a niche wall) also keeps off what stands against the wall: it would stand in the
-    // bath. Thinner decor stays, and what stands in front of it is moved off it (`clearOfDecor`).
-    const blocked = [...(COVERS_WALL.has(family) ? fixturesOnWall(edge, room, items, height) : []), ...(BUILT_OUT.has(family) ? floorPiecesOnWall(edge, room, items) : [])];
-    const spans = freeSpans(edge, [...room.openings, ...blocked], 0, edge.length, 0.1);
-    if (spans.length === 0) return null;
-    const containing = centre != null ? spans.find(([a, b]) => centre! >= a && centre! <= b) : undefined;
-    const [a, b] = containing ?? spans.reduce((best, s) => (s[1] - s[0] > best[1] - best[0] ? s : best));
-    const clear = b - a;
-    // A backsplash is as long as the run, whatever width was asked: a 1.2 m strip of marble
-    // behind a 2.5 m worktop looked unfinished.
-    const widthAsked = anchor === 'kitchen' || family === 'panel' ? null : num(intent.widthM);
-    const auto = WHOLE_WALL.includes(family) || centre == null ? clear : anchorWidth + 2 * (ANCHOR_MARGIN[anchor] ?? 0.4);
-    const width = clamp(widthAsked ?? auto, 0.3, clear);
-    const c = centre ?? (a + b) / 2;
-    from = clamp(c - width / 2, a, b - width);
-    to = from + width;
-    if (WHOLE_WALL.includes(family) && clear < WHOLE_WALL_MIN_M) return null;
+    // the mirror over a basin, the basin and its tap, the wall cabinets: the niche goes beside the
+    // mirror, not over it — of a radiator and of the joinery built there. A build-out (a niche
+    // wall) also keeps off what stands against the wall: it would stand in the bath. Thinner decor
+    // stays, and what stands in front of it is moved off it (`clearOfDecor`).
+    const covers = COVERS_WALL.has(family);
+    const rects = covers ? builtRectsOnWall(context.built ?? [], room.id, wall.index) : [];
+    // Low joinery (a WC's box, a vanity) is the wall's to decorate over (`overBuilt.ts`); the rest
+    // — a wardrobe, a corner leg's wall cabinets — decor keeps beside, as it keeps off an opening.
+    const low = OVER_BUILT_FAMILIES.has(family) ? rects.filter((r) => r.low) : [];
+    const radiators = covers ? (context.radiators ?? []).filter((r) => r.roomId === room.id && r.wallIndex === wall.index) : [];
+    const keepOff = [...rects.filter((r) => !low.includes(r)), ...radiators];
+    const asOpening = (r: Pick<BuiltRect, 'from' | 'to' | 'bottom' | 'top'>, i: number): Opening => ({ id: `built-${i}`, kind: 'window', wallIndex: wall.index, t: (r.from + r.to) / 2 / wall.length, widthM: r.to - r.from, heightM: r.top - r.bottom, sillM: r.bottom, roomId: room.id, exterior: false });
+    const fit = (band: { from: number; to: number }, around: readonly BuiltRect[]): [number, number] | null => {
+      const blocked = [
+        ...(covers ? fixturesOnWall(wall, room, items, band) : []),
+        ...(BUILT_OUT.has(family) ? floorPiecesOnWall(wall, room, items) : []),
+        ...[...keepOff.filter((r) => bandOverlaps(band, r)), ...around].map(asOpening),
+      ];
+      const spans = freeSpans(wall, [...room.openings, ...blocked], 0, wall.length, 0.1);
+      if (spans.length === 0) return null;
+      const containing = centre != null ? spans.find(([a, b]) => centre! >= a && centre! <= b) : undefined;
+      const [a, b] = containing ?? spans.reduce((best, s) => (s[1] - s[0] > best[1] - best[0] ? s : best));
+      const clear = b - a;
+      if (WHOLE_WALL.includes(family) && clear < WHOLE_WALL_MIN_M) return null;
+      // A backsplash is as long as the run, whatever width was asked: a 1.2 m strip of marble
+      // behind a 2.5 m worktop looked unfinished.
+      const widthAsked = anchor === 'kitchen' || family === 'panel' ? null : num(intent.widthM);
+      const auto = WHOLE_WALL.includes(family) || centre == null ? clear : anchorWidth + 2 * (ANCHOR_MARGIN[anchor] ?? 0.4);
+      const width = clamp(widthAsked ?? auto, 0.3, clear);
+      const c = centre ?? (a + b) / 2;
+      const start = clamp(c - width / 2, a, b - width);
+      return [start, start + width];
+    };
+    // Beside the low joinery its band reaches: that joinery's stretch an opening.
+    const beside = () => fit(height, low.filter((r) => bandOverlaps(height, r)));
+    let stretch: [number, number] | null;
+    if (low.length === 0) stretch = fit(height, []);
+    else {
+      placement = intent.placement && (DECOR_PLACEMENTS as readonly string[]).includes(intent.placement) ? intent.placement : DEFAULT_PLACEMENT;
+      if (placement === 'full') height = { from: 0, to: H };
+      if (placement === 'beside') stretch = beside();
+      else {
+        stretch = fit(height, []);
+        // Above: raised to the top of the joinery under it, behind none. Full or partial: behind
+        // the closed boxes and carcasses, raised over an open column or a bath's box — what stands
+        // in those stands against the wall and would be pushed off them by the decor.
+        const over = (r: BuiltRect, band: { from: number; to: number }) => bandOverlaps(band, r) && (placement === 'above' || !r.behind);
+        const raiseOver = stretch ? low.filter((r) => alongOverlaps(stretch![0], stretch![1], r) && over(r, height)) : [];
+        if (stretch && raiseOver.length > 0) {
+          const raised = { from: Math.max(...raiseOver.map((r) => r.top)), to: height.to };
+          // Fitted again in its new band, beside any joinery that stands higher still.
+          const again = raised.to - raised.from >= MIN_ABOVE_M ? fit(raised, low.filter((r) => over(r, raised))) : null;
+          if (again) {
+            height = raised;
+            stretch = again;
+          } else {
+            placement = 'beside';
+            stretch = beside();
+          }
+        }
+      }
+    }
+    if (!stretch) return null;
+    [from, to] = stretch;
   }
 
 
@@ -377,6 +458,7 @@ export function resolveDecor(intent: DecorIntent, room: PlanRoom, items: PlacedI
     span: { from: round3(from), to: round3(to) },
     height: { from: round3(height.from), to: round3(height.to) },
     materials: resolveMaterials(family, intent.materials, catalog, params),
+    ...(placement ? { placement } : {}),
   };
 }
 
@@ -401,17 +483,54 @@ const RESOLVED_DECOR_MAX = 4;
  * A room's intents made pieces: at most `RESOLVED_DECOR_MAX`, none on top of another (the first
  * asked wins), one cove. Ids are the room's and a count.
  */
-export function resolveRoomDecor(intents: DecorIntent[], room: PlanRoom, items: PlacedItem[], catalog: CatalogProduct[]): DecorPiece[] {
+export function resolveRoomDecor(intents: DecorIntent[], room: PlanRoom, items: PlacedItem[], catalog: CatalogProduct[], context: DecorContext = {}): DecorPiece[] {
   const pieces: DecorPiece[] = [];
   for (const intent of intents) {
     if (pieces.length >= RESOLVED_DECOR_MAX) break;
-    const piece = resolveDecor(intent, room, items, catalog, `decor-${room.id}-${pieces.length + 1}`);
+    const piece = resolveDecor(intent, room, items, catalog, `decor-${room.id}-${pieces.length + 1}`, context);
     if (!piece) continue;
     if (piece.wallIndex == null && pieces.some((p) => p.wallIndex == null)) continue;
     if (pieces.some((p) => overlaps(p, piece))) continue;
     pieces.push(piece);
   }
   return pieces;
+}
+
+/**
+ * A piece fitted again where it stands in another placement over the low joinery on its wall (the
+ * card's choice, `overBuilt.ts`): its width and its top kept, centred where it is — floor to
+ * ceiling behind the joinery (`full`), from the joinery's top (`above`), its own band (`partial`),
+ * or its family's band beside it (`beside`) — clear of the fixtures, a radiator and the openings as
+ * at generation. Its materials, knobs and anchor are its own. Null where it cannot be fitted there. Pure.
+ */
+export function withPlacement(piece: DecorPiece, placement: DecorPlacement, room: PlanRoom, items: PlacedItem[], context: DecorContext): DecorPiece | null {
+  if (piece.wallIndex == null || !OVER_BUILT_FAMILIES.has(piece.family)) return null;
+  let lo = Math.min(piece.span.from, piece.span.to);
+  let hi = Math.max(piece.span.from, piece.span.to);
+  // A piece beside the joinery asked over it goes over the nearest, at least as wide as it.
+  const low = builtRectsOnWall(context.built ?? [], piece.roomId, piece.wallIndex).filter((r) => r.low);
+  if (placement !== 'beside' && low.length > 0 && !low.some((r) => alongOverlaps(lo, hi, r))) {
+    const gap = (r: BuiltRect) => Math.max(r.from - hi, lo - r.to, 0);
+    const near = low.reduce((best, r) => (gap(r) < gap(best) ? r : best));
+    const width = Math.max(hi - lo, near.to - near.from);
+    lo = (near.from + near.to) / 2 - width / 2;
+    hi = lo + width;
+  }
+  const intent: DecorIntent = {
+    family: piece.family,
+    anchor: 'wall',
+    wallIndex: piece.wallIndex,
+    atM: (lo + hi) / 2,
+    widthM: hi - lo,
+    heightFromM: placement === 'partial' ? piece.height.from : null,
+    heightToM: placement === 'full' ? null : piece.height.to,
+    params: piece.params,
+    materials: [],
+    placement,
+  };
+  const fitted = resolveDecor(intent, room, items, [], piece.id, context);
+  if (!fitted || fitted.wallIndex !== piece.wallIndex) return null;
+  return { ...piece, span: fitted.span, height: fitted.height, placement: fitted.placement ?? placement, origin: 'studio' };
 }
 
 /** A piece's wall edge — for the builders and the panel. */

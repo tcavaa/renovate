@@ -595,6 +595,30 @@ field to say it), TVs over 65″ (the catalogue's largest — larger ones are th
 layout's slot already widens for them), a two-seat sofa kind (the three-seat's slot laid narrower),
 and her "distribute the furniture, don't cluster" and the studio as one space — stage 6.
 
+**Stage 5's decor (decision 8) is built** (24 Nov 2026): wall decor is a finish of the wall. Over low
+joinery — a WC's box, a vanity, a washing machine's column, a bath's box, anything built no higher
+than 1.3 m — a slat field, slab, panel, cladding or mural is placed **full height** (floor to ceiling,
+behind the box or the vanity), **above** (from its top to the ceiling or the height asked),
+**partial** (the width and heights asked, behind it where it reaches it) or **beside** (off its
+stretch, as before); the AI designer chooses per piece (`placement` in its schema, plainly offered in
+the brief, with a `toilet` anchor to centre a piece on the WC and its box), and where it does not —
+and in the studio's card, which offers the four for a piece over low joinery — the engine places it
+**above**: her own example, the box's top carried as a line, no material bought behind the box,
+nothing on its face or on a vanity's top in its way. Whatever the placement it keeps clear of the
+mirror, the basin, its tap, a bath's wall mixer, a radiator, the doors and the windows, and sockets and
+switches are wired after it on its face; tall joinery (a wardrobe, a box to the ceiling, a corner
+leg's wall cabinets) still keeps it beside, and over a washer's open column or a bath's box, where
+what stands in them stands against the wall, full or partial goes above. A full-height piece is
+bought as the wall clad, the part behind the box included. With a stand-in designer asking each
+covering family on every bathroom or toilet wall with low joinery of 792 flats: on the 792 WC-box
+walls 0 → 2,659 pieces above the box (2,490 floor to ceiling behind it when asked full height), beside
+2,291 → 194, left out 877 → 315; on the 565 vanity walls 0 → 436 above the vanity, beside its basin
+and mirror 1,433 → 1,049; decor on a radiator 255 → 0, on a tap or a wall mixer 30 → 0 — the detail in
+[decor.md](decor.md#decor-over-low-joinery-overbuiltts), generation-audit.md W4. The engine alone
+lays no designer decor, so `pnpm audit:generation` is unchanged. Not built: the box's front taking
+the decor's own material for one continuous surface, a niche over the cistern, decor above a box
+under a window, and decor following a box moved by hand.
+
 ## The decisions (owner, 28 Oct 2026)
 
 **Part 1 — technical**

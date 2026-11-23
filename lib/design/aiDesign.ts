@@ -20,7 +20,7 @@ import { generationWeight, kindPool, placeFitting, slotPool, type BudgetLevel, t
 import { randomSeed, seededRng, weightedOrder } from './random';
 import { styleAffinity } from './styles';
 import { flatFinishRoom, isClosedKitchen, isWetRoomType, sharesFlatFinish } from './surfaces';
-import { decorFit, finishCandidates, MAX_DECOR_PER_ROOM, ONE_DECOR_ROOMS, TALL_HEADBOARD_M, type AiProposal, type AiRoomProposal } from './aiProposal';
+import { decorContext, decorFit, finishCandidates, MAX_DECOR_PER_ROOM, ONE_DECOR_ROOMS, TALL_HEADBOARD_M, type AiProposal, type AiRoomProposal } from './aiProposal';
 
 export { MAX_DECOR_PER_ROOM, maxDecor } from './aiProposal';
 import { layOutFlat, type LaidOutFlat } from './generateScene';
@@ -28,9 +28,10 @@ import { pieceWall } from './manipulate';
 import { roomEdges, wallEdges, type PlanEdge } from './planGeometry';
 import { freeSpans, MANTEL_MIN_WALL_M } from './decor/layout';
 import { AI_DECOR_FAMILIES, DECOR_FAMILIES, STYLE_DECOR_FAMILIES, decorSlots, slotTakes, styleTakesLed } from './decor/families';
-import { BACKSPLASH_TOP_M, DECOR_ANCHORS, DESIGN_RANGES, PANEL_MODULE_MM, defaultHeight, type DecorIntent } from './decor/resolve';
+import { BACKSPLASH_TOP_M, DECOR_ANCHORS, DESIGN_RANGES, PANEL_MODULE_MM, defaultHeight, type DecorContext, type DecorIntent } from './decor/resolve';
+import { DECOR_PLACEMENTS, LOW_BUILT_MAX_M, builtRects } from './decor/overBuilt';
 import { decorMaterialKind, decorSpecs, isDecorMaterial } from './decor/materials';
-import type { DecorFamily, DecorParams, DecorPiece, DecorSlot, FloorPlan, PlacedItem, PlanRoom, StyleId, StyleProfile } from './types';
+import type { DecorFamily, DecorParams, DecorPiece, DecorPlacement, DecorSlot, FloorPlan, PlacedItem, PlanRoom, StyleId, StyleProfile } from './types';
 import type { RoomType } from '@/lib/calculator/types';
 import { MissingApiKeyError } from './aiPlan';
 import { styleGuideText, subStyleFor } from './styleGuide';
@@ -320,7 +321,8 @@ function placeText(item: PlacedItem, room: PlanRoom): string {
 /** What the engine built on a wall, in words: the hall's or a bedroom's wardrobe, a vanity, a column, a WC's or a bath's box. */
 function builtText(piece: DecorPiece): string {
   const what = piece.family === 'box' ? (piece.anchor === 'wc' ? "the WC's box" : piece.anchor === 'bath' ? "the bath's box" : 'a box') : 'built-in cabinets';
-  return `${what} ${r2(Math.min(piece.span.from, piece.span.to))}–${r2(Math.max(piece.span.from, piece.span.to))} m, up to ${r2(piece.height.to)} m`;
+  const low = builtRects(piece).some((r) => r.low) ? ' (low: decor may go over it)' : '';
+  return `${what} ${r2(Math.min(piece.span.from, piece.span.to))}–${r2(Math.max(piece.span.from, piece.span.to))} m, up to ${r2(piece.height.to)} m${low}`;
 }
 
 /**
@@ -364,7 +366,8 @@ function wallFamilies(room: PlanRoom, styleId: StyleId): DecorFamily[] {
  * it in order along it, the joinery and boxes built on it, and the stretch each decor family asked
  * for on it is fitted to (`decorFit`) — or that it takes none. Returns the lines and the families it takes.
  */
-function wallText(edge: PlanEdge, room: PlanRoom, items: PlacedItem[], built: readonly DecorPiece[], styleId: StyleId): { lines: string[]; takes: Set<DecorFamily> } {
+function wallText(edge: PlanEdge, room: PlanRoom, items: PlacedItem[], context: DecorContext, styleId: StyleId): { lines: string[]; takes: Set<DecorFamily> } {
+  const built = context.built ?? [];
   const lines: string[] = [];
   const mine = items
     .filter((i) => i.roomId === room.id && i.slot !== 'rug' && getArchetype(i.kind)?.placement.type !== 'ceiling')
@@ -381,13 +384,15 @@ function wallText(edge: PlanEdge, room: PlanRoom, items: PlacedItem[], built: re
   const bySpan = new Map<string, DecorFamily[]>();
   const none: DecorFamily[] = [];
   for (const family of wallFamilies(room, styleId)) {
-    const fit = decorFit(family, edge.index, room, items, built);
+    const fit = decorFit(family, edge.index, room, items, context);
     if (!fit) {
       none.push(family);
       continue;
     }
     takes.add(family);
-    const span = `${r2(fit.span.from)}–${r2(fit.span.to)} m`;
+    // Over low joinery, where the engine's placement (above it) starts it.
+    const over = fit.placement && fit.placement !== 'beside' && fit.height.from > 0.05 ? `, above the low joinery from ${r2(fit.height.from)} m` : fit.placement === 'beside' ? ', beside the low joinery' : '';
+    const span = `${r2(fit.span.from)}–${r2(fit.span.to)} m${over}`;
     bySpan.set(span, [...(bySpan.get(span) ?? []), family]);
   }
   const fits = [...bySpan.entries()].map(([span, families]) => `${families.join(', ')} on ${span}`);
@@ -451,6 +456,8 @@ export function buildBrief(request: AiDesignRequest): { text: string; offer: Off
   const lead = flatFinishRoom(plan.rooms);
   const shared = lead ? finishLists(lead) : null;
 
+  // The joinery and the radiators the designer's decor is fitted against, as `proposalDecor` fits it.
+  const context = decorContext(engine.laid, engine.built);
   for (const planRoom of plan.rooms) {
     const room = engine.rooms.find((r) => r.id === planRoom.id) ?? underCeiling(planRoom, plan);
     lines.push(`\n## Room ${room.id} — "${room.name}" (${room.type}), ${r2(room.areaM2)} m², ceiling ${r2(planRoom.heightM)} m, ${outlineText(room)}`);
@@ -469,7 +476,7 @@ export function buildBrief(request: AiDesignRequest): { text: string; offer: Off
       const clear = freeSpans(edge, room.openings, 0, edge.length, 0.1).map(([a, b]) => `${r2(a)}–${r2(b)}`);
       lines.push(`- wall ${edge.index} (${side(edge)} side), ${r2(edge.length)} m: ${openings.length ? openings.join('; ') : 'solid'}${clear.length ? `; clear stretches ${clear.join(', ')} m` : '; no clear stretch'}`);
       // What stands and hangs on it as the engine laid the flat out, what it built there, and the decor it takes.
-      const wall = wallText(edge, room, engine.items, engine.built, styleId);
+      const wall = wallText(edge, room, engine.items, context, styleId);
       lines.push(...wall.lines);
       walls.set(edge.index, wall.takes);
     }
@@ -583,8 +590,9 @@ Everything you choose is real and purchasable: you pick products and materials o
 ## Custom wall decor
 - Realise concepts from the decor references for the style. Use 1–2 pieces in living rooms, bedrooms, offices and studios; at most one in a ${listText(ONE_DECOR_ROOMS, 'or')} (only the first that can be built is kept); none is fine (storage, closets, toilets, balconies usually get none). Never more than ${MAX_DECOR_PER_ROOM} in a room, never two on the same stretch of wall.
 - Decor by style (the owner's rules): Vintage takes the most decor and characterful details; Modern (minimalist) stays clean — decor used selectively, and the only style with wall panels and with LED (light lines, coves, a lit niche or slab); Scandinavian has no mouldings and no decorative wall treatments — at most a timber slat wall or a niche, and plants and floor lamps rather than decor; Industrial has no mouldings and no concealed or LED light. The families a style does not take are dropped.
-- anchor: bed | tv | sofa | desk | dining | kitchen — centred on that piece, on the wall it stands against (only for pieces the room has: bed in bedrooms — only where "Decor behind the bed" says the bed takes it: a bed ${r2(TALL_HEADBOARD_M)} m tall or more has a headboard of its own and takes none, so choose a lower bed for decor behind it —, tv/sofa in living rooms, desk in offices, dining where a dining table is laid out, kitchen = the kitchen run: a tile or slab backsplash from the worktop to the wall cabinets, the whole length of the run — tiles in a kitchen always go there, and so does a slab on the run's wall or no higher than ${r2(BACKSPLASH_TOP_M)} m); wall — on wall "wallIndex" (the wall numbers above; it is fitted to that wall's longest clear stretch — each wall says under "decor here" which families it takes and on what stretch, as the flat is laid out: ask a wall only for what it takes — a niche or a panel asked on a wall that does not take it is left out; -1 with any other anchor); room — a light cove round the ceiling (rectangular rooms only).
+- anchor: bed | tv | sofa | desk | dining | kitchen — centred on that piece, on the wall it stands against (only for pieces the room has: bed in bedrooms — only where "Decor behind the bed" says the bed takes it: a bed ${r2(TALL_HEADBOARD_M)} m tall or more has a headboard of its own and takes none, so choose a lower bed for decor behind it —, tv/sofa in living rooms, desk in offices, dining where a dining table is laid out, toilet = the WC and its box in a bathroom or toilet, kitchen = the kitchen run: a tile or slab backsplash from the worktop to the wall cabinets, the whole length of the run — tiles in a kitchen always go there, and so does a slab on the run's wall or no higher than ${r2(BACKSPLASH_TOP_M)} m); wall — on wall "wallIndex" (the wall numbers above; it is fitted to that wall's longest clear stretch — each wall says under "decor here" which families it takes and on what stretch, as the flat is laid out: ask a wall only for what it takes — a niche or a panel asked on a wall that does not take it is left out; -1 with any other anchor); room — a light cove round the ceiling (rectangular rooms only).
 - widthM: 0 lets the engine size it (the anchor's width plus a margin, or the whole clear stretch); give a number only when the design needs it. heightFromM / heightToM: -1 for the family's default (a slab behind a TV ${band('slab', 'tv')}, slats behind a bed from ${r2(defaultHeight('slats', 'bed', Infinity).from)} m to ${cm(SLATS_UNDER_CEILING_M)} cm under the ceiling, an upholstered headboard panel ${band('panel', 'bed')}, a tiled field up to ${r2(defaultHeight('tile', 'wall', Infinity).to)} m, a kitchen backsplash from the worktop to the wall cabinets, everything else floor to ceiling); give numbers for a half-height wainscot or a panel above a headboard. A niche is a wall built out about ${(DECOR_FAMILIES.niche.params.depthMm ?? 0) / 10} cm: it goes only on a wall stretch with nothing standing against it (never behind a bath, a washing machine, a bed or a cabinet). Decor never covers a window or a door, and furniture is never hidden by it.
+- placement — decor is a finish of the wall, not an object that avoids the furniture: on a wall with low built-in joinery (a WC's box, a vanity, a washing machine's column, a bath's box — "built in" marks it low, up to ${r2(LOW_BUILT_MAX_M)} m) choose how a slat field, slab, panel, cladding or mural stands against it, as the design intends: full — floor to ceiling, continuing behind the box or the vanity, one continuous feature wall (the whole wall behind the WC in one material); above — from the top of the box or the vanity to heightToM (the ceiling by default), e.g. a stone slab or a fluted panel over a 1.2 m concealed-cistern box; partial — over the part of the wall your widthM and heights give, behind the joinery where it reaches it; beside — kept off the joinery, when that makes a more balanced design; auto — the engine's choice (above). "decor here" gives where it is fitted with auto. Whatever you choose, the engine keeps it clear of the mirror, the basin and its tap, a wall mixer, a radiator, the windows and the doors; behind a washing machine's column or a bath's box it goes above instead (what stands in them stands against the wall); tall joinery (a wardrobe) always keeps it beside. Elsewhere placement is ignored (auto).
 - Families and the materials each part takes (slot (material kinds)):
 ${SLOT_KINDS}
   For each slot give a material id of a kind it takes (leave an optional slot out to go without it), and colorHex only for a tintable material (paint, lacquer, dyed fabric) — a hex colour that suits the palette; \"\" otherwise.
@@ -658,7 +666,7 @@ export const DESIGN_SCHEMA = {
             items: {
               type: 'object',
               additionalProperties: false,
-              required: ['family', 'referenceId', 'concept', 'anchor', 'wallIndex', 'widthM', 'heightFromM', 'heightToM', 'params', 'materials', 'note'],
+              required: ['family', 'referenceId', 'concept', 'anchor', 'wallIndex', 'widthM', 'heightFromM', 'heightToM', 'placement', 'params', 'materials', 'note'],
               properties: {
                 family: { type: 'string', enum: AI_DECOR_FAMILIES },
                 referenceId: { type: 'string', description: '"" when none' },
@@ -668,6 +676,7 @@ export const DESIGN_SCHEMA = {
                 widthM: { type: 'number', description: '0 lets the engine size it' },
                 heightFromM: { type: 'number', description: '-1 for the default' },
                 heightToM: { type: 'number', description: '-1 for the default' },
+                placement: { type: 'string', enum: [AUTO, ...DECOR_PLACEMENTS], description: 'over low joinery on its wall: full, above, partial, beside; auto for the engine\'s' },
                 params: PARAMS_SCHEMA,
                 materials: {
                   type: 'array',
@@ -705,6 +714,7 @@ interface RawDecor {
   widthM: number;
   heightFromM: number;
   heightToM: number;
+  placement?: string;
   params: Record<string, string | number>;
   materials: Array<{ slot: string; productId: number; colorHex: string }>;
   note: string;
@@ -780,6 +790,8 @@ export function validateProposal(raw: { rooms?: RawRoom[] }, plan: FloorPlan, of
         widthM: typeof d.widthM === 'number' && d.widthM > 0 ? d.widthM : null,
         heightFromM: typeof d.heightFromM === 'number' && d.heightFromM >= 0 ? d.heightFromM : null,
         heightToM: typeof d.heightToM === 'number' && d.heightToM > 0 ? d.heightToM : null,
+        // Over low joinery: one of the four, else (auto, anything else) the engine's.
+        placement: (DECOR_PLACEMENTS as readonly string[]).includes(d.placement ?? '') ? (d.placement as DecorPlacement) : null,
         // LED only in Modern: elsewhere a piece's light is switched off.
         params: styleId && !styleTakesLed(styleId) ? { ...readParams(d.params), led: 'none' } : readParams(d.params),
         materials,

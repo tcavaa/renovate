@@ -20,9 +20,10 @@ import { blocksWindow, clampInsideRoom, fitSwapped, footprintInRoom, footprintOf
 import { roomEdges, type PlanEdge } from './planGeometry';
 import type { AiReview } from './aiReview';
 import { finishFromProduct, flatFinishRoom, mayLay, sharesFlatFinish, styleFinishProduct, surfaceOptions } from './surfaces';
-import type { DecorFamily, DecorPiece, DecorSlot, ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, SlotKind, StyleId, SurfaceFinish, Vec2 } from './types';
+import type { DecorFamily, DecorPiece, DecorPlacement, DecorSlot, ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, SlotKind, StyleId, SurfaceFinish, Vec2 } from './types';
 import type { RoomType } from '@/lib/calculator/types';
-import { COVERS_WALL, overlaps, reanchorDecor, resolveDecor, resolveRoomDecor, type DecorIntent } from './decor/resolve';
+import { COVERS_WALL, overlaps, reanchorDecor, resolveDecor, resolveRoomDecor, type DecorContext, type DecorIntent, type WallRect } from './decor/resolve';
+import { radiatorBodies } from './radiators';
 import { underCeiling } from './rules';
 
 export interface AiRoomProposal {
@@ -108,14 +109,26 @@ export function maxDecor(type: RoomType): number {
 }
 
 /**
- * Every room's decor intents measured against the flat as the engine laid it out — its furniture
- * and, `built`, the joinery and boxes it made (the hall's wardrobe, a wall of wardrobe, a vanity, a
- * column, a bath's box): decor that covers its wall keeps off those as it keeps off what hangs there
- * for use (`clearOfBuilt`). A room keeps as many as it takes (`maxDecor`), the first asked of those
- * that can be built: one the flat cannot take does not stand in for one it can.
+ * The flat's radiators in their walls' frames, and the joinery and boxes the engine built: what the
+ * designer's decor is fitted against besides the furniture (`resolveDecor`).
+ */
+export function decorContext(plan: FloorPlan, built: readonly DecorPiece[]): DecorContext {
+  const radiators: WallRect[] = radiatorBodies(plan).map((b) => ({ roomId: b.room.id, wallIndex: b.edge.index, from: b.from, to: b.to, bottom: b.bottom, top: b.top }));
+  return { built, radiators };
+}
+
+/**
+ * Every room's decor intents measured against the flat as the engine laid it out — its furniture,
+ * its radiators and, `built`, the joinery and boxes it made (the hall's wardrobe, a wall of
+ * wardrobe, a vanity, a column, a WC's or a bath's box): decor that covers its wall keeps beside the
+ * tall joinery as it keeps off what hangs there for use, and over the low joinery is placed as the
+ * designer asked — behind it, above it, or beside it (`resolveDecor`, `overBuilt.ts`). A room keeps
+ * as many as it takes (`maxDecor`), the first asked of those that can be built: one the flat cannot
+ * take does not stand in for one it can.
  */
 export function proposalDecor(plan: FloorPlan, proposal: AiProposal | null | undefined, items: PlacedItem[], catalog: CatalogProduct[], built: readonly DecorPiece[] = []): DecorPiece[] {
   if (!proposal) return [];
+  const context = decorContext(plan, built);
   return plan.rooms.flatMap((room) => {
     const asked = proposal.rooms.find((r) => r.roomId === room.id);
     if (!asked) return [];
@@ -123,52 +136,24 @@ export function proposalDecor(plan: FloorPlan, proposal: AiProposal | null | und
     const bed = items.find((i) => i.roomId === room.id && i.slot === 'bed');
     const ownHeadboard = !!bed && bed.size.height >= TALL_HEADBOARD_M;
     const wanted = ownHeadboard ? asked.decor.filter((d) => d.anchor !== 'bed') : asked.decor;
-    return clearOfBuilt((r) => resolveRoomDecor(wanted, r, items, catalog), underCeiling(room, plan), built).slice(0, maxDecor(room.type));
+    return resolveRoomDecor(wanted, underCeiling(room, plan), items, catalog, context).slice(0, maxDecor(room.type));
   });
 }
 
 /**
  * Where a decor piece of `family` asked for on wall `wallIndex` would be fitted in the flat as laid
- * out — its furniture `items` and the joinery and boxes `built` — fitted as `proposalDecor` fits the
- * designer's (`resolveDecor`, kept off the joinery by `clearOfBuilt`), at the family's own height:
+ * out — its furniture `items`, the joinery and boxes and the radiators of `context` — fitted as
+ * `proposalDecor` fits the designer's (`resolveDecor`), at the family's own height and over low
+ * joinery in the engine's placement (`DEFAULT_PLACEMENT`, above it) unless `placement` says another:
  * the piece, or null where it would be left out (no stretch clear of the openings, of what hangs
- * there for use and of the joinery — and for a niche, built out, of all that stands against the
- * wall; a niche or a panel needs 1.2 m). What the designer is told each wall takes. Pure.
+ * there for use, of a radiator and of the tall joinery — and for a niche, built out, of all that
+ * stands against the wall; a niche or a panel needs 1.2 m). What the designer is told each wall takes. Pure.
  */
-export function decorFit(family: DecorFamily, wallIndex: number, room: PlanRoom, items: PlacedItem[], built: readonly DecorPiece[]): DecorPiece | null {
-  const intent: DecorIntent = { family, anchor: 'wall', wallIndex, widthM: null, heightFromM: null, heightToM: null, params: {}, materials: [], referenceId: null, concept: null, note: null };
+export function decorFit(family: DecorFamily, wallIndex: number, room: PlanRoom, items: PlacedItem[], context: DecorContext, placement: DecorPlacement | null = null): DecorPiece | null {
+  const intent: DecorIntent = { family, anchor: 'wall', wallIndex, widthM: null, heightFromM: null, heightToM: null, params: {}, materials: [], referenceId: null, concept: null, note: null, placement };
   // No catalogue: the materials do not move the piece.
-  const fitted = clearOfBuilt((r) => [resolveDecor(intent, r, items, [], `fit-${room.id}-${wallIndex}`)].filter((d): d is DecorPiece => !!d), room, built)[0];
+  const fitted = resolveDecor(intent, room, items, [], `fit-${room.id}-${wallIndex}`, context);
   return fitted && fitted.wallIndex === wallIndex ? fitted : null;
-}
-
-/** Joinery and boxes the engine built on a wall: what decor covering the wall cannot stand behind. */
-function isBuilt(piece: DecorPiece): boolean {
-  return (piece.family === 'cabinet' || piece.family === 'box') && piece.wallIndex != null;
-}
-
-/**
- * Decor `resolve`d in a room, kept off the engine's joinery and boxes there: decor that covers its
- * wall (`COVERS_WALL`: slats, a slab, panels, cladding, a mural, tiles, a niche) and would stand
- * behind one at its height is fitted again with that joinery's stretch as an opening, beside it —
- * and left out where it still would. Decor that does not cover its wall (mouldings, a light line)
- * and decor clear of the joinery are fitted as they were. Pure.
- */
-function clearOfBuilt(resolve: (room: PlanRoom) => DecorPiece[], room: PlanRoom, built: readonly DecorPiece[]): DecorPiece[] {
-  const joinery = built.filter((d) => d.roomId === room.id && isBuilt(d));
-  const behind = (piece: DecorPiece, of: readonly DecorPiece[]) => COVERS_WALL.has(piece.family) && of.some((d) => overlaps(piece, d));
-  const first = resolve(room);
-  const clash = joinery.filter((d) => first.some((piece) => behind(piece, [d])));
-  if (clash.length === 0) return first;
-  const edges = roomEdges(room.polygon);
-  const openings = clash.flatMap((d) => {
-    const edge = edges.find((e) => e.index === d.wallIndex);
-    if (!edge) return [];
-    const from = Math.min(d.span.from, d.span.to);
-    const to = Math.max(d.span.from, d.span.to);
-    return [{ id: `built-${d.id}`, roomId: room.id, kind: 'window' as const, wallIndex: edge.index, t: (from + to) / 2 / edge.length, widthM: to - from, heightM: d.height.to, sillM: 0, exterior: false }];
-  });
-  return resolve({ ...room, openings: [...room.openings, ...openings] }).filter((piece) => !behind(piece, joinery));
 }
 
 /** A bed this tall has a headboard that is its own wall panel (B-6). */
@@ -465,16 +450,18 @@ export function applyReviewFixes(items: PlacedItem[], decor: DecorPiece[], revie
         anchor: 'wall',
         wallIndex: fix.wallIndex,
         widthM: piece.span.to - piece.span.from > 0 ? piece.span.to - piece.span.from : null,
-        heightFromM: piece.height.from,
+        // Above or full height it is fitted to the new wall's joinery again; its own band elsewhere.
+        heightFromM: piece.placement === 'above' || piece.placement === 'full' ? null : piece.height.from,
         heightToM: piece.height.to,
         params: piece.params,
         materials: Object.entries(piece.materials).map(([slot, m]) => ({ slot: slot as DecorSlot, productId: m?.product?.productId ?? null, colorHex: m?.colorHex ?? null })),
         referenceId: piece.reference?.entryId ?? null,
         concept: piece.reference?.concept ?? null,
         note: piece.note ?? null,
+        placement: piece.placement ?? null,
       };
-      // Kept off the engine's joinery on that wall, as the designer's decor is when it is first fitted.
-      const moved = clearOfBuilt((r) => [resolveDecor(intent, r, out, catalog, piece.id)].filter((d): d is DecorPiece => !!d), room, pieces)[0];
+      // Fitted against the engine's joinery and the radiators on that wall, as the designer's decor is when it is first fitted.
+      const moved = resolveDecor(intent, room, out, catalog, piece.id, decorContext(plan, pieces));
       if (moved && !pieces.some((d) => d.id !== piece.id && overlaps(d, moved))) {
         pieces = pieces.map((d) => (d.id === piece.id ? moved : d));
         decorRooms.add(piece.roomId);

@@ -27,7 +27,8 @@ proposal goes through) · [3d-engine.md](3d-engine.md) · [studio.md](studio.md)
 | `lib/design/decor/materials.ts` | decor materials: `DECOR_MATERIAL_CATEGORY` (`decor-materials`), the kinds (`decor-<kind>` sub-categories), `isDecorMaterial`, `decorMaterialsOf`, `defaultDecorMaterial` (an LED defaults to the warmest), `decorSpecs`, `ledColor` |
 | `lib/design/decor/layout.ts` | the fit, pure and in the wall's frame: `decorWall`, `freeSpans`, `fitSlats`, `fitMoulding`, `fitNiche`, `fitField`, `fitLight` |
 | `lib/design/decor/quantities.ts` | what a piece uses per slot in m², metres and pieces (`decorUses`), bought in the material's unit with the waste (`quantityIn`, `DECOR_WASTE`), per piece (`piecePurchases`, `pieceCost`) and folded per product across the flat (`decorPurchases`); `decorProductIds` for the save route |
-| `lib/design/decor/resolve.ts` | intents → pieces: `resolveDecor` / `resolveRoomDecor` (anchors, walls, stretches off doors and windows, heights, `sanitizeParams`, `resolveMaterials`), `wallBehind`, `decorMaterialFrom` |
+| `lib/design/decor/resolve.ts` | intents → pieces: `resolveDecor` / `resolveRoomDecor` (anchors, walls, stretches off doors, windows, fixtures, radiators and tall joinery, the placement over low joinery, heights, `sanitizeParams`, `resolveMaterials`), `withPlacement` (the card's placement), `wallBehind`, `decorMaterialFrom` |
+| `lib/design/decor/overBuilt.ts` | decor and the low joinery under it (decision 8): `DECOR_PLACEMENTS`, `DEFAULT_PLACEMENT` (above), `LOW_BUILT_MAX_M`, `MIN_ABOVE_M`, `OVER_BUILT_FAMILIES`, `builtRects` / `builtRectsOnWall` (a cabinet section by section), `placementOver` (behind, above or beside, read from where a piece is) |
 | `lib/design3d/decor.ts` | `buildDecor` / `buildDecorPiece`: every family in 3D from the same fit; its own material cache (`decorMaterial`, `releaseDecorMaterials`); LED glow cards |
 | `lib/design/aiProposal.ts` | the proposal's shape and how it becomes a flat: `proposalPicks`, `withProposalFinishes`, `proposalDecor`, `proposalNotes`, `MAX_AI_GENERATIONS`; `withoutArtOverDecor` (no print over built decor); `applyReviewFixes` (the check's fixes, pure) |
 | `lib/design/aiReview.ts` | server only: the designer's check of the furnished flat — `reviewFindings` (what measuring each room finds wrong), `buildReviewBrief`, `REVIEW_SCHEMA`, `validateReview`, `reviewWithClaude` |
@@ -45,6 +46,7 @@ proposal goes through) · [3d-engine.md](3d-engine.md) · [studio.md](studio.md)
 | `components/studio/DecorPanel.tsx` | the card of a selected piece |
 | `lib/db/migrations/0005_decor_materials.sql` | the category tree, the starter materials and the workshop store |
 | `tests/unit/design/decor.test.ts` | the fit, the quantities, the budget lines, the resolver, the proposal and its validation (the families and LED a style takes) |
+| `tests/unit/design/decorOverBuilt.test.ts` | decor over low joinery: above a WC's box by default, full height behind it, partly, beside it; beside a box to the ceiling and a corner leg's wall cabinets; above a vanity clear of its basin, tap and mirror; above a washer's column or a bath's box when asked behind; off a radiator; the card's placement; the schema, the prompt, the validation and a check's move |
 | `tests/unit/design/decorResize.test.ts` | the arrows dragged (one side, from the middle, kept on the wall and under the ceiling, the smallest size) and the card's sizes |
 | `tests/unit/design/housing.test.ts` | a WC and its box, a machine and its column, a basin and its vanity moved either way; a section leaving a longer run; joinery resized for real and stopped by doors, furniture and other joinery; decor moved by hand; a catalogue shower’s glass; a bathroom as generation finished it left as it is by the studio’s settling, and a piece set down given what generation builds for it there |
 | `tests/unit/design/kitchenCorner.test.ts` | the leg at either corner, under a window, stopped by a door or furniture, resized, following its run, the generation's corner kitchens (a leg off a radiator's strip, read by where the radiator stands and off the plan itself, not the rooms under their ceilings; the floor a corner would take, said beforehand) |
@@ -65,7 +67,9 @@ finish's span) and a band of height (`height`); a cove runs round the room's cei
 (`specs.tintable`), and the specs it draws with copied from the catalogue (`textureScaleM`,
 `tintable`, `cct`, `profileMm`, `roughness` — a `SceneProduct` carries no specs). `reference` is
 the library entry and concept it realises, `note` the designer's sentence, `origin` `ai` or
-`studio` (edited since). A piece built for a piece of
+`studio` (edited since), `placement` how it stands against the low joinery on its wall (`full`,
+`above`, `partial`, `beside` — set where its wall has low joinery when it was fitted;
+[Decor over low joinery](#decor-over-low-joinery-overbuiltts)). A piece built for a piece of
 furniture names it: a box its WC or its bath and a kitchen's corner leg its run (`itemId`), a
 cabinet's section the basin or the machine standing in it (`CabinetSection.itemId`) — see
 [Furniture and what is built for it](#furniture-and-what-is-built-for-it-housingts). `scene.generation` records how the flat was generated (`engine` or `ai`,
@@ -161,6 +165,72 @@ The reference library's rules, as code:
   one (B-10); beside a shorter one it stays and is kept clear of its doors. Sliding doors are drawn
   as leaves on two tracks across the door sections, no wider than a metre, a rail along the top
   (`addSlidingLeaves`), and priced as hinged ones: by the façade.
+
+## Decor over low joinery (`overBuilt.ts`)
+
+Nini's decision 8 (24 Nov 2026): wall decor is **a finish of the wall**, not an object that keeps off
+every piece of furniture. Over **low joinery** — a WC's installation box (1 m), a vanity (70–90 cm),
+a washing machine's column (90 cm), a bath's box; any block whose top is no higher than
+`LOW_BUILT_MAX_M` (1.3 m), a cabinet read section by section (`builtRects`) — a slat field, a slab, a
+panel, cladding, a mural or a tiled field is placed in one of four ways (`DecorPlacement`, the
+piece's `placement`):
+
+- **full** — floor to ceiling, continuing behind the box or the vanity: one feature wall (the heights
+  asked are ignored);
+- **above** — from the top of the joinery under it to the height asked (the ceiling by default): the
+  box's top is a line the decor carries along its whole stretch;
+- **partial** — at the width and the heights the designer asked, behind the joinery where it
+  reaches it;
+- **beside** — kept off the joinery's stretch (10 cm aside, as off an opening), as all decor was
+  before.
+
+**The engine's default is above** (`DEFAULT_PLACEMENT`): it is Nini's own example (a stone slab or a
+fluted panel from the top of a 1.2 m concealed-cistern box to the ceiling), it buys no material
+hidden behind the box, and nothing on the box's face (the flush plate) or a vanity's top stands in
+it; the designer chooses full height for a continuous wall. Above needs `MIN_ABOVE_M` (40 cm) of wall
+over the joinery, else the piece goes beside it.
+
+What it is never placed behind: **tall joinery** (a wardrobe, the hall's cupboards, a box to the
+ceiling) and **what hangs over joinery** (a corner leg's wall cabinets) keep it beside whatever was
+asked; **an open section** (the washer's column) **and a bath's box** — what stands in them stands
+against the wall and `clearOfDecor` would push it off its housing by the decor's depth — take full
+or partial as above. A niche wall is built out and keeps off everything standing against its wall,
+joinery included; mouldings and light lines are drawn as before. **Whatever the placement, decor keeps
+clear of the fixtures** (`fixturesOnWall`): in a bathroom or a toilet everything hung on its wall for
+use — the mirror, the basin on its vanity, its tap, a bath's wall mixer, kept clear even when its top
+is up to 5 cm under the decor — the kitchen's wall cabinets, **a radiator** at the decor's height
+(`DecorContext.radiators`, from `radiatorBodies`) and the doors and windows. So over a vanity the
+decor runs beside the basin, the tap and the mirror over the part of the vanity they leave. Sockets
+and switches are wired after the decor (`generateScene`: `proposalDecor`, then `suggestElectrical`
+with the decor) and set on its face (`decorFaceAt`), never behind joinery (`wallBlocks`).
+
+How it is fitted (`resolveDecor`, given `{ built, radiators }`): the band (floor to ceiling for
+full), then the stretch clear of the openings, the fixtures, the radiators and the tall joinery at
+that band; for above (and full or partial over an open column or a bath's box) the band is raised to
+the top of the joinery under that stretch and the stretch fitted again in it, beside any joinery
+standing higher still; for beside the low joinery is an opening. The piece records its placement.
+`proposalDecor`, `decorFit` (what the brief says each wall takes, `decorContext(plan, built)`) and a
+check's `decor_to_wall` (the placement kept, an above or full piece's band fitted afresh on the new
+wall) all fit this way, one intent at a time — the joinery's stretch is no longer opened for every
+intent of a room.
+
+**Measured** (a stand-in designer asking for each of slab, cladding, panel and slats on every
+bathroom or toilet wall with low joinery of the 792 fixture flats — 1,350 walls, 5,400 asks; the
+script under the session's scratchpad, `count-placements.ts`): on the 792 walls with a WC's box,
+before 2,291 pieces fitted beside it (30 of them 2–10 cm into the box) and 877 left out; now with
+the default 2,659 above the box, 194 beside it (the box under a window or the stretch over it
+blocked), 315 left out — asked full height, 2,490 floor to ceiling behind the box and 156 behind it
+from a neighbouring column's top. On the 565 vanity walls, before 1,433 beside (174 of them 2–10 cm
+into the vanity) and 443 left out; now 436 above the vanity and 1,049 beside its basin, tap and
+mirror, 391 left out. Decor over a radiator 255 → 0, on a tap 15 → 0, on a bath's wall mixer 15 → 0.
+
+**The quantity is the wall as clad**: a full-height piece is bought over its whole stretch and
+height, the part behind the box or the vanity included — it is built as one field (about the area
+of the box's front, which keeps its own finish). **In 3D** the box or the vanity stands in front of
+the decor: a WC's box (20 cm) and a vanity's carcass (50 cm) are deeper than any decor (a slab on its
+stand-off is about 6 cm), and above, the decor's underside meets the joinery's top face to face,
+each culled from the other's side — no surface lies in another. A bath's box (with its strip on the
+wall) is never stood behind.
 
 ## What it costs (`quantities.ts`)
 
@@ -260,6 +330,16 @@ by hand (`anchor: 'wall'`). **Joinery and boxes move as furniture does** (`stand
 pointer's spot on the floor always picks the room and the wall — the nearest, the piece's own
 holding on a little — and the place along it, so a cupboard is dragged across the flat onto any wall; they stay
 on the floor and have no bottom arrow (`hiddenHandles`).
+
+**Over low joinery** (decision 8). A slat field, slab, panel, cladding or mural on a wall with a
+WC's box, a vanity or another low piece of joinery has a row on its card — full height, above,
+partly, beside (`placementOver` decides whether it shows; the piece's `placement` which is lit).
+Each fits the piece again where it stands (`setDecorPlacement` → `withPlacement`: its width and top
+kept, its materials and knobs its own, one undo step): floor to ceiling behind the joinery, from its
+top, its own band, or its family's band beside it — clear of the mirror, the basin, the taps and a
+radiator as at generation. A piece beside the joinery asked over it goes over the nearest, at least
+as wide as it. The store keeps nothing else in step: a box moved or resized by hand leaves the decor
+over it as it was.
 
 **Joinery is resized for real** (`cabinetAtExtent`). A cabinet's sections each have their own
 height, so a height dragged on the piece used to change nothing. Now the sections that reached the
@@ -444,11 +524,12 @@ the project opens furnished afterwards.
    and the box it fits in), its walls by index (side of the plan, length, doors,
    windows with sills and heads, clear stretches) and on each wall, in order along it, what stands
    against it and hangs on it with its stretch and height, the joinery and boxes built there (the
-   hall's wardrobe, a wall of wardrobe, a vanity, a column, a WC's or a bath's box) and **the decor
-   families it takes and the stretch each is fitted to** (`decorFit` in `aiProposal.ts`: a piece of
-   the family asked for on that wall, fitted as the designer's decor is — `resolveDecor`, kept off
-   the joinery by `clearOfBuilt` — at the family's own height; `Offer.decorWalls` records it, a
-   record and not a filter); then **the
+   hall's wardrobe, a wall of wardrobe, a vanity, a column, a WC's or a bath's box, the low ones
+   marked "decor may go over it") and **the decor families it takes and the stretch each is fitted
+   to** (`decorFit` in `aiProposal.ts`: a piece of the family asked for on that wall, fitted as the
+   designer's decor is — `resolveDecor` with the joinery and the radiators, `decorContext` — at the
+   family's own height and, over low joinery, in the engine's placement: "above the low joinery from
+   1 m"; `Offer.decorWalls` records it, a record and not a filter); then **the
    pieces the engine laid out** there, each a place of its laid size where it stands (against which
    wall and where along it, hung how high, from the ceiling, under the bed, free in the room), with
    12 products per kind; 10 floor and 10 wall finishes for the room — what the engine would lay
@@ -537,11 +618,14 @@ the project opens furnished afterwards.
    out (`withoutArtOverDecor`): the decor is the picture there. The other way round, such decor keeps
    off what hangs on a wall for use at its height — the mirror over a bathroom's or toilet's basin,
    the kitchen's wall cabinets (`fixturesOnWall` in `resolve.ts`; a backsplash runs under the
-   cabinets): a niche goes beside the mirror, or not at all. **It keeps off the engine's joinery and
-   boxes the same way** (`clearOfBuilt`): the hall's wardrobe, a wall of wardrobe, a vanity, a
-   washing machine's column, a bath's box and the WC's box are built first and handed to
-   `proposalDecor`, and decor that covers its wall and would stand behind one at its height is fitted
-   beside it — or left out where no stretch beside is clear (a check's `decor_to_wall` likewise).
+   cabinets): a niche goes beside the mirror, or not at all. **Over the engine's low joinery it is placed
+   as the designer asked** — full height behind a WC's box or a vanity, above it, partly or beside it
+   (`placement`, [Decor over low joinery](#decor-over-low-joinery-overbuiltts)) — and **it keeps off the
+   engine's tall joinery** as it keeps off an opening: the hall's wardrobe, a wall of wardrobe, a box to
+   the ceiling, a corner leg's wall cabinets — the joinery and boxes are built first and handed to
+   `proposalDecor`, and decor that covers its wall and would stand behind tall joinery at its height
+   is fitted beside it, or left out where no stretch beside is clear (a check's `decor_to_wall`
+   likewise). It keeps off a radiator on its wall the same way.
    **A niche wall is built out about
    30 cm, so it keeps off everything standing against its wall** (`floorPiecesOnWall`): one used to
    run the whole bathroom wall behind the bath and the washing machine. Thinner decor stays, and what
@@ -740,8 +824,15 @@ the next run). The route logs every run's tokens, cost and seed (`ai-generate`).
   whether a mirror goes over a tall wall tap (the 43 cm panel mixer) — it is raised clear of it,
   its middle up to about 2 m ([generation-audit.md](generation-audit.md), O4 and W2).
 - No labour line for fitting decor: the materials are bought, the installation is not priced.
-- A cove needs a rectangular room; niches and fields do not check a socket or a radiator on their
-  wall (the rules module of [ai-layout-plan.md](ai-layout-plan.md) is not written).
+- Decor over low joinery (decision 8): a full-height piece behind a WC's box leaves the box's own
+  front as it is (painted, or its own tile or stone) — the box does not take the decor's material, so
+  "the whole wall in one material" reads as the wall behind a box of another finish; a niche is never
+  built over a box (a recessed shelf over the cistern is a classic, but a niche wall is a build-out
+  of the whole stretch); decor never covers a window, so a box under a toilet's high window gets
+  nothing above it; and a box or vanity moved or resized by hand leaves the decor over it as it was
+  (the card's placement fits it again).
+- A cove needs a rectangular room; niches and fields keep off a radiator and the sockets on them are set on
+  their face, but no other rule of a wall is checked (the rules module of [ai-layout-plan.md](ai-layout-plan.md) is not written).
 - The model's furniture choices are product picks for the engine's slots (the plan's phase 1); it
   does not yet decide the room program or the walls the furniture stands against.
 - No evaluation set yet: the model and the prompt are not compared against the engine on fixed plans.

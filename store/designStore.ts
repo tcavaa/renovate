@@ -22,9 +22,9 @@ import { debouncedStorage } from '@/lib/flow/storage';
 import { z } from 'zod';
 import { historyGroup } from '@/lib/design/historyGroup';
 import { decorPieceSchema, electricalPointSchema, floorPlanSchema, placedItemSchema, styleProfileSchema, surfaceFinishSchema, MAX_VERSIONS } from '@/lib/validations/design.schema';
-import type { AiProposal } from '@/lib/design/aiProposal';
+import { decorContext, type AiProposal } from '@/lib/design/aiProposal';
 import { defaultFinishes, generateScene, keepChosen, placeableOnly } from '@/lib/design/generateScene';
-import { reanchorDecor } from '@/lib/design/decor/resolve';
+import { reanchorDecor, withPlacement } from '@/lib/design/decor/resolve';
 import { adoptHoused, carryCompanions, carryHoused, carryRiders, cabinetAtExtent, freeExtent, isKitchenLeg } from '@/lib/design/decor/housing';
 import { joineryFace, joineryMaterial } from '@/lib/design/decor/joinery';
 import type { DecorPlace } from '@/lib/design/decor/resize';
@@ -77,6 +77,7 @@ import type {
   Beam,
   Column,
   DecorParams,
+  DecorPlacement,
   DecorPiece,
   DecorMaterial,
   DecorSlot,
@@ -420,6 +421,11 @@ export interface DesignActions {
    * with it (`lib/design/decor/housing`). False when it would not fit.
    */
   setDecorExtent: (id: string, extent: Pick<DecorPiece, 'span' | 'height'>) => boolean;
+  /**
+   * A decor piece fitted again over the low joinery on its wall — floor to ceiling behind it, above
+   * it, at its own height or beside it (`withPlacement`, Nini's decision 8). False when it cannot be fitted so.
+   */
+  setDecorPlacement: (id: string, placement: DecorPlacement) => boolean;
   /** A decor piece moved by hand: slid along its wall, up it, or onto another wall of its room. False when joinery has no room there. */
   moveDecor: (id: string, place: DecorPlace) => boolean;
   removeDecor: (id: string) => void;
@@ -1315,6 +1321,19 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
             const next: DecorPiece = { ...cabinetAtExtent(linked, free, s.items), origin: 'studio' };
             ok = true;
             return { decor: decor.map((d) => (d.id === id ? next : d)), items: carryHoused(linked, next, s.items, s.plan!.rooms) };
+          });
+          return ok;
+        },
+        setDecorPlacement: (id, placement) => {
+          let ok = false;
+          commit((s) => {
+            const piece = s.decor.find((d) => d.id === id);
+            const room = piece && s.plan?.rooms.find((r) => r.id === piece.roomId);
+            if (!piece || !room || !s.plan) return null;
+            const next = withPlacement(piece, placement, underCeiling(room, s.plan), s.items, decorContext(s.plan, s.decor));
+            if (!next) return null;
+            ok = true;
+            return { decor: s.decor.map((d) => (d.id === id ? next : d)) };
           });
           return ok;
         },

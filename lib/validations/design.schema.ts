@@ -341,7 +341,8 @@ export const decorPieceSchema = z.object({
   reference: z.object({ entryId: z.string().max(64), concept: z.string().max(300) }).nullable().optional(),
   note: z.string().max(600).nullable().optional(),
   origin: z.enum(['ai', 'studio']).optional(),
-  anchor: z.enum(['bed', 'tv', 'sofa', 'desk', 'dining', 'kitchen', 'wall', 'room', 'wc', 'joinery', 'bath']).nullable().optional(),
+  anchor: z.enum(['bed', 'tv', 'sofa', 'desk', 'dining', 'kitchen', 'toilet', 'wall', 'room', 'wc', 'joinery', 'bath']).nullable().optional(),
+  placement: z.enum(['full', 'above', 'partial', 'beside']).nullable().optional(),
   itemId: z.string().max(200).nullable().optional(),
 });
 
