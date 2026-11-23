@@ -131,7 +131,7 @@ Still as before, because each is a matter of which piece gives way (the owner's 
 bathrooms with no shower or bath 36 %, no mirror about 30 %, no WC 11 %; studios with no TV unit
 76 %, no sofa 22 %, no fridge 22 %.
 
-**Waiting for the owner** — decisions the fixes ran into, each written at its item:
+**The owner's decisions** — the fixes ran into these 13; Nini answered them on 23 Nov 2026 and they are being built in stages ([design-rules.md](design-rules.md#the-fourth-round-generation-decisions-nini-23-nov-2026)). The questions as they were put:
 
 1. *The TV on a real wall beyond 3.5 m* (O7, RL1): the sofa is now placed where its TV unit gets a
    real wall, at any distance the unit's rule allows; where that wall is 3.7–4.8 m off (#357, #365,

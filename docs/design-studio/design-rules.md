@@ -24,6 +24,8 @@ The brief was built in five stages, each tested, documented and committed on its
 | 4 | gypsum and stretch ceilings lower the room, the LED cove's sizes, the wall-hung WC's gypsum box, the boiler's ventilated cabinet (priced by material, like kitchens) | **built** |
 | 5 | light colour by room (3D and lamp choice), the four styles' guides for the AI designer and the matcher, warnings on the plan PDF and in the AI's room check | **built** |
 
+Later rounds: the guidelines (29 Oct), the rulebook (6 Nov), the fitted pieces (13 Nov) and the generation decisions (23 Nov, in stages — below).
+
 ## The second round: the "guidelines for AI website" (owner, 29 Oct 2026)
 
 A second document of notes (general principles, the four styles, lighting, furniture, bathrooms,
@@ -444,6 +446,42 @@ Nine notes on what is built round the furniture, and the answers to the three qu
 9. **Automatic technical placement in a furnished flat reads the furniture and the decor first.**
    Answer: new points keep clear; points already placed are left where they are
    ([technical-and-fittings.md](technical-and-fittings.md)).
+
+## The fourth round: generation decisions (Nini, 23 Nov 2026)
+
+The generation audit ([generation-audit.md](generation-audit.md#where-it-stands-18-nov-2026)) left 13
+decisions only the owner could take; Nini answered each, with notes
+(`docs/design-studio/ROOMIT-generation-decisions-Nini.docx` — the decision numbers below are its). Her
+answers, as the app is to follow them, and the stage each is built in:
+
+| # | Decision | Nini's answer | Stage |
+|---|---|---|---|
+| 1 | The TV unit's only wall is 3.7–4.8 m from the sofa | Keep the TV on that wall and **choose a larger screen the farther the wall** | 3 |
+| 2 | No sofa spot gives the TV unit a wall (15 rooms) | Lay the space out as one: a studio's kitchen with an island that is also the dining table, the sofa's back to the kitchen and the TV on the blank wall; better, where the walls allow, the sofa on one wall, the TV opposite and the kitchen along the third, facing the living area | 3, 6 |
+| 3.1 | Bathroom fallbacks | In order: the door's clear zone 70 cm and the door's width (where the door still opens and the way is usable) → a shower across the end of a narrow bathroom (glass, a curtain where very tight) → a shower instead of a bath → a smaller or wall-hung WC, a compact or corner basin → the mirror on another wall near the basin → a smaller shower (70 × 90 only where allowed and comfortable). Last resort: a sliding or outward-opening door. **Must-haves**: the WC, then the basin with its mirror and the shower (equal, in a flat's only bathroom), then the washing machine, and a bath only in a larger room | 1 (zone), 2 |
+| 3.2 | Bedroom fallbacks | In order: a smaller door zone → a 1.4 m double → the bed's long side on a wall → no or a smaller wardrobe → one nightstand → a single bed. **A wardrobe is a must, smaller if need be**; a room under 11 m², or one no double or queen fits, takes a single bed; compact or sliding wardrobes, storage round the bed; essentials before lamps and accessories | 2 |
+| 3.3 | Living-room fallbacks | In order: a 1.2 m TV unit → a two-seat sofa → the unit on a side wall → less room between the coffee table and the unit → a TV on the wall with no unit → no coffee table (she would rather have a console behind the sofa). The sofa may stand away from the walls, its back dividing the areas; smaller, round or nesting tables; a TV on a swivel bracket when it cannot face the sofa; **furniture chosen and placed by the room's proportions, walls, doors and circulation, not its area** (4.7 × 4.7 m takes a corner sofa, 2.75 × 8 m a straight one), the dining table towards the kitchen and the sofa and TV in the other part — no clustering in one half | 3, 6 |
+| 3.4 | Studio fallbacks | In order: the kitchen placed by the doors, windows and water (not a fixed 35 % strip) → a smaller sofa → the sofa as the divider, back to the kitchen → the fridge as a tall unit at the run's end or under the counter → a shorter run → a TV on the wall with no unit. **The studio is one space**, not two rooms split by a line: the kitchen along one wall with an island or table before it and the sofa's back to it, or the kitchen at one end of a narrow studio; no clustering | 6 |
+| 3.5 | Kitchen fallbacks | In order: the run on another wall so the table fits → the fridge on another wall → a shorter run → a smaller table, two seats or a counter → the L's leg under a window → an island. **Must-haves, unranked**: the sink, the fridge, the hob and the oven, and a dining table (or an island where there is room); then the cooking zone, then preparation worktop; a separate tall unit for the oven and microwave. Run: 1.8 m the preferred minimum, 1.5 m in very small kitchens, 1.2 m only in a compact studio. An island only where the geometry gives room all round (about 22–27 m², but by proportions, not area); a peninsula or breakfast counter instead where tight; the fridge–sink–hob relation kept | 4 |
+| 3.6 | Washing machine, balcony | The machine in the bathroom, else the hall, else the kitchen, else the balcony; a laundry closet or a stacked washer-dryer integrated in joinery where there is room and connections. **Balconies are furnished**: a compact table and two chairs as the proportions allow, a folding table or one chair on a narrow balcony, planters that keep the way and the light | 4 |
+| 4 | A wall of wardrobe's clear floor | **75 cm for hinged doors, 60 cm for sliding doors**; a shorter built wardrobe before giving up, a shallower one where 60 cm deep does not fit, else a compact shop wardrobe; bed, nightstands and wardrobe judged together | 1 |
+| 5 | The boiler where the hall wardrobe is | **A ventilated section of the hall wardrobe**, its own compartment apart from the coats and shoes, in the wardrobe's materials, at the boiler's real position, with service room; a separate cupboard only where integrating it would cost essential storage or access; never a section with no boiler; never two enclosures for one boiler | 1 |
+| 6 | The style's own floor; Industrial's slate | **The style's own floor first** in tiled rooms without water, not rigidly; a closed kitchen may continue the living room's floor; balconies only outdoor-rated, slip-resistant materials; finishes combined deliberately across the flat, not drawn room by room. The slate in bathrooms where it is technically wet-rated — else a wet-rated slate is added to the catalogue (admin's) | 1 |
+| 7 | An outside door with nothing chosen | **A balcony door is priced in the windows' category** — a glazed door in metal-plastic, aluminium or wood, as the windows are — not as an entrance door | 1 |
+| 8 | Decor beside low joinery | **Decor is a finish of the wall, free of the low joinery**: floor to ceiling continuing behind a WC box or vanity, from the top of the box to the ceiling, a part of the wall, or beside it — as the design intends, at the height the designer asked, clear of fixtures | 5 |
+| 9 | Wrong catalogue products | **Both**: the team corrects kinds and sizes in admin (from a list the app gives) and generation refuses implausible products; shop kitchens taken by their kind | 1 |
+| 10a | A plan without the AI designer | Say so plainly, without "failed", with an upgrade ("Your apartment has been generated using our standard design engine. To access AI-powered interior design … upgrade your plan"), and **tell before the generation starts** | 1 |
+| 10b | A spot under a pendant | **Move the spot, don't drop it**, and lay the ceiling out as one: spots redistributed symmetrically round a pendant over an island; one pendant large, or 2–3 small ones centred over the surface they light (the coffee or dining table, the bed's middle) | 5 |
+| 11 | An entrance screen that would hit an opening | **A shorter screen first**, 20 cm clear of the window or door (not in its swing or way), then a shallower lobby, then the screen square to another wall, then none; a screen meeting an open line stops short for a way through of **80 cm (90 preferred)**; a screen only where it really helps — not a cramped entrance in a small studio | 1 |
+| 12 | A door's clear floor | **By room**: bathrooms and toilets 70 cm deep × the door's width; elsewhere 90 cm × the door + 10 cm each side; archways 55 cm — one rule for the layout, the products, the joinery and the check; the door's swing, access and the way on checked apart, and a layout that passes those three is not refused for the zone alone | 1 |
+| 13 | A calculator pick that fits nowhere | In order: another position or turn in its room → move, shrink or drop the room's secondary pieces for it (a person's pick before the generated ones) → another room of the same type, saying so → left out of the 3D with a note, kept in the list ("This item could not fit in the selected room…"). Never outside the room or overlapping, never resized; placed and unplaced picks told apart | 5 |
+
+The stages: **1** the contained rules (door zones, built wardrobes, the hall's boiler section, screens,
+the balcony door's price, the plan message, the style's own floor, catalogue checks); **2** bathroom
+and bedroom fallbacks; **3** the living room and the TV; **4** the kitchen, the washing machine and
+balconies; **5** decor over low joinery, the ceiling's lighting as one, the calculator's picks; **6**
+laying a studio or an open living room out as one space by its proportions — the largest change, the
+layout engine's.
 
 ## The decisions (owner, 28 Oct 2026)
 
