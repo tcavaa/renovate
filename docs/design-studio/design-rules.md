@@ -488,6 +488,16 @@ balconies; **5** decor over low joinery, the ceiling's lighting as one, the calc
 laying a studio or an open living room out as one space by its proportions — the largest change, the
 layout engine's.
 
+**Stage 1 is built** (23 Nov 2026): door zones by room, built wardrobes by door type (hinged 75 cm,
+sliding 60 cm, shorter and shallower before a shop wardrobe), the hall wardrobe's boiler section,
+entrance screens shortened, made shallower or turned before none, the balcony door priced as a
+window, the style's own floor first, catalogue bounds per kind with the team's list
+(`pnpm audit:catalog-kinds`), shop kitchens by their kind, the plan message — each topic document
+holds the detail, and generation-audit.md items X5, W3, W6, Q4, F3, Q7b, K1–K4 and P1 the numbers.
+Not built of stage 1: outdoor-rated balcony finishes (no finish says it is), a closed kitchen
+continuing the living room's floor, finishes chosen as one design across the flat, and a zone relaxed
+where the swing, the access and the way on all pass.
+
 ## The decisions (owner, 28 Oct 2026)
 
 **Part 1 — technical**
