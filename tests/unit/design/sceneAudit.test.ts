@@ -62,8 +62,11 @@ describe('the whole-flat check', () => {
     const nightstands = [piece('n1', 'nightstand', 'r', 0.5, [0.45, 0.4, 0.5]), piece('n2', 'nightstand', 'r', 3.5, [0.45, 0.4, 0.5])];
     expect(orphans(flat([bedroom]), nightstands)).toEqual(['orphan:nightstand:no_bed']);
     const unit = piece('u', 'tv_unit', 'l', 2.5, [1.8, 0.4, 0.5]);
-    const tv = piece('tv', 'tv', 'l', 2.5, [1.4, 0.08, 0.8], { elevationM: 0.65 });
+    // A TV standing on nothing, off the walls, is left over from its unit; one hung on a wall is the
+    // living room's fifth fallback (Nini, decision 3.3: a TV on the wall with no unit).
+    const tv = piece('tv', 'tv', 'l', 2.5, [1.4, 0.08, 0.8], { elevationM: 0.65, position: { x: 2.5, z: 2.5 } });
     expect(orphans(flat([living]), [sofa, tv])).toEqual(['orphan:tv:no_tv_unit']);
+    expect(orphans(flat([living]), [sofa, { ...tv, position: { x: 2.5, z: 0.04 } }])).toEqual([]);
     expect(orphans(flat([living]), [sofa, unit])).toEqual(['orphan:tv_unit:no_tv']);
     // A bathroom's mirror hangs over its basin and nowhere else; a hall's takes any wall.
     const mirror = (roomId: string) => piece('m', 'mirror', roomId, 1.5, [0.6, 0.05, 0.8], { elevationM: 1.1 });

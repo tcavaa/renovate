@@ -68,6 +68,15 @@ describe('suggestElectrical', () => {
     expect(xs[1] - xs[0]).toBeGreaterThan(3);
   });
 
+  it('wires a TV hung on the wall with no unit as it would the unit (the living room\'s fifth fallback)', () => {
+    const hung: PlacedItem = { ...tv, id: 'hung', slot: 'tv', kind: 'tv', position: P(2.5, 8.57), elevationM: 0.64, size: { width: 1.45, depth: 0.08, height: 0.82 } };
+    const living = suggestElectrical(plan(), [hung]).filter((p) => p.roomId === 'living');
+    expect(living.some((p) => p.kind === 'tv')).toBe(true);
+    expect(living.filter((p) => p.kind === 'socket_high')).toHaveLength(2);
+    // Over a unit, the unit's sockets alone — not the TV's as well.
+    expect(suggestElectrical(plan(), [tv, hung]).filter((p) => p.roomId === 'living' && p.kind === 'tv')).toHaveLength(1);
+  });
+
   it('wires the television wall and the kitchen worktop', () => {
     const points = suggestElectrical(plan(), [tv, run]);
     const living = points.filter((p) => p.roomId === 'living');

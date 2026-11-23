@@ -115,20 +115,49 @@ scene ──tightSpots──▶ amber warnings (not a rule)
   the wall `pieceWall` finds behind it, one of the room's walls — a room separator's line and a
   studio's dividing line are none — and its back inside that wall's length, `wallRun`). Where any
   spot is good, only the good ones are drawn from, and the 2.5–3.5 m are measured to the wall the
-  unit stands on. A spot is good at whatever distance the unit's own rule allows (up to 4.2 m of
-  clear floor): a room whose only walls for the unit are further than 3.5 m from every spot of the
-  sofa has its TV on a wall and out of range, and the check says so (`sofa_tv_distance`: the
-  living rooms of #357, #365 and #397 and the studio #399 on the fixtures, none of which has a
-  good spot in range). **Where no spot is good the room is laid exactly as before** — the screen is
-  whatever the sofa faces, a separator's line too, and the unit stands on that line or free on the
-  floor: what should stand there (a sofa with its back to the open side, the unit as a divider, no
-  TV) is a rule the room does not have yet. On the generation fixtures those are the living rooms
-  of #381, #368, #361, #359 and #358 (the unit on a separator's line), #408 and #405 r2 (the unit
-  free on the floor, the wall ahead over 4.2 m off) and the studio #385 (on the dividing line on
-  one draw in eight, else no unit); and the rooms that get no unit at all — #407,
-  #394 r5, #373 r5 and the studios #393, #392, #386 and #384 — are rooms with no good spot too
-  ([generation-audit.md](generation-audit.md), RL2–RL5). Only generating runs the dry run: a sofa a
-  person adds (`placeAdditional`) is placed as it was.
+  unit stands on (to the unit's back where it stands on a side wall). A spot is good at whatever
+  distance the unit's own rule allows (up to 4.2 m of clear floor): the TV stays on a real wall even
+  when it is far, and the check says so (`sofa_tv_distance`) — Nini's decision 1, the screen chosen
+  larger the farther it is (below). Only generating runs the dry run: a sofa a person adds
+  (`placeAdditional`) is placed as it was.
+- **The living room's lounge is laid out together, by Nini's ladder** (decisions 2 and 3.3,
+  `layoutLounge` in autoLayout.ts, the numbers in rules.ts). The first try is the room as it was
+  always laid out, with its draw. Where its TV does not then stand on a unit with its back on a
+  wall, or hang on one ("good"), the sofa may **stand free with its back to the open side**
+  (`freeSofaSpots`): square to a room separator's open line (or a studio's dividing line), its back
+  90 cm from it — 80 where 90 does not fit, or further in where that brings it about 3 m from the
+  wall ahead (`SOFA_OPEN_LINE_WAY_M`, the way through an open line of decision 11) — the way behind
+  it kept free of what is laid after, facing its TV on a wall, the coffee table between. Where no
+  spot against a wall or standing free is good, her fallbacks in her order (`loungeRungs`), each on
+  its own first and then with the ones before it: a 1.2 m TV unit (`TV_UNIT_NARROW_M`); a smaller
+  sofa — a corner sofa's three-seat, then a two-seat (the three-seat's slot laid 1.6 then 1.3 m wide,
+  `TWO_SEAT_SOFA_M`: the catalogue files its loveseats as three-seats); the unit on any wall in front
+  of the sofa, a side wall too (`frontWallSpots`: ahead of the sofa's front, 1.8 m or more from its
+  middle, scored 2.5–3.5 m off, squarely and — on a wall facing it — near its line of sight); 45 cm
+  between the coffee table and the unit (`TV_UNIT_CLEAR_MIN_M`; the 1.5 m of floor before the sofa
+  then 1.35); **a TV on the wall with no unit** (straight ahead, then on a side wall; its middle at
+  `TV_CENTRE_M`; the matcher gives such a slot a flat TV only, and the wiring gives it the unit's
+  sockets); and last no coffee table, a console table behind the sofa (the two laid as one block,
+  the console between the sofa and the wall or against a free sofa's back, `CONSOLE_BEHIND_SOFA_M`).
+  Every fallback is laid at its best spot without a draw. **Where no coffee table stands** — at any
+  rung — a smaller one in front of the sofa (`SMALL_COFFEE_TABLE_M`, 70 × 50 cm: the round, nesting
+  and side tables), else the same rung laid with the console behind the sofa where that keeps its
+  sofa, unit and TV (Nini: rather that than no table). **A fallback is taken only where the whole
+  room keeps its pieces**: `layoutArea` lays each candidate out with the rest of the room's program
+  — on the same draws (`rngTape`), so the decor comes and goes alike — and keeps the first whose
+  room has every piece the first try's had (its TV unit may give way to the TV on the wall, its
+  coffee table to the console); with none, the first that gives a room the sofa or the TV it went
+  without (the essentials before the decor — a lamp, a plant or a dining chair may give way); else
+  the first try, as it always was. A TV swivel bracket where the TV cannot face the sofa is not
+  expressed (no field on a piece says it).
+- **A corner sofa by the room's proportions, not its area** (decision 3.3, `cornerSofaFits`,
+  `resolveVariant`): both sides of the largest rectangle of floor in the room (`floorRectangle` — an
+  L's longer arm, not its bounding box) 3.8 m or more (`CORNER_SOFA_SIDE_M`: along, its 2.7 m arm and
+  a 90 cm way past its end; across, its 1.75 m, the coffee table, the 60 cm and the unit). It was
+  from 22 m²: a 2.75 × 8 m room took one, a 3.7 × 5 m one did not; a 4.7 × 4.7 m room takes one, a
+  2.75 × 8 m one a three-seat. The corner sofa is kept only where its TV then stands on a wall (as the
+  room was always laid, or by a fallback); else the room is laid with a three-seat. The archetype no
+  longer has a minimum area. A studio's half is measured as the room it is laid as.
 - **An island 120 cm off the run** (`placeCentre` rejects a spot nearer, before shrinking).
 - **Sizes**: 60 cm free beside a double bed (`BEDSIDE_M`), a dining seat per 60 cm of table
   (`seatSlots`), the dining table 75 cm high, the coffee table 42 cm off the sofa, the TV's middle
@@ -759,7 +788,7 @@ own. The matcher re-measures every piece from the product it got, so the room st
   the fridge, which then stood at the run's end under them.
 - **A TV over the TV unit** (`tv`, after the unit in the living room's program; `onlyAbove`, so
   none where the room has no unit): laid out on the unit's wall, centred over it, its middle at
-  1.05 m (seated eye level, the design rules' `TV_CENTRE_M`), as wide as a 65" TV and no wider than the unit — smaller (85 %, 70 %) and slid along the
+  1.05 m (seated eye level, the design rules' `TV_CENTRE_M`), as wide as a 65" TV — or, where the sofa's distance asks a larger one (`tvInchesFor`), as wide as that, first — and no wider than the unit — smaller (85 %, 70 %) and slid along the
   unit when that would cover a window beside it (a unit running past a window had no TV at all).
   The wall is the edge behind the unit and the edges that run on from it in line (`wallRun`,
   `lib/design/planGeometry.ts`): one wall drawn as two edges is one wall, the TV may hang across
@@ -770,6 +799,15 @@ own. The matcher re-measures every piece from the product it got, so the room st
   Over a unit standing free in the room (its back to no wall — a big room's sofa faces a wall too
   far off for the unit to stand against) the slot is on the unit's top, and only a TV on a stand
   fills it.
+  **The TV's size by the sofa's distance** (Nini's decision 1, agreed 23 Nov; `tvInchesFor` in
+  rules.ts, `tvsForDistance` in the matcher): about 55″ at 2.5 m, 65″ at 3 m, 75″ at 3.5 m, between
+  them in step (20″ a metre, on below 2.5 m and up to 4.2 m) and the largest from 4.2 m, measured
+  from the sofa's middle to the TV's. The matcher takes the smallest size at least as large as that
+  among the TVs the slot takes — by weight, not by filter (the others ×10⁻⁶, a score 1000 lower), so
+  another size is still tried where the one asked for does not fit, and the draw takes as many
+  numbers as it always did. A TV's size is read off its name (`55"`), else its width (`tvInches`:
+  2.24 cm an inch — the retro TV 60 cm wide is a 27″). The fixture catalogue's TVs are 50″, 55″ and
+  65″: from about 2.55 m every TV is a 65″.
   Matched, only a TV no wider than its slot (none rather than one across the window); one on its
   own stand (deeper than 12 cm, `onStand`) **stands on the unit's top**, in the middle of it front
   to back, and only one no wider than the unit (`slotPool`); a flat one **hangs on the wall over it**, its back where the unit's back is,

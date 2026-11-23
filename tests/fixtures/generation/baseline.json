@@ -14,8 +14,8 @@
     "closet": 20
   },
   "counts": {
-    "door_zone": 6,
-    "hung_into_floor": 4,
+    "door_zone": 7,
+    "hung_into_floor": 3,
     "missing:bathroom:mirror": 4,
     "missing:bathroom:shower/bathtub": 20,
     "missing:bathroom:sink": 4,
@@ -24,22 +24,15 @@
     "missing:flat:washer": 4,
     "missing:kitchen:dining_table/kitchen_island": 4,
     "missing:kitchen:fridge": 4,
-    "missing:living_room:tv": 20,
-    "missing:living_room:tv_unit": 20,
+    "missing:living_room:tv_unit": 4,
     "missing:studio:fridge": 4,
     "missing:studio:kitchen_run": 4,
-    "missing:studio:sofa": 8,
-    "missing:studio:tv": 28,
-    "missing:studio:tv_unit": 28,
-    "on_keep_clear": 1,
-    "on_open_line": 24,
     "rule:basin_height": 25,
     "rule:bed_side_tight": 56,
-    "rule:door_swing_blocked": 14,
-    "rule:radiator_blocked": 3,
+    "rule:door_swing_blocked": 11,
+    "rule:radiator_blocked": 2,
     "rule:shower_too_small": 8,
-    "rule:sofa_tv_distance": 26,
-    "rule:wc_faces_door": 28,
-    "tv_unit_off_wall": 8
+    "rule:sofa_tv_distance": 41,
+    "rule:wc_faces_door": 28
   }
 }

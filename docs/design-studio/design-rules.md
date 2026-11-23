@@ -573,6 +573,28 @@ stands (a dryer on it at the top budget), not a laundry closet; no catalogue pro
 #408's 6.5 m² kitchen keeps its run and leg without a fridge — the fridge fits only with a 1.2 m worktop
 her rule allows a studio alone.
 
+**Stage 3, the living room and the TV (decisions 1, 2 and 3.3), is built** (24 Nov 2026): the TV
+stays on a real wall however far, and the matcher takes the screen the sofa's distance asks for —
+about 55″ at 2.5 m, 65″ at 3 m, 75″ at 3.5 m, the largest from 4.2 m, the smallest at least as large
+where the catalogue has one (`tvInchesFor`). Where the sofa against no wall gives its TV a wall, the
+sofa stands free with its back to the open line, 90 (80) cm of way kept behind it, facing its TV on
+a wall (decision 2). Where neither does, her fallbacks in her order: a 1.2 m unit, a two-seat (a
+corner sofa's three-seat first), the unit on another wall in front of the sofa or a side wall, 45 cm
+between the coffee table and the unit, a TV on the wall with no unit, and last no coffee table with
+a console table behind the sofa; a smaller (round, nesting or side) table where the usual one does
+not fit, else the console. A fallback is kept only where the whole room keeps its pieces (its unit
+may give way to the TV on the wall, its table to the console); else the first that gives a room the
+sofa or TV it went without. The corner sofa goes by the room's proportions — both sides of its floor
+3.8 m or more (4.7 × 4.7 m takes one, 2.75 × 8 m does not), and only where its TV then stands on a
+wall. Over 792 flats (6 draws): living rooms without a TV 120 → 0 and without any screen on a wall
+— unit on an open line or free on the floor — 172 → 4; studios without a TV unit or TV 188 → 0,
+without a sofa 48 → 0; 40 living rooms have the TV on the wall with no unit, 12 studios a console
+behind the sofa. The detail: [layout-and-matching.md](layout-and-matching.md), generation-audit.md
+O7 and RL1–RL6. Not built: a swivel bracket for a TV that cannot face the sofa (a piece has no
+field to say it), TVs over 65″ (the catalogue's largest — larger ones are the team's to add; the
+layout's slot already widens for them), a two-seat sofa kind (the three-seat's slot laid narrower),
+and her "distribute the furniture, don't cluster" and the studio as one space — stage 6.
+
 ## The decisions (owner, 28 Oct 2026)
 
 **Part 1 — technical**
@@ -692,6 +714,12 @@ in English — `ruleProblem` into `reviewFindings`' PROBLEMS) and the foot of th
   `quadsOverlap`, `rayToPolygon`, `doorSightBand` / `roomSightBands` / `entranceSightBands`,
   `roomNiches`.
 - `backWallOf`, `alongWall`.
+- The living room's (the fourth round's decisions 1, 2 and 3.3): `tvInchesFor` (the screen by the
+  sofa's distance, `TV_INCHES_BY_DISTANCE`, `TV_LARGEST_FROM_M`, `TV_WIDTH_PER_INCH_M`), the
+  fallbacks' numbers (`TV_UNIT_NARROW_M`, `TWO_SEAT_SOFA_M`, `TV_UNIT_CLEAR_MIN_M`,
+  `CONSOLE_BEHIND_SOFA_M`, `SMALL_COFFEE_TABLE_M`, `TV_SIDE_MIN_M`), the free sofa's way
+  (`SOFA_OPEN_LINE_WAY_M`), and the corner sofa by proportions (`floorRectangle`, `cornerSofaFits`,
+  `CORNER_SOFA_SIDE_M`).
 
 ## Ceilings (`lib/design/ceiling.ts`)
 
@@ -820,8 +848,8 @@ AI check's problems).
 - A WC added in the studio after generating gets no box (only `generateScene` adds them); every
   WC is taken to be wall-hung.
 - The water points are drawn on the board and the PDF, not in 3D.
-- The engine stands a sofa only against a wall: a room too wide for the sofa–TV range gets its
-  warning rather than a sofa floated 3 m from the TV wall.
+- A sofa stands free only with its back to an open line (decision 2): a closed room too wide for the
+  sofa–TV range keeps its sofa against a wall and its warning — the TV stays on the wall (decision 1).
 - A recess in a room's corner (open on one side) is not found as a niche.
 - Circulation (100–150 cm paths) is the existing tight-passage warning (`clearance.ts`), not a
   check of its own; IP44 sockets are not a product attribute, only the splash-zone warning.

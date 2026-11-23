@@ -130,6 +130,12 @@ const shrunk = (item: Pick<PlacedItem, 'position' | 'size' | 'rotation'>, by: nu
 const cm = (m: number) => `${Math.round(m * 100)} cm`;
 const onFloor = (item: PlacedItem) => item.elevationM < 0.05 && !LIES_FLAT.has(item.slot);
 
+/** Whether a piece hangs with its back on one of the room's walls — not a room separator's line. */
+function hungOnWall(item: PlacedItem, room: PlanRoom): boolean {
+  const wall = pieceWall(item, room, 0.12);
+  return !!wall && !isOpenEdge(room, wall.edge.index);
+}
+
 /** The pieces a piece of joinery or a box was built for: they stand in it by design. */
 function builtFor(piece: DecorPiece): Set<string> {
   const ids = [piece.itemId, ...(piece.params.sections ?? []).map((s) => s.itemId)];
@@ -166,6 +172,9 @@ export function auditScene(scene: AuditedScene): SceneIssue[] {
     for (const item of inRoom) {
       const off = arrangedOff(item.kind, room.type);
       if (!off?.only || orphaned.has(item.slot) || off.slots.some((slot) => slots.has(slot))) continue;
+      // A TV hung on a wall of a living room with no unit is the room's fifth fallback (Nini, decision
+      // 3.3: "a TV on the wall with no unit"), not one left over from a unit that is gone.
+      if (item.slot === 'tv' && item.elevationM > 0.3 && hungOnWall(item, room)) continue;
       orphaned.add(item.slot);
       say('orphan', `${item.slot} with no ${off.slots[0]}`, item.id, `${item.slot}:no_${off.slots[0]}`);
     }

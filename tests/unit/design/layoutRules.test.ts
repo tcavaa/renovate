@@ -296,15 +296,20 @@ describe('a living room open onto the next room', () => {
     }
   });
 
-  // Every wall but the sofa's is open or too short for the unit: no spot of the sofa gives its
-  // unit a wall. The room keeps its TV as it always had it; what stands there is the owner's rule.
-  it('keeps the TV unit of a room where no sofa spot gives it a wall', () => {
+  // Every wall but one is open: no spot of the sofa against a wall gives its unit a wall. The unit
+  // stood on the separator's line; now the sofa stands free with its back to an open side and its
+  // TV on the one wall (Nini's decision 2; tests/unit/design/livingRoomLadder.test.ts).
+  it('stands the TV on the room\'s one wall where no sofa spot against a wall gives it one', () => {
     const through: PlanRoom = { ...room('t', 'living_room', 3.4, 3.48), open: [1, 2, 3] };
     for (const rng of [undefined, ...SEEDS.map((seed) => seededRng(seed))]) {
       const items = layoutRoom(through, { rng });
       expect(items.some((i) => i.slot === 'sofa')).toBe(true);
-      expect(items.some((i) => i.slot === 'tv_unit')).toBe(true);
-      expect(items.some((i) => i.slot === 'tv')).toBe(true);
+      const tv = items.find((i) => i.slot === 'tv');
+      expect(tv).toBeDefined();
+      const screen = items.find((i) => i.slot === 'tv_unit') ?? tv!;
+      const wall = pieceWall(screen, through, 0.12);
+      expect(wall).not.toBeNull();
+      expect(isOpenEdge(through, wall!.edge.index)).toBe(false);
     }
   });
 });

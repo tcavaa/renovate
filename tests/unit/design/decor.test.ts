@@ -491,7 +491,8 @@ describe('the designer is offered the finishes the engine lays (F4)', () => {
 });
 
 describe('every generation is offered a fresh draw', () => {
-  const living = refreshRoom({ id: 'r1', type: 'living_room', name: 'Living', polygon: [{ x: 0, z: 0 }, { x: 5, z: 0 }, { x: 5, z: 4 }, { x: 0, z: 4 }], heightM: 2.8, areaM2: 0, perimeterM: 0, openings: [] });
+  // 5 × 3.6 m: a three-seat by its proportions (a corner sofa wants 3.8 m both ways, `cornerSofaFits`).
+  const living = refreshRoom({ id: 'r1', type: 'living_room', name: 'Living', polygon: [{ x: 0, z: 0 }, { x: 5, z: 0 }, { x: 5, z: 3.6 }, { x: 0, z: 3.6 }], heightM: 2.8, areaM2: 0, perimeterM: 0, openings: [] });
   const plan = { rooms: [living] } as FloorPlan;
   // 40 Scandinavian sofas — a sofa is the style's own whenever the catalogue has any (the matcher's
   // strict style) — and 20 Modern ones a Scandinavian flat is never given, so never offered.

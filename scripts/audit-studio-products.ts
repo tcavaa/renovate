@@ -76,7 +76,7 @@ function programKinds(): Map<string, RoomType[]> {
   for (const [type, program] of Object.entries(ROOM_PROGRAMS) as [RoomType, (typeof ROOM_PROGRAMS)[RoomType]][]) {
     for (const entry of program) {
       add(entry.kind, type);
-      if (entry.kind === 'sofa_3seat' && entry.preferAboveM2) add('sofa_corner', type);
+      if (entry.kind === 'sofa_3seat' && entry.cornerWhereFits) add('sofa_corner', type);
       if (entry.kind === 'bed_double') add('bed_single', type);
     }
   }

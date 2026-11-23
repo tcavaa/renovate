@@ -12,8 +12,8 @@
  */
 
 import type { RoomType } from '@/lib/calculator/types';
-import { COFFEE_TABLE_GAP_M, SINGLE_BED_UNDER_M2, TV_CENTRE_M, WALL_UNIT_BOTTOM_M } from './rules';
-import type { SlotKind } from './types';
+import { COFFEE_TABLE_GAP_M, SINGLE_BED_UNDER_M2, TV_CENTRE_M, WALL_UNIT_BOTTOM_M, cornerSofaFits } from './rules';
+import type { SlotKind, Vec2 } from './types';
 
 export interface Size3 {
   width: number;
@@ -198,7 +198,6 @@ export const ARCHETYPES: Record<string, Archetype> = {
     size: { width: 2.7, depth: 1.75, height: 0.84 },
     placement: { type: 'wall', prefer: 'longest', clearanceM: 0.9 },
     priority: 100,
-    minRoomAreaM2: 20,
   },
   armchair: {
     kind: 'armchair',
@@ -677,8 +676,11 @@ export interface ProgramEntry {
   count: number | 'fill';
   /** Only include when the room is at least this big. */
   minAreaM2?: number;
-  /** Prefer this variant when the room is at least this big (e.g. corner sofa). */
-  preferAboveM2?: number;
+  /**
+   * The corner sofa in place of the three-seat where the room's shape takes one (`cornerSofaFits`:
+   * by its proportions, not its area — Nini, decision 3.3).
+   */
+  cornerWhereFits?: boolean;
 }
 
 /**
@@ -705,7 +707,7 @@ export const ROOM_PROGRAMS: Record<RoomType, ProgramEntry[]> = {
     { kind: 'stool', count: 1, minAreaM2: 12 },
   ],
   living_room: [
-    { kind: 'sofa_3seat', count: 1, preferAboveM2: 22 },
+    { kind: 'sofa_3seat', count: 1, cornerWhereFits: true },
     { kind: 'coffee_table', count: 1 },
     { kind: 'tv_unit', count: 1 },
     { kind: 'tv', count: 1 },
@@ -799,7 +801,6 @@ export const ROOM_PROGRAMS: Record<RoomType, ProgramEntry[]> = {
 };
 ROOM_PROGRAMS.studio = [...ROOM_PROGRAMS.kitchen, ...ROOM_PROGRAMS.living_room.filter((e) => !ROOM_PROGRAMS.kitchen.some((k) => k.kind === e.kind))];
 
-/** Chooses the better variant when a program entry has a size-gated upgrade. */
 /**
  * The piece a room is laid out round — the first of its program: the bed, the sofa, the desk. What a
  * rug lies under in a room that has no piece of its own for it (an office has no coffee table).
@@ -809,10 +810,13 @@ export function mainSlot(type: RoomType): SlotKind | null {
   return first ? (getArchetype(first.kind)?.slot ?? null) : null;
 }
 
-export function resolveVariant(entry: ProgramEntry, roomAreaM2: number): string {
-  if (entry.kind === 'sofa_3seat' && entry.preferAboveM2 && roomAreaM2 >= entry.preferAboveM2) {
-    return 'sofa_corner';
-  }
+/**
+ * The kind a program entry lays in a room of this size and outline: the corner sofa where the room's
+ * shape takes one (`cornerSofaFits` — both sides of its floor 3.6 m or more, decision 3.3; it was from
+ * 22 m², so a 2.75 × 8 m room took one and a 3.7 × 5 m room did not), a single bed in a small bedroom.
+ */
+export function resolveVariant(entry: ProgramEntry, roomAreaM2: number, polygon?: readonly Vec2[]): string {
+  if (entry.kind === 'sofa_3seat' && entry.cornerWhereFits && polygon && cornerSofaFits(polygon)) return 'sofa_corner';
   // A bedroom under 11 m² takes a single bed (Nini, decision 3.2); a larger one whose doubles find no
   // wall falls back to a single as the layout's last rung (`layoutBedroom`).
   if (entry.kind === 'bed_double' && roomAreaM2 < SINGLE_BED_UNDER_M2) return 'bed_single';

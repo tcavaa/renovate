@@ -19,7 +19,7 @@ import { roomEdges } from './planGeometry';
 import { ISLAND_CLEAR_M, seatSlots } from './autoLayout';
 import { asPlacedKitchen, kitchenMaterialCandidates } from './kitchen';
 import { isCustomKitchenSlot, LAID_TO_ANOTHER, SIZED_BY_LAYOUT } from './kinds';
-import { BALCONY_CHAIR_MAX_M, BASIN_TOP_M, COMPACT_TABLE_SIDES_M, COMPACT_TABLE_SLACK_M, KITCHEN_CIRCULATION_M, WC_BOX_DEPTH_M, WC_SIDE_M } from './rules';
+import { BALCONY_CHAIR_MAX_M, BASIN_TOP_M, COMPACT_TABLE_SIDES_M, COMPACT_TABLE_SLACK_M, KITCHEN_CIRCULATION_M, TV_WIDTH_PER_INCH_M, WC_BOX_DEPTH_M, WC_SIDE_M, tvInchesFor } from './rules';
 import { round2, wallBehind } from './pieceGeometry';
 import { styleAffinity } from './styles';
 import { guideFit, styleRejects } from './styleGuide';
@@ -303,13 +303,18 @@ export function matchProducts(
       if (fitting.length > 0 && fitting.length < candidates.length) {
         candidates.splice(0, candidates.length, ...fitting);
       }
+      // A TV of the size the sofa's distance asks for (decision 1, `tvsForDistance`) first — weighted,
+      // not filtered, so the others are still tried after it where it does not fit, and the draw
+      // takes as many numbers as it always did.
+      const sized = piece.slot === 'tv' ? new Set(tvsForDistance(candidates, piece, settled).map((p) => p.id)) : null;
+      const offSize = (product: CatalogProduct) => !!sized && !sized.has(product.id);
       const scored = candidates
-        .map((product) => ({ product, score: scoreProduct(product, options.styleId, level, piece) }))
+        .map((product) => ({ product, score: scoreProduct(product, options.styleId, level, piece) - (offSize(product) ? 1000 : 0) }))
         .sort((a, b) => b.score - a.score);
 
       const roomKey = `${piece.kind}|${piece.roomId}`;
       const used = usedByKind.get(piece.kind) ?? new Set<number>();
-      const weigh = (product: CatalogProduct) => generationWeight(product, options.styleId, level, piece, used.has(product.id));
+      const weigh = (product: CatalogProduct) => generationWeight(product, options.styleId, level, piece, used.has(product.id)) * (offSize(product) ? 1e-6 : 1);
       let chosen: CatalogProduct | undefined;
       let ranked: CatalogProduct[];
       if (step === 0) {
@@ -328,7 +333,7 @@ export function matchProducts(
         if (!chosen) {
           const topAffinity = styleAffinity(options.styleId, scored[0].product.styleTags, scored[0].product.tags);
           const tier = scored.filter(
-            (s) => styleAffinity(options.styleId, s.product.styleTags, s.product.tags) === topAffinity
+            (s) => styleAffinity(options.styleId, s.product.styleTags, s.product.tags) === topAffinity && offSize(s.product) === offSize(scored[0].product)
           );
           const turn = rotation.get(piece.kind) ?? 0;
           chosen = tier[turn % tier.length].product;
@@ -973,6 +978,32 @@ export function slotPool(item: PlacedItem, candidates: CatalogProduct[], room: P
     return candidates.filter((p) => (p.heightCm ?? 0) > 0 && (p.heightCm ?? 0) <= 120 && (p.depthCm ?? 0) <= 12);
   }
   return candidates;
+}
+
+/**
+ * A TV's screen, inches of diagonal: as its name says (`55"`, `65″`), else from its width
+ * (`TV_WIDTH_PER_INCH_M`) — a retro TV 60 cm wide is a 27″.
+ */
+export function tvInches(product: Pick<CatalogProduct, 'nameEn' | 'nameKa' | 'widthCm'>): number {
+  const named = /(\d{2,3}(?:\.\d)?)\s*(?:"|″|''|-?inch)/i.exec(`${product.nameEn ?? ''} ${product.nameKa}`);
+  if (named) return Number(named[1]);
+  return Math.round((product.widthCm ?? 0) / 100 / TV_WIDTH_PER_INCH_M);
+}
+
+/**
+ * The TVs of the size the sofa's distance asks for (Nini, decision 1 — `tvInchesFor`: about 55″ at
+ * 2.5 m, 65″ at 3 m, 75″ at 3.5 m, the largest from 4.2 m): the smallest size at least as large as it
+ * asks, where the slot takes one; else the largest it takes. The distance from the sofa's middle to
+ * the TV's; with no sofa in the room, every TV the slot takes.
+ */
+function tvsForDistance(products: CatalogProduct[], item: PlacedItem, settled: PlacedItem[]): CatalogProduct[] {
+  const sofa = settled.find((p) => p.roomId === item.roomId && p.slot === 'sofa');
+  if (!sofa || products.length === 0) return products;
+  const wanted = tvInchesFor(Math.hypot(item.position.x - sofa.position.x, item.position.z - sofa.position.z));
+  const sized = products.map((product) => ({ product, inches: tvInches(product) }));
+  const large = sized.filter((s) => s.inches >= wanted - 1);
+  const size = large.length > 0 ? Math.min(...large.map((s) => s.inches)) : Math.max(...sized.map((s) => s.inches));
+  return sized.filter((s) => Math.abs(s.inches - size) < 0.5).map((s) => s.product);
 }
 
 /** Forward and right unit vectors of a piece turned `rotation` (0 faces +Z). */

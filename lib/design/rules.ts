@@ -10,7 +10,7 @@
  * import it.
  */
 
-import { isOpenEdge, isPassage, pointOnEdge, roomEdges, wallEdges, type PlanEdge } from './planGeometry';
+import { boxInPolygon, isOpenEdge, isPassage, pointOnEdge, roomEdges, wallEdges, type PlanEdge } from './planGeometry';
 import { doorFloor, QUAD_TOUCH_M, quadsOverlap as outlinesOverlap, turnedQuad, wallBehind, type DoorFloor, type Quad } from './pieceGeometry';
 import type { Opening, PlacedItem, PlanRoom, SlotKind, StyleId, TechnicalPoint, Vec2 } from './types';
 
@@ -448,8 +448,118 @@ export const COMPACT_TABLE_SLACK_M = 0.05;
 export const BALCONY_TWO_SEATS_M = 1.5;
 /** A balcony's chair: a café chair, not a lounge chair, a bench or a bar stool — 60 × 55 cm at most (the floor its table keeps it, `COMPACT_SEAT_M` in autoLayout), 1 m high at most. */
 export const BALCONY_CHAIR_MAX_M = { width: 0.6, depth: 0.55, height: 1.0 } as const;
-/** Clear floor between the TV unit and the coffee table; less, and no TV unit. */
+/** Clear floor between the TV unit and the coffee table; less, and no TV unit — but for the living room's fourth fallback (`TV_UNIT_CLEAR_MIN_M`). */
 export const TV_UNIT_CLEAR_M = 0.6;
+
+// ---------------------------------------------------------------------------
+// The living room and the TV (Nini, 23 Nov 2026, decisions 1, 2 and 3.3)
+// ---------------------------------------------------------------------------
+
+/**
+ * The TV's size by its distance from the sofa (decision 1, agreed 23 Nov): about 55″ at 2.5 m, 65″ at
+ * 3 m, 75″ at 3.5 m, interpolated between (and on, 20″ a metre, below 2.5 m and up to 4.2 m), and the
+ * catalogue's largest from 4.2 m (`TV_LARGEST_FROM_M`). Inches by metres from the sofa's middle.
+ */
+export const TV_INCHES_BY_DISTANCE: ReadonlyArray<{ distanceM: number; inches: number }> = [
+  { distanceM: 2.5, inches: 55 },
+  { distanceM: 3, inches: 65 },
+  { distanceM: 3.5, inches: 75 },
+];
+export const TV_LARGEST_FROM_M = 4.2;
+/** A 16:9 screen in its frame, metres of width per inch of diagonal: 55″ 1.23 m, 65″ 1.45 m (the fixture catalogue's). */
+export const TV_WIDTH_PER_INCH_M = 0.0224;
+
+/**
+ * The screen a sofa this far from the TV asks for, inches of diagonal (`TV_INCHES_BY_DISTANCE`):
+ * Infinity from `TV_LARGEST_FROM_M` — the largest there is. Never under 32″.
+ */
+export function tvInchesFor(distanceM: number): number {
+  if (distanceM >= TV_LARGEST_FROM_M) return Infinity;
+  const points = TV_INCHES_BY_DISTANCE;
+  const slope = (points[1].inches - points[0].inches) / (points[1].distanceM - points[0].distanceM);
+  if (distanceM <= points[0].distanceM) return Math.max(32, points[0].inches - (points[0].distanceM - distanceM) * slope);
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1];
+    const b = points[i];
+    if (distanceM <= b.distanceM) return a.inches + ((distanceM - a.distanceM) / (b.distanceM - a.distanceM)) * (b.inches - a.inches);
+  }
+  const last = points[points.length - 1];
+  return last.inches + (distanceM - last.distanceM) * slope;
+}
+
+/**
+ * The living room's fallbacks when its TV would not stand on a wall (decision 3.3, in her order —
+ * `loungeRungs` in autoLayout): a 1.2 m TV unit; a two-seat sofa (the slot of a three-seat laid this
+ * wide — the catalogue files its loveseats as three-seats — then narrower); the unit on another wall
+ * in front of the sofa, a side wall too; this much floor between the coffee table and the unit
+ * (60 cm before); a TV on the wall with no unit; and last no coffee table, a console table behind the
+ * sofa instead (`CONSOLE_BEHIND_SOFA_M`).
+ */
+export const TV_UNIT_NARROW_M = 1.2;
+export const TWO_SEAT_SOFA_M: readonly number[] = [1.6, 1.3];
+export const TV_UNIT_CLEAR_MIN_M = 0.45;
+/** The console table behind the sofa that stands in for the coffee table (Nini: "integrated behind the sofa"), width × depth. */
+export const CONSOLE_BEHIND_SOFA_M = { width: 1.2, depth: 0.35 };
+/** A smaller coffee table — a round, nesting or side table's floor — where the usual one (1.1 × 0.6 m) does not fit. */
+export const SMALL_COFFEE_TABLE_M = { width: 0.7, depth: 0.5 };
+/**
+ * A sofa standing free with its back to a room separator's open line (decision 2): the way kept
+ * behind it, between its back and the line — the way through an open line the entrance screen keeps
+ * (decision 11, `OPEN_LINE_WAY_M`): 90 cm, 80 where 90 does not fit.
+ */
+export const SOFA_OPEN_LINE_WAY_M: readonly number[] = [0.9, 0.8];
+/** A TV the sofa sees from the side (on a side wall): no nearer than this to the sofa's middle. */
+export const TV_SIDE_MIN_M = 1.8;
+/**
+ * A living room takes a corner sofa (2.7 × 1.75 m) by its proportions, not its area (decision 3.3:
+ * 4.7 × 4.7 m does, 2.75 × 8 m does not): when both sides of the largest rectangle of floor in it
+ * (`floorRectangle`) are 3.8 m or more — along it, the sofa's longer arm and a 90 cm way past its end
+ * (3.6 m); across it, its 1.75 m, the coffee table 42 cm off it, the 60 cm before the TV unit and the
+ * unit (3.8 m), so its TV can stand straight ahead. The layout keeps it only where its TV then stands
+ * on a wall; else the room is laid with a three-seat (`layoutArea`).
+ */
+export const CORNER_SOFA_SIDE_M = 3.8;
+
+/**
+ * The largest axis-aligned rectangle of floor in a room's outline, its two sides (`short` ≤ `long`),
+ * metres: its corners taken from the outline's own coordinates, so a rectilinear room's is exact —
+ * an L's longer arm, not its bounding box. A room with no such rectangle (turned off the axes) is
+ * measured by its bounding box.
+ */
+export function floorRectangle(polygon: readonly Vec2[]): { short: number; long: number } {
+  const xs = [...new Set(polygon.map((p) => Math.round(p.x * 1000) / 1000))].sort((a, b) => a - b);
+  const zs = [...new Set(polygon.map((p) => Math.round(p.z * 1000) / 1000))].sort((a, b) => a - b);
+  let best = { area: 0, short: 0, long: 0 };
+  const inset = 0.005;
+  for (let i = 0; i < xs.length; i++) {
+    for (let j = i + 1; j < xs.length; j++) {
+      const w = xs[j] - xs[i];
+      for (let k = 0; k < zs.length; k++) {
+        for (let l = k + 1; l < zs.length; l++) {
+          const d = zs[l] - zs[k];
+          if (w * d <= best.area) continue;
+          if (!boxInPolygon({ minX: xs[i] + inset, maxX: xs[j] - inset, minZ: zs[k] + inset, maxZ: zs[l] - inset }, polygon as Vec2[])) continue;
+          best = { area: w * d, short: Math.min(w, d), long: Math.max(w, d) };
+        }
+      }
+    }
+  }
+  if (best.area > 0) return { short: best.short, long: best.long };
+  const w = xs[xs.length - 1] - xs[0];
+  const d = zs[zs.length - 1] - zs[0];
+  return { short: Math.min(w, d), long: Math.max(w, d) };
+}
+
+const cornerSofaRooms = new WeakMap<readonly Vec2[], boolean>();
+/** Whether a living room's shape takes a corner sofa (`CORNER_SOFA_SIDE_M`). Remembered per outline: the layout asks it often. */
+export function cornerSofaFits(polygon: readonly Vec2[]): boolean {
+  let fits = cornerSofaRooms.get(polygon);
+  if (fits === undefined) {
+    fits = polygon.length >= 3 && floorRectangle(polygon).short >= CORNER_SOFA_SIDE_M - 0.005;
+    cornerSofaRooms.set(polygon, fits);
+  }
+  return fits;
+}
 /** Clear floor between an armchair and the dining table or its chairs. */
 export const ARMCHAIR_DINING_GAP_M = 0.8;
 /** A WC's centre from a side wall (or anything beside it): 40 cm. */

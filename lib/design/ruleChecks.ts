@@ -284,7 +284,8 @@ function layoutRules(plan: FloorPlan, items: PlacedItem[]): RuleViolation[] {
       }
 
       if (item.slot === 'sofa') {
-        const tv = here.find((o) => o.slot === 'tv_unit');
+        // The TV unit's back — or, a TV on the wall with no unit (the living room's fifth fallback), the TV's.
+        const tv = here.find((o) => o.slot === 'tv_unit') ?? here.find((o) => o.slot === 'tv' && o.elevationM > 0.3);
         if (tv) {
           const tvForward = { x: Math.sin(tv.rotation), z: Math.cos(tv.rotation) };
           const screen = { x: tv.position.x - tvForward.x * (tv.size.depth / 2), z: tv.position.z - tvForward.z * (tv.size.depth / 2) };

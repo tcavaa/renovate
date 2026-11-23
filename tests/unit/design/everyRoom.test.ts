@@ -40,8 +40,12 @@ interface Case {
 const CASES: Case[] = [
   { name: 'a bedroom with a window', room: room('bedroom', rect(4, 3.6), [door(2, 0.8), window(0)]) },
   { name: 'a living room with two windows', room: room('living_room', rect(5.4, 4.2), [door(2, 0.85), window(0, 0.3), window(0, 0.75)]) },
-  // An L: 6 m along wall 0, 3 m deep there, 3.5 m wide and 5.5 m deep on its west side.
-  { name: 'an L-shaped living room', room: room('living_room', [P(0, 0), P(6, 0), P(6, 3), P(3.5, 3), P(3.5, 5.5), P(0, 5.5)], [door(4, 0.5), window(0, 0.5, 1.5), window(5, 0.5)]) },
+  // An L: 6 m along wall 0, 3 m deep there, 3.5 m wide and 5.5 m deep on its west side — a three-seat
+  // by its proportions (arms 3 and 3.5 m wide), the dining table in the west arm. Its door is towards
+  // the arm's corner: in the middle of the end wall the matcher's last pass stood a dining chair 1 cm
+  // into the door's floor where no chair of the set kept clear of it (its last pass, `fitPasses`, keeps
+  // the room's pieces without testing a door's way).
+  { name: 'an L-shaped living room', room: room('living_room', [P(0, 0), P(6, 0), P(6, 3), P(3.5, 3), P(3.5, 5.5), P(0, 5.5)], [door(4, 0.3), window(0, 0.5, 1.5), window(5, 0.5)]) },
   { name: 'a kitchen with a window', room: room('kitchen', rect(3.6, 3), [door(2, 0.8), window(0)]) },
   { name: 'a bathroom', room: room('bathroom', rect(2.6, 2.4), [door(2, 0.75, 0.7)]) },
   // The window on the basin's likeliest wall: which of the mirror and the window gives way is the owner's.

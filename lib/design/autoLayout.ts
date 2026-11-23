@@ -43,7 +43,7 @@ import {
   wallRun,
   type PlanEdge,
 } from './planGeometry';
-import type { Opening, PlacedItem, PlanRoom, StyleId, Vec2 } from './types';
+import type { Opening, PlacedItem, PlanRoom, SlotKind, StyleId, Vec2 } from './types';
 import { isLargeSize, isTightPassage, longSideGaps } from './clearance';
 import { blocksWindow, clearsUnder, pieceWall, type KeepClear } from './manipulate';
 import { axisBox, backMiddle, boxesOverlap, QUAD_TOUCH_M, wallBehind } from './pieceGeometry';
@@ -82,6 +82,16 @@ import {
   SHOWER_ROOMY_M2,
   SHOWER_SIZES_M,
   SOFA_TV_M,
+  CONSOLE_BEHIND_SOFA_M,
+  SMALL_COFFEE_TABLE_M,
+  SOFA_OPEN_LINE_WAY_M,
+  TV_CENTRE_M,
+  TV_SIDE_MIN_M,
+  TV_UNIT_CLEAR_MIN_M,
+  TV_UNIT_NARROW_M,
+  TV_WIDTH_PER_INCH_M,
+  TWO_SEAT_SOFA_M,
+  tvInchesFor,
   SPLASH_ZONE_M,
   TV_UNIT_CLEAR_M,
   WARDROBE_DEPTH_M,
@@ -674,7 +684,7 @@ export function layoutRoom(room: PlanRoom, given: LayoutOptions = {}): PlacedIte
  * curtain. What the AI designer is asked about is gated here too (`programKinds`).
  */
 export function programPiece(entry: ProgramEntry, room: PlanRoom, options: Pick<LayoutOptions, 'styleId' | 'skipDecor'> = {}): { kind: string; archetype: Archetype } | null {
-  const kind = windowDressing(resolveVariant(entry, room.areaM2), room.type, options.styleId);
+  const kind = windowDressing(resolveVariant(entry, room.areaM2, room.polygon), room.type, options.styleId);
   const archetype = getArchetype(kind);
   if (!archetype) return null;
 
@@ -762,10 +772,10 @@ function layoutArea(room: PlanRoom, options: LayoutOptions, idPrefix: string, do
    * would stand were it put at a pose — a sofa's TV unit, back to the wall the sofa faces. A dry
    * run of what the engine does next, by the pieces' own rules and tests: the coffee table off the
    * sofa, then the unit (inside the room, on no taken floor, 60 cm clear of the table, the window
-   * rule). Undefined for a piece nothing is stood against a wall off, and when what is laid
+   * rule), from what stands in `from`. Undefined for a piece nothing is stood against a wall off, and when what is laid
    * between the two is not laid off it as well — the dry run would not be what happens.
    */
-  const screenAfter = (at: number, piece: { kind: string; archetype: Archetype }): RuleContext['screenFor'] => {
+  const screenAfter = (at: number, piece: { kind: string; archetype: Archetype }, from: LayoutState): RuleContext['screenFor'] => {
     const next: Array<{ kind: string; archetype: Archetype }> = [];
     for (const entry of program.slice(at + 1)) {
       const follower = pieceOf(entry);
@@ -778,7 +788,7 @@ function layoutArea(room: PlanRoom, options: LayoutOptions, idPrefix: string, do
     const last = next[next.length - 1]?.archetype.placement;
     if (last?.type !== 'relative' || !last.toWall) return undefined;
     return (pose) => {
-      const dry = { placed: [...placed], occupied: [...occupied], passages: [...passages] };
+      const dry = { placed: [...from.placed], occupied: [...from.occupied], passages: [...from.passages] };
       stand(dry, piece.archetype, piece.kind, pose, 'dry-run');
       let found: Pose | null = null;
       for (const follower of next) {
@@ -790,38 +800,110 @@ function layoutArea(room: PlanRoom, options: LayoutOptions, idPrefix: string, do
     };
   };
 
-  // A bedroom's bed, nightstands and wardrobe are laid out together, by its ladder (`layoutBedroom`).
-  const together = room.type === 'bedroom' ? layoutBedroom({ room, edges, program, pieceOf, options, doorBands, state: { placed, occupied, passages }, stand, nextId }) : null;
+  /** The program's entries but `skip` into `into`, each by its rule, drawing from `rng`: what the room's loop always did. */
+  const layRest = (into: LayoutState, skip: ReadonlySet<ProgramEntry> | null, rng: Rng | undefined, id: (kind: string) => string) => {
+    for (const [at, entry] of program.entries()) {
+      if (skip?.has(entry)) continue;
+      const piece = pieceOf(entry);
+      if (!piece) continue;
+      const { kind, archetype } = piece;
+      // A generated room varies its decor: a plant here, a print there, not every piece every time.
+      if (rng && kind in OPTIONAL_DECOR && rng() > OPTIONAL_DECOR[kind]) continue;
 
-  for (const [at, entry] of program.entries()) {
-    if (together?.has(entry)) continue;
-    const piece = pieceOf(entry);
-    if (!piece) continue;
-    const { kind, archetype } = piece;
-    // A generated room varies its decor: a plant here, a print there, not every piece every time.
-    if (options.rng && kind in OPTIONAL_DECOR && options.rng() > OPTIONAL_DECOR[kind]) continue;
+      // A curtain or a blind at every window, not one a room (G-20).
+      // A balcony's table seats two, or one where the balcony is narrow (`balconySeats`).
+      const count =
+        entry.count === 'fill'
+          ? Math.min(seatCountFor(archetype, into.placed), room.type === 'balcony' ? balconySeats(room) : Infinity)
+          : archetype.placement.type === 'window' ? ownWindows(room).length : entry.count;
+      const screenFor = screenAfter(at, piece, into);
 
-    // A curtain or a blind at every window, not one a room (G-20).
-    // A balcony's table seats two, or one where the balcony is narrow (`balconySeats`).
-    const count =
-      entry.count === 'fill'
-        ? Math.min(seatCountFor(archetype, placed), room.type === 'balcony' ? balconySeats(room) : Infinity)
-        : archetype.placement.type === 'window' ? ownWindows(room).length : entry.count;
-    const screenFor = screenAfter(at, piece);
+      for (let i = 0; i < count; i++) {
+        const rules: RuleContext = { doorBands, entranceBands: options.entranceSight?.[room.id] ?? [], placed: into.placed, passages: into.passages, screenFor };
+        const pose = resolvePose(archetype, i, room, edges, into.placed, inTheWay(into.occupied, archetype.size.height), { anchors: anchorsFor(kind, anchors), rng, rules, relax });
+        // A ring of seats keeps going past a slot that hits a wall; anything else stops at the
+        // first failure, because its second copy has no better chance than its first.
+        if (!pose && entry.count === 'fill') continue;
+        if (!pose) break;
 
-    for (let i = 0; i < count; i++) {
-      const rules: RuleContext = { doorBands, entranceBands: options.entranceSight?.[room.id] ?? [], placed, passages, screenFor };
-      const pose = resolvePose(archetype, i, room, edges, placed, inTheWay(occupied, archetype.size.height), { anchors: anchorsFor(kind, anchors), rng: options.rng, rules, relax });
-      // A ring of seats keeps going past a slot that hits a wall; anything else stops at the
-      // first failure, because its second copy has no better chance than its first.
-      if (!pose && entry.count === 'fill') continue;
-      if (!pose) break;
+        stand(into, archetype, kind, pose, id(kind));
+      }
+    }
+  };
 
-      stand({ placed, occupied, passages }, archetype, kind, pose, nextId(kind));
+  // A living room's sofa, coffee table, TV unit and TV are laid out together, by its ladder
+  // (`layoutLounge`). Where the first try — the room as it was always laid out — has its TV on a
+  // wall (and a table before the sofa), that is the room; else each that may stand in for it is laid
+  // out with the rest of the room, and the first that keeps every piece the first try's room had
+  // (its TV unit for a TV on the wall, its coffee table for the console behind the sofa) is taken —
+  // else the first that gives the room the sofa or the TV it went without; else the first try's.
+  // A room whose shape takes a corner sofa (`cornerSofaFits`) keeps it where its TV then stands on a
+  // wall (as the room was always laid out, or by a fallback); else the room is laid with a three-seat. Each is laid with the same draws, so
+  // the decor comes and goes alike.
+  if (room.type === 'living_room') {
+    const tape = options.rng ? rngTape(options.rng) : null;
+    const furnished = (sofaKind?: string): { items: PlacedItem[]; corner: boolean; good: boolean } | null => {
+      const draws = tape?.(0);
+      const lounge = layoutLounge({ room, edges, program, pieceOf, options: { ...options, rng: draws }, doorBands, state: { placed, occupied, passages }, stand, sofaKind, screenAfter: (at, piece) => screenAfter(at, piece, { placed, occupied, passages }) });
+      if (!lounge) return null;
+      const after = draws?.position() ?? 0;
+      const corner = lounge.first.steps[0]?.kind === 'sofa_corner';
+      const layWith = (laid: LoungeTrial): PlacedItem[] => {
+        const into: LayoutState = { placed: [...placed], occupied: [...occupied], passages: [...passages] };
+        let n = counter;
+        const id = (kind: string) => `${room.id}-${idPrefix}${kind}-${n++}`;
+        for (const step of laid.steps) stand(into, step.archetype, step.kind, step.pose, id(step.kind));
+        into.occupied.push(...laid.keep);
+        layRest(into, lounge.entries, tape?.(after), id);
+        return into.placed;
+      };
+      const first = layWith(lounge.first);
+      if (lounge.first.good && lounge.first.table) return { items: first, corner, good: true };
+      const had = slotCounts(first);
+      let gains: { items: PlacedItem[]; good: boolean } | null = null;
+      for (let laid = lounge.next(); laid; laid = lounge.next()) {
+        const whole = layWith(laid);
+        const has = slotCounts(whole);
+        const kept = Object.entries(had).every(([slot, n]) => (has[slot] ?? 0) >= n || (slot === 'tv_unit' && !lounge.first.good && (has.tv ?? 0) > 0) || (slot === 'coffee_table' && (has.console ?? 0) > 0));
+        if (kept) return { items: whole, corner, good: laid.good };
+        if (!gains && ((!had.sofa && has.sofa) || (!had.tv && has.tv))) gains = { items: whole, good: laid.good };
+      }
+      return { items: gains?.items ?? first, corner, good: gains?.good ?? lounge.first.good };
+    };
+    const laid = furnished();
+    if (laid) {
+      if (!laid.corner || laid.good) return laid.items;
+      return furnished('sofa_3seat')?.items ?? laid.items;
     }
   }
 
+  // A bedroom's bed, nightstands and wardrobe are laid out together, by its ladder (`layoutBedroom`).
+  const together = room.type === 'bedroom' ? layoutBedroom({ room, edges, program, pieceOf, options, doorBands, state: { placed, occupied, passages }, stand, nextId }) : null;
+  layRest({ placed, occupied, passages }, together, options.rng, nextId);
   return placed;
+}
+
+/** How many pieces of each slot a room was laid. */
+function slotCounts(items: readonly PlacedItem[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const item of items) counts[item.slot] = (counts[item.slot] ?? 0) + 1;
+  return counts;
+}
+
+/**
+ * A stream's numbers kept as they are drawn, so the same numbers can be read again: `tape(at)` reads
+ * from the `at`-th on (drawing more from the stream when it runs past), and says where it is.
+ */
+function rngTape(source: Rng): (at: number) => Rng & { position: () => number } {
+  const drawn: number[] = [];
+  return (at) => {
+    let i = at;
+    const read = () => {
+      while (i >= drawn.length) drawn.push(source());
+      return drawn[i++];
+    };
+    return Object.assign(read, { position: () => i });
+  };
 }
 
 /** The floor between a sofa (its middle at `centre`, facing `facing`) and the wall `ahead` metres in front of its back, as wide as the sofa. */
@@ -1153,6 +1235,405 @@ function placeBedAlongWall(archetype: Archetype, room: PlanRoom, edges: PlanEdge
 }
 
 // ---------------------------------------------------------------------------
+// Living rooms: the sofa, the coffee table, the TV unit and the TV together
+// ---------------------------------------------------------------------------
+
+/** One way a living room's sofa and TV are tried (`loungeRungs`). */
+export interface LoungeRung {
+  /** The room's own sofa (a corner one where its shape takes one, else a three-seat), a three-seat, or a two-seat (`TWO_SEAT_SOFA_M`). */
+  sofa: 'own' | 'three' | 'two';
+  /** The TV unit's width, metres; null: no unit, the TV hung on the wall. */
+  unitM: number | null;
+  /** The unit, or the TV, on any wall in front of the sofa — a side wall too — not only the one straight ahead. */
+  side: boolean;
+  /** Floor kept between the coffee table and the unit. */
+  clearM: number;
+  /** No coffee table: a console table behind the sofa (`CONSOLE_BEHIND_SOFA_M`). */
+  console: boolean;
+}
+
+/**
+ * The ways a living room's sofa and TV are tried, in Nini's order (decision 3.3), the first that
+ * stands the TV on a wall taken (`layoutLounge`): the room as it was always laid; a 1.2 m TV unit
+ * (`TV_UNIT_NARROW_M`); a smaller sofa — a corner sofa's three-seat, then a two-seat; the unit on
+ * another wall in front of the sofa, a side wall too; 45 cm between the coffee table and the unit
+ * (`TV_UNIT_CLEAR_MIN_M`); a TV on the wall with no unit; and last no coffee table, a console table
+ * behind the sofa. Each fallback is tried on its own first, then with the ones before it.
+ */
+export function loungeRungs(sofaKind: string): LoungeRung[] {
+  const base: LoungeRung = { sofa: 'own', unitM: ARCHETYPES.tv_unit.size.width, side: false, clearM: TV_UNIT_CLEAR_M, console: false };
+  const narrow = TV_UNIT_NARROW_M;
+  const corner = sofaKind === 'sofa_corner';
+  return [
+    base,
+    { ...base, unitM: narrow },
+    ...(corner ? [{ ...base, sofa: 'three' as const }, { ...base, sofa: 'three' as const, unitM: narrow }] : []),
+    { ...base, sofa: 'two' },
+    { ...base, sofa: 'two', unitM: narrow },
+    { ...base, side: true },
+    { ...base, side: true, unitM: narrow, sofa: 'two' },
+    { ...base, clearM: TV_UNIT_CLEAR_MIN_M },
+    { ...base, clearM: TV_UNIT_CLEAR_MIN_M, unitM: narrow, sofa: 'two', side: true },
+    { ...base, unitM: null },
+    { ...base, unitM: null, sofa: 'two', side: true },
+    { ...base, console: true, clearM: TV_UNIT_CLEAR_MIN_M, unitM: narrow, sofa: 'two', side: true },
+  ];
+}
+
+/** What laying a living room's lounge out one way (`LoungeRung`) gave: the pieces in order, the floor kept, and what of it stood. */
+interface LoungeTrial {
+  rung: LoungeRung;
+  steps: TrialStep[];
+  /** Floor nothing laid after may take: the way behind a sofa standing free. */
+  keep: Box[];
+  sofa: boolean;
+  /** A coffee table, or the console behind the sofa in its place. */
+  table: boolean;
+  unit: boolean;
+  tv: boolean;
+  /** The TV stands on a unit with the whole of its back on a wall, or hangs on a wall: a real wall behind the screen. */
+  good: boolean;
+  /** Where the screen is (the unit, or the TV with none), for the sofa's distance to it. */
+  screen: Pose | null;
+}
+
+/**
+ * What `layoutLounge` offers a living room: the program's entries it lays, the first try (the room
+ * as it was always laid out), and, one by one, what may stand in for it (`next`), best first.
+ */
+interface LoungePlan {
+  entries: Set<ProgramEntry>;
+  first: LoungeTrial;
+  next: () => LoungeTrial | null;
+}
+
+/**
+ * A living room's sofa, coffee table, TV unit and TV laid out together (Nini, 23 Nov 2026, decisions
+ * 1, 2 and 3.3). The first try is the room as it was always laid out — the sofa where its unit then
+ * stands on a wall (`RuleContext.screenFor`), with the room's draw. Where the TV does not then stand
+ * or hang on a real wall, the sofa may stand free, its back to the room separator's open line with
+ * the way kept behind it (`SOFA_OPEN_LINE_WAY_M`), facing the TV on a wall (decision 2); and where
+ * neither does, her fallbacks in her order (`loungeRungs`), each laid at its best spot without a draw.
+ * What may stand in for the first try (`LoungePlan.next`): each fallback that stands the TV on a wall
+ * (with the sofa); where the first try has no sofa, the first fallback with one. `layoutArea` lays
+ * each out with the rest of the room and keeps the first that keeps the room's pieces.
+ *
+ * Where no coffee table stands, a smaller one (`SMALL_COFFEE_TABLE_M` — a round, nesting or side
+ * table) in front of the sofa, else — Nini's preference to no table — the same way laid with a
+ * console table behind the sofa, where that keeps its sofa, unit and TV. Stands nothing into `state`
+ * (it is what stands before the lounge); null when the room's program has no sofa.
+ */
+function layoutLounge(ctx: {
+  room: PlanRoom;
+  edges: PlanEdge[];
+  program: ProgramEntry[];
+  pieceOf: (entry: ProgramEntry) => { kind: string; archetype: Archetype } | null;
+  options: LayoutOptions;
+  doorBands: Quad[];
+  state: LayoutState;
+  stand: (into: LayoutState, archetype: Archetype, kind: string, pose: Pose, id: string) => void;
+  screenAfter: (at: number, piece: { kind: string; archetype: Archetype }) => RuleContext['screenFor'];
+  /** The sofa in place of the room's own (a three-seat where its shape took a corner one). */
+  sofaKind?: string;
+}): LoungePlan | null {
+  const { room, edges, program, pieceOf, options, doorBands, state, stand } = ctx;
+  const slotOf = (entry: ProgramEntry) => getArchetype(entry.kind)?.slot;
+  const at = program.findIndex((e) => slotOf(e) === 'sofa');
+  const sofaEntry = program[at];
+  const resolved = sofaEntry ? pieceOf(sofaEntry) : null;
+  const own = resolved && ctx.sofaKind && getArchetype(ctx.sofaKind) ? { kind: ctx.sofaKind, archetype: getArchetype(ctx.sofaKind)! } : resolved;
+  if (!sofaEntry || !own) return null;
+  const entryOf = (slot: SlotKind) => program.find((e) => slotOf(e) === slot);
+  const coffeeEntry = entryOf('coffee_table');
+  const unitEntry = entryOf('tv_unit');
+  const tvEntry = entryOf('tv');
+  const coffee = coffeeEntry ? pieceOf(coffeeEntry) : null;
+  const unitPiece = unitEntry ? pieceOf(unitEntry) : null;
+  const tvPiece = tvEntry ? pieceOf(tvEntry) : null;
+  const walled = edges.filter((e) => !isOpenEdge(room, e.index));
+  const anchors = options.anchors?.[room.id];
+  const doorPoints = openingPoints(room, edges, isPassage);
+  const consoleArchetype = getArchetype('console_table');
+
+  const copy = (from: LayoutState): LayoutState => ({ placed: [...from.placed], occupied: [...from.occupied], passages: [...from.passages] });
+  const rulesOf = (into: LayoutState): RuleContext => ({ doorBands, entranceBands: options.entranceSight?.[room.id] ?? [], placed: into.placed, passages: into.passages });
+  const put = (into: LayoutState, steps: TrialStep[], step: TrialStep) => {
+    stand(into, step.archetype, step.kind, step.pose, 'trial');
+    steps.push(step);
+  };
+
+  type LoungeSofa = { kind: string; archetype: Archetype; widths: number[] | null };
+  /** The sofa a rung lays: the room's own, a three-seat, or a three-seat's slot laid as wide as a two-seat. */
+  const sofaOf = (rung: LoungeRung): LoungeSofa => {
+    const piece = rung.sofa === 'own' ? own : { kind: 'sofa_3seat', archetype: getArchetype('sofa_3seat')! };
+    return { ...piece, widths: rung.sofa === 'two' ? [...TWO_SEAT_SOFA_M] : null };
+  };
+  /** The floor a sofa is looked for as: with the console behind it, the two as one block. */
+  const blockDepth = (sofa: Archetype, rung: LoungeRung) => sofa.size.depth + (rung.console && consoleArchetype ? CONSOLE_BEHIND_SOFA_M.depth + 0.02 : 0);
+  const none = (rung: LoungeRung): LoungeTrial => ({ rung, steps: [], keep: [], sofa: false, table: false, unit: false, tv: false, good: false, screen: null });
+
+  /**
+   * Lays the rest of the lounge off a sofa whose floor (with the console behind it, when the rung has
+   * one) is `block`: the coffee table, then the unit and the TV over it — or the TV on the wall —
+   * straight ahead, then (`side`) on another wall in front. `way`: the floor kept behind a free sofa.
+   */
+  const layFrom = (rung: LoungeRung, sofa: LoungeSofa, block: Pose, way: Box | null): LoungeTrial => {
+    const into = copy(state);
+    const steps: TrialStep[] = [];
+    const forward = { x: Math.sin(block.rotation), z: Math.cos(block.rotation) };
+    const depth = sofa.archetype.size.depth;
+    const behind = block.size.depth - depth;
+    const sofaArchetype = { ...sofa.archetype, size: { ...block.size, depth } };
+    const sofaPose: Pose = { ...block, size: sofaArchetype.size, position: { x: block.position.x + (forward.x * behind) / 2, z: block.position.z + (forward.z * behind) / 2 } };
+    put(into, steps, { kind: sofa.kind, archetype: sofaArchetype, pose: sofaPose });
+    let table = false;
+    if (behind > 0 && consoleArchetype) {
+      const size = { ...consoleArchetype.size, width: Math.min(CONSOLE_BEHIND_SOFA_M.width, block.size.width - 0.2), depth: CONSOLE_BEHIND_SOFA_M.depth };
+      const off = (block.size.depth - size.depth) / 2;
+      put(into, steps, { kind: 'console_table', archetype: { ...consoleArchetype, size }, pose: { position: { x: block.position.x - forward.x * off, z: block.position.z - forward.z * off }, rotation: block.rotation, size, elevationM: 0 } });
+      table = true;
+    }
+    const keep = way ? [way] : [];
+    into.occupied.push(...keep);
+    if (!rung.console && coffee) {
+      const pose = resolvePose(coffee.archetype, 0, room, edges, into.placed, inTheWay(into.occupied, coffee.archetype.size.height));
+      if (pose) {
+        put(into, steps, { kind: coffee.kind, archetype: coffee.archetype, pose });
+        table = true;
+      }
+    }
+    const result = { rung, keep, sofa: true, table };
+    const bare = { ...result, steps, unit: false, tv: false, good: false, screen: null };
+    if (!tvPiece) return bare;
+
+    if (rung.unitM == null) {
+      // A TV on the wall with no unit (the fifth fallback): straight ahead first, then (`side`) on another wall in front.
+      const hung = frontWallSpots(tvPiece.archetype, sofaPose, room, walled, into.placed, [], rung.clearM, true).find((s) => rung.side || s.ahead)?.pose;
+      if (!hung) return bare;
+      put(into, steps, { kind: tvPiece.kind, archetype: tvPiece.archetype, pose: hung });
+      return { ...result, steps, unit: false, tv: true, good: true, screen: hung };
+    }
+    if (!unitPiece) return bare;
+
+    const unitArchetype = rung.unitM === unitPiece.archetype.size.width ? unitPiece.archetype : { ...unitPiece.archetype, size: { ...unitPiece.archetype.size, width: rung.unitM } };
+    const occupied = inTheWay(into.occupied, unitArchetype.size.height);
+    // As the engine always stood it — the wall straight ahead (`placeRelative`) — then any wall in front.
+    const ahead = placeRelative(unitArchetype, 0, room, into.placed, occupied, rung.clearM);
+    const coffeeBox = into.placed.filter((p) => p.slot === 'coffee_table').map((p) => boxFor({ position: p.position, rotation: p.rotation, size: p.size, elevationM: 0 }));
+    const tries = [...(ahead ? [ahead] : []), ...(rung.side ? frontWallSpots(unitArchetype, sofaPose, room, walled, into.placed, occupied, rung.clearM, false, coffeeBox).map((s) => s.pose) : [])];
+    let found: { steps: TrialStep[]; unit: Pose; tv: boolean; good: boolean } | null = null;
+    for (const unitPose of tries) {
+      const withUnit = copy(into);
+      const unitSteps = [...steps];
+      put(withUnit, unitSteps, { kind: unitPiece.kind, archetype: unitArchetype, pose: unitPose });
+      const tvPose = resolvePose(tvPiece.archetype, 0, room, edges, withUnit.placed, inTheWay(withUnit.occupied, tvPiece.archetype.size.height));
+      if (tvPose) put(withUnit, unitSteps, { kind: tvPiece.kind, archetype: tvPiece.archetype, pose: tvPose });
+      const good = !!tvPose && standingWall(unitPose, room, walled) != null;
+      if (good || !found) found = { steps: unitSteps, unit: unitPose, tv: !!tvPose, good };
+      if (good) break;
+    }
+    if (!found) return bare;
+    return { ...result, steps: found.steps, unit: true, tv: found.tv, good: found.good, screen: found.unit };
+  };
+
+  /** A free spot's worth by its screen (`bestAlongWalls`' own measure): 2.5–3.5 m to the screen's back, the floor between off the ways between doors. */
+  const viewing = (sofa: Pose, screen: Pose) => {
+    const back = backMiddle({ position: screen.position, rotation: screen.rotation, size: screen.size });
+    const d = Math.hypot(back.x - sofa.position.x, back.z - sofa.position.z) - 0.05;
+    const off = d < SOFA_TV_M.min ? SOFA_TV_M.min - d : d > SOFA_TV_M.max ? d - SOFA_TV_M.max : 0;
+    let worth = off === 0 ? 10 : -off * 16;
+    const view = viewingQuad(sofa.position, sofa.rotation, sofa.size.width, sofa.size.depth, d + 0.05);
+    if (passagePaths(doorPoints).some((path) => quadsOverlap(path, view, QUAD_TOUCH_M))) worth -= 25;
+    return worth;
+  };
+
+  /** The sofa of a rung against a wall, as the engine always looked for it: its screen's wall in the scoring (`screenFor`). */
+  const againstWall = (rung: LoungeRung, sofa: LoungeSofa, rng: Rng | undefined, screenFor: RuleContext['screenFor']): Pose | null => {
+    for (const width of sofa.widths ?? [sofa.archetype.size.width]) {
+      const archetype = { ...sofa.archetype, size: { ...sofa.archetype.size, width, depth: blockDepth(sofa.archetype, rung) } };
+      const exact = sofa.widths != null || rung.console;
+      const pose = resolvePose(archetype, 0, room, edges, state.placed, inTheWay(state.occupied, archetype.size.height), { exact, anchors: anchorsFor(sofa.kind, anchors), rng, rules: { ...rulesOf(state), screenFor } });
+      if (pose) return pose;
+    }
+    return null;
+  };
+
+  /** The sofa of a rung standing free, its back to an open line (decision 2): the best spot whose TV is on a wall. */
+  const standingFree = (rung: LoungeRung, sofa: LoungeSofa): LoungeTrial | null => {
+    if (!room.open?.length) return null;
+    for (const width of sofa.widths ?? [sofa.archetype.size.width]) {
+      const size = { ...sofa.archetype.size, width, depth: blockDepth(sofa.archetype, rung) };
+      let best: { trial: LoungeTrial; score: number } | null = null;
+      for (const spot of freeSofaSpots(size, room, edges, inTheWay(state.occupied, size.height))) {
+        const trial = layFrom(rung, sofa, spot.pose, spot.way);
+        if (!trial.good || !trial.screen) continue;
+        const score = viewing(trial.steps[0].pose, trial.screen) - (spot.gap - SOFA_OPEN_LINE_WAY_M[0]) * 2 + spot.centred * 3;
+        if (!best || score > best.score) best = { trial, score };
+      }
+      if (best) return best.trial;
+    }
+    return null;
+  };
+
+  /** One rung: the sofa against a wall; where its TV is not then on a wall, standing free; else the wall's as it is. */
+  const trial = (rung: LoungeRung, rng: Rng | undefined, first: boolean): LoungeTrial => {
+    const sofa = sofaOf(rung);
+    // The first try is the engine's own dry run (`screenAfter`): the unit on a wall wherever any spot gives it one.
+    const screenFor: RuleContext['screenFor'] = first
+      ? ctx.screenAfter(at, own)
+      : (pose) => {
+          const t = layFrom(rung, sofa, pose, null);
+          return t.good ? t.screen : null;
+        };
+    const pose = againstWall(rung, sofa, rng, screenFor);
+    const onWall = pose ? layFrom(rung, sofa, pose, null) : null;
+    if (onWall?.good) return onWall;
+    return standingFree(rung, sofa) ?? onWall ?? none(rung);
+  };
+
+  /**
+   * No coffee table: a smaller one — a round, nesting or side table — in front of the sofa, clear of
+   * the unit by the rung's floor; else the same way laid with a console behind the sofa (Nini: rather
+   * that than no table), where that keeps its sofa, unit and TV. Else as it is.
+   */
+  const withTable = (laid: LoungeTrial): LoungeTrial => {
+    if (!laid.sofa || laid.table || !coffee) return laid;
+    const into = copy(state);
+    for (const step of laid.steps) stand(into, step.archetype, step.kind, step.pose, 'trial');
+    const small = { ...coffee.archetype, size: { ...coffee.archetype.size, ...SMALL_COFFEE_TABLE_M } };
+    const units = into.placed.filter((p) => p.slot === 'tv_unit').map((p) => inflate(boxFor({ position: p.position, rotation: p.rotation, size: p.size, elevationM: 0 }), laid.rung.clearM - 0.01));
+    const pose = resolvePose(small, 0, room, edges, into.placed, [...inTheWay(into.occupied, small.size.height), ...units]);
+    if (pose) {
+      // Before the unit and the TV, as the coffee table is laid.
+      const at = laid.steps.findIndex((s) => s.archetype.slot === 'tv_unit' || s.archetype.slot === 'tv');
+      const table = { kind: coffee.kind, archetype: small, pose };
+      return { ...laid, table: true, steps: at < 0 ? [...laid.steps, table] : [...laid.steps.slice(0, at), table, ...laid.steps.slice(at)] };
+    }
+    if (laid.rung.console || !consoleArchetype) return laid;
+    const behind = trial({ ...laid.rung, console: true }, undefined, false);
+    return behind.sofa && behind.table && behind.tv >= laid.tv && behind.unit >= laid.unit && behind.good >= laid.good ? behind : laid;
+  };
+
+  const rungs = loungeRungs(own.kind);
+  const base = trial(rungs[0], options.rng, true);
+  const first = withTable(base);
+  // What may stand in for the first try, in order: the first try with a console behind its sofa where
+  // no table of any size stood in front of it; then, where its TV is not on a wall, each fallback that
+  // stands it on one; then, where it has no sofa, the first fallback with one.
+  const queue: Array<() => LoungeTrial | null> = [];
+  if (!first.table && first.sofa && !first.rung.console) {
+    queue.push(() => {
+      const behind = trial({ ...base.rung, console: true }, undefined, false);
+      return behind.sofa && behind.table && behind.tv >= base.tv && behind.unit >= base.unit && behind.good >= base.good ? behind : null;
+    });
+  }
+  let withSofa: LoungeTrial | null = null;
+  if (!base.good) {
+    for (const rung of rungs.slice(1)) {
+      queue.push(() => {
+        const result = trial(rung, undefined, false);
+        if (result.sofa) withSofa ??= result;
+        return result.sofa && result.good ? withTable(result) : null;
+      });
+    }
+  }
+  if (!base.sofa) queue.push(() => (withSofa ? withTable(withSofa) : null));
+  return {
+    entries: new Set([sofaEntry, ...[coffeeEntry, unitEntry, tvEntry].filter((e): e is ProgramEntry => !!e)]),
+    first,
+    next: () => {
+      while (queue.length > 0) {
+        const found = queue.shift()!();
+        if (found) return found;
+      }
+      return null;
+    },
+  };
+}
+
+/**
+ * Where a sofa may stand free with its back to a room separator's open line (decision 2): along each
+ * open line, square to it, the way behind it 90 or 80 cm (`SOFA_OPEN_LINE_WAY_M`) — or further in,
+ * where that brings it about 3 m from the wall ahead — the sofa and the way on the room's floor.
+ */
+function freeSofaSpots(size: Size3, room: PlanRoom, edges: PlanEdge[], occupied: Box[]): Array<{ pose: Pose; way: Box; gap: number; centred: number }> {
+  const out: Array<{ pose: Pose; way: Box; gap: number; centred: number }> = [];
+  for (const edge of edges) {
+    if (!isOpenEdge(room, edge.index) || edge.length < size.width) continue;
+    // Square to the room where the line is within a few degrees of it, as the walls are.
+    const square = Math.round(edge.facing / (Math.PI / 2)) * (Math.PI / 2);
+    const rotation = Math.abs(edge.facing - square) < 0.05 ? square : edge.facing;
+    for (const t of sampleAlong(edge, size.width)) {
+      const anchor = pointOnEdge(edge, t);
+      const reach = rayToPolygon({ x: anchor.x + edge.inward.x * 0.01, z: anchor.z + edge.inward.z * 0.01 }, edge.inward, room.polygon) ?? 0;
+      // The sofa's middle 3 m (and the unit's depth) from the wall ahead.
+      const inFrom = Math.round((reach - 3 - ARCHETYPES.tv_unit.size.depth - size.depth / 2) * 100) / 100;
+      const gaps = [...SOFA_OPEN_LINE_WAY_M, ...(inFrom > SOFA_OPEN_LINE_WAY_M[0] ? [inFrom] : [])];
+      for (const gap of gaps) {
+        const pose: Pose = { position: { x: anchor.x + edge.inward.x * (gap + size.depth / 2), z: anchor.z + edge.inward.z * (gap + size.depth / 2) }, rotation, size, elevationM: 0 };
+        if (!fitsInRoom(pose, room.polygon) || overlapsAny(boxFor(pose), occupied)) continue;
+        // The way: from 5 cm off the line (a line a degree off square) to the sofa's back.
+        const way: Pose = { position: { x: anchor.x + edge.inward.x * ((gap + 0.05) / 2), z: anchor.z + edge.inward.z * ((gap + 0.05) / 2) }, rotation, size: { width: size.width, depth: gap - 0.07, height: 0.01 }, elevationM: 0 };
+        if (!fitsInRoom(way, room.polygon)) continue;
+        out.push({ pose, way: boxFor(way), gap, centred: 1 - Math.abs(t - 0.5) * 2 });
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * The spots on the walls in front of a sofa for its TV unit — or, `hung`, its TV with no unit — best
+ * first (the living room's third and fifth fallbacks): on a wall facing the sofa or across its line of
+ * sight (a side wall), ahead of the sofa's front and at least `TV_SIDE_MIN_M` from its middle; a unit
+ * on the floor clear of what stands and `clearM` off the coffee table (`keepFrom`), and a TV — over the
+ * unit or hung — clear of the windows; scored 2.5–3.5 m from the sofa, by how squarely it faces it and,
+ * on a wall facing the sofa, by how near its line of sight. `ahead`: on a wall facing the sofa.
+ */
+function frontWallSpots(archetype: Archetype, sofa: Pose, room: PlanRoom, walls: PlanEdge[], placed: PlacedItem[], occupied: Box[], clearM: number, hung: boolean, keepFrom: Box[] = []): Array<{ pose: Pose; ahead: boolean }> {
+  const forward = { x: Math.sin(sofa.rotation), z: Math.cos(sofa.rotation) };
+  const { width, depth, height } = archetype.size;
+  const spots: Array<{ value: { pose: Pose; ahead: boolean }; score: number }> = [];
+  for (const edge of walls) {
+    if (edge.length < width) continue;
+    const facing = facesWay(edge.facing, sofa.rotation + Math.PI);
+    if (!facing && !facesWay(edge.facing, sofa.rotation + Math.PI / 2) && !facesWay(edge.facing, sofa.rotation - Math.PI / 2)) continue;
+    const blocked = room.openings.filter((o) => o.wallIndex === edge.index);
+    for (const t of sampleAlong(edge, width)) {
+      const anchor = pointOnEdge(edge, t);
+      const out = depth / 2 + (hung ? 0.01 : 0.02);
+      const pose: Pose = { position: { x: anchor.x + edge.inward.x * out, z: anchor.z + edge.inward.z * out }, rotation: edge.facing, size: archetype.size, elevationM: hung ? TV_CENTRE_M - height / 2 : 0 };
+      const off = { x: pose.position.x - sofa.position.x, z: pose.position.z - sofa.position.z };
+      const ahead = off.x * forward.x + off.z * forward.z;
+      const distance = Math.hypot(off.x, off.z);
+      if (ahead < sofa.size.depth / 2 + 0.5 || distance < TV_SIDE_MIN_M) continue;
+      if (hung) {
+        if (coversOpening(edge, t, width, TV_CENTRE_M + height / 2, blocked) || hangsIntoFloorPiece(pose, placed)) continue;
+      } else {
+        if (!fitsInRoom(pose, room.polygon) || overlapsAny(boxFor(pose), occupied)) continue;
+        if (keepFrom.length > 0 && overlapsAny(inflate(boxFor(pose), clearM - 0.01), keepFrom)) continue;
+        if (coversOpening(edge, t, width, height, blocked)) continue;
+        if (blocksWindow({ ...pose, slot: archetype.slot, size: { ...pose.size, height: TV_TOP_M } }, room)) continue;
+      }
+      const away = distance < SOFA_TV_M.min ? SOFA_TV_M.min - distance : distance > SOFA_TV_M.max ? distance - SOFA_TV_M.max : 0;
+      // On a wall facing the sofa, as near its line of sight as it will go: 2.5 m straight ahead
+      // rather than in range off to one side.
+      const lateral = Math.abs(off.x * forward.z - off.z * forward.x);
+      spots.push({ value: { pose, ahead: facing }, score: (away === 0 ? 10 : -away * 16) + (ahead / distance) * 10 - (facing ? lateral * 16 : 0) });
+    }
+  }
+  return spots.sort((a, b) => b.score - a.score).map((s) => s.value);
+}
+
+/** The width of a TV as large as its distance from the sofa asks (`tvInchesFor`) over this unit; the unit's own width from 4.2 m. */
+function tvWidthFor(unit: PlacedItem, placed: PlacedItem[]): number {
+  const sofa = placed.find((p) => p.roomId === unit.roomId && p.slot === 'sofa');
+  if (!sofa) return 0;
+  const inches = tvInchesFor(Math.hypot(unit.position.x - sofa.position.x, unit.position.z - sofa.position.z));
+  return Number.isFinite(inches) ? inches * TV_WIDTH_PER_INCH_M : unit.size.width;
+}
+
+// ---------------------------------------------------------------------------
 // Placement resolution
 // ---------------------------------------------------------------------------
 
@@ -1472,9 +1953,16 @@ function bestAlongWalls(
         };
         const unit = rules?.screenFor?.(pose) ?? null;
         const behind = unit ? standingWall(unit, room, edges) : null;
+        // Straight ahead, how far ahead its wall is; on a side wall (the living room's third
+        // fallback, `frontWallSpots`), how far its back is.
+        const away = (screenPose: Pose, gap: number) => {
+          if (facesWay(screenPose.rotation, edge.facing + Math.PI)) return (screenPose.position.x - centre.x) * forward.x + (screenPose.position.z - centre.z) * forward.z + screenPose.size.depth / 2 + gap;
+          const back = backMiddle(screenPose);
+          return Math.hypot(back.x - centre.x, back.z - centre.z);
+        };
         screen = {
           ahead: outline != null ? facing(outline) : 0,
-          wall: unit && behind ? facing((unit.position.x - centre.x) * forward.x + (unit.position.z - centre.z) * forward.z + unit.size.depth / 2 + behind.gap) : null,
+          wall: unit && behind ? facing(away(unit, behind.gap)) : null,
         };
       }
 
@@ -1736,7 +2224,8 @@ function placeRelative(
   index: number,
   room: PlanRoom,
   placed: PlacedItem[],
-  occupied: Box[]
+  occupied: Box[],
+  clearM = TV_UNIT_CLEAR_M
 ): Pose | null {
   const rule = archetype.placement;
   if (rule.type !== 'relative') return null;
@@ -1789,7 +2278,7 @@ function placeRelative(
   const coffee = archetype.slot === 'tv_unit' ? placed.find((p) => p.roomId === room.id && p.slot === 'coffee_table') : undefined;
   const coffeeBox = coffee ? [boxFor({ position: coffee.position, rotation: coffee.rotation, size: coffee.size, elevationM: 0 })] : [];
 
-  const tries = relativeSpots(archetype, rule, anchor, room, preferredSide);
+  const tries = relativeSpots(archetype, rule, anchor, room, preferredSide, clearM);
   // The TV unit: the TV hangs over it, so a stretch of its wall with no window over it comes
   // first — a low unit may stand under a sill, the TV over it may not (`placeAbove`).
   let underWindow: Pose | null = null;
@@ -1801,7 +2290,7 @@ function placeRelative(
     const pose: Pose = { position, rotation, size: archetype.size, elevationM: 0 };
     if (!fitsInRoom(pose, room.polygon)) continue;
     if (overlapsAny(boxFor(pose), others)) continue;
-    if (coffeeBox.length > 0 && overlapsAny(inflate(boxFor(pose), TV_UNIT_CLEAR_M - 0.01), coffeeBox)) continue;
+    if (coffeeBox.length > 0 && overlapsAny(inflate(boxFor(pose), clearM - 0.01), coffeeBox)) continue;
     if (rule.toWall && blocksWindow({ ...pose, slot: archetype.slot, size: { ...pose.size, height: TV_TOP_M } }, room)) {
       underWindow ??= pose;
       continue;
@@ -1823,7 +2312,8 @@ function relativeSpots(
   rule: Extract<Archetype['placement'], { type: 'relative' }>,
   anchor: PlacedItem,
   room: PlanRoom,
-  preferredSide: number
+  preferredSide: number,
+  clearM = TV_UNIT_CLEAR_M
 ): Array<{ forward: number; lateral: number }> {
   const out: Array<{ forward: number; lateral: number }> = [];
   const size = archetype.size;
@@ -1850,7 +2340,9 @@ function relativeSpots(
     if (reach != null) {
       const ahead = reach - size.depth / 2 - 0.02;
       const clear = ahead - size.depth / 2 - anchor.size.depth / 2;
-      if (clear >= 1.5 && clear <= 4.2) for (const lateral of laterals) out.push({ forward: ahead, lateral });
+      // 1.5 m of floor before the sofa at least — 15 cm less where the unit may keep 45 cm from the
+      // coffee table rather than 60 (the living room's fourth fallback).
+      if (clear >= 1.5 - (TV_UNIT_CLEAR_M - clearM) && clear <= 4.2) for (const lateral of laterals) out.push({ forward: ahead, lateral });
     }
   }
   if (rule.gapM != null) {
@@ -2310,10 +2802,13 @@ function placeAbove(
   // A piece that goes nowhere else (`onlyAbove`: the TV) may also be smaller and slide along its
   // piece: a TV centred on a unit that runs past a window would cover the window.
   const own = Math.min(archetype.size.width, Math.max(under.size.width, 0.4));
+  // A TV as large as its distance from the sofa asks (decision 1, `tvInchesFor`) where that is wider
+  // than the archetype's 65″, no wider than its unit — first, then as before.
+  const larger = archetype.slot === 'tv' ? Math.min(under.size.width, tvWidthFor(under, placed)) : 0;
   const widths = rule.stretch
     ? [1, 0.75, 0.5].map((f) => under.size.width * f).filter((w) => w >= 0.6)
     : rule.onlyAbove
-      ? [own, own * 0.85, own * 0.7]
+      ? [...(larger > own + 0.01 ? [larger] : []), own, own * 0.85, own * 0.7]
       : [own];
   for (const width of widths) {
     const slack = rule.stretch || rule.onlyAbove ? (under.size.width - width) / 2 : 0;

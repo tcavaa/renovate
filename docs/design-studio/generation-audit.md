@@ -380,12 +380,20 @@ Severity: **high** = seen by anyone who generates; **medium** = wrong in some ro
   - *The sofa*: from 22 m² only the corner sofa (2.7 × 1.75 m) is tried; `NARROWABLE`
     (`autoLayout.ts:575`) has the three-seat only, and `placeAgainstWall` takes the full width on any
     wall before a narrower sofa on a better one (`:511-523`). No sofa → no coffee table, TV unit, TV
-    or armchair (all placed off it).
+    or armchair (all placed off it). *Since stage 3 (Nini's decisions 1, 2 and 3.3, the living room):* the corner sofa by the room's
+    proportions (both sides of its floor 3.8 m or more, `cornerSofaFits`) and kept only where its TV
+    then stands on a wall; a corner sofa's three-seat, then a two-seat (1.6, 1.3 m) on the lounge's
+    ladder (`layoutLounge`) — studios without a sofa 48 → 0 in 792 flats.
   - *The TV unit* needs 1.5–4.2 m of clear floor to the wall the sofa faces, else a spot 3 m ahead
     of the sofa or nearer — else there is no unit and no TV (`:972-997`, `:1028-1049`). In a living
     room 2.84 m across the facing wall is 1.46 m clear, four centimetres short, and the nearer spots
     fall on the door zones: no TV on any of 160 runs. (The last fallback, 1.14 m ahead, is where the
     coffee table stands; without it the unit would float mid-room, 47 cm from the sofa.)
+    *Since stage 3 (Nini's decisions 1, 2 and 3.3, the living room):* her fallbacks in her order where the TV would not stand on a wall —
+    a 1.2 m unit, a two-seat, any wall in front (a side wall too), 45 cm before the coffee table, a TV
+    on the wall with no unit, a console behind the sofa — each kept only where the room keeps its
+    pieces: living rooms without a TV 120 → 0 and studios 188 → 0 (40 living rooms have the TV on
+    the wall with no unit, 12 studios a console in place of the coffee table).
   - *The shower* stands in a corner in one of five sizes (`placeInCorner`, `:1169-1224`); it is never
     laid across the end of a narrow bathroom.
   - *The mirror* hangs "over the basin only" (`:478`), and the basin's spot is chosen without
@@ -607,7 +615,7 @@ Severity: **high** = seen by anyone who generates; **medium** = wrong in some ro
   lamp now hangs elsewhere — are ceiling lights with a lamp of their own. With the lamp deleted or
   moved off the point is given a lamp like any other fitting, and a lamp picked for it in its panel
   is put on it ([technical-and-fittings.md](technical-and-fittings.md), Known gaps, for when).
-- [ ] **O7 (high) — The TV unit is stood on a room separator's open line.** `placeRelative` is
+- [x] **O7 (high) — The TV unit is stood on a room separator's open line.** `placeRelative` is
   handed the room's whole outline (`autoLayout.ts:468`, `:1031`: "the wall the sofa faces" is
   whatever the ray meets), not the walls: in a living room that opens onto the kitchen or the hall
   the unit stands in the opening, its back to the next room, and the TV, with no wall behind it,
@@ -627,6 +635,11 @@ Severity: **high** = seen by anyone who generates; **medium** = wrong in some ro
   no plant (16 before; no spot at the layout stage) and a floor lamp on 8 flats of 24 (24
   before), and its TV is 4.2 m from the sofa. Whether a spot whose unit has a wall only beyond
   3.5 m, at the cost of other pieces, is a good spot is the owner's to say (RL1).
+  *Since stage 3 (Nini's decisions 1, 2 and 3.3, the living room):* the owner kept the far wall (decision 1, the screen larger the farther
+  it is); where no spot against a wall gives the unit a wall the sofa stands free with its back to
+  the open line, facing its TV on a wall (decision 2), or her fallbacks follow: units on a line or
+  free on the floor 172 → 4 in 792 flats (the 4: #368's living room on one draw of each style, where
+  every way to a wall costs the room its plant or lamp — the room keeps its pieces first).
 - [ ] **O6 (low)** — A pendant, a door mat, a rug and curtains are never fit-tested (`fitMatters`,
   `matcher.ts:353`): a 3.16 × 3.96 m pendant cluster in a bedroom, a 2.03 × 1.27 m door mat in a hall.
   *Partly:* a door mat and a hanging lamp take the first product that lies within the room
@@ -1541,7 +1554,7 @@ With RS2 and the living-room changes below: sofas 208 → 288, a TV on a real wa
 stand on a real wall (44 of them 2.5–3.5 m from the sofa), 280 on an open line, 72 mid-floor, 28
 past a wall's end.
 
-- [ ] **RL1 (high) — The sofa is scored as facing a screen when it faces an open line**
+- [x] **RL1 (high) — The sofa is scored as facing a screen when it faces an open line**
   (`autoLayout.ts:701`): the +10 for 2.5–3.5 m is a ray to the whole outline, and nothing asks
   whether a unit can then stand on a wall. Casting only the unit's ray at walls — O7's obvious fix —
   changes nothing: the unit then stands free, 29 cm short of the line. Choosing the sofa's spot by
@@ -1559,18 +1572,30 @@ past a wall's end.
   their sofas were "2.96 m from the screen" when the screen stood in the opening, and are about
   3.7 m (#357, #365), 4.8 m (#397) and 4.2 m (#399) from it on the only wall it can stand on.
   Whether a wall out of range is better than the open line in range is the owner's rule.
+  *Since stage 3 (Nini's decisions 1, 2 and 3.3, the living room):* the wall, at any distance (decision 1); `sofa_tv_distance` 160 → 290 in
+  792 flats — rooms that had no TV now have one to measure (43 on the first draw), units moved off a
+  line onto the far wall, and three-seats where the area rule gave a corner sofa (further from the
+  wall). The matcher takes the screen the distance asks for (`tvInchesFor`).
 - [ ] **RL2 (high) — The 1.5 m minimum is really 1.62 m.** The wall ahead passes at 1.5 m clear
   (`:1035`), but the unit must keep 60 cm from a coffee table already standing 42 cm off the sofa
   (`:989`): 1.5–1.62 m always fails (#373 r5 has 1.60 m: no unit on 32 of 32). Without the 60 cm
   rule 64 of the 120 come back; with the unit laid before the table all 120, and 56 tables go.
+  *Since stage 3 (Nini's decisions 1, 2 and 3.3, the living room):* the rule is kept for the first try; the fourth fallback keeps 45 cm
+  (`TV_UNIT_CLEAR_MIN_M`, the minimum then 1.35 m) — Nini's order puts it after the narrower unit,
+  the two-seat and the side wall.
 - [ ] **RL3 (high) — The unit is tried at five offsets from the sofa's axis** (0, ±0.45, ±0.9 m,
   `:1026`), never looked for along the wall: #412 r2 has 1.89 m free between two door zones and gets
   a 1.8 m unit on 12 of 32 runs. Searching the wall every 3 cm recovers 24.
-- [ ] **RL4 (medium) — Only the wall straight ahead is tried.** A wall beside the sofa recovers 64
+  *Since stage 3 (Nini's decisions 1, 2 and 3.3, the living room):* the first try keeps the five offsets; the third fallback searches every
+  wall in front along its length (`frontWallSpots`, `sampleAlong`).
+- [x] **RL4 (medium) — Only the wall straight ahead is tried.** A wall beside the sofa recovers 64
   of the 120, any wall in front 68 — all on a wall, with a TV.
-- [ ] **RL5 (medium) — `NARROWABLE` lists the TV unit, but a piece placed off another is never
+  *Fixed by stage 3:* the unit on any wall in front of the sofa, a side wall too, is Nini's third
+  fallback (`frontWallSpots`).
+- [x] **RL5 (medium) — `NARROWABLE` lists the TV unit, but a piece placed off another is never
   narrowed** (`:575`, `:468`): at 1.44 m wide 24 come back; at 1.2 m 168 units stand on a wall
   against 108.
+  *Fixed by stage 3:* a 1.2 m unit is Nini's first fallback (`TV_UNIT_NARROW_M`).
 - [ ] **RL6 (medium)** — A corner sofa's viewing distance is measured from its centre (`:703`): it
   earns the bonus at 2.55–2.93 m where its unit needs 2.94 m. With the wall spots refused the unit
   is stood mid-floor (`:1048`): 72 units with a wall 0.2–2 m behind them.

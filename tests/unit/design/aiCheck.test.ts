@@ -268,7 +268,8 @@ function product(id: number, kind: string, w: number, d: number, h: number, styl
 
 describe('the designer is offered what the matcher takes as a pick (A1)', () => {
   const bath = room('b', 'bathroom', 2.6, 2.2, [{ kind: 'door', wallIndex: 2, t: 0.5, widthM: 0.7, heightM: 2.05, sillM: 0, exterior: false }]);
-  const living = room('l', 'living_room', 5, 4, [{ kind: 'door', wallIndex: 2, t: 0.8, widthM: 0.9, heightM: 2.05, sillM: 0, exterior: false }]);
+  // 5 × 3.6 m: too narrow for a corner sofa by its proportions (`cornerSofaFits`), so a three-seat.
+  const living = room('l', 'living_room', 5, 3.6, [{ kind: 'door', wallIndex: 2, t: 0.8, widthM: 0.9, heightM: 2.05, sillM: 0, exterior: false }]);
   const plan = planOf(bath, living);
   const catalog = [
     product(1, 'sink', 85, 50, 85), // a pedestal basin: in a Modern bathroom the basin sits on its vanity
@@ -410,9 +411,9 @@ describe('the designer is asked only about the pieces the room will have (A2)', 
   });
 
   it('asks about a studio half by half, as the engine furnishes it', () => {
-    // A 6 × 4.5 m studio: a kitchen half and a living half of about 13.5 m² each — a three-seat sofa,
-    // not the corner sofa the whole 27 m² would take.
-    const studio = room('s', 'studio', 6, 4.5, [{ kind: 'window', wallIndex: 0, t: 0.5, widthM: 1.2, heightM: 1.4, sillM: 0.9, exterior: true }]);
+    // A 5.6 × 4.5 m studio: a kitchen half about 2 m wide and a living half 3.64 × 4.5 m — a three-seat
+    // sofa by the half's proportions, not the corner sofa the whole room's would take (`cornerSofaFits`).
+    const studio = room('s', 'studio', 5.6, 4.5, [{ kind: 'window', wallIndex: 0, t: 0.5, widthM: 1.2, heightM: 1.4, sillM: 0.9, exterior: true }]);
     const kinds = programKinds(studio, 'modern');
     expect(kinds).toContain('sofa_3seat');
     expect(kinds).not.toContain('sofa_corner');

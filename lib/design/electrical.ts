@@ -642,8 +642,10 @@ function furnitureFor(b: Builder, room: PlanRoom, here: PlacedItem[], technical:
     for (const at of ringSpots(room)) make(b, room, 'light_spot', at, { category: 'secondary' });
   }
 
-  // Every TV unit, sofa, desk and basin the room has its own sockets — a second sofa as the first.
-  for (const tv of here.filter((i) => i.slot === 'tv_unit')) {
+  // Every TV unit, sofa, desk and basin the room has its own sockets — a second sofa as the first. A
+  // TV on the wall with no unit (the living room's fifth fallback) has the unit's, behind it.
+  const unitless = !here.some((i) => i.slot === 'tv_unit');
+  for (const tv of here.filter((i) => i.slot === 'tv_unit' || (unitless && i.slot === 'tv' && i.elevationM > 0.3))) {
     const wall = backWall(room, tv);
     if (wall) {
       makeOnWall(b, room, 'tv', wall.edge, wall.t, { elevationM: TV_SOCKET_M });

@@ -50,6 +50,13 @@ describe('generating whole flats', () => {
       // Every bedroom has its bed and its wardrobe (Nini, decision 3.2: the bed's ladder, the wardrobe a must).
       'missing:bedroom:bed',
       'missing:bedroom:wardrobe',
+      // Every living room has its TV, every studio its sofa, unit and TV, and no unit stands free of the
+      // walls (Nini, decisions 1, 2 and 3.3: the free sofa and the living room's ladder).
+      'missing:living_room:tv',
+      'missing:studio:sofa',
+      'missing:studio:tv',
+      'missing:studio:tv_unit',
+      'tv_unit_off_wall',
       // Every balcony is furnished: its compact table and chairs, or at least a planter (Nini, decision 3.6).
       'missing:balcony:dining_table/plant',
       'basin_in_air',
