@@ -92,7 +92,9 @@ in six stages:
 - Kitchen: 1.2 m of circulation in front of the run; the run along the long wall of an elongated
   room and the dining table against a short wall; the fridge (and the oven tower) beside the run,
   never elsewhere; a table and chairs whenever there is room; a closed kitchen's floor tiled, an
-  open one's the flat's floor; the backsplash stays the decor it is.
+  open one's the flat's floor; the backsplash stays the decor it is. (The fourth round's decision
+  3.5 orders what gives way when a kitchen lacks its run, its fridge or its table — the fridge on
+  another wall is her second fallback; stage 4, below.)
 - Living room: the sofa and the armchairs face the TV, never the window; an armchair beside the sofa
   turned about 45° towards the TV; the TV unit centred under the TV, and a TV whenever there is a
   unit; 60–100 cm in front of the unit before the coffee table, else no TV unit; a bookcase or a
@@ -106,7 +108,8 @@ in six stages:
   middle, or the bath and shower combine; too small for a bath, a shower only; the long walls take
   the shower and the basin, never the WC alone; storage when there is room; the mirror on the wall,
   over a basin only; no 10–20 cm leftover gaps.
-- Washing machine: in the bathroom, else the entrance, else the kitchen.
+- Washing machine: in the bathroom, else the entrance, else the kitchen — and, the fourth round's
+  decision 3.6, else the balcony.
 - Windows: blinds by style — Modern and Industrial compact roller blinds, Scandinavian and Vintage
   full-length curtains from just under the ceiling, bathroom and kitchen windows always blinds.
 
@@ -315,9 +318,12 @@ How stage 2 built it — **the kitchen**:
   out), when it has a run's shape — not tall units alone, an oven or a range cooker (`KIND_BOUNDS`) —
   and only when it fills 90 % of the run's wall (K-16) — else the run is made to measure along the
   whole wall.
-- **Table** (K-10–K-12, L-6, L-8): 1.2 × 0.82 m at least (chairs at its ends too), never smaller; 1.8 m
+- **Table** (K-10–K-12, L-6, L-8): 1.2 × 0.82 m at least (chairs at its ends too); 1.8 m
   in a long room (1.6 : 1 or longer); 42 cm or more from the walls for the chairs; with no room to
-  stand free, against a wall (`placeAgainstWall`, the table's three open sides). A living room's
+  stand free, against a wall (`placeAgainstWall`, the table's three open sides). Smaller only as the
+  fourth round's fallback (decision 3.5): where no table for four fits — and in a kitchen under the
+  10 m² a table for four needs — a compact two-seat table, 80 or 70 cm square, against a wall with
+  its chairs facing each other along it (stage 4, below). A living room's
   table keeps 1 m from the sofa, the coffee table, the armchair and the TV unit
   (`DINING_LOUNGE_GAP_M`) and takes the spot with the most room round it, walls included.
 - **Light** (K-13, K-14): the kitchen's row of spots runs along the run through the middle of the
@@ -540,6 +546,33 @@ none), a curtain instead of glass, and her last resort, a sliding or outward-ope
 still without a shower are the ones a door leaves no floor for (the detail and the numbers:
 [layout-and-matching.md](layout-and-matching.md), generation-audit.md M1).
 
+**Stage 4 is built** (23 Nov 2026): the kitchen (3.5), the washing machine and balconies (3.6). Where a
+kitchen would go without its run (its sink, its hob and the oven under it), its fridge or its dining
+table — a must-have in a kitchen of any size — or its worktop (the run and the leg it turns round its
+corner) is short of 1.8 m, her fallbacks are tried in her order, each laid without a draw and kept only
+when it has more of the must-haves (or as many and a longer worktop), takes no piece the kitchen had
+and leaves the worktop no shorter than 1.5 m (a studio's kitchen 1.2 m): the run on another wall; the
+fridge stood first on a wall of its own; a shorter run slid along its wall with the fridge hard beside
+it (down to a 1.2 m run, a 1.98 m wall taking it and a 72 cm fridge); a compact two-seat table, 80 or
+70 cm square, against a wall. A kitchen that has everything is laid as it always was. The washing
+machine goes to the balcony after the hall and the kitchen, against a wall, the balcony laid round it.
+Every balcony is furnished: a compact table against a wall away from the door, two chairs facing each
+other along it from 1.5 m deep, one on a narrower balcony, and planters in its corners off its windows
+and its door; its table is a product of the slot's size at most, its chairs café chairs (60 × 55 cm,
+1 m high at most) — and what it takes is not counted against the flat's rooms' draws. In 792 fixture
+flats: kitchens without a table 160 → 24, kitchens and studios without a fridge 72 → 48, flats without
+a washing machine 72 → 24 (48 on a balcony), balconies furnished 56 → 672 of 672 (the detail in
+[layout-and-matching.md](layout-and-matching.md) and generation-audit.md RK1–RK4, RS3). Not built:
+her fifth fallback needs nothing — the L's leg already runs under a sill at the worktop or above; an
+island stays where its 1.2 m ring fits, and none is ever matched (no island product fits its slot and
+the kitchen maker has no island material); a peninsula, a breakfast or bar counter and the separate
+tall unit for the oven and the microwave need a joinery piece the made-to-measure kitchen does not
+have (the run is one piece, its sink, hob and oven taken to stand in it — `kitchenRunZones`); a
+stacked washer-dryer is the washer's column the bathroom pass builds in whatever room the machine
+stands (a dryer on it at the top budget), not a laundry closet; no catalogue product is outdoor-rated;
+#408's 6.5 m² kitchen keeps its run and leg without a fridge — the fridge fits only with a 1.2 m worktop
+her rule allows a studio alone.
+
 ## The decisions (owner, 28 Oct 2026)
 
 **Part 1 — technical**
@@ -649,7 +682,10 @@ in English — `ruleProblem` into `reviewFindings`' PROBLEMS) and the foot of th
   out, so its box does not stand it into that floor.
 - The layout's numbers (`BED_SIDE_FREE_M`, `SOFA_TV_M`, `COFFEE_TABLE_GAP_M`, `TV_CENTRE_M`,
   `DINING_SEAT_M`, `FACING_COUNTERS_M`, `WALL_UNIT_BOTTOM_M`, the wardrobe depths, `SHOWER_MIN_M`,
-  `WC_SIDE_M`, `BASIN_TOP_M`, `SPLASH_ZONE_M`) and the geometry they need — the archetypes read
+  `WC_SIDE_M`, `BASIN_TOP_M`, `SPLASH_ZONE_M`; the fourth round's kitchen worktop `KITCHEN_RUN_M`
+  — 1.8 m preferred, 1.5 m in a very small kitchen, 1.2 m in a studio's — the compact table's sides
+  `COMPACT_TABLE_SIDES_M` and its slack, and a balcony's `BALCONY_TWO_SEATS_M` and
+  `BALCONY_CHAIR_MAX_M`) and the geometry they need — the archetypes read
   them rather than repeating them (`catalog.ts`: the coffee table's gap, the TV's centre, the wall
   cabinets hung from `WALL_UNIT_BOTTOM_M`, itself the worktop's `KITCHEN_WORKTOP_M` and the 55 cm
   over it); `footprintQuad`,

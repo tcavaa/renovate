@@ -726,7 +726,8 @@ export const ROOM_PROGRAMS: Record<RoomType, ProgramEntry[]> = {
     { kind: 'fridge', count: 1 },
     { kind: 'kitchen_wall', count: 1 },
     // The table and its four chairs before the island (the rulebook, K-10): an island only where
-    // it still has its 1.2 m round it.
+    // it still has its 1.2 m round it. A kitchen under 10 m², or one no table for four fits, takes a
+    // two-seat table where one fits (Nini's kitchen fallbacks, `kitchenLayout` in autoLayout).
     { kind: 'dining_table', count: 1, minAreaM2: 10 },
     { kind: 'dining_chair', count: 'fill', minAreaM2: 10 },
     { kind: 'kitchen_island', count: 1, minAreaM2: 17 },
@@ -780,6 +781,10 @@ export const ROOM_PROGRAMS: Record<RoomType, ProgramEntry[]> = {
   storage: [
     { kind: 'storage_shelf', count: 2 },
   ],
+  // What the shelf lists for a balcony (and the starting catalogue's studio room made from it). The
+  // layout furnishes a balcony by a program of its own (`BALCONY_PROGRAM` in autoLayout: a compact
+  // table, its chairs and planters — Nini, decision 3.6): the armchair here is arranged off a sofa and
+  // is never laid.
   balcony: [
     { kind: 'armchair', count: 1, minAreaM2: 4 },
     { kind: 'plant', count: 2 },

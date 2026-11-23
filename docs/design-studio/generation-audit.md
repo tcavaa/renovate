@@ -128,7 +128,8 @@ standing its nightstand in a door's way (V3), wall cabinets left off beside a wi
 60 flats with one (Q4).
 
 Still as before, because each is a matter of which piece gives way (the owner's per-room rules):
-studios with no TV unit 76 %, no sofa 22 %, no fridge 22 %. Bathrooms with no shower or bath were
+studios with no TV unit 76 %, no sofa 22 %; studios with no fridge 22 %, 10 % with the kitchen's
+fallbacks (stage 4, RK1). Bathrooms with no shower or bath were
 36 %, no mirror about 30 %, no WC 11 %; with the fourth round's door zone (stage 1) and the bathroom's
 fallbacks (stage 2, M1) 15 %, 3 % and 3 % of 744 (792 flats, 6 draws) — the rest a door leaves no
 floor for, and one room 36 cm wide.
@@ -293,16 +294,16 @@ Nothing after stage 4 re-runs the layout, and no stage verifies the flat as a wh
 |---|---|---|
 | Bedroom | double bed (single under 11 m²) · 2 nightstands · wardrobe (any size) · dresser (13 m², 80 %) · rug (80 %, **no product**) · pendant · print (80 %) · curtains or blinds, one a window · plant (12 m², 70 %) · floor lamp (12 m², 95 %) · stool (12 m², 60 %) | bed on the wall furthest from the door, in the middle, room for both nightstands, out of the door's sight if it can; wardrobe in a niche first, beside the bed, never facing its foot; the bed, nightstands and wardrobe laid together by Nini's ladder (1.6 → 1.4 m double → either along a wall → single; the wardrobe compact or shallow, a nightstand given up for it — `layoutBedroom`); pass: a wall of wardrobe when 85 % of its wall is free |
 | Living room | sofa (corner sofa from 22 m²) · coffee table · TV unit · TV · armchair (16 m², 75 %) · bookcase (15 m², 75 %) · rug (85 %) · floor lamp (11 m²) · pendant · print · plant (12 m²) · curtains · dining table and chairs (26 m²) | sofa on the longest wall, 2.5–3.5 m from the wall it faces, not facing a window, off the way between doors; TV unit across from it (1.5–4.2 m clear) and 60 cm from the coffee table, else none; armchair at the sofa's end turned 45° |
-| Kitchen | run · fridge · wall cabinets · table (10 m²) · chairs · island (17 m²) · pendant · blind | run on the water's wall, then a wall with no window, the longest; out of the entrance's sight; fridge at the run's end; table beyond 1.2 m of working floor, 1.2 m long at least, else against a wall; island 1.2 m clear all round; pass: an L for a run under 2.6 m |
+| Kitchen | run · fridge · wall cabinets · table (10 m²) · chairs · island (17 m²) · pendant · blind | run on the water's wall, then a wall with no window, the longest; out of the entrance's sight; fridge at the run's end; table beyond 1.2 m of working floor, 1.2 m long at least, else against a wall; island 1.2 m clear all round; pass: an L for a run under 2.6 m. Missing the run, the fridge or the table, or the worktop under 1.8 m: the run on another wall, the fridge first on a wall of its own, a shorter run with the fridge beside it, a two-seat table in a kitchen of any size (Nini's 3.5, `kitchenLayout`) |
 | Bathroom | WC · basin · shower · washer (4.5 m²) · bath (7.5 m²; 9 m² in Scandinavian and Industrial) · mirror · blind · towel shelf (6 m², top budget only) · stool (6 m², 60 %) | four fixture orders tried, the best kept; each fixture 40–60 cm of free floor; WC out of the door's sight, 80 cm wide; shower in a corner, 80 × 80 to 140 × 90 by area; mirror over the basin; pass: vanity, tap, washer column, dryer, bath box, mixer; a box behind the WC. Missing an essential: the shower across the end, no bath, a 48 cm WC and a 45 × 35 basin, the mirror near the basin, a 70 × 90 shower (Nini's 3.1) |
 | Toilet | WC · basin · mirror | as the bathroom |
 | Hall | door mat (only with the front door) · coat rack · console · shoe cabinet (**no product**) · mirror · plant (8 m²) | pass: a built-in wardrobe by the front door from 1.2 m of width (replaces the coat rack and shoe cabinet), the mirror across from it |
 | Office | desk · chair · bookcase (14 m², from the archetype) · armchair (14 m²: **never placed**) · rug · pendant · floor lamp (9 m²) · print · curtains | desk beside the window |
-| Balcony | armchair (**never placed**) · 2 plants (10 m², from the archetype) | — |
+| Balcony | compact table · its chairs (two from 1.5 m deep, else one) · 2 planters, any size (`BALCONY_PROGRAM`; the shelf's program still lists an armchair and plants) | the table against a wall away from the door, its chairs facing each other along it; planters off the door and the windows (Nini's 3.6) |
 | Closet | 2 wardrobes (8 m², from the archetype) · mirror | — |
 | Storage | 2 open shelves | — |
 | Studio | the kitchen's program in one half, the living room's in the other | each half a room of its own |
-| Whole flat | a washing machine in the hall, else the kitchen, when no bathroom took one | only when the flat has a bathroom |
+| Whole flat | a washing machine in the hall, else the kitchen, else the balcony, when no bathroom took one | only when the flat has a bathroom; on a balcony against a wall, the balcony laid round it |
 
 ## 3. What the measurement found
 
@@ -324,7 +325,7 @@ Nothing after stage 4 re-runs the layout, and no stage verifies the flat as a wh
 | | sofa | 28 % | 72 no slot, 18 no product |
 | | fridge / kitchen run | 22 % / 11 % | no slot |
 | Flat with a bathroom | washing machine | 31 % | — |
-| Balcony (900) | anything at all | 92 % empty | — |
+| Balcony (900) | anything at all | 92 % empty (0 of 672 since stage 4 of the fourth round) | — |
 
 **Clashes in the finished flat** (over 3 cm; per flat in brackets):
 
@@ -434,7 +435,11 @@ Severity: **high** = seen by anyone who generates; **medium** = wrong in some ro
   balconies are empty), a closet's wardrobes 8 m² (40 % get them), the office's bookcase 14 m² (0 of
   72), and the bedroom's "always a wardrobe" 8 m². *The bedroom's is fixed* (decision 3.2: a
   wardrobe in a bedroom of any size, smaller where it must be — 100 bedrooms of 792 flats without
-  one → 0).
+  one → 0). *So is the balcony's* (decision 3.6): the layout furnishes a balcony by a program of its
+  own, of any size — a compact table, its chairs and planters (`BALCONY_PROGRAM`) — and every balcony
+  of 792 flats has its table (616 of 672 were empty); the shelf's balcony program, an armchair and
+  plants, is what the studio's rooms were made from and stays. The office's armchair and bookcase and
+  the closet's wardrobes are left.
 - [ ] **M6 (medium) — Slots no product can fill.** Products are matched by exact kind
   (`candidatesFor`, `matcher.ts:698`). The bedroom's rug is kind `rug_bed`, which has **no product**
   (the 15 rugs are `rug`): the rug is laid in 77 % of bedrooms and dropped in all of them. The hall's
@@ -1503,9 +1508,14 @@ the open line 48, none 220; a sofa 208; a run 256; a fridge 224.
   `catalog.ts:781`) and nothing smaller is tried: no wall takes 2.7 m (#370, #369), or it leaves
   1.06 m in front (#393). A room needs 3.9 m across for a corner sofa and a TV unit, 3.0 m for a
   three-seat. With a three-seat as the second try: sofas 224 → 288, a TV on a wall 16 → 112.
-- [ ] **RS3 (medium) — The run is never tried under 1.8 m on a short wall** (`autoLayout.ts:824`:
+- [x] **RS3 (medium) — The run is never tried under 1.8 m on a short wall** (`autoLayout.ts:824`:
   the wall less 30 cm, 0.7 of it, half, 1.8 m), and its fallback takes the whole wall and leaves the
   fridge nowhere. Also trying 1.5 and 1.2 m: runs 256 → 288.
+  *Fixed* (stage 4 of the fourth round, Nini's 3.5): where a studio's kitchen half lacks its run or
+  its fridge, its fallbacks try the run on every wall, the fridge first, and runs down to 1.2 m
+  (`KITCHEN_RUN_M.studio`) with the fridge hard beside, slid along the wall (`kitchenLayout`). In 792
+  flats studios without a fridge 48 → 24; the 24 without a run are #386, whose half lies on the
+  front door (RS1), and the 24 without a fridge #384's half with three doors and a window (RS1).
 - [x] **RS4 (medium) — An opening that straddles the line is given to one half only**
   (`studio.ts:222`): the other half sees plain wall — 20 pieces stood over a window their half does
   not know of.
@@ -1653,22 +1663,47 @@ A ladder in the layout and any style in the matcher: a bed in 1,504 of 1,504 (to
 **Kitchens** — 17 kitchens, 544 runs: the fridge beside the run 480, none 32, on another wall 32;
 no table in 60 of the 416 runs of 10 m² or more; an island 0 of 96.
 
-- [ ] **RK1 (high) — "Leave the end for the fridge" tries two arrangements** (`autoLayout.ts:812`):
+- [x] **RK1 (high) — "Leave the end for the fridge" tries two arrangements** (`autoLayout.ts:812`):
   one run length, from either corner. Any keep-clear floor in a corner fails both; the fallback then
   fills the wall, and every fallback run has its fridge missing or on another wall (64 of 64;
   studios 120 of 120). A 1.98 m wall is 2 cm short for the branch (`:814`): no fridge on any run of
   #408. Shorter runs with the fridge hard beside recover all 64.
-- [ ] **RK2 (medium) — The table is lost to the run's wall.** In a 2.6 × 4.2 m kitchen the run on
+  *Fixed* (stage 4, Nini's 3.5 — `kitchenLayout`): where the kitchen as laid has no fridge, the run
+  on another wall, the fridge stood first on a wall of its own, then shorter runs every 15 cm down to
+  1.2 m slid along the wall with the fridge hard beside either end (`KitchenFallback.shorter`; the
+  fridge's room its width and 2 cm, so a 1.98 m wall takes a 1.2 m run and a 72 cm fridge); the
+  first try stays the kitchen's own. In 792 flats kitchens and studios without a fridge 72 → 48.
+  *Left:* #408 (24): with its fridge beside a 1.2 m run the fridge stands in the leg's working floor,
+  and a 1.2 m worktop is allowed a studio's kitchen alone — it keeps its 1.68 m run, 1.79 m leg and
+  no fridge (the owner's to say).
+- [x] **RK2 (medium) — The table is lost to the run's wall.** In a 2.6 × 4.2 m kitchen the run on
   the long wall and its 1.2 m leave a 76 cm strip; the table is dropped rather than the run tried on
   another wall (run, fridge and table on 60 of 60) or shortened to 3 m (60 of 60). 0.9 m of working
   floor recovers none: the table keeps 1.5–1.65 m from the run, its own walking gap added (`:897`).
+  *Fixed* (stage 4): a dining table (or an island) is one of a kitchen's must-haves in a kitchen of
+  any size; where it is lost, the run on another wall first, then the fridge first, a shorter run, and
+  a two-seat table, 80 or 70 cm square, against a wall with its chairs along it (`smallTable`,
+  `COMPACT_TABLE_SIDES_M`) — kept only where the kitchen keeps every piece it had and 1.5 m of
+  worktop. The 2.6 × 4.2 m kitchen gets a 1.8 m run on its short wall, the fridge and a table for four
+  (`kitchenBalconyFallbacks.test.ts`). In 792 flats kitchens without a table 160 → 24 (#408's), now
+  counted by the whole-flat check (`missing:kitchen:dining_table/kitchen_island`).
 - [ ] **RK3 (medium) — The island needs 22–27 m², not 17.** Its ring to the walls refuses 64 of
   96 runs, the table laid before it 32 (`:895`). And no island product fits the slot: the six that
   pass the name filter are 1.87–4.81 m wide against 1.8 m — of 19 matched in a variant one kept
   1.2 m all round.
+  Nini (3.5): an island only where the room's geometry gives room all round, not by area — which is
+  what the ring decides; it stays last, after the table. *Left:* no island is matched (the catalogue
+  has no island that fits and the kitchen maker no island material), and a peninsula or breakfast
+  counter has no joinery piece.
 - [ ] **RK4 (medium) — A quarter of the runs are under 1.8 m** (140 of 544): the run goes to the
   water's wall or a wall with no window however short, though the L's leg then goes under a window
   in 151 of 230 cases; 61 finished kitchens keep a run under 1.8 m and no leg.
+  *Partly* (stage 4): the worktop — the run and its leg — is measured against Nini's 1.8 m
+  (`KITCHEN_RUN_M`, `kitchenWorktopM`), and a kitchen short of it tries her fallbacks for a longer one;
+  no fallback leaves a kitchen under 1.5 m (a studio's under 1.2 m). Her leg under a window is allowed
+  (a sill at the worktop or above). In 792 flats kitchens whose run and leg come to under 1.8 m
+  48 → 40; straight runs under 1.8 m 152 → 192, the shorter runs that now turn their corner (L-shaped
+  kitchens 180 → 248). *Left:* the 40, where no wall gives more.
 - [ ] **RK5 (low)** — Nothing keeps the floor in front of the fridge (a table or chair there in 19
   finished kitchens). The corner pass reads a radiator by its stored room id
   (`kitchenCorner.ts:52`), the layout by position: a leg on a radiator's strip on every run of #408.

@@ -399,7 +399,11 @@ with a run that is deleted or became a shop's unit (`withoutOrphanLegs`, in `set
 90 cm of leg with 90 cm of working floor in front of it (`fitKitchenCorners`). The layout keeps
 that floor free of the one piece it stands in a kitchen after the kitchen is laid — the washing
 machine no bathroom had room for (`kitchenCornerFloor`,
-[design-studio/layout-and-matching.md](design-studio/layout-and-matching.md)).
+[design-studio/layout-and-matching.md](design-studio/layout-and-matching.md)). The layout's kitchen
+fallbacks (Nini's decision 3.5) measure a kitchen's worktop with the leg the pass would turn
+(`kitchenWorktopM`, the pass's own search), so a shorter run that turns its corner is a kitchen's
+worktop too: more generated kitchens are L-shaped (248 of 432 in the audit's flats, 180 before), each
+leg its own `kitchen:` line as above — no new kind of line.
 
 ## Known gaps
 

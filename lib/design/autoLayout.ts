@@ -47,13 +47,14 @@ import type { Opening, PlacedItem, PlanRoom, StyleId, Vec2 } from './types';
 import { isLargeSize, isTightPassage, longSideGaps } from './clearance';
 import { blocksWindow, clearsUnder, pieceWall, type KeepClear } from './manipulate';
 import { axisBox, backMiddle, boxesOverlap, QUAD_TOUCH_M, wallBehind } from './pieceGeometry';
-import { kitchenCornerFloor } from './kitchenCorner';
+import { kitchenCornerFloor, kitchenWorktopM } from './kitchenCorner';
 import { anchorsFor, type TechnicalAnchor } from './technical';
 import { pickNearBest, streamRng, weightedOrder, type RoomRng, type Rng } from './random';
 import { LAID_TO_ANOTHER } from './kinds';
 import {
   ARMCHAIR_DINING_GAP_M,
   BASIN_COMPACT_M,
+  BALCONY_TWO_SEATS_M,
   BATH_PASSAGE_M,
   BATH_PASSAGE_MIN_M,
   BED_SIDE_FREE_M,
@@ -61,10 +62,12 @@ import {
   BLIND_LOWERED,
   BLIND_OVER_HEAD_M,
   BLIND_OVERLAP_M,
+  COMPACT_TABLE_SIDES_M,
   CURTAIN_UNDER_CEILING_M,
   DINING_SEAT_M,
   FACING_COUNTERS_M,
   KITCHEN_CIRCULATION_M,
+  KITCHEN_RUN_M,
   NARROW_DOUBLE_BED_M,
   MIRROR_NEAR_BASIN_M,
   SHALLOW_WARDROBE_DEPTH_M,
@@ -398,6 +401,162 @@ function wetLayout(room: PlanRoom, options: LayoutOptions, idPrefix: string, doo
   return kept.items;
 }
 
+// ---------------------------------------------------------------------------
+// Kitchens: Nini's fallbacks (decision 3.5)
+// ---------------------------------------------------------------------------
+
+/**
+ * A kitchen's fallbacks (Nini, 23 Nov 2026, decision 3.5), tried only where the kitchen as laid goes
+ * without one of its must-haves — the run (its sink, its hob and the oven under it), the fridge, and in
+ * a kitchen of its own a dining table (or an island) — or its worktop is short of the 1.8 m she
+ * prefers (`KITCHEN_RUN_M`). In her order: the run on another wall, so the table fits (`runEdge`); the
+ * fridge on a wall of its own (`fridgeFirst`: stood before the run, which then stops short of it); a
+ * shorter run with the fridge hard beside it, slid along its wall (`shorter`, down to 1.2 m, the fridge
+ * at the run's one end or its other first); a two-seat table where no table for four fits
+ * (`smallTable`). Her fifth, the L's leg under a window, is
+ * the corner pass's already (a leg runs under a sill at the worktop or over it, `kitchenLeg`); her
+ * sixth, an island, is laid only where its 1.2 m ring fits — the room's geometry decides.
+ */
+interface KitchenFallback {
+  runEdge?: number;
+  fridgeFirst?: boolean;
+  /**
+   * The shortest straight run it lays is `KITCHEN_RUN_M.studio`, 1.2 m: what a kitchen is held to is
+   * its worktop, the run with the leg turned round its corner (`kitchenLayout`).
+   */
+  shorter?: { fridgeBefore: boolean };
+  smallTable?: boolean;
+}
+
+/** What a room's layout is tried with besides its program's order: a wet room's fallbacks, a kitchen's. */
+type LayoutRelax = WetFallback & KitchenFallback;
+
+/**
+ * How a kitchen's layout ranks (Nini, decision 3.5), compared in turn: how many of its must-haves it
+ * has — the run, the fridge and, where `withTable`, a dining table or an island; they are of one
+ * importance, unranked — then its worktop by `KITCHEN_RUN_M` (2 from 1.8 m, 1 from 1.5 m, else 0).
+ */
+export function kitchenRank(items: readonly PlacedItem[], worktopM: number, withTable: boolean): number[] {
+  const has = (...slots: string[]) => (items.some((i) => slots.includes(i.slot)) ? 1 : 0);
+  const musts = has('kitchen_run') + has('fridge') + (withTable ? has('dining_table', 'kitchen_island') : 0);
+  const worktop = worktopM >= KITCHEN_RUN_M.preferred - 1e-6 ? 2 : worktopM >= KITCHEN_RUN_M.small - 1e-6 ? 1 : 0;
+  return [musts, worktop];
+}
+
+/** Whether a layout has at least as many of every kind as another: a fallback takes no piece the room had. */
+function keepsEveryPiece(had: readonly PlacedItem[], items: readonly PlacedItem[]): boolean {
+  const count = (list: readonly PlacedItem[]) => list.reduce((m, i) => m.set(i.kind, (m.get(i.kind) ?? 0) + 1), new Map<string, number>());
+  const now = count(items);
+  return [...count(had)].every(([kind, n]) => (now.get(kind) ?? 0) >= n);
+}
+
+/**
+ * A kitchen as the engine lays it: as it always was, with its draw; and where that kitchen goes
+ * without a must-have or its worktop is short of 1.8 m (`kitchenRank`), Nini's fallbacks in turn
+ * (`KitchenFallback`), each laid with no draw, kept only when it ranks above what the kitchen had,
+ * takes none of its pieces (`keepsEveryPiece`) and makes the worktop — the run and the leg it turns
+ * round its corner (`kitchenWorktopM`) — no shorter than the room's least (`KITCHEN_RUN_M`: 1.5 m, a
+ * studio's kitchen 1.2 m) where it was longer: a 1.2 m run with a 1.4 m leg is a kitchen's worktop.
+ * The first level that gives the kitchen everything ends the ladder. A studio's kitchen half (`idPrefix`) is held to its run and
+ * its fridge: its table may be the living half's, and the studio laid as one space is still to come.
+ */
+function kitchenLayout(room: PlanRoom, options: LayoutOptions, idPrefix: string, doorBands: Quad[]): PlacedItem[] {
+  const program = ROOM_PROGRAMS.kitchen;
+  const first = layoutArea(room, options, idPrefix, doorBands, program);
+  const studio = idPrefix !== '';
+  const withTable = !studio;
+  const least = studio ? KITCHEN_RUN_M.studio : KITCHEN_RUN_M.small;
+  const judged = (items: PlacedItem[]) => {
+    const worktop = kitchenWorktopM(room, items);
+    return { items, worktop, rank: kitchenRank(items, worktop, withTable) };
+  };
+  const full = (rank: number[]) => rank[0] === (withTable ? 3 : 2) && rank[1] === 2;
+  let kept = judged(first);
+  if (full(kept.rank)) return first;
+  const had = kept;
+
+  const walls = roomEdges(room.polygon).filter((e) => !isOpenEdge(room, e.index) && e.length >= KITCHEN_RUN_M.studio).map((e) => e.index);
+  const fridgeFirst = [...program.filter((e) => e.kind === 'fridge'), ...program.filter((e) => e.kind !== 'fridge')];
+  const base: KitchenFallback[][] = [
+    walls.map((runEdge) => ({ runEdge })),
+    [{ fridgeFirst: true }, ...walls.map((runEdge) => ({ fridgeFirst: true, runEdge }))],
+    [false, true].flatMap((fridgeBefore) => [{ shorter: { fridgeBefore } }, ...walls.map((runEdge) => ({ shorter: { fridgeBefore }, runEdge }))]),
+  ];
+  // Her fourth, the smaller table, with each of the three before it — and alone.
+  const levels = withTable ? [...base, [{}, ...base.flat()].map((f) => ({ ...f, smallTable: true }))] : base;
+  for (const level of levels) {
+    for (const fallback of level) {
+      const items = layoutArea(room, { ...options, rng: undefined }, idPrefix, doorBands, fallback.fridgeFirst ? fridgeFirst : program, fallback);
+      const tried = judged(items);
+      if (!ranksAbove(tried.rank, kept.rank) || !keepsEveryPiece(had.items, items)) continue;
+      if (tried.worktop < Math.min(had.worktop, least) - 1e-6) continue;
+      kept = tried;
+    }
+    if (full(kept.rank)) break;
+  }
+  return kept.items;
+}
+
+/**
+ * What the layout furnishes a balcony with (Nini, 23 Nov 2026, decision 3.6): a room to sit out in,
+ * whatever its size — a compact table against a wall away from the door (`roomPiece`,
+ * `placeCompactTable`), two chairs at it where the balcony is deep enough and one where it is narrow
+ * (`balconySeats`), and planters in its corners, off its windows and its door (`cornerCoversOpening`);
+ * the furniture first. The shelf's balcony (`ROOM_PROGRAMS.balcony`) is what the studio's rooms were
+ * made from, and stays as it was.
+ */
+const BALCONY_PROGRAM: ProgramEntry[] = [
+  { kind: 'dining_table', count: 1, minAreaM2: 0 },
+  { kind: 'dining_chair', count: 'fill', minAreaM2: 0 },
+  { kind: 'plant', count: 2, minAreaM2: 0 },
+];
+
+/** How many sit at a balcony's table (decision 3.6): two where the balcony is `BALCONY_TWO_SEATS_M` deep or more, one where it is narrower. */
+function balconySeats(room: PlanRoom): number {
+  const bounds = polygonBounds(room.polygon);
+  return Math.min(bounds.width, bounds.depth) >= BALCONY_TWO_SEATS_M - 1e-6 ? 2 : 1;
+}
+
+/**
+ * A program's piece as this room lays it: on a balcony the dining table is a compact one against a
+ * wall away from the door (`COMPACT_TABLE_SIDES_M`, `placeCompactTable`); in a kitchen trying the
+ * two-seat table (`smallTable`), the table and its chairs are laid in a kitchen of any size. Anything
+ * else as it is.
+ */
+function roomPiece(entry: ProgramEntry, room: PlanRoom, options: Pick<LayoutOptions, 'styleId' | 'skipDecor'>, relax: LayoutRelax): { kind: string; archetype: Archetype } | null {
+  const dining = entry.kind === 'dining_table' || entry.kind === 'dining_chair';
+  const piece = programPiece(relax.smallTable && room.type === 'kitchen' && dining ? { ...entry, minAreaM2: 0 } : entry, room, options);
+  if (!piece || room.type !== 'balcony' || piece.archetype.slot !== 'dining_table') return piece;
+  const side = COMPACT_TABLE_SIDES_M[0];
+  return { ...piece, archetype: { ...piece.archetype, size: { width: side, depth: side, height: piece.archetype.size.height }, placement: { type: 'wall', prefer: 'opposite-door', clearanceM: 0.6 } } };
+}
+
+/**
+ * A compact table against a wall (decision 3.5's two-seat table, a balcony's): the sides of
+ * `COMPACT_TABLE_SIDES_M` in turn, at the wall `prefer` asks for, turned a quarter so its two seats
+ * (`seatSlots`, along a square table's sides) face each other along the wall, its back to the wall
+ * seating nobody. Looked for with the floor of a chair either side of it free along the wall
+ * (`COMPACT_SEAT_M`), else of one chair beside it — the chairs then sit where the matcher seats them,
+ * not pushed under the table past a door's clear floor. Never a table no chair can sit at.
+ */
+function placeCompactTable(archetype: Archetype, room: PlanRoom, walled: PlanEdge[], occupied: Box[], prefer: Parameters<typeof placeAgainstWall>[4], clearanceM: number, rng: Rng | undefined, rules: RuleContext): Pose | null {
+  for (const seats of [2, 1]) {
+    for (const side of COMPACT_TABLE_SIDES_M) {
+      const group = placeAgainstWall({ ...archetype, size: { width: side + seats * COMPACT_SEAT_M, depth: side, height: archetype.size.height } }, room, walled, occupied, prefer, clearanceM, true, [], rng, undefined, rules);
+      if (!group) continue;
+      // With one chair, the table at one end of the floor found, the chair's at the other.
+      const shift = seats === 1 ? COMPACT_SEAT_M / 2 : 0;
+      const right = { x: Math.cos(group.rotation), z: -Math.sin(group.rotation) };
+      const position = { x: group.position.x - right.x * shift, z: group.position.z - right.z * shift };
+      return { ...group, position, rotation: group.rotation + Math.PI / 2, size: { width: side, depth: side, height: archetype.size.height } };
+    }
+  }
+  return null;
+}
+
+/** The floor a chair at a compact table takes beside it along the wall: a dining chair's 50 cm, less the 12 cm it is tucked under the table (`DINING_CHAIR_TUCK_M`). */
+const COMPACT_SEAT_M = 0.4;
+
 /** A dining table seats four at least (the rulebook, K-10 and L-6). */
 const MIN_DINING_TABLE_M = 1.2;
 /** A living room's dining table stands this far from the sofa, its coffee table, the armchair and the TV unit. */
@@ -419,11 +578,22 @@ export function layoutPlan(rooms: PlanRoom[], given: LayoutOptions = {}): Placed
   const placed = rooms.flatMap((room) => layoutRoom(room, options));
   // The washing machine is the bathroom's; when no bathroom has room for it, the hall's (by the
   // entrance, with the technical things), else the kitchen's — a studio's kitchen half is a
-  // kitchen for this, as it is for everything else that is laid out.
+  // kitchen for this, as it is for everything else that is laid out — else the balcony's (Nini,
+  // decision 3.6).
   if (!placed.some((p) => p.slot === 'washer') && rooms.some((r) => r.type === 'bathroom')) {
     for (const type of WASHER_FALLBACK_ROOMS) {
       const area = areasOfType(rooms, type, options).sort((a, b) => b.room.areaM2 - a.room.areaM2)[0];
       if (!area) continue;
+      // On a balcony against a wall, never free in its way; and before its table and planters — the
+      // flat's machine comes before them — the balcony laid again round it where it has no room left.
+      if (type === 'balcony') {
+        const relaid = balconyWithWasher(area.room, options);
+        if (relaid) {
+          placed.splice(0, placed.length, ...placed.filter((p) => p.roomId !== area.room.id), ...relaid);
+          break;
+        }
+        continue;
+      }
       // A kitchen whose run is short of a kitchen turns its corner once the flat is matched
       // (`fitKitchenCorners`): the machine stands against a wall off the floor that corner would
       // take, where the kitchen has such a wall — it stood 60 cm along the leg's wall and the
@@ -458,8 +628,20 @@ function areasOfType(rooms: PlanRoom[], type: RoomType, options: LayoutOptions):
   });
 }
 
-/** Where the washing machine goes when no bathroom has room for it, in this order. */
-const WASHER_FALLBACK_ROOMS: RoomType[] = ['hallway', 'kitchen'];
+/** Where the washing machine goes when no bathroom has room for it, in this order (Nini, decision 3.6). */
+const WASHER_FALLBACK_ROOMS: RoomType[] = ['hallway', 'kitchen', 'balcony'];
+
+/**
+ * A balcony laid out with the flat's washing machine (`layoutPlan`'s last resort): the machine
+ * against a wall first, then the balcony's own program round it, from the balcony's own draw. Null
+ * where no wall of it takes the machine.
+ */
+function balconyWithWasher(room: PlanRoom, given: LayoutOptions): PlacedItem[] | null {
+  const options = given.roomRng ? { ...given, rng: given.roomRng(room.id), roomRng: undefined } : given;
+  const program = [{ kind: 'washer', count: 1, minAreaM2: 0 }, ...BALCONY_PROGRAM];
+  const items = layoutArea(room, options, '', roomSightBands(room).map((b) => b.quad), program);
+  return items.some((i) => i.slot === 'washer') ? items : null;
+}
 
 export function layoutRoom(room: PlanRoom, given: LayoutOptions = {}): PlacedItem[] {
   // The room's own stream, where generation hands one per room — and a studio's half its own
@@ -516,14 +698,16 @@ function compacted(piece: { kind: string; archetype: Archetype } | null, relax: 
   return piece;
 }
 
-function layoutArea(room: PlanRoom, options: LayoutOptions, idPrefix: string, doorBands: Quad[] = [], order?: ProgramEntry[], relax: WetFallback = {}): PlacedItem[] {
+function layoutArea(room: PlanRoom, options: LayoutOptions, idPrefix: string, doorBands: Quad[] = [], order?: ProgramEntry[], relax: LayoutRelax = {}): PlacedItem[] {
   // A bathroom's or a toilet's fixtures are laid out in whichever of a few orders gives the best
   // room: the WC, then the most fixtures, each with a way past it. No one order serves every room —
   // the basin first gives a narrow bathroom its basin at the end, the shower first a square one its
   // corner, and either can leave a narrow room no place for the WC.
   // Where that room goes without an essential, a small bathroom's fallbacks (`wetLayout`).
   if (!order && WET_ROOM_TYPES.includes(room.type)) return wetLayout(room, options, idPrefix, doorBands);
-  const program = order ?? ROOM_PROGRAMS[room.type] ?? [];
+  // A kitchen as it always was, and where it goes without a must-have, Nini's fallbacks (`kitchenLayout`).
+  if (!order && room.type === 'kitchen') return kitchenLayout(room, options, idPrefix, doorBands);
+  const program = order ?? (room.type === 'balcony' ? BALCONY_PROGRAM : ROOM_PROGRAMS[room.type]) ?? [];
   const edges = roomEdges(room.polygon);
   if (edges.length === 0) return [];
 
@@ -544,7 +728,8 @@ function layoutArea(room: PlanRoom, options: LayoutOptions, idPrefix: string, do
   const wet = WET_ROOM_TYPES.includes(room.type);
 
   // A small bathroom's smaller WC and compact basin, where its fallback has come to them (`WetFallback`).
-  const pieceOf = (entry: ProgramEntry) => compacted(programPiece(entry, room, options), relax);
+  // A balcony's compact table, a kitchen's two-seat one where its fallback has come to it (`roomPiece`).
+  const pieceOf = (entry: ProgramEntry) => compacted(roomPiece(entry, room, options, relax), relax);
 
   /** Stands a piece: its slot, and the floor it takes and keeps clear of what is laid after it. */
   const stand = (into: { placed: PlacedItem[]; occupied: Box[]; passages: Box[] }, archetype: Archetype, kind: string, pose: Pose, id: string) => {
@@ -617,8 +802,11 @@ function layoutArea(room: PlanRoom, options: LayoutOptions, idPrefix: string, do
     if (options.rng && kind in OPTIONAL_DECOR && options.rng() > OPTIONAL_DECOR[kind]) continue;
 
     // A curtain or a blind at every window, not one a room (G-20).
+    // A balcony's table seats two, or one where the balcony is narrow (`balconySeats`).
     const count =
-      entry.count === 'fill' ? seatCountFor(archetype, placed) : archetype.placement.type === 'window' ? ownWindows(room).length : entry.count;
+      entry.count === 'fill'
+        ? Math.min(seatCountFor(archetype, placed), room.type === 'balcony' ? balconySeats(room) : Infinity)
+        : archetype.placement.type === 'window' ? ownWindows(room).length : entry.count;
     const screenFor = screenAfter(at, piece);
 
     for (let i = 0; i < count; i++) {
@@ -975,7 +1163,7 @@ function resolvePose(
   edges: PlanEdge[],
   placed: PlacedItem[],
   occupied: Box[],
-  options: { exact?: boolean; anchors?: TechnicalAnchor[]; rng?: Rng; rules?: RuleContext; relax?: WetFallback } = {}
+  options: { exact?: boolean; anchors?: TechnicalAnchor[]; rng?: Rng; rules?: RuleContext; relax?: LayoutRelax } = {}
 ): Pose | null {
   const rule = archetype.placement;
   const rng = options.rng;
@@ -991,20 +1179,31 @@ function resolvePose(
         if (inNiche) return inNiche;
       }
       const beside = rule.beside ? placed.find((p) => p.slot === rule.beside) : undefined;
+      // A table laid against a wall (a balcony's) is a compact one, its two seats along the wall.
+      if (archetype.slot === 'dining_table' && !options.exact) return placeCompactTable(archetype, room, walled, occupied, rule.prefer, rule.clearanceM, rng, rules);
       return placeAgainstWall(archetype, room, walled, occupied, rule.prefer, rule.clearanceM, options.exact ?? false, options.anchors ?? [], rng, beside, rules);
     }
     case 'wall-run': {
-      const leave = rule.leaveFor ? Object.values(ARCHETYPES).find((a) => a.slot === rule.leaveFor)?.size : undefined;
-      return placeWallRun(archetype, room, walled, occupied, rule.prefer, rule.clearanceM, options.anchors ?? [], rng, leave, rules.entranceBands);
+      // The fridge's end of the wall is left only for a fridge still to come: one a kitchen's
+      // fallback stood first (`KitchenFallback.fridgeFirst`) has its own wall.
+      const relax = options.relax ?? {};
+      const leaveFor = rule.leaveFor && !placed.some((p) => p.roomId === room.id && p.slot === rule.leaveFor) ? rule.leaveFor : undefined;
+      const leave = leaveFor ? Object.values(ARCHETYPES).find((a) => a.slot === leaveFor)?.size : undefined;
+      // A kitchen's first fallback lays the run on the wall it is given (`KitchenFallback.runEdge`).
+      const walls = relax.runEdge != null ? walled.filter((e) => e.index === relax.runEdge) : walled;
+      return placeWallRun(archetype, room, walls, occupied, rule.prefer, rule.clearanceM, options.anchors ?? [], rng, leave, rules.entranceBands, relax.shorter ? { leastM: KITCHEN_RUN_M.studio, ...relax.shorter } : undefined);
     }
     case 'center':
       // A table with no room to stand free (1.2 m round it in a kitchen) stands against a wall
       // instead (the rulebook, K-11) — seats on its three open sides — never a smaller one.
+      // Where no table for four fits even so, a kitchen's fourth fallback (`KitchenFallback.smallTable`)
+      // stands a two-seat one against a wall, turned so its two chairs face each other along it.
       return (
         placeCentre(archetype, room, occupied, rules.placed) ??
         (archetype.slot === 'dining_table' && !options.exact
           ? placeAgainstWall({ ...archetype, size: { width: MIN_DINING_TABLE_M, depth: 0.82, height: archetype.size.height } }, room, walled, occupied, 'any', 0.7, true, [], rng, undefined, rules)
-          : null)
+          : null) ??
+        (archetype.slot === 'dining_table' && !options.exact && options.relax?.smallTable ? placeCompactTable(archetype, room, walled, occupied, 'any', 0.7, rng, rules) : null)
       );
     case 'relative':
       return placeRelative(archetype, index, room, placed, occupied);
@@ -1319,11 +1518,12 @@ function placeWallRun(
   anchors: TechnicalAnchor[] = [],
   rng?: Rng,
   leave?: Size3,
-  entranceBands: Quad[] = []
+  entranceBands: Quad[] = [],
+  shorter?: ShorterRun
 ): Pose | null {
   // Out of sight of the flat's front door first; only when no wall works out of it, in sight.
   for (const hidden of entranceBands.length > 0 ? [true, false] : [false]) {
-    const pose = placeWallRunOnce(archetype, room, edges, occupied, prefer, clearanceM, anchors, rng, leave, hidden ? entranceBands : []);
+    const pose = placeWallRunOnce(archetype, room, edges, occupied, prefer, clearanceM, anchors, rng, leave, hidden ? entranceBands : [], shorter);
     if (pose) return pose;
   }
   return null;
@@ -1339,8 +1539,10 @@ function placeWallRunOnce(
   anchors: TechnicalAnchor[],
   rng: Rng | undefined,
   leave: Size3 | undefined,
-  avoid: Quad[]
+  avoid: Quad[],
+  shorter?: ShorterRun
 ): Pose | null {
+  const least = shorter?.leastM;
   const { depth, height } = archetype.size;
   // The kitchen run goes on the wall the water comes to, when the plan says where that is.
   const anchorPoints = anchors.map((a) => a.point);
@@ -1382,10 +1584,28 @@ function placeWallRunOnce(
     // From one corner, the other end of the wall left for the fridge (`leaveFor`): the run, the
     // fridge and the wall cabinets on one wall, the way a small kitchen is fitted — the cabinets
     // used to hang over the fridge the room put at the run's end afterwards.
+    // A kitchen's third fallback (`KitchenFallback.shorter`): shorter runs, down to `least`, each slid
+    // along the wall with the fridge hard beside it, at the end the fallback asks first — not only the
+    // one length from either corner, which any keep-clear floor in a corner refused.
+    // The fridge's room is its own width and 2 cm, the pieces a centimetre apart and off the wall's
+    // ends: a 1.98 m wall takes a 1.2 m run and a 72 cm fridge (RK1 — the corners' two tries keep 8 cm).
+    if (leave && least != null) {
+      const spare = { ...leave, width: leave.width + 0.02 };
+      for (const runLength of shorterRuns(Math.min(edge.length - spare.width - 0.03, archetype.size.width * 1.6), least)) {
+        for (const from of slideStarts(edge.length, runLength + 0.01 + spare.width)) {
+          for (const fridgeBefore of shorter?.fridgeBefore ? [true, false] : [false, true]) {
+            const runFrom = fridgeBefore ? from + spare.width + 0.01 : from;
+            const fridgeFrom = fridgeBefore ? from : from + runLength + 0.01;
+            const pose = standing((runFrom + runLength / 2) / edge.length, { width: runLength, depth, height }, clearanceM * 0.4);
+            if (pose && standing((fridgeFrom + spare.width / 2) / edge.length, spare, 0)) return pose;
+          }
+        }
+      }
+    }
     if (leave) {
       const runLength = Math.min(edge.length - leave.width - 0.08, archetype.size.width * 1.6);
       const spare = { ...leave, width: leave.width + 0.04 };
-      for (const fromStart of runLength >= 1.2 ? [true, false] : []) {
+      for (const fromStart of runLength >= KITCHEN_RUN_M.studio ? [true, false] : []) {
         const t = fromStart ? (0.02 + runLength / 2) / edge.length : 1 - (0.02 + runLength / 2) / edge.length;
         const pose = standing(t, { width: runLength, depth, height }, clearanceM * 0.4);
         const end = fromStart ? 1 - (0.02 + spare.width / 2) / edge.length : (0.02 + spare.width / 2) / edge.length;
@@ -1395,9 +1615,11 @@ function placeWallRunOnce(
 
     // Try the full wall first, then progressively shorter runs — a counter that has to stop
     // short of a doorway is still a counter.
-    for (const target of [edge.length - 0.3, edge.length * 0.7, edge.length * 0.5, 1.8]) {
+    // A kitchen's third fallback tries 1.5 m and a studio's kitchen 1.2 m too (`least`).
+    const shortest = least == null ? [] : [KITCHEN_RUN_M.small, KITCHEN_RUN_M.studio].filter((m) => m >= least - 1e-6);
+    for (const target of [edge.length - 0.3, edge.length * 0.7, edge.length * 0.5, KITCHEN_RUN_M.preferred, ...shortest]) {
       const runLength = Math.min(target, archetype.size.width * 1.6);
-      if (runLength < 1.2) continue;
+      if (runLength < (least ?? KITCHEN_RUN_M.studio)) continue;
 
       for (const t of sampleAlong(edge, runLength)) {
         const pose = standing(t, { width: runLength, depth, height }, clearanceM * 0.4);
@@ -1407,6 +1629,29 @@ function placeWallRunOnce(
   }
 
   return null;
+}
+
+/** A kitchen's shorter-run fallback (`KitchenFallback.shorter`): the shortest run it lays, and which end of the run its fridge is tried at first. */
+interface ShorterRun {
+  leastM: number;
+  fridgeBefore: boolean;
+}
+
+/** The run lengths a kitchen's shorter-run fallback tries: the longest, then every 15 cm down to `least`, longest first. */
+function shorterRuns(longest: number, least: number): number[] {
+  const out: number[] = [];
+  for (let m = Math.floor(longest * 20) / 20; m >= least - 1e-6; m = Math.round((m - 0.15) * 100) / 100) out.push(m);
+  if (out.length > 0 && out[out.length - 1] > least + 1e-6) out.push(least);
+  return out;
+}
+
+/** Where along a wall `length` long a group `width` wide may begin, a centimetre off its ends: either corner first, then every 10 cm between. */
+function slideStarts(length: number, width: number): number[] {
+  const last = length - width - 0.01;
+  if (last < 0.01 - 1e-6) return [];
+  const out = [0.01, last];
+  for (let s = 0.11; s < last - 1e-6; s += 0.1) out.push(s);
+  return out;
 }
 
 /**
@@ -1883,9 +2128,12 @@ function placeInCorner(
         { position: { x: corner.x + next.dir.x * w + next.inward.x * d, z: corner.z + next.dir.z * w + next.inward.z * d }, rotation: next.facing, size, elevationM: 0 },
         { position: { x: corner.x - prev.dir.x * w + prev.inward.x * d, z: corner.z - prev.dir.z * w + prev.inward.z * d }, rotation: prev.facing, size, elevationM: 0 },
       ];
-      for (const pose of candidates) {
+      for (const [k, pose] of candidates.entries()) {
         if (!fitsInRoom(pose, room.polygon)) continue;
         if (overlapsAny(boxFor(pose), occupied)) continue;
+        // A balcony's planter keeps off its windows and its door (Nini, decision 3.6: the light and
+        // the way in): on neither wall of its corner does it stand across one.
+        if (room.type === 'balcony' && cornerCoversOpening(room, k === 0 ? next : prev, k === 0 ? prev : next, corner, size)) continue;
         // Prefer the emptiest corner; a bathroom's shower one seen from the door.
         const crowding = occupied.reduce((sum, box) => sum + 1 / (1 + distanceToBox(pose.position, box)), 0);
         const seen = shower && inSight(pose, rules?.doorBands ?? []);
@@ -1902,6 +2150,19 @@ function placeInCorner(
     if (size === sizes[sizes.length - 1] && spots.length > 0) return pickNearBest(spots, 1, rng);
   }
   return null;
+}
+
+/**
+ * Whether a piece squared into the corner at `corner` — its back on `back`, its side on `side` —
+ * stands across a window or a door of either wall that it is tall enough to block (`coversOpening`).
+ * Not a railing: a planter stands against a balcony's railing, the light comes in over it.
+ */
+function cornerCoversOpening(room: PlanRoom, back: PlanEdge, side: PlanEdge, corner: Vec2, size: Size3): boolean {
+  const on = (edge: PlanEdge, reach: number) => {
+    const from = Math.hypot(corner.x - edge.a.x, corner.z - edge.a.z) < 0.01 ? 0 : edge.length - reach;
+    return coversOpening(edge, (from + reach / 2) / edge.length, reach, size.height, room.openings.filter((o) => o.wallIndex === edge.index && o.kind !== 'railing'));
+  };
+  return on(back, size.width + 0.01) || on(side, size.depth + 0.01);
 }
 
 /**

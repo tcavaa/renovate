@@ -100,7 +100,10 @@ const JOINERY_MM = 0.001;
 export const ESSENTIALS: Partial<Record<PlanRoom['type'], SlotKind[][]>> = {
   bedroom: [['bed'], ['nightstand'], ['wardrobe']],
   living_room: [['sofa'], ['tv_unit'], ['tv']],
-  kitchen: [['kitchen_run'], ['fridge']],
+  // A kitchen's dining table (or an island) is one of its must-haves (Nini, decision 3.5); a balcony
+  // is furnished, its table or at least a planter (decision 3.6).
+  kitchen: [['kitchen_run'], ['fridge'], ['dining_table', 'kitchen_island']],
+  balcony: [['dining_table', 'plant']],
   bathroom: [['toilet'], ['sink'], ['shower', 'bathtub'], ['mirror']],
   toilet: [['toilet'], ['sink'], ['mirror']],
   studio: [['kitchen_run'], ['fridge'], ['sofa'], ['tv_unit'], ['tv']],

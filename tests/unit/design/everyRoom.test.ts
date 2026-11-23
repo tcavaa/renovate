@@ -48,7 +48,7 @@ const CASES: Case[] = [
   { name: 'a bathroom with a window', room: room('bathroom', rect(3.2, 2.2), [door(2, 0.8, 0.7), window(0, 0.5, 0.6)]), mayLack: ['mirror'] },
   { name: 'a toilet', room: room('toilet', rect(1.5, 1.9), [door(3, 0.75, 0.7)]) },
   { name: 'a hall with the front door', room: room('hallway', rect(4, 1.8), [door(3, 0.5, 0.9, true), door(1)]) },
-  // 11 m²: a balcony's plants want 10 (its armchair is never placed — M5 in the generation audit).
+  // A balcony of 2.2 m: its compact table and two chairs, and planters (Nini, decision 3.6).
   { name: 'a balcony', room: room('balcony', rect(5, 2.2), [door(0, 0.3), window(2, 0.5, 2)]) },
   { name: 'a storage room', room: room('storage', rect(1.8, 1.5), [door(2)]) },
   { name: 'a closet', room: room('closet', rect(2.2, 1.8), [door(2)]) },

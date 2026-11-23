@@ -50,6 +50,8 @@ describe('generating whole flats', () => {
       // Every bedroom has its bed and its wardrobe (Nini, decision 3.2: the bed's ladder, the wardrobe a must).
       'missing:bedroom:bed',
       'missing:bedroom:wardrobe',
+      // Every balcony is furnished: its compact table and chairs, or at least a planter (Nini, decision 3.6).
+      'missing:balcony:dining_table/plant',
       'basin_in_air',
       'hung_clash',
       'in_shower_tray',

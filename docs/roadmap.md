@@ -29,6 +29,11 @@ at runtime yet; the last one was seen on the sample plan.
 - **Bathrooms a door leaves no shower** (stage 2's 3.1 built but her last resort): a sliding or
   outward-opening door, a corner basin (none in the catalogue) and a curtain instead of glass are not
   built — [design-studio/layout-and-matching.md](design-studio/layout-and-matching.md#known-gaps).
+- **Kitchens and balconies, stage 4's remainder** (3.5 and 3.6 built): no island is ever matched (no
+  product fits, no island material), no peninsula, breakfast counter or tall oven-and-microwave unit
+  (the made-to-measure run is one piece), #408's kitchen without a fridge (only a 1.2 m worktop takes
+  one), no outdoor-rated balcony furniture —
+  [design-studio/layout-and-matching.md](design-studio/layout-and-matching.md#known-gaps).
 - **Two clashes the generation audit does not count are kept for the owner's choice of what gives
   way**: a vanity that cannot be cut back to a washer's column without becoming narrower than its
   basin (2 of 1,440 flats) and a basin 1.9 cm past a vanity cut back to a corner column (1) —

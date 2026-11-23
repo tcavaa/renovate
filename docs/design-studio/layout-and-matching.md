@@ -250,7 +250,8 @@ scene ──tightSpots──▶ amber warnings (not a rule)
   from 12 m², every window dressed, the sofa–TV floor off the ways between doors, no entrance screen in
   Industrial or a small studio.
 - **The washing machine** is the bathroom's (from 4.5 m²); when no bathroom has room for it, the
-  hall's, else the kitchen's (`layoutPlan`, `WASHER_FALLBACK_ROOMS`) — the largest of the type,
+  hall's, else the kitchen's, else the balcony's (`layoutPlan`, `WASHER_FALLBACK_ROOMS`; Nini's
+  decision 3.6) — the largest of the type,
   and a studio's half of that type counts as a room of it (`areasOfType`: the half as a room of
   its own, the whole studio's door approaches kept clear), so a studio flat with a small bathroom
   has its machine in the kitchen half. It is placed as a piece a person adds (`placeAdditional`):
@@ -263,7 +264,14 @@ scene ──tightSpots──▶ amber warnings (not a rule)
   floor) and looks for a wall off it; only where the kitchen has no such wall does the machine
   stand as it would with no corner to keep — the flat keeps its washing machine, the kitchen loses
   its leg. (It used to stand 60 cm along the leg's wall: #393's studio lost its corner on every
-  flat.) A flat with no room typed bathroom gets none.
+  flat.) **On a balcony** it stands against a wall, never free in the balcony's way, and comes before
+  the balcony's own furniture: the balcony is laid again with the machine first in its program
+  (`balconyWithWasher`, from the balcony's own draw), its table, chairs and planters round it — 48 of
+  the 792 audit flats (#394's in every draw) have their machine there, and the flats without one fell
+  72 → 24 (#353: six rooms, bedrooms and a 3 m² bathroom, no hall, kitchen or balcony). A flat with no
+  room typed bathroom gets none. Where the machine stands the bathroom pass builds its column round
+  it, with a dryer on it at the top budget, in any room (`fitBathrooms`, [decor.md](decor.md)) — the
+  stacked washer-dryer Nini allows; a laundry closet is not built.
 - **The kitchen run keeps 1.2 m of working floor** in front of it (`KITCHEN_CIRCULATION_M`, a
   keepout once the run stands): the table and its chairs go beyond it, the table as far from the
   run as the room allows — the short wall of a long kitchen (`placeCentre`). The run already takes
@@ -323,12 +331,14 @@ one number more re-drew every room after it, and every count of `pnpm audit:gene
 rooms a fix never touched. What still reads another room is not a draw, and is meant to:
 
 - the matcher's "a product already placed in another room is drawn a third as often"
-  (`usedByKind`) reads the rooms matched before, in the plan's order;
+  (`usedByKind`) reads the rooms matched before, in the plan's order — a balcony's products are not
+  counted;
 - with a budget, the budget level is estimated over the whole flat (`budgetLevel`);
 - the one floor and wall through the flat are the lead room's draw (`withFlatFinish`,
   `flatFinishRoom`: the largest living room or studio);
-- the washing machine goes to the hall or the kitchen only when no bathroom laid one out
-  (`layoutPlan`; that placement draws nothing);
+- the washing machine goes to the hall, the kitchen or the balcony only when no bathroom laid one out
+  (`layoutPlan`; in a hall or a kitchen that placement draws nothing, a balcony is laid again round it
+  from its own stream);
 - the flat hangs one door and one window product through it, for all its openings' widths
   (`withOpeningProducts`), and the partitions the app adds, the entrance's sight and the wiring
   read the plan as a whole.
@@ -379,6 +389,57 @@ The seed is kept in the generation record (`GenerationRecord.seed`) — how a fl
 from it is in [overview.md](overview.md#generation-versions-and-undo).
 
 ## Layout fallbacks that keep rooms furnished (`autoLayout.ts`, `matcher.ts`)
+
+- **A kitchen's fallbacks** (`kitchenLayout`, Nini's decision 3.5 —
+  [design-rules.md](design-rules.md#the-fourth-round-generation-decisions-nini-23-nov-2026)). The
+  kitchen is laid as it always was, with its draw; it is judged by `kitchenRank`: how many of its
+  must-haves it has — the run (the made-to-measure run is one piece with its sink, its hob and the
+  oven under it, `kitchenRunZones`), the fridge and, in a kitchen of its own, a dining table or an
+  island, all of one importance — then its worktop, the run and the leg it turns round its corner
+  measured before the flat is matched (`kitchenWorktopM` in `kitchenCorner.ts`, the corner pass's own
+  search), against `KITCHEN_RUN_M` (2 from 1.8 m, 1 from 1.5 m). Where it lacks a must-have or its
+  worktop is short of 1.8 m, her fallbacks are tried in her order, each laid with no draw: **the run
+  on another wall** (`KitchenFallback.runEdge`, every wall of 1.2 m or more); **the fridge stood
+  first**, on a wall of its own, the run then stopping short of it (`fridgeFirst`: the program with
+  the fridge before the run, whose `leaveFor` is then dropped); **a shorter run with the fridge hard
+  beside it** (`shorter`: every 15 cm from the longest down to 1.2 m, each slid along the wall from
+  either corner then every 10 cm, the fridge at the run's one end or its other first — the fridge's
+  room is its width and 2 cm, the pieces a centimetre apart and off the wall's ends, so a 1.98 m wall
+  takes a 1.2 m run and a 72 cm fridge; the full-wall tries also take 1.5 and 1.2 m); **a compact
+  two-seat table** (`smallTable`, with each of those and alone: the table and chairs laid in a kitchen
+  of any size, a table for four tried first, then `COMPACT_TABLE_SIDES_M` — 80 then 70 cm square —
+  against a wall turned a quarter so its two seats face each other along it, looked for with a
+  chair's floor free either side (`COMPACT_SEAT_M`), else one, never a table no chair sits at:
+  `placeCompactTable`). A fallback is kept only when it ranks above what the kitchen had, takes none
+  of its pieces (`keepsEveryPiece`, kind by kind) and leaves the worktop no shorter than the room's
+  least (1.5 m, a studio's kitchen half 1.2 m — a 1.2 m run with a 1.4 m leg is 2.6 m of worktop)
+  where it was longer; the first level that gives the kitchen everything ends the ladder. A studio's
+  kitchen half is held to its run and its fridge: its table may be the living half's, and the studio
+  laid as one space is stage 6. Her fifth fallback, the L's leg under a window, is the corner pass's
+  already (a sill at the worktop or above); her sixth, an island, is laid only where its 1.2 m ring
+  fits (17 m² and the geometry; none in the fixtures). In 792 flats: kitchens without a table
+  160 → 24 (all #408's), studios without a fridge 48 → 24 (#384's kitchen half, three doors and a
+  window: the studio's line, stage 6), studios without a run 24 (#386, the line on the front door);
+  L-shaped kitchens 180 → 248, kitchens whose run and leg come to under 1.8 m 48 → 40 (straight runs
+  under 1.8 m 152 → 192: a shorter run turning its corner); no room lost a piece. #408's 6.5 m²
+  kitchen keeps its 1.68 m run and 1.79 m leg and no fridge: with the fridge beside a 1.2 m run the
+  fridge stands in the leg's working floor, and 1.2 m of worktop is a studio's alone.
+- **A balcony is furnished** (`BALCONY_PROGRAM`, Nini's decision 3.6) — a program of the layout's
+  own, whatever the balcony's size; the shelf's balcony (`ROOM_PROGRAMS.balcony`, an armchair and
+  plants, what the starting catalogue's studio room was made from) stays as it was. A compact table
+  (`roomPiece`: the dining table as `COMPACT_TABLE_SIDES_M`, against a wall, `prefer: 'opposite-door'`)
+  with its chairs facing each other along the wall — two where the balcony's shorter side is 1.5 m or
+  more (`BALCONY_TWO_SEATS_M`), one on a narrower balcony (`balconySeats`) — then two planters in its
+  corners, off its door's clear floor and across none of its windows or doors (`cornerCoversOpening`;
+  a railing is no window: the light comes in over it). The matcher holds a balcony's table, and a
+  kitchen's two-seat one, to a product no larger than the slot (`compactTable`: its longer side the
+  slot's and 5 cm at most, `COMPACT_TABLE_SLACK_M`, so its chairs sit where the layout kept their
+  floor), a step none of whose products is one offering none — another style's bistro table rather
+  than the style's own for six; a balcony's chairs are café chairs (`BALCONY_CHAIR_MAX_M`: 60 × 55 cm,
+  1 m high at most — no bench, lounge chair or bar stool, where the kind has any). What a balcony
+  takes is not counted as used elsewhere (`usedByKind`): the rooms' tables, chairs and plants are drawn
+  as with no balcony. In 792 flats every balcony has its table (56 had plants, 616 nothing): 360 with
+  two chairs, 312 with one; no catalogue product says it is for outdoors.
 
 - **A bedroom's bed, nightstands and wardrobe are laid out together** (`layoutBedroom`, Nini's
   decision 3.2 — [design-rules.md](design-rules.md#the-fourth-round-generation-decisions-nini-23-nov-2026)).
@@ -880,6 +941,13 @@ draw, and one with no wall for it keeps its unit; a TV hangs across the joint of
 two edges, clear of a window in the next edge; a 1.6 m bed on a 1.84 m wall (`placeAdditional`); the washing machine in
 the hall, else in a studio's kitchen half, none in a flat with no bathroom — in a kitchen off the
 floor its corner is then built on, and kept where the kitchen has no other wall for it),
+`tests/unit/design/kitchenBalconyFallbacks.test.ts` (Nini's decisions 3.5 and 3.6: a kitchen's rank;
+the 2.6 × 4.2 m kitchen's run on another wall so a table for four fits; a shorter run with the fridge
+hard beside it; a two-seat table against a wall in a kitchen under 10 m², the worktop never under
+1.5 m; a kitchen that has everything laid as before; the washing machine on a balcony against a wall
+where the flat has no hall or kitchen, in the hall before it; a balcony's compact table, two chairs
+facing each other along a wall off the door's floor and planters off its window, one chair on a narrow
+balcony; the matcher's compact table of another style and café chairs),
 `tests/unit/design/bedroomLadder.test.ts` (a single under 11 m², never under a sill; the bed's
 ladder in Nini's order; the 1.6 m double kept where it fits, the 1.4 m one where it keeps both
 nightstands, the double along a wall with its one nightstand on the free side, a single in a room of
@@ -927,6 +995,13 @@ whole. `lib/design/matcher.ts` is in the coverage gate.
   1,080 generated flats. Its ticked items are fixed (the matcher's: a way out of the strict style,
   what goes with a dropped piece, a kind with no product, what the layout kept clear, the hall's
   mirror, the door mat and the hanging lamp, the chairs' own seats); the rest is open.
+- **A kitchen's island, peninsula, counter and tall unit** (Nini, decision 3.5): an island is laid
+  only where its 1.2 m ring fits and is never matched — no island product fits its slot (the six that
+  pass are 1.87–4.81 m, or carry a sink or a hob) and the kitchen maker has no island material; a
+  peninsula, a breakfast or bar counter and the separate tall unit for the oven and the microwave
+  need a joinery piece the made-to-measure kitchen does not have (the run is one piece). #408's
+  6.5 m² kitchen has no fridge (the fallbacks above). No balcony furniture is outdoor-rated (the
+  catalogue says none is).
 - **Only TVs of the home electronics are placed.** The library files a few appliances under
   kinds that do not fit them — coffee machines, a built-in oven and range cookers as
   `kitchen_run` — and there is no kind for a soundbar, speakers or a microwave; a kitchen's

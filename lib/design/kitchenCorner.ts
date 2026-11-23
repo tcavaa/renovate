@@ -301,6 +301,27 @@ export function fitKitchenCorners(rooms: readonly PlanRoom[], itemsIn: PlacedIte
 }
 
 /**
+ * How long a room's kitchen worktop comes to once the generation has turned its corner, as the room
+ * is laid out and not yet matched: each run (taken as made to measure) stretched into the corner it
+ * would turn with the longest leg it would get there (`turnableCorners`, the pass's own search), or
+ * as it stands where it turns none — the longest of the room's runs, 0 in a room with none. What the
+ * layout's kitchen fallbacks measure a run by against `KITCHEN_RUN_M` (`kitchenLayout` in autoLayout).
+ */
+export function kitchenWorktopM(room: PlanRoom, items: readonly PlacedItem[]): number {
+  let best = 0;
+  for (const piece of items) {
+    if (piece.roomId !== room.id || piece.slot !== 'kitchen_run' || piece.legOf) continue;
+    const run: PlacedItem = { ...piece, custom: true };
+    let length = run.size.width;
+    if (turnsCorner(run, items)) {
+      for (const turn of turnableCorners(run, room, items.filter((i) => i.id !== piece.id), [])) length = Math.max(length, turn.run.size.width + kitchenLegLength(turn.legs[0]));
+    }
+    best = Math.max(best, length);
+  }
+  return round3(best);
+}
+
+/**
  * The floor the generation's corners would take in a room that is laid out and not yet matched:
  * for each run short of a kitchen, at each end it could turn as the furniture stands
  * (`turnableCorners`, the pass's own search), the run stretched into that corner, and the leg with

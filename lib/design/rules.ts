@@ -422,6 +422,32 @@ export const BATH_PASSAGE_M = 0.6;
 export const BATH_PASSAGE_MIN_M = 0.4;
 /** Clear floor in front of the kitchen run before the dining table and its chairs. */
 export const KITCHEN_CIRCULATION_M = 1.2;
+/**
+ * How long a kitchen's worktop is made (Nini, 23 Nov 2026, decision 3.5) — the run with the leg a
+ * short run turns round its corner (`fitKitchenCorners`): 1.8 m the preferred minimum of a kitchen;
+ * 1.5 m accepted in a very small one where its essentials then fit; 1.2 m only in a compact studio's
+ * kitchen, as the last resort. Her fallbacks never make a run shorter than the room's least
+ * (`kitchenLayout` in autoLayout); a run the room had shorter than that it keeps — a kitchen keeps its run.
+ */
+export const KITCHEN_RUN_M = { preferred: 1.8, small: 1.5, studio: 1.2 } as const;
+/**
+ * A compact table, square, the sides tried in turn: what a kitchen takes where no table for four fits
+ * (decision 3.5, her fourth fallback — and a kitchen under the 10 m² a table for four needs, a dining
+ * table being one of its must-haves) and what a balcony takes (decision 3.6). It stands against a wall
+ * with its two chairs facing each other along it. The catalogue's compact tables are 70 and 80 cm (a
+ * bistro table, a small round one): the slot takes a product no larger than itself
+ * (`COMPACT_TABLE_SLACK_M`), so its chairs are seated where the layout kept their floor free.
+ */
+export const COMPACT_TABLE_SIDES_M: readonly number[] = [0.8, 0.7];
+export const COMPACT_TABLE_SLACK_M = 0.05;
+/**
+ * A balcony is furnished (decision 3.6): a compact table against a wall away from the door, two chairs
+ * at it where the balcony is this deep or more (its shorter side), one on a narrower balcony; and
+ * planters in its corners, off the door's way and off the windows.
+ */
+export const BALCONY_TWO_SEATS_M = 1.5;
+/** A balcony's chair: a café chair, not a lounge chair, a bench or a bar stool — 60 × 55 cm at most (the floor its table keeps it, `COMPACT_SEAT_M` in autoLayout), 1 m high at most. */
+export const BALCONY_CHAIR_MAX_M = { width: 0.6, depth: 0.55, height: 1.0 } as const;
 /** Clear floor between the TV unit and the coffee table; less, and no TV unit. */
 export const TV_UNIT_CLEAR_M = 0.6;
 /** Clear floor between an armchair and the dining table or its chairs. */

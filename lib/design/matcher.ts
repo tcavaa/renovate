@@ -19,7 +19,7 @@ import { roomEdges } from './planGeometry';
 import { ISLAND_CLEAR_M, seatSlots } from './autoLayout';
 import { asPlacedKitchen, kitchenMaterialCandidates } from './kitchen';
 import { isCustomKitchenSlot, LAID_TO_ANOTHER, SIZED_BY_LAYOUT } from './kinds';
-import { BASIN_TOP_M, KITCHEN_CIRCULATION_M, WC_BOX_DEPTH_M, WC_SIDE_M } from './rules';
+import { BALCONY_CHAIR_MAX_M, BASIN_TOP_M, COMPACT_TABLE_SIDES_M, COMPACT_TABLE_SLACK_M, KITCHEN_CIRCULATION_M, WC_BOX_DEPTH_M, WC_SIDE_M } from './rules';
 import { round2, wallBehind } from './pieceGeometry';
 import { styleAffinity } from './styles';
 import { guideFit, styleRejects } from './styleGuide';
@@ -294,7 +294,9 @@ export function matchProducts(
       // flat and no taller than 1.2 m. The swap list still offers the rest.
       const fitting = candidates.length > 0 ? slotPool(piece, candidates, room, settled, options.styleId, level) : [];
       // No TV is better than one across the window beside its unit.
-      if (candidates.length === 0 || ((piece.slot === 'tv' || piece.slot === 'towel_rack' || piece.slot === 'kitchen_island') && fitting.length === 0)) {
+      // Nor a table for six in a compact table's slot (`compactTable`): the next style's small table
+      // rather than the style's own large one.
+      if (candidates.length === 0 || ((piece.slot === 'tv' || piece.slot === 'towel_rack' || piece.slot === 'kitchen_island' || compactTable(piece, room)) && fitting.length === 0)) {
         offers.set(step, null);
         return null;
       }
@@ -380,8 +382,12 @@ export function matchProducts(
         if (piece.slot === 'dining_chair') setStarted.add(roomKey);
         // The room's next piece of the kind tries the one that fitted: a set of chairs, two wardrobes alike.
         if (piece.slot === 'dining_chair' || step > 0) chosenByRoom.set(roomKey, placed.product);
-        used.add(placed.product.id);
-        usedByKind.set(piece.kind, used);
+        // What a balcony takes (its café table and chairs, its planters) is not counted against the
+        // flat's rooms: their tables, chairs and plants are drawn as they would be with no balcony.
+        if (room?.type !== 'balcony') {
+          used.add(placed.product.id);
+          usedByKind.set(piece.kind, used);
+        }
         return finish(placedWith(piece, placed, settled, room));
       }
     }
@@ -723,6 +729,15 @@ function builtFloor(item: PlacedItem, room: PlanRoom): Footprint {
 }
 
 /**
+ * A compact table's slot — a balcony's, a kitchen's two-seat one (`COMPACT_TABLE_SIDES_M`), well under
+ * a table for four's 1.2 m: `slotPool` holds it to a table no larger than the slot
+ * (`COMPACT_TABLE_SLACK_M`), and a step none of whose products is one offers none.
+ */
+function compactTable(item: PlacedItem, room: PlanRoom | undefined): boolean {
+  return item.slot === 'dining_table' && (room?.type === 'balcony' || Math.max(item.size.width, item.size.depth) <= Math.max(...COMPACT_TABLE_SIDES_M) + COMPACT_TABLE_SLACK_M);
+}
+
+/**
  * The half of a studio a piece stands in as the layout laid it (`partRoom`): the half whose program
  * laid it (its id, `partOfId`), else the half it stands in. Null for any other room.
  */
@@ -899,6 +914,16 @@ export function slotPool(item: PlacedItem, candidates: CatalogProduct[], room: P
   if (item.slot === 'kitchen_island') {
     const runHere = settled.some((p) => p.roomId === item.roomId && p.slot === 'kitchen_run');
     if (runHere) return candidates.filter((p) => !/\b(hob|oven|cooker|range|sink|burner)\b/i.test(`${p.nameEn ?? ''} ${p.nameKa}`));
+  }
+  // A balcony's table is a compact one, and its chairs café chairs (Nini, decision 3.6): not a table
+  // for six, a lounge chair, a bench or a bar stool. So is a kitchen's two-seat table (decision 3.5).
+  if (compactTable(item, room)) {
+    const most = Math.min(Math.max(item.size.width, item.size.depth), Math.max(...COMPACT_TABLE_SIDES_M)) + COMPACT_TABLE_SLACK_M;
+    return candidates.filter((p) => Math.max(p.widthCm ?? 0, p.depthCm ?? 0) / 100 <= most + 1e-6);
+  }
+  if (room?.type === 'balcony' && item.slot === 'dining_chair') {
+    const fits = candidates.filter((p) => (p.widthCm ?? 0) / 100 <= BALCONY_CHAIR_MAX_M.width && (p.depthCm ?? 0) / 100 <= BALCONY_CHAIR_MAX_M.depth && (p.heightCm ?? 0) / 100 <= BALCONY_CHAIR_MAX_M.height);
+    return fits.length > 0 ? fits : candidates;
   }
   // A towel shelf only at the highest budget; else the towels hang on the heated rail (BA-19).
   if (item.slot === 'towel_rack' && level && level !== 'premium') return [];
