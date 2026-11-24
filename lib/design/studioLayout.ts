@@ -19,7 +19,7 @@
  */
 
 import { layoutRoom, type LayoutOptions } from './autoLayout';
-import { DINING_SOFA_GAP_M, box, diningCluster, screenOnWall, toBox, zonesReached } from './composition';
+import { DINING_SOFA_GAP_M, SCREEN_OFF_AXIS_PENALTY, box, diningCluster, screenOnWall, sofaFacesScreen, toBox, zonesReached } from './composition';
 import { kitchenWorktopM } from './kitchenCorner';
 import { pointInPolygon, pointOnEdge, polygonBounds, polygonCentroid, roomEdges } from './planGeometry';
 import { DEFAULT_STUDIO_PARTS, clampT, defaultSplit, effectiveSplit, lineIsTheApps, studioParts } from './studio';
@@ -49,7 +49,17 @@ export interface CompositionScore {
   essentials: number;
   /** The zones (the run, the fridge, the dining table, the sofa) a person cannot walk to from the door. */
   unreached: number;
+  /** The run within `RUN_BY_WATER_M` of a water point the studio has (true where it has none). */
+  byWater: boolean;
 }
+
+/**
+ * How near a water point the run stands to count as by the water: its box within a metre of it.
+ * Water comes first in Nini's ranking of the studio's kitchen (decision 2), so among the ways that
+ * keep as many essentials, one with its run by the water is taken over any without, whatever the
+ * rest of the score (the front door's sight, the sofa facing its screen) says.
+ */
+export const RUN_BY_WATER_M = 1;
 
 /** What a studio is scored against besides its own outline: the water it may be fed from, and the wet rooms beside it. */
 export interface StudioContext {
@@ -111,10 +121,12 @@ function toPolygon(p: Vec2, polygon: Vec2[]): number {
  * rest. The terms, each as the decisions ask:
  * - 100 for each essential it has: the run, the fridge, a dining table or an island, the sofa, a TV;
  * - its worktop: 10 from 1.8 m, 5 from 1.5 m (`KITCHEN_RUN_M`);
- * - the water: the run within 30 cm of a water point it has (6 a metre past it, at most 30), else
+ * - the water: the run within 30 cm of a water point it has (15 a metre past it, at most 60 — and a way
+ *   with its run within a metre of one is taken before any without, `RUN_BY_WATER_M`), else
  *   by a wet room's wall (3 a metre from the nearest bathroom or toilet, at most 15);
  * - the front door: the run out of what is seen coming in (25) and 1.5 m from the door (20 a metre nearer);
- * - the TV: 25 on a real wall (`screenOnWall`), 10 at 2.5–3.5 m from the sofa, 15 a metre off it;
+ * - the TV: 25 on a real wall (`screenOnWall`), 10 at 2.5–3.5 m from the sofa, 15 a metre off it,
+ *   40 where the sofa and the screen do not face each other (`sofaFacesScreen`);
  * - the sofa: 10 its side to the kitchen (the sofa on one wall, the TV across, the kitchen along the
  *   third — Nini's "better still"), 8 its back to it (the divider), 15 off facing the kitchen;
  * - the dining table out of the sitting group (`diningCluster`, no clustering — decision 3.3): 20 a
@@ -138,9 +150,14 @@ export function compositionScore(room: PlanRoom, items: readonly PlacedItem[], c
   total += worktop >= KITCHEN_RUN_M.preferred - 1e-6 ? 10 : worktop >= KITCHEN_RUN_M.small - 1e-6 ? 5 : 0;
 
   const edges = roomEdges(room.polygon);
+  let byWater = context.water.length === 0;
   if (run) {
     const runBox = box(run);
-    if (context.water.length > 0) total -= Math.min(60, 15 * Math.max(0, Math.min(...context.water.map((p) => toBox(p, runBox))) - 0.3));
+    const water = context.water.length > 0 ? Math.min(...context.water.map((p) => toBox(p, runBox))) : null;
+    if (water != null) {
+      total -= Math.min(60, 15 * Math.max(0, water - 0.3));
+      byWater = water <= RUN_BY_WATER_M + 1e-6;
+    }
     else if (context.wetRooms.length > 0) {
       const middle = run.position;
       total -= Math.min(15, 3 * Math.min(...context.wetRooms.map((poly) => toPolygon(middle, poly))));
@@ -159,6 +176,7 @@ export function compositionScore(room: PlanRoom, items: readonly PlacedItem[], c
   if (sofa && screen) {
     const d = Math.hypot(sofa.position.x - screen.position.x, sofa.position.z - screen.position.z);
     total += d >= SOFA_TV_M.min && d <= SOFA_TV_M.max ? 10 : -15 * (d < SOFA_TV_M.min ? SOFA_TV_M.min - d : d - SOFA_TV_M.max);
+    if (!sofaFacesScreen(sofa, screen)) total -= SCREEN_OFF_AXIS_PENALTY;
   }
 
   const parts = studioParts(room);
@@ -188,14 +206,16 @@ export function compositionScore(room: PlanRoom, items: readonly PlacedItem[], c
     const share = kitchen.areaM2 / Math.max(1e-6, room.areaM2);
     total -= Math.abs(share - 0.35) * 20;
   }
-  return { total, essentials, unreached: unreached.length };
+  return { total, essentials, unreached: unreached.length, byWater };
 }
 
 /**
  * The best way to lay a studio out (`StudioComposition`), each candidate laid out with the flat's
  * own options but no draw and scored (`compositionScore`): every line of `splitCandidates` where the
  * line is the app's (`lineIsTheApps`), else the person's line alone; each with the living half's sofa
- * against a wall and standing free, its back to the kitchen. Null for a room that is not a studio.
+ * against a wall and standing free, its back to the kitchen; the one keeping the most essentials taken,
+ * then one with its run by the water (`RUN_BY_WATER_M`), then the highest score. Null for a room that
+ * is not a studio.
  */
 export function bestComposition(room: PlanRoom, options: LayoutOptions, context: StudioContext): (StudioComposition & { score: CompositionScore }) | null {
   if (room.type !== 'studio' || room.polygon.length < 3) return null;
@@ -208,7 +228,10 @@ export function bestComposition(room: PlanRoom, options: LayoutOptions, context:
   };
   // Ties go to the first tried: the sofa against a wall, the app's first line.
   const tried = [...splits.map((split) => scored(split, false)), ...splits.map((split) => scored(split, true))];
-  return tried.reduce((best, c) => (c.score.total > best.score.total + 1e-6 ? c : best));
+  // The essentials first, then the run by the water (`RUN_BY_WATER_M`), then the score.
+  const better = (c: CompositionScore, b: CompositionScore) =>
+    c.essentials !== b.essentials ? c.essentials > b.essentials : c.byWater !== b.byWater ? c.byWater : c.total > b.total + 1e-6;
+  return tried.reduce((best, c) => (better(c.score, best.score) ? c : best));
 }
 
 /**

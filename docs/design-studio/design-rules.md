@@ -695,9 +695,17 @@ TV's wall. "No clustering" is measured (`clustered` in the whole-flat check): th
 of the sofa, or nearer the sitting group than 40 % of the room's long side (3 m at most). 792 flats
 (6 draws): studios without a run 24 → 0, without a fridge 24 → 0 (#386's kitchen is by its water now,
 #384's has its fridge), without a dining table 128 → 0, corner sofas in studios 43 → 0, the TV on a
-real wall in studios 240 → 240 and in open living rooms 404 → 408, sofa–TV 2.3–3.7 m in studios 201 →
-215 and open living rooms 271 → 331, living rooms without a TV unit 40 → 0, `sofa_tv_distance` 290 →
-214; open living rooms' tables clustered 34 → 21 of 144; studios' 26 of 112 tables → 62 of 240. The
+real wall in studios 240 → 240 and in open living rooms 404 → 408, living rooms without a TV unit
+40 → 0. Both scores hold the sofa and its screen facing each other (`sofaFacesScreen`: each within
+30° of the other; a TV at the right distance on the sofa's side wall loses 40 — scored by distance
+alone, a side wall won and the TV faced the sofa in 58 % of living rooms and 38 % of studios), and a
+studio's run by its water (within a metre, `RUN_BY_WATER_M`) is taken before any score: the sofa
+facing its TV in living rooms 87 % → 82 % (the rest in #358, #359 and #368 — her side-wall unit,
+before the TV hung with no unit, now reached by giving up decor — and #408), in studios 70 % → 80 %
+(#386's by its water is not); sofa–TV 2.3–3.7 m in studios 201 → 139 (facing, a small studio's TV
+stands about 2.6 m off) and open living rooms 271 → 331; `sofa_tv_distance` 290 → 315,
+`sofa_tv_off_axis` 140 (a measure); open living rooms' tables clustered 34 → 28 of 144, zones not
+walked to 18 → 8; studios' 26 of 112 tables → 66 of 240, zones not walked to 6 → 3. The
 detail: [layout-and-matching.md](layout-and-matching.md), [plan-board.md](plan-board.md),
 generation-audit.md RS1, RS2 and M4. Not built: an island that is also the dining table (no island is
 ever matched); the fridge built into the run, a tall unit at its end or under the counter (a joinery

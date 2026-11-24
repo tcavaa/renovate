@@ -126,6 +126,26 @@ export function screenOnWall(room: PlanRoom, items: readonly PlacedItem[]): bool
   return !!unit && onWall(unit);
 }
 
+/** How far off square a sofa may look at its screen, and the screen back at the sofa, and still face it: 30°. */
+export const SOFA_FACES_SCREEN_COS = Math.cos(Math.PI / 6);
+/** What a layout's score loses where the sofa and its screen do not face each other (`sofaFacesScreen`). */
+export const SCREEN_OFF_AXIS_PENALTY = 40;
+
+/**
+ * Whether a sofa and its screen (the TV unit, or a TV hung with no unit) face each other: the screen
+ * within 30° of the way the sofa looks and the screen looking back at the sofa within 30° — Nini's
+ * "the sofa on one wall, the TV across". A screen at the right distance on a side wall is not: the
+ * distance alone (`SOFA_TV_M`) rewarded a TV turned away along the sofa's side.
+ */
+export function sofaFacesScreen(sofa: Pick<PlacedItem, 'position' | 'rotation'>, screen: Pick<PlacedItem, 'position' | 'rotation'>): boolean {
+  const v = { x: screen.position.x - sofa.position.x, z: screen.position.z - sofa.position.z };
+  const len = Math.hypot(v.x, v.z);
+  if (len < 1e-6) return false;
+  const ahead = (Math.sin(sofa.rotation) * v.x + Math.cos(sofa.rotation) * v.z) / len;
+  const back = -(Math.sin(screen.rotation) * v.x + Math.cos(screen.rotation) * v.z) / len;
+  return ahead >= SOFA_FACES_SCREEN_COS && back >= SOFA_FACES_SCREEN_COS;
+}
+
 /** No clustering (Nini, decision 3.3): the dining group stands at least this share of the room's length from the sitting group… */
 export const DINING_APART_SHARE = 0.4;
 /** …or this far, whichever is less (a long room need not put them further apart). */
@@ -165,7 +185,8 @@ function toEdge(p: Vec2, edge: PlanEdge): number {
  * A living room with a dining table laid out one way, scored as one space (decision 3.3: the dining
  * table toward the kitchen, the sofa and the TV in the other part, no clustering). Higher is better:
  * 100 for each of the sofa, the TV and the dining table, 30 for a coffee table (or the console behind
- * the sofa); 25 for the TV on a real wall, 10 at 2.5–3.5 m from the sofa (15 a metre off); the dining
+ * the sofa); 25 for the TV on a real wall, 10 at 2.5–3.5 m from the sofa (15 a metre off), 40 where the
+ * sofa and the screen do not face each other (`sofaFacesScreen`); the dining
  * table out of the sitting group (`diningCluster`: 20 a metre nearer the sofa than 1.2 m, 30 for each
  * metre short of the distance wanted); toward the kitchen across its open line (`kitchenSide`, 3 a
  * metre); 25 for each zone a person cannot walk to (`zonesReached` — not in a studio's half, which is
@@ -184,6 +205,7 @@ export function livingScore(room: PlanRoom, items: readonly PlacedItem[], kitche
   if (sofa && screen) {
     const d = Math.hypot(sofa.position.x - screen.position.x, sofa.position.z - screen.position.z);
     total += d >= SOFA_TV_M.min && d <= SOFA_TV_M.max ? 10 : -15 * (d < SOFA_TV_M.min ? SOFA_TV_M.min - d : d - SOFA_TV_M.max);
+    if (!sofaFacesScreen(sofa, screen)) total -= SCREEN_OFF_AXIS_PENALTY;
   }
   const cluster = diningCluster(room, own, lengthM);
   if (cluster) total -= 20 * Math.max(0, DINING_SOFA_GAP_M - cluster.gap) + 30 * Math.max(0, cluster.wanted - cluster.apart);

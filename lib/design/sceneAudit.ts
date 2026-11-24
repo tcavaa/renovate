@@ -14,7 +14,7 @@ import { getArchetype } from './catalog';
 import { decorFootprint } from './decor/joinery';
 import { isLampOutlet } from './electrical';
 import { clearsSurface, lampLine, pendantSurface, shadesIn, underShade } from './ceilingLights';
-import { diningCluster } from './composition';
+import { diningCluster, sofaFacesScreen } from './composition';
 
 /** How far a hanging lamp may be off the middle of what it lights before the check reports it. */
 const PENDANT_OFF_SURFACE_M = 0.1;
@@ -70,9 +70,15 @@ export type SceneIssueCode =
   /**
    * A living room's or a studio's dining table in its sitting group (`diningCluster`, Nini's "don't
    * cluster" — decision 3.3): within 1.2 m of the sofa, or nearer the sofa and its coffee table than
-   * 45 % of the room's long side (3.5 m at most).
+   * 40 % of the room's long side (3 m at most).
    */
   | 'clustered'
+  /**
+   * A living room's or a studio's sofa and its screen (the TV unit, or a TV hung with no unit) not
+   * facing each other (`sofaFacesScreen`: each within 30° of the other) — a TV at the right distance
+   * but on the sofa's side. A measure, held by the ratchet.
+   */
+  | 'sofa_tv_off_axis'
   /** Something within 30 cm in front of a built wall of wardrobe: its doors cannot open. */
   | 'wardrobe_blocked'
   /** Joinery that leaves under 70 cm to the wall across. */
@@ -206,6 +212,9 @@ export function auditScene(scene: AuditedScene): SceneIssue[] {
     if (room.type === 'living_room' || room.type === 'studio') {
       const cluster = diningCluster(room, inRoom);
       if (cluster?.clustered) say('clustered', `dining table ${cm(cluster.gap)} off the sofa, ${cm(cluster.apart)} from the sitting group (${cm(cluster.wanted)} wanted)`, inRoom.find((i) => i.slot === 'dining_table' || i.slot === 'kitchen_island')?.id);
+      const sofa = inRoom.find((i) => i.slot === 'sofa');
+      const screen = inRoom.find((i) => i.slot === 'tv_unit') ?? inRoom.find((i) => i.slot === 'tv' && i.elevationM > 0.3);
+      if (sofa && screen && !sofaFacesScreen(sofa, screen)) say('sofa_tv_off_axis', `${screen.slot} not across from the sofa`, screen.id);
     }
 
     // --- the TV unit: on a wall, never on a separator's open line

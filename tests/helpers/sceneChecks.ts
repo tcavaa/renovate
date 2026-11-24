@@ -13,7 +13,7 @@ import type { DecorPiece, ElectricalPoint, FloorPlan, PlacedItem, PlanRoom } fro
  * table in the sitting group (measures of the composition), the app's own rule checks (warnings a person may accept) and what the save route would refuse
  * of a plan a test built by hand with only the fields it needs.
  */
-const NOT_DEFECTS: ReadonlySet<SceneIssueCode> = new Set<SceneIssueCode>(['missing', 'clustered', 'rule', 'unsaveable']);
+const NOT_DEFECTS: ReadonlySet<SceneIssueCode> = new Set<SceneIssueCode>(['missing', 'clustered', 'sofa_tv_off_axis', 'rule', 'unsaveable']);
 
 /** A plan of the rooms alone, as a test builds one. */
 export function planOf(rooms: readonly PlanRoom[]): FloorPlan {

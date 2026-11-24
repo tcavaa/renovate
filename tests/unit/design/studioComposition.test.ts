@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { diningZones, layoutRoom, programPiece } from '@/lib/design/autoLayout';
 import { ROOM_PROGRAMS } from '@/lib/design/catalog';
-import { diningCluster, screenOnWall, zonesReached } from '@/lib/design/composition';
+import { diningCluster, livingScore, screenOnWall, sofaFacesScreen, zonesReached } from '@/lib/design/composition';
 import { refreshRoom } from '@/lib/design/planGeometry';
 import { defaultSplit, lineIsTheApps, personsSplit, studioParts, swapped, turned } from '@/lib/design/studio';
 import { bestComposition, composeStudios, splitCandidates, studioContext } from '@/lib/design/studioLayout';
@@ -122,6 +122,29 @@ describe('the dining table apart from the sitting group (diningCluster)', () => 
   it('keeps a living room’s dining zone at either end of its long side', () => {
     expect(diningZones(lounge).length).toBeGreaterThan(0);
     expect(diningZones(room([P(0, 0), P(4, 0), P(4, 4), P(0, 4)]))).toEqual([]);
+  });
+});
+
+describe('the sofa facing its screen (sofaFacesScreen)', () => {
+  // A 6 × 4 m living room: the sofa against the top wall looking down (+z).
+  const lounge = room([P(0, 0), P(6, 0), P(6, 4), P(0, 4)], { id: 's', type: 'living_room' });
+  const sofa = piece('sofa', 3, 0.5, 2.2, 0.95, 0);
+  const across = piece('tv_unit', 3, 3.8, 1.6, 0.4, Math.PI);
+  // In the 2.5–3.5 m range too, but on the left wall, turned to look across the room.
+  const aside = piece('tv_unit', 0.2, 2.5, 1.6, 0.4, Math.PI / 2);
+
+  it('is a screen across from the sofa, looking back at it — not one at the same distance on a side wall', () => {
+    expect(sofaFacesScreen(sofa, across)).toBe(true);
+    expect(sofaFacesScreen(sofa, aside)).toBe(false);
+    // Ahead of the sofa but turned away from it.
+    expect(sofaFacesScreen(sofa, { ...across, rotation: 0 })).toBe(false);
+  });
+
+  it('scores a living room with its TV across from the sofa above one with it on a side wall', () => {
+    const tv = (unit: PlacedItem) => piece('tv', unit.position.x, unit.position.z, 1.2, 0.08, unit.rotation, { elevationM: 0.5, id: 's-tv' });
+    const facing = livingScore(lounge, [sofa, across, tv(across)]);
+    const sideways = livingScore(lounge, [sofa, aside, tv(aside)]);
+    expect(facing - sideways).toBeGreaterThanOrEqual(40);
   });
 });
 

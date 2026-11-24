@@ -442,7 +442,7 @@ Severity: **high** = seen by anyone who generates; **medium** = wrong in some ro
   RS1–RS5. *Since stage 6 (Nini's 2, 3.3 and 3.4):* a studio is laid out as one space (RS1, RS2) —
   every studio in 792 flats has its run, fridge, table, sofa and TV; left: RS5's minimum areas per
   half, and a studio's table in its sitting group where its kitchen part is too shallow
-  (`clustered`, 62 of 240).
+  (`clustered`, 66 of 240).
 - [ ] **M5 (medium) — Program entries that cannot be placed.** An armchair is placed off a sofa
   (`placeRelative`, `:929-930`): the balcony's is never laid (0 of 684) and the office's cannot be. An entry
   with no gate silently takes the archetype's (`:291`): a balcony's plants need 10 m² (92 % of

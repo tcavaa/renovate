@@ -17,7 +17,7 @@ as products).
 |---|---|
 | `lib/design/catalog.ts` | `ARCHETYPES` (every placeable kind: real size, category, placement rule, labels in three languages), `ROOM_PROGRAMS` (which slots each room type gets), `SHELF_ROOMS` / `kindsForRoom` / `unroomedKinds` (which kinds belong in which room — the studio rooms' starting point; the shelf itself is admin's, [../categories.md](../categories.md)) |
 | `lib/design/studioLayout.ts` | a studio laid out as one space (stage 6): `splitCandidates`, `compositionScore`, `bestComposition`, `composeStudios` (the line chosen and written onto the plan, `RoomSplit.chosen`) |
-| `lib/design/composition.ts` | what a room laid out as one space is judged by: `zonesReached` (a way from the door to each zone), `screenOnWall`, `diningCluster` (no clustering — the whole-flat check's `clustered`), `livingScore` (a living room with a dining table) |
+| `lib/design/composition.ts` | what a room laid out as one space is judged by: `zonesReached` (a way from the door to each zone), `screenOnWall`, `sofaFacesScreen` (the sofa and its screen each within 30° of the other — the whole-flat check's `sofa_tv_off_axis`), `diningCluster` (no clustering — the whole-flat check's `clustered`), `livingScore` (a living room with a dining table) |
 | `lib/design/autoLayout.ts` | `layoutPlan` / `layoutRoom` (rule-based placement, collision-checked; a studio half by half — `partRoom`, the kitchen half first; a living room's dining zone — `diningZones`, `bestDiningZone`; `LayoutOptions.anchors` from technical points, `obstacles` for columns and the strip in front of every radiator — `radiatorKeepouts`, [design-rules.md](design-rules.md); an obstacle with a `bottom`, the strip under a towel rail, is in the way only of what reaches up to it — `KeepClear`, `clearsUnder`), `placeAdditional` (a free spot for one more piece), `FURNISHABLE_ROOM_TYPES` |
 | `lib/design/matcher.ts` | `matchProducts` (client-side; drops products without `model3dUrl`, scores style tag + budget tier, checks the fit), `candidatesFor` (the swap list), `toSceneProduct`, `applySwap` |
 | `lib/design/kinds.ts` | the named sets of slots and kinds — each list that means one thing, once: `LAID_TO_ANOTHER` (the rug and the curtain, laid to another thing), `SIZED_BY_LAYOUT` (those and the run), `LIES_FLAT` (those and the door mat), `NOT_IN_THE_WAY` (those and the pendant: before no wall), `CUSTOM_KITCHEN_SLOTS` / `CUSTOM_KITCHEN_KINDS` / `isCustomKitchenSlot`, `COMPANION_SLOTS`, `BATH_OR_SHOWER` |
@@ -88,14 +88,17 @@ scene ──tightSpots──▶ amber warnings (not a rule)
   30 cm from the studio's sewer or water (`technicalAnchors`), at most 60, else 3 a metre from the
   nearest bathroom's or toilet's outline (its wet wall); **off the front door** — 25 in what is seen
   coming in, 20 a metre within 1.5 m of the door; the TV on a real wall (25) at 2.5–3.5 m (10, 15 a
-  metre off); the sofa's side to the kitchen (10 — her "better still": the sofa on one wall, the TV
+  metre off), the sofa and its screen facing each other (−40 where they do not, `sofaFacesScreen`:
+  each within 30° of the other — scored by distance alone, a TV on the sofa's side wall won); the sofa's side to the kitchen (10 — her "better still": the sofa on one wall, the TV
   across, the kitchen along the third) or its back to it (8, the divider), never facing it (−15);
   the dining table out of the sitting group (`diningCluster`, below) and within 2.5 m of the run;
   25 for each zone a person cannot walk to from the door (`zonesReached`: a 10 cm floor walked with
   60 cm of way, from the front door, the run, the fridge, the table and the sofa each within 70 cm of
   a reached cell — dining chairs, rugs and mats no obstacle) and 15 for each door whose leaf a piece
   stands in the swing of (`blockedDoorSwings`); and 20 a whole of the studio the kitchen part is off a
-  third. The best is written onto the plan (`composeStudios`, in `layOutFlat` before anything is laid
+  third. The best is the way keeping the most essentials, then one with its run within a metre of a
+  water point (`RUN_BY_WATER_M` — water first in her ranking, before the front door or the sofa
+  facing its TV), then the highest score. It is written onto the plan (`composeStudios`, in `layOutFlat` before anything is laid
   out, so the matcher, the wiring, the estimate, the board and the AI designer's brief all see the
   halves it was laid out by); a line the person set is kept and only the sofa's way is chosen for it.
   No draw: the same plan gives the same composition whatever the seed. Then, half by half:
@@ -115,7 +118,8 @@ scene ──tightSpots──▶ amber warnings (not a rule)
   (`LayoutRelax.diningZone`, a box in `occupied` only the table and its chairs ignore), and the table
   is laid in it; each zone — and, in a room whose shape takes a corner sofa, each with a three-seat —
   is laid out without a draw and scored (`livingScore`: the sofa, the TV and the table 100 each, a
-  coffee table or the console 30, the TV on a real wall and its distance, the cluster, 3 a metre from
+  coffee table or the console 30, the TV on a real wall and its distance, −40 for a sofa and screen
+  not facing each other (`sofaFacesScreen`), the cluster, 3 a metre from
   the open line across which a kitchen lies — `kitchenSides`, `LayoutOptions.kitchenSide` — 25 for a
   zone not walked to, 15 for a door's swing, 3 for each other piece), and the best zone that keeps as
   many of the room's essentials as any way does is taken (`bestDiningZone`): the zone holds the
@@ -1168,7 +1172,7 @@ whole. `lib/design/matcher.ts` is in the coverage gate.
   what goes with a dropped piece, a kind with no product, what the layout kept clear, the hall's
   mirror, the door mat and the hanging lamp, the chairs' own seats); the rest is open.
 - **A studio laid out as one space keeps some of what it would rather not** (stage 6): its dining
-  table stands in its sitting group (`clustered`) in 62 of 240 fixture studios — mostly a kitchen
+  table stands in its sitting group (`clustered`) in 66 of 240 fixture studios — mostly a kitchen
   part too shallow for a table and a way behind the sofa (#389, #392: the table before the kitchen,
   the sofa's back to it within 1.2 m) and #385, whose kitchen by the water has no floor for a table;
   #386's kitchen by its water is in what the front door sees (`kitchen_faces_entrance`, 24), and
