@@ -5,7 +5,6 @@ import { pieceWall } from '@/lib/design/manipulate';
 import { matchProducts, tvInches, type CatalogProduct } from '@/lib/design/matcher';
 import { isOpenEdge, refreshRoom } from '@/lib/design/planGeometry';
 import { seededRng } from '@/lib/design/random';
-import { ruleViolations } from '@/lib/design/ruleChecks';
 import { CORNER_SOFA_SIDE_M, cornerSofaFits, floorRectangle, SOFA_OPEN_LINE_WAY_M, TV_CENTRE_M, TV_UNIT_CLEAR_MIN_M, TV_UNIT_NARROW_M, tvInchesFor } from '@/lib/design/rules';
 import type { Opening, PlacedItem, PlanRoom, Vec2 } from '@/lib/design/types';
 
@@ -190,22 +189,19 @@ describe('the living room\'s fallbacks, in Nini\'s order (decision 3.3)', () => 
     expect(of(items, 'tv')).toHaveLength(1);
   });
 
-  it('hangs the TV on the wall with no unit where no unit has its floor', () => {
+  it('stands the unit on a side wall before hanging the TV with no unit, giving up only decor for it', () => {
     // 4.5 × 2.7 m: across the room 1.3 m before the coffee table, under the 1.35 m a unit needs even
-    // 45 cm off it; windows over the side walls.
+    // 45 cm off it; windows over the side walls. A unit on the wall beside the sofa's line of sight (the
+    // third fallback) comes before a TV with no unit (the fifth): the room keeps every piece of its own,
+    // its optional decor (`DECOR_SLOTS`) may give way for it.
     const r = room(rect(4.5, 2.7), [window(1, 0.5, 2.2), window(3, 0.5, 2.2)]);
     const items = layoutRoom(r);
-    expect(of(items, 'tv_unit')).toHaveLength(0);
-    const [tv] = of(items, 'tv');
-    expect(tv).toBeDefined();
-    expect(onWall(tv, r)).toBe(true);
-    expect(tv.elevationM + tv.size.height / 2).toBeCloseTo(TV_CENTRE_M, 6);
-    // Straight ahead of the sofa, and the coffee table kept.
-    expect(tv.position.x).toBeCloseTo(of(items, 'sofa')[0].position.x, 6);
+    const [unit] = of(items, 'tv_unit');
+    expect(unit).toBeDefined();
+    expect(onWall(unit, r)).toBe(true);
+    expect(of(items, 'tv')).toHaveLength(1);
+    expect(of(items, 'sofa')).toHaveLength(1);
     expect(of(items, 'coffee_table')).toHaveLength(1);
-    // The sofa–TV check measures to the TV on the wall where there is no unit: 2.2 m, too near.
-    const plan = { rooms: [r], metresPerPixel: null, bounds: { width: 4.5, depth: 2.7 }, source: 'manual' as const, wallThicknessM: 0.12 };
-    expect(ruleViolations(plan, items).filter((v) => v.code === 'sofa_tv_distance')).toHaveLength(1);
   });
 
   it('stands a console table behind the sofa where no coffee table of any size fits before it', () => {

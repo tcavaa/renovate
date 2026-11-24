@@ -17,7 +17,7 @@
  * Pure: no THREE, no React, no randomness but the `rng` handed in.
  */
 
-import { partName, partRoom, studioParts } from './studio';
+import { effectiveSplit, lineCoordinate, partAt, partName, partRoom, studioParts } from './studio';
 import { closestOnSegment } from './walls';
 import type { RoomType } from '@/lib/calculator/types';
 import {
@@ -36,6 +36,7 @@ import {
   boxInPolygon,
   isOpenEdge,
   isPassage,
+  pointInPolygon,
   pointOnEdge,
   polygonBounds,
   polygonCentroid,
@@ -52,6 +53,7 @@ import { anchorsFor, type TechnicalAnchor } from './technical';
 import { pickNearBest, streamRng, weightedOrder, type RoomRng, type Rng } from './random';
 import { LAID_TO_ANOTHER } from './kinds';
 import { hangPendantSlots } from './ceilingLights';
+import { livingScore } from './composition';
 import {
   ARMCHAIR_DINING_GAP_M,
   BASIN_COMPACT_M,
@@ -119,6 +121,8 @@ interface Box {
   minZ: number;
   maxZ: number;
   bottom?: number;
+  /** The floor a living room keeps for its dining table (`LayoutRelax.diningZone`): taken by all but the table and its chairs. */
+  zone?: true;
 }
 
 interface Pose {
@@ -157,6 +161,18 @@ export interface LayoutOptions {
    * None: one.
    */
   bathrooms?: number;
+  /**
+   * Per studio, its living half's sofa stands free with its back to the kitchen where its TV then
+   * stands on a wall, before it is tried against a wall (`composeStudios` chose it so — Nini, decision
+   * 3.4: the sofa as the divider). None: against a wall first, as a living room is laid.
+   */
+  sofaFree?: Record<string, boolean>;
+  /**
+   * Per living room, the edges of it on a room separator across which a kitchen lies (`layoutPlan`
+   * finds them; a studio's living half has the line to its kitchen half): its dining table stands
+   * toward them, the sofa's group away (decision 3.3).
+   */
+  kitchenSide?: Record<string, number[]>;
 }
 
 /**
@@ -180,6 +196,8 @@ interface RuleContext {
    * chosen knowing whether its unit then has a wall. None for any other piece.
    */
   screenFor?: (pose: Pose) => Pose | null;
+  /** The room's edges a kitchen lies across (`LayoutOptions.kitchenSide`): a living room's dining table stands toward them. */
+  kitchenSide?: PlanEdge[];
 }
 
 /** Decor a generated room may go without, and how likely each is to be laid out when it fits. */
@@ -196,6 +214,9 @@ const OPTIONAL_DECOR: Record<string, number> = {
   // Every window is dressed (the rulebook, G-20): curtains and blinds are never left out.
   stool: 0.6,
 };
+
+/** The slots of the decor a room may go without (`OPTIONAL_DECOR`): a living room's fallback may give them up for its TV's wall. */
+const DECOR_SLOTS: ReadonlySet<string> = new Set(Object.keys(OPTIONAL_DECOR).map((kind) => ARCHETYPES[kind]?.slot).filter((slot): slot is SlotKind => !!slot));
 
 /** How high a TV over its unit reaches, metres: the band of the unit's wall that is kept clear of windows. */
 const TV_TOP_M = 1.5;
@@ -437,6 +458,20 @@ interface KitchenFallback {
    */
   shorter?: { fridgeBefore: boolean };
   smallTable?: boolean;
+  /**
+   * A studio's living half lays the studio's table — its kitchen half had no floor for one (decision
+   * 3.4) — toward the kitchen (`kitchenSide`), at any size of the half. Else a living half lays none:
+   * the studio's table is its kitchen's.
+   */
+  studioTable?: boolean;
+  /**
+   * A living room's dining zone (`diningZones`, decision 3.3): the floor at one end of the room kept
+   * for the dining table and its chairs — the sofa, its table, the TV and the rest are laid out of it,
+   * the table then in it, toward the kitchen. None: the table where the floor left free has most room.
+   */
+  diningZone?: Box;
+  /** The sofa a living room is laid with in place of its own: a three-seat where its shape took a corner sofa (`bestDiningZone`). */
+  sofaKind?: string;
 }
 
 /** What a room's layout is tried with besides its program's order: a wet room's fallbacks, a kitchen's. */
@@ -468,14 +503,16 @@ function keepsEveryPiece(had: readonly PlacedItem[], items: readonly PlacedItem[
  * takes none of its pieces (`keepsEveryPiece`) and makes the worktop — the run and the leg it turns
  * round its corner (`kitchenWorktopM`) — no shorter than the room's least (`KITCHEN_RUN_M`: 1.5 m, a
  * studio's kitchen 1.2 m) where it was longer: a 1.2 m run with a 1.4 m leg is a kitchen's worktop.
- * The first level that gives the kitchen everything ends the ladder. A studio's kitchen half (`idPrefix`) is held to its run and
- * its fridge: its table may be the living half's, and the studio laid as one space is still to come.
+ * The first level that gives the kitchen everything ends the ladder. A studio's kitchen half
+ * (`idPrefix`) is held to its table too (Nini, decision 3.4: an island or a table in front of the
+ * kitchen), at any size of the half (`roomPiece`) — the studio is laid out as one space
+ * (`composeStudios`), and its table is the kitchen's.
  */
 function kitchenLayout(room: PlanRoom, options: LayoutOptions, idPrefix: string, doorBands: Quad[]): PlacedItem[] {
   const program = ROOM_PROGRAMS.kitchen;
   const first = layoutArea(room, options, idPrefix, doorBands, program);
   const studio = idPrefix !== '';
-  const withTable = !studio;
+  const withTable = true;
   const least = studio ? KITCHEN_RUN_M.studio : KITCHEN_RUN_M.small;
   const judged = (items: PlacedItem[]) => {
     const worktop = kitchenWorktopM(room, items);
@@ -531,12 +568,16 @@ function balconySeats(room: PlanRoom): number {
 /**
  * A program's piece as this room lays it: on a balcony the dining table is a compact one against a
  * wall away from the door (`COMPACT_TABLE_SIDES_M`, `placeCompactTable`); in a kitchen trying the
- * two-seat table (`smallTable`), the table and its chairs are laid in a kitchen of any size. Anything
- * else as it is.
+ * two-seat table (`smallTable`), and in a studio's kitchen half, the table and its chairs are laid in a
+ * kitchen of any size. Anything else as it is.
  */
 function roomPiece(entry: ProgramEntry, room: PlanRoom, options: Pick<LayoutOptions, 'styleId' | 'skipDecor'>, relax: LayoutRelax): { kind: string; archetype: Archetype } | null {
   const dining = entry.kind === 'dining_table' || entry.kind === 'dining_chair';
-  const piece = programPiece(relax.smallTable && room.type === 'kitchen' && dining ? { ...entry, minAreaM2: 0 } : entry, room, options);
+  // A studio's kitchen half seats the studio at any size (decision 3.4): its table stands where one
+  // fits; its living half lays the table only where the kitchen half had no floor for one.
+  if (dining && room.studioPart != null && room.type === 'living_room' && !relax.studioTable) return null;
+  const ungated = dining && ((room.type === 'kitchen' && (relax.smallTable || room.studioPart != null)) || (room.type === 'living_room' && relax.studioTable));
+  const piece = programPiece(ungated ? { ...entry, minAreaM2: 0 } : entry, room, options);
   if (!piece || room.type !== 'balcony' || piece.archetype.slot !== 'dining_table') return piece;
   const side = COMPACT_TABLE_SIDES_M[0];
   return { ...piece, archetype: { ...piece.archetype, size: { width: side, depth: side, height: piece.archetype.size.height }, placement: { type: 'wall', prefer: 'opposite-door', clearanceM: 0.6 } } };
@@ -585,7 +626,7 @@ const BED_SPREAD = 3;
 // ---------------------------------------------------------------------------
 
 export function layoutPlan(rooms: PlanRoom[], given: LayoutOptions = {}): PlacedItem[] {
-  const options = { ...given, bathrooms: given.bathrooms ?? rooms.filter((r) => r.type === 'bathroom').length };
+  const options = { ...given, bathrooms: given.bathrooms ?? rooms.filter((r) => r.type === 'bathroom').length, kitchenSide: given.kitchenSide ?? kitchenSides(rooms) };
   const placed = rooms.flatMap((room) => layoutRoom(room, options));
   // The washing machine is the bathroom's; when no bathroom has room for it, the hall's (by the
   // entrance, with the technical things), else the kitchen's — a studio's kitchen half is a
@@ -622,6 +663,27 @@ export function layoutPlan(rooms: PlanRoom[], given: LayoutOptions = {}): Placed
     }
   }
   return placed;
+}
+
+/**
+ * Per living room, its edges on a room separator with a kitchen across them — a kitchen, or a studio's
+ * kitchen half (`LayoutOptions.kitchenSide`): read 30 cm past the middle of each open edge.
+ */
+export function kitchenSides(rooms: readonly PlanRoom[]): Record<string, number[]> {
+  const out: Record<string, number[]> = {};
+  for (const room of rooms) {
+    if (room.type !== 'living_room' || !room.open?.length) continue;
+    for (const edge of roomEdges(room.polygon)) {
+      if (!isOpenEdge(room, edge.index)) continue;
+      const middle = pointOnEdge(edge, 0.5);
+      const across = { x: middle.x - edge.inward.x * 0.3, z: middle.z - edge.inward.z * 0.3 };
+      const other = rooms.find((r) => r.id !== room.id && pointInPolygon(across, r.polygon));
+      if (!other) continue;
+      const kitchen = other.type === 'kitchen' || (other.type === 'studio' && effectiveSplit(other).parts[partAt(other, across)] === 'kitchen');
+      if (kitchen) (out[room.id] ??= []).push(edge.index);
+    }
+  }
+  return out;
 }
 
 /**
@@ -667,16 +729,129 @@ export function layoutRoom(room: PlanRoom, given: LayoutOptions = {}): PlacedIte
   if (parts) {
     const keepouts = given.respectDoorSwing === false ? [] : doorKeepouts(room, roomEdges(room.polygon));
     const obstacles = [...(given.obstacles?.[room.id] ?? []), ...keepouts];
-    return parts.flatMap((part) =>
-      layoutArea(
-        partRoom(room, part),
-        { ...drawn(partName(part)), respectDoorSwing: false, obstacles: { ...given.obstacles, [room.id]: obstacles } },
-        `${partName(part)}-`,
-        roomSightBands(room).map((b) => b.quad)
-      )
-    );
+    // The living half's side toward the kitchen half is the line between them: its table, where it has
+    // one, stands toward it (`kitchenSide`).
+    const at = lineCoordinate(room, effectiveSplit(room));
+    const whole = polygonBounds(room.polygon);
+    const studioLength = Math.max(whole.width, whole.depth);
+    const axis = effectiveSplit(room).axis;
+    const onLine = (p: Vec2) => Math.abs((axis === 'x' ? p.x : p.z) - at) < ON_LINE_M;
+    // The kitchen half first: where it has no floor for the studio's table, the living half lays it,
+    // toward the kitchen (decision 3.4: an island or a table in front of the kitchen).
+    const laid: PlacedItem[][] = [[], []];
+    for (const part of [...parts].sort((a, b) => Number(b.type === 'kitchen') - Number(a.type === 'kitchen'))) {
+      const area = partRoom(room, part);
+      const other = parts[1 - part.index];
+      const kitchenAcross = part.type !== 'kitchen' && other.type === 'kitchen';
+      const line = kitchenAcross ? roomEdges(area.polygon).filter((e) => onLine(e.a) && onLine(e.b)).map((e) => e.index) : [];
+      const studioTable = kitchenAcross && !laid[other.index].some((i) => i.slot === 'dining_table' || i.slot === 'kitchen_island');
+      const partOptions: LayoutOptions = { ...given, respectDoorSwing: false, obstacles: { ...given.obstacles, [room.id]: obstacles }, kitchenSide: { ...given.kitchenSide, [room.id]: line } };
+      const bands = roomSightBands(room).map((b) => b.quad);
+      // The table it lays stands in a zone along the line, kept from the sofa's group (`lineZones`).
+      const zone = studioTable ? bestZone(area, partOptions, `${partName(part)}-`, bands, lineZones(area, line), { studioTable }, studioLength)?.zone : null;
+      const { rng } = drawn(partName(part));
+      laid[part.index] = layoutArea(area, { ...partOptions, rng, roomRng: undefined }, `${partName(part)}-`, bands, undefined, {
+        ...(studioTable ? { studioTable } : {}),
+        ...(zone ? { diningZone: zone } : {}),
+      });
+    }
+    return [...laid[0], ...laid[1]];
   }
-  return layoutArea(room, drawn(), '', roomSightBands(room).map((b) => b.quad));
+  // A living room with a dining table is laid out as two functions apart (decision 3.3): the zone for
+  // its table chosen by laying the room out each way and scoring it whole (`diningZones`).
+  const bands = roomSightBands(room).map((b) => b.quad);
+  const best = room.type === 'living_room' ? bestDiningZone(room, given, bands) : null;
+  return layoutArea(room, drawn(), '', bands, undefined, { ...(best?.zone ? { diningZone: best.zone } : {}), ...(best?.sofaKind ? { sofaKind: best.sofaKind } : {}) });
+}
+
+/** How deep a living room's dining zone is tried, metres from one end of the room: a table for four with its chairs and the way round it. */
+const DINING_ZONE_DEPTHS_M = [2.2, 2.6, 3.0] as const;
+/** The sitting part a dining zone leaves: a sofa, its table and a TV across from it. */
+const SITTING_PART_M = 2.6;
+/** A living room shorter than this lays its dining table where the floor is left, as it always did. */
+const DINING_ZONE_ROOM_M = 5;
+
+/**
+ * The floor a living room may keep for its dining table (Nini, decision 3.3: the dining table toward the
+ * kitchen, the sofa and the TV in the other part — two functions, not one cluster in one half): a strip
+ * across either end of its long side, `DINING_ZONE_DEPTHS_M` deep, where the room is
+ * `DINING_ZONE_ROOM_M` long or more and the sitting part keeps `SITTING_PART_M`.
+ */
+export function diningZones(room: Pick<PlanRoom, 'polygon'>): Box[] {
+  const b = polygonBounds(room.polygon);
+  const alongX = b.width >= b.depth;
+  const length = alongX ? b.width : b.depth;
+  if (length < DINING_ZONE_ROOM_M) return [];
+  const out: Box[] = [];
+  for (const depth of DINING_ZONE_DEPTHS_M) {
+    if (length - depth < SITTING_PART_M) continue;
+    out.push(alongX ? { minX: b.minX, maxX: b.minX + depth, minZ: b.minZ, maxZ: b.maxZ } : { minX: b.minX, maxX: b.maxX, minZ: b.minZ, maxZ: b.minZ + depth });
+    out.push(alongX ? { minX: b.maxX - depth, maxX: b.maxX, minZ: b.minZ, maxZ: b.maxZ } : { minX: b.minX, maxX: b.maxX, minZ: b.maxZ - depth, maxZ: b.maxZ });
+  }
+  return out;
+}
+
+/**
+ * The dining zone a living room is laid out with (`diningZones`), or null to lay it as it always was:
+ * each laid out without a draw and scored as one space (`livingScore`), the room as it always was
+ * among them and kept on a tie. Only a room whose program lays a dining table.
+ */
+function bestDiningZone(room: PlanRoom, given: LayoutOptions, bands: Quad[]): { zone: Box | null; sofaKind?: string } | null {
+  const entry = ROOM_PROGRAMS.living_room.find((e) => e.kind === 'dining_table');
+  if (!entry || !programPiece(entry, room, given)) return null;
+  // A room whose shape takes a corner sofa is tried with a three-seat too: the corner sofa may leave the
+  // dining table no floor of its own (decision 3.3: by the room's proportions, the functions apart).
+  const sofa = ROOM_PROGRAMS.living_room.find((e) => e.kind === 'sofa_3seat');
+  const corner = !!sofa && programPiece(sofa, room, given)?.kind === 'sofa_corner';
+  return bestZone(room, given, '', bands, diningZones(room), {}, undefined, corner ? [undefined, 'sofa_3seat'] : [undefined]);
+}
+
+/**
+ * A studio's living half laying the studio's table (`LayoutRelax.studioTable`): the zone for it along
+ * the line to the kitchen half — the table before the kitchen, the sofa's group beyond it — each of
+ * `DINING_ZONE_DEPTHS_M` deep where the half keeps `SITTING_PART_M` past it.
+ */
+function lineZones(area: PlanRoom, line: readonly number[]): Box[] {
+  const b = polygonBounds(area.polygon);
+  const out: Box[] = [];
+  for (const edge of roomEdges(area.polygon).filter((e) => line.includes(e.index))) {
+    // The line runs along x (its inward normal along z) or along z.
+    const alongX = Math.abs(edge.inward.z) > 0.5;
+    const extent = alongX ? b.depth : b.width;
+    for (const depth of DINING_ZONE_DEPTHS_M) {
+      if (extent - depth < SITTING_PART_M) continue;
+      const a = alongX ? edge.a.z : edge.a.x;
+      const towards = alongX ? edge.inward.z : edge.inward.x;
+      const [lo, hi] = towards > 0 ? [a, a + depth] : [a - depth, a];
+      out.push(alongX ? { minX: b.minX, maxX: b.maxX, minZ: lo, maxZ: hi } : { minX: lo, maxX: hi, minZ: b.minZ, maxZ: b.maxZ });
+    }
+  }
+  return out;
+}
+
+/**
+ * The zone a living room (or a studio's living half) lays its dining table in, or null to lay it as it
+ * always was — and, where `sofas` offers one, the sofa it is laid with: each laid out without a draw
+ * and scored as one space (`livingScore`, toward the kitchen across `kitchenSide`, `lengthM` the long
+ * side the functions share). The best zone that keeps as many of the essentials as any way does.
+ */
+function bestZone(room: PlanRoom, given: LayoutOptions, idPrefix: string, bands: Quad[], zones: Box[], relax: LayoutRelax, lengthM?: number, sofas: Array<string | undefined> = [undefined]): { zone: Box | null; sofaKind?: string } | null {
+  if (zones.length === 0 && sofas.length < 2) return null;
+  const options = { ...given, rng: undefined, roomRng: undefined };
+  const essentials = (items: PlacedItem[]) => ['sofa', 'tv', 'dining_table'].filter((slot) => items.some((i) => i.slot === slot)).length;
+  const tried = sofas.flatMap((sofaKind) =>
+    [null, ...zones].map((zone) => {
+      const items = layoutArea(room, options, idPrefix, bands, undefined, { ...relax, ...(zone ? { diningZone: zone } : {}), ...(sofaKind ? { sofaKind } : {}) });
+      return { zone, sofaKind, essentials: essentials(items), score: livingScore(room, items, given.kitchenSide?.[room.id], lengthM) };
+    })
+  );
+  // A zone keeps the dining floor whatever the room's draw does with the sofa: it is taken wherever one
+  // keeps the room's essentials — the sofa, the TV and the table — and the room as it always was only
+  // where none does.
+  const most = Math.max(...tried.map((t) => t.essentials));
+  const pool = tried.filter((t) => t.essentials === most && t.zone);
+  const best = (pool.length > 0 ? pool : tried.filter((t) => t.essentials === most)).reduce((a, b) => (b.score > a.score + 1e-6 ? b : a));
+  return best.zone || best.sofaKind ? best : null;
 }
 
 /**
@@ -685,7 +860,9 @@ export function layoutRoom(room: PlanRoom, given: LayoutOptions = {}): PlacedIte
  * curtain. What the AI designer is asked about is gated here too (`programKinds`).
  */
 export function programPiece(entry: ProgramEntry, room: PlanRoom, options: Pick<LayoutOptions, 'styleId' | 'skipDecor'> = {}): { kind: string; archetype: Archetype } | null {
-  const kind = windowDressing(resolveVariant(entry, room.areaM2, room.polygon), room.type, options.styleId);
+  // A studio's sofa is a three-seat, else a two-seat — never a corner sofa (Nini, decision 3.4).
+  const own = room.studioPart != null && entry.cornerWhereFits ? { ...entry, cornerWhereFits: false } : entry;
+  const kind = windowDressing(resolveVariant(own, room.areaM2, room.polygon), room.type, options.styleId);
   const archetype = getArchetype(kind);
   if (!archetype) return null;
 
@@ -740,7 +917,9 @@ function layoutProgram(room: PlanRoom, options: LayoutOptions, idPrefix: string,
     for (const box of doorKeepouts(room, edges)) occupied.push(box);
   }
   for (const box of options.obstacles?.[room.id] ?? []) occupied.push(box);
+  if (relax.diningZone) occupied.push({ ...relax.diningZone, zone: true });
   const anchors = options.anchors?.[room.id];
+  const kitchenSide = edges.filter((e) => options.kitchenSide?.[room.id]?.includes(e.index));
 
   let counter = 0;
   const nextId = (kind: string) => `${room.id}-${idPrefix}${kind}-${counter++}`;
@@ -829,8 +1008,11 @@ function layoutProgram(room: PlanRoom, options: LayoutOptions, idPrefix: string,
       const screenFor = screenAfter(at, piece, into);
 
       for (let i = 0; i < count; i++) {
-        const rules: RuleContext = { doorBands, entranceBands: options.entranceSight?.[room.id] ?? [], placed: into.placed, passages: into.passages, screenFor };
-        const pose = resolvePose(archetype, i, room, edges, into.placed, inTheWay(into.occupied, archetype.size.height), { anchors: anchorsFor(kind, anchors), rng, rules, relax });
+        const rules: RuleContext = { doorBands, entranceBands: options.entranceSight?.[room.id] ?? [], placed: into.placed, passages: into.passages, screenFor, kitchenSide };
+        // The dining zone is the table's and its chairs': everything else keeps out of it.
+        const dining = archetype.slot === 'dining_table' || archetype.slot === 'dining_chair';
+        const taken = dining ? into.occupied.filter((b) => !b.zone) : into.occupied;
+        const pose = resolvePose(archetype, i, room, edges, into.placed, inTheWay(taken, archetype.size.height), { anchors: anchorsFor(kind, anchors), rng, rules, relax });
         // A ring of seats keeps going past a slot that hits a wall; anything else stops at the
         // first failure, because its second copy has no better chance than its first.
         if (!pose && entry.count === 'fill') continue;
@@ -845,7 +1027,8 @@ function layoutProgram(room: PlanRoom, options: LayoutOptions, idPrefix: string,
   // (`layoutLounge`). Where the first try — the room as it was always laid out — has its TV on a
   // wall (and a table before the sofa), that is the room; else each that may stand in for it is laid
   // out with the rest of the room, and the first that keeps every piece the first try's room had
-  // (its TV unit for a TV on the wall, its coffee table for the console behind the sofa) is taken —
+  // (its TV unit for a TV on the wall, its coffee table for the console behind the sofa; not its
+  // optional decor, `DECOR_SLOTS`) is taken —
   // else the first that gives the room the sofa or the TV it went without; else the first try's.
   // A room whose shape takes a corner sofa (`cornerSofaFits`) keeps it where its TV then stands on a
   // wall (as the room was always laid out, or by a fallback); else the room is laid with a three-seat. Each is laid with the same draws, so
@@ -874,13 +1057,14 @@ function layoutProgram(room: PlanRoom, options: LayoutOptions, idPrefix: string,
       for (let laid = lounge.next(); laid; laid = lounge.next()) {
         const whole = layWith(laid);
         const has = slotCounts(whole);
-        const kept = Object.entries(had).every(([slot, n]) => (has[slot] ?? 0) >= n || (slot === 'tv_unit' && !lounge.first.good && (has.tv ?? 0) > 0) || (slot === 'coffee_table' && (has.console ?? 0) > 0));
+        // The room's own pieces, not its optional decor: a TV on a real wall before a plant or a print.
+        const kept = Object.entries(had).every(([slot, n]) => (has[slot] ?? 0) >= n || DECOR_SLOTS.has(slot) || (slot === 'tv_unit' && !lounge.first.good && (has.tv ?? 0) > 0) || (slot === 'coffee_table' && (has.console ?? 0) > 0));
         if (kept) return { items: whole, corner, good: laid.good };
         if (!gains && ((!had.sofa && has.sofa) || (!had.tv && has.tv))) gains = { items: whole, good: laid.good };
       }
       return { items: gains?.items ?? first, corner, good: gains?.good ?? lounge.first.good };
     };
-    const laid = furnished();
+    const laid = furnished(relax.sofaKind);
     if (laid) {
       if (!laid.corner || laid.good) return laid.items;
       return furnished('sofa_3seat')?.items ?? laid.items;
@@ -1485,9 +1669,17 @@ function layoutLounge(ctx: {
     return null;
   };
 
-  /** One rung: the sofa against a wall; where its TV is not then on a wall, standing free; else the wall's as it is. */
+  /**
+   * One rung: the sofa against a wall; where its TV is not then on a wall, standing free; else the
+   * wall's as it is. In a studio laid out with its sofa as the divider (`LayoutOptions.sofaFree`),
+   * standing free first, its back to the kitchen.
+   */
   const trial = (rung: LoungeRung, rng: Rng | undefined, first: boolean): LoungeTrial => {
     const sofa = sofaOf(rung);
+    if (options.sofaFree?.[room.id]) {
+      const free = standingFree(rung, sofa);
+      if (free) return free;
+    }
     // The first try is the engine's own dry run (`screenAfter`): the unit on a wall wherever any spot gives it one.
     const screenFor: RuleContext['screenFor'] = first
       ? ctx.screenAfter(at, own)
@@ -1528,8 +1720,9 @@ function layoutLounge(ctx: {
   const base = trial(rungs[0], options.rng, true);
   const first = withTable(base);
   // What may stand in for the first try, in order: the first try with a console behind its sofa where
-  // no table of any size stood in front of it; then, where its TV is not on a wall, each fallback that
-  // stands it on one; then, where it has no sofa, the first fallback with one.
+  // no table of any size stood in front of it; then, where its TV is not on a wall, the first try
+  // without its draw and each fallback that stands it on one; then, where it has no sofa, the first
+  // fallback with one.
   const queue: Array<() => LoungeTrial | null> = [];
   if (!first.table && first.sofa && !first.rung.console) {
     queue.push(() => {
@@ -1539,6 +1732,14 @@ function layoutLounge(ctx: {
   }
   let withSofa: LoungeTrial | null = null;
   if (!base.good) {
+    // The room as it is always laid, without its draw: the drawn spot is one near the best, and the
+    // best may be the one whose TV has a wall.
+    if (options.rng) {
+      queue.push(() => {
+        const undrawn = trial(rungs[0], undefined, true);
+        return undrawn.sofa && undrawn.good ? withTable(undrawn) : null;
+      });
+    }
     for (const rung of rungs.slice(1)) {
       queue.push(() => {
         const result = trial(rung, undefined, false);
@@ -1690,7 +1891,7 @@ function resolvePose(
       // Where no table for four fits even so, a kitchen's fourth fallback (`KitchenFallback.smallTable`)
       // stands a two-seat one against a wall, turned so its two chairs face each other along it.
       return (
-        placeCentre(archetype, room, occupied, rules.placed) ??
+        placeCentre(archetype, room, occupied, rules.placed, rules.kitchenSide) ??
         (archetype.slot === 'dining_table' && !options.exact
           ? placeAgainstWall({ ...archetype, size: { width: MIN_DINING_TABLE_M, depth: 0.82, height: archetype.size.height } }, room, walled, occupied, 'any', 0.7, true, [], rng, undefined, rules)
           : null) ??
@@ -2165,7 +2366,7 @@ function besideSpots(edge: PlanEdge, piece: PlacedItem, width: number): number[]
 }
 
 /** Free-standing in the middle, nudged outward until it stops colliding. */
-function placeCentre(archetype: Archetype, room: PlanRoom, occupied: Box[], placed: PlacedItem[] = []): Pose | null {
+function placeCentre(archetype: Archetype, room: PlanRoom, occupied: Box[], placed: PlacedItem[] = [], kitchenSide: PlanEdge[] = []): Pose | null {
   const island = archetype.slot === 'kitchen_island';
   const table = archetype.slot === 'dining_table';
   // An island keeps 120 cm from the run it faces (`FACING_COUNTERS_M`) — and from every wall and
@@ -2174,6 +2375,10 @@ function placeCentre(archetype: Archetype, room: PlanRoom, occupied: Box[], plac
   const standing = placed.filter((p) => p.roomId === room.id && !ARCHETYPES[p.kind]?.ghost).map((p) => boxFor({ position: p.position, rotation: p.rotation, size: p.size, elevationM: 0 }));
   // A living room's table stands well away from the sofa and its coffee table (L-6, L-8).
   const lounge = table ? placed.filter((p) => p.roomId === room.id && (p.slot === 'sofa' || p.slot === 'coffee_table' || p.slot === 'armchair' || p.slot === 'tv_unit')).map((p) => inflate(boxFor({ position: p.position, rotation: p.rotation, size: p.size, elevationM: 0 }), DINING_LOUNGE_GAP_M)) : [];
+  // Where its sitting group is — the sofa and its coffee table — which the table stands away from, the
+  // two functions apart where the room has the floor (decision 3.3: no clustering in one half).
+  const sitting = table ? placed.filter((p) => p.roomId === room.id && (p.slot === 'sofa' || p.slot === 'coffee_table')) : [];
+  const sittingAt = sitting.length > 0 ? { x: sitting.reduce((sum, p) => sum + p.position.x, 0) / sitting.length, z: sitting.reduce((sum, p) => sum + p.position.z, 0) / sitting.length } : null;
   const centroid = polygonCentroid(room.polygon);
   const bounds = polygonBounds(room.polygon);
 
@@ -2190,9 +2395,12 @@ function placeCentre(archetype: Archetype, room: PlanRoom, occupied: Box[], plac
 
   for (const [size, gap] of tries) {
     // A kitchen's table stands beyond the run's working floor (in `occupied`) and as far from the
-    // run as it can — at the short wall of a long kitchen, not in the middle of the cooking. A
-    // living room's in the middle of the floor left free: the spot with the most room round it.
+    // run as it can — at the short wall of a long kitchen, not in the middle of the cooking; a studio's
+    // in front of its kitchen, as near the run as the working floor lets it (decision 3.4), the living
+    // half beyond it. A living room's in the middle of the floor left free: the spot with the most room
+    // round it.
     const run = table ? placed.find((p) => p.roomId === room.id && p.slot === 'kitchen_run') : undefined;
+    const towardRun = room.studioPart != null ? -1 : 1;
     let best: { pose: Pose; score: number } | null = null;
     for (const offset of spiralOffsets(Math.max(1.8, Math.max(bounds.width, bounds.depth) / 2), 0.3)) {
       for (const rot of [rotation, rotation + Math.PI / 2]) {
@@ -2212,10 +2420,17 @@ function placeCentre(archetype: Archetype, room: PlanRoom, occupied: Box[], plac
         if (table && toWalls(boxFor(pose), room.polygon) < 0.42) continue;
         if (runs.length > 0 && overlapsAny(inflate(boxFor(pose), FACING_COUNTERS_M - 0.01), runs)) continue;
         if (lounge.length > 0 && overlapsAny(boxFor(pose), lounge)) continue;
+        // A living room's: room round it up to 1.2 m, then away from the sitting group and toward the
+        // kitchen across its open line where it has one — the dining nearer the kitchen, the sofa and
+        // the TV in the other part (Nini, decision 3.3).
+        const towardKitchen = kitchenSide.length > 0 ? Math.min(...kitchenSide.map((e) => distanceToEdge(pose.position, e))) : 0;
         const score = run
-          ? Math.hypot(pose.position.x - run.position.x, pose.position.z - run.position.z)
+          ? towardRun * Math.hypot(pose.position.x - run.position.x, pose.position.z - run.position.z)
           : table && lounge.length > 0
-            ? Math.min(5, toWalls(boxFor(pose), room.polygon), ...standing.map((b) => distanceToBox(pose.position, b))) - Math.hypot(offset.x, offset.z) * 0.05
+            ? Math.min(1.2, toWalls(boxFor(pose), room.polygon), ...standing.map((b) => distanceToBox(pose.position, b))) * 3 +
+              (sittingAt ? Math.hypot(pose.position.x - sittingAt.x, pose.position.z - sittingAt.z) * 0.8 : 0) -
+              towardKitchen -
+              Math.hypot(offset.x, offset.z) * 0.05
             : -Math.hypot(offset.x, offset.z);
         if (!best || score > best.score + 1e-6) best = { pose, score };
         if (!run && !(table && lounge.length > 0)) break;
@@ -3121,6 +3336,12 @@ function openingPoints(
 function minDistance(point: Vec2, others: Vec2[]): number {
   if (others.length === 0) return 0;
   return Math.min(...others.map((o) => Math.hypot(o.x - point.x, o.z - point.z)));
+}
+
+/** How far a point is from an edge (its segment). */
+function distanceToEdge(point: Vec2, edge: PlanEdge): number {
+  const along = Math.max(0, Math.min(edge.length, alongEdge(edge, point)));
+  return Math.hypot(point.x - (edge.a.x + edge.dir.x * along), point.z - (edge.a.z + edge.dir.z * along));
 }
 
 function distanceToBox(point: Vec2, box: Box): number {

@@ -14,6 +14,7 @@ import { getArchetype } from './catalog';
 import { decorFootprint } from './decor/joinery';
 import { isLampOutlet } from './electrical';
 import { clearsSurface, lampLine, pendantSurface, shadesIn, underShade } from './ceilingLights';
+import { diningCluster } from './composition';
 
 /** How far a hanging lamp may be off the middle of what it lights before the check reports it. */
 const PENDANT_OFF_SURFACE_M = 0.1;
@@ -66,6 +67,12 @@ export type SceneIssueCode =
   | 'spot_under_pendant'
   /** A hanging lamp (or the middle of its line of two or three) more than 10 cm off the middle of what it lights (`pendantSurface`). */
   | 'pendant_off_surface'
+  /**
+   * A living room's or a studio's dining table in its sitting group (`diningCluster`, Nini's "don't
+   * cluster" — decision 3.3): within 1.2 m of the sofa, or nearer the sofa and its coffee table than
+   * 45 % of the room's long side (3.5 m at most).
+   */
+  | 'clustered'
   /** Something within 30 cm in front of a built wall of wardrobe: its doors cannot open. */
   | 'wardrobe_blocked'
   /** Joinery that leaves under 70 cm to the wall across. */
@@ -114,7 +121,8 @@ export const ESSENTIALS: Partial<Record<PlanRoom['type'], SlotKind[][]>> = {
   balcony: [['dining_table', 'plant']],
   bathroom: [['toilet'], ['sink'], ['shower', 'bathtub'], ['mirror']],
   toilet: [['toilet'], ['sink'], ['mirror']],
-  studio: [['kitchen_run'], ['fridge'], ['sofa'], ['tv_unit'], ['tv']],
+  // A studio's table (or an island) is its kitchen's must-have too (decision 3.4: in front of the kitchen).
+  studio: [['kitchen_run'], ['fridge'], ['dining_table', 'kitchen_island'], ['sofa'], ['tv_unit'], ['tv']],
   office: [['desk'], ['office_chair']],
 };
 
@@ -192,6 +200,12 @@ export function auditScene(scene: AuditedScene): SceneIssue[] {
         if (!slots.has(slot)) continue;
         say('orphan', `${slot} with no ${rule.needs}`, inRoom.find((i) => i.slot === slot)?.id, `${slot}:no_${rule.needs}`);
       }
+    }
+
+    // --- the dining table apart from the sitting group (decision 3.3)
+    if (room.type === 'living_room' || room.type === 'studio') {
+      const cluster = diningCluster(room, inRoom);
+      if (cluster?.clustered) say('clustered', `dining table ${cm(cluster.gap)} off the sofa, ${cm(cluster.apart)} from the sitting group (${cm(cluster.wanted)} wanted)`, inRoom.find((i) => i.slot === 'dining_table' || i.slot === 'kitchen_island')?.id);
     }
 
     // --- the TV unit: on a wall, never on a separator's open line

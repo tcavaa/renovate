@@ -40,7 +40,7 @@ import { finishQuantity } from '@/lib/design/finishQuantity';
 import { applyBoardPicks, applyFinishPicks, placeFurniturePicks, picksFromCalculator, type CalculatorPicks } from '@/lib/design/fromCalculator';
 import { unplacedPicksOf } from '@/lib/design/pickFit';
 import type { HomeState, Room, RoomSplit, RoomType, SelectedProduct, WorkChoices } from '@/lib/calculator/types';
-import { defaultSplit } from '@/lib/design/studio';
+import { defaultSplit, personsSplit } from '@/lib/design/studio';
 import { divideAlongPartialWall, joinRoom, withPartialWallSeparators, withSplitRoomTypes, withoutWall } from '@/lib/design/separators';
 import { DEFAULT_CEILING_M } from '@/lib/calculator/constants';
 import {
@@ -1991,7 +1991,8 @@ function createDesignStore(storageName: string | null): DesignStoreBound {
         splitRoom: (roomId, split) =>
           commit((s) => {
             if (!s.plan) return null;
-            return { plan: { ...s.plan, rooms: s.plan.rooms.map((r) => (r.id === roomId ? { ...r, split } : r)) } };
+            // The line dragged on the board is the person's: generation no longer places it (`personsSplit`).
+            return { plan: { ...s.plan, rooms: s.plan.rooms.map((r) => (r.id === roomId ? { ...r, split: personsSplit(split) } : r)) } };
           }),
         setRoomWhole: (roomId, whole) =>
           commit((s) => {

@@ -242,7 +242,13 @@ with Shift, neither part under 1.5 m² or a tenth of the room, whichever is smal
 `MIN_PART_AREA_M2`; `onSplitRoom`); each half is drawn in its own type's
 tint and labelled with its type and m²; a click on a half picks it out
 (`designStore.selectedRoomPart`). The inspector's `StudioSplitFields` sets each part's type
-and area, turns the line and swaps the parts. The estimate prices the parts
+and area, turns the line and swaps the parts. **Generation places the line** where it is the app's
+(`lineIsTheApps`: none, the first line, or one a generation placed — `RoomSplit.chosen`): the
+kitchen part by the water, the front door and the windows, chosen by laying the studio out each
+way and scoring it as one space (`composeStudios` in `lib/design/studioLayout`, Nini's decision 3.4;
+[layout-and-matching.md](layout-and-matching.md)), the line written onto the plan the generation
+returns. A line the person drags, turns, swaps or re-types is theirs (`personsSplit` drops the mark
+— `splitRoom`, `turned`, `swapped`, `withPartType`, `withFirstArea`) and generation keeps it. The estimate prices the parts
 (`Room.parts`, filled by `calculatorRoomsFromPlan` / `planToCalculatorRooms`; `expandStudios`
 in the engine, a default 35 / 65 split — `DEFAULT_FIRST_SHARE` — for a studio saved without
 them): the kitchen

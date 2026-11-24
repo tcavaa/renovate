@@ -16,7 +16,9 @@ as products).
 | File | Responsibility |
 |---|---|
 | `lib/design/catalog.ts` | `ARCHETYPES` (every placeable kind: real size, category, placement rule, labels in three languages), `ROOM_PROGRAMS` (which slots each room type gets), `SHELF_ROOMS` / `kindsForRoom` / `unroomedKinds` (which kinds belong in which room — the studio rooms' starting point; the shelf itself is admin's, [../categories.md](../categories.md)) |
-| `lib/design/autoLayout.ts` | `layoutPlan` / `layoutRoom` (rule-based placement, collision-checked; a studio half by half — `partRoom`; `LayoutOptions.anchors` from technical points, `obstacles` for columns and the strip in front of every radiator — `radiatorKeepouts`, [design-rules.md](design-rules.md); an obstacle with a `bottom`, the strip under a towel rail, is in the way only of what reaches up to it — `KeepClear`, `clearsUnder`), `placeAdditional` (a free spot for one more piece), `FURNISHABLE_ROOM_TYPES` |
+| `lib/design/studioLayout.ts` | a studio laid out as one space (stage 6): `splitCandidates`, `compositionScore`, `bestComposition`, `composeStudios` (the line chosen and written onto the plan, `RoomSplit.chosen`) |
+| `lib/design/composition.ts` | what a room laid out as one space is judged by: `zonesReached` (a way from the door to each zone), `screenOnWall`, `diningCluster` (no clustering — the whole-flat check's `clustered`), `livingScore` (a living room with a dining table) |
+| `lib/design/autoLayout.ts` | `layoutPlan` / `layoutRoom` (rule-based placement, collision-checked; a studio half by half — `partRoom`, the kitchen half first; a living room's dining zone — `diningZones`, `bestDiningZone`; `LayoutOptions.anchors` from technical points, `obstacles` for columns and the strip in front of every radiator — `radiatorKeepouts`, [design-rules.md](design-rules.md); an obstacle with a `bottom`, the strip under a towel rail, is in the way only of what reaches up to it — `KeepClear`, `clearsUnder`), `placeAdditional` (a free spot for one more piece), `FURNISHABLE_ROOM_TYPES` |
 | `lib/design/matcher.ts` | `matchProducts` (client-side; drops products without `model3dUrl`, scores style tag + budget tier, checks the fit), `candidatesFor` (the swap list), `toSceneProduct`, `applySwap` |
 | `lib/design/kinds.ts` | the named sets of slots and kinds — each list that means one thing, once: `LAID_TO_ANOTHER` (the rug and the curtain, laid to another thing), `SIZED_BY_LAYOUT` (those and the run), `LIES_FLAT` (those and the door mat), `NOT_IN_THE_WAY` (those and the pendant: before no wall), `CUSTOM_KITCHEN_SLOTS` / `CUSTOM_KITCHEN_KINDS` / `isCustomKitchenSlot`, `COMPANION_SLOTS`, `BATH_OR_SHOWER` |
 | `lib/design/relations.ts` | who belongs to whom, every relation between two pieces from one source (the archetypes' rules): `arrangedOff` (which piece a kind is arranged off), `withoutOrphans` (a piece that is gone takes what was arranged off it), `laidOffSlots`, `measuredOff` / `placedOff` / `inFrontOf` (what is stood again off, moved with, its anchor), `seatedAt` (the table a dining chair is seated round), `tucksUnder` (a chair and the top it slides under) — which chairs are seated or tuck is written there, the piece each goes with read off the chair's own rule, the bathroom pass's companions (`companionId`, `companionsOf`, `hostOf`) |
@@ -74,6 +76,56 @@ scene ──tightSpots──▶ amber warnings (not a rule)
   the far wall). A WC never stands in one when any other spot on its walls fits (its spots in a
   band are dropped before the draw); a bed in one scores 12 less (no fault, the brief says, only
   a preference). Studios pass the whole room's bands to both halves.
+- **A studio is laid out as one space** (Nini, decisions 2, 3.3 and 3.4 — stage 6;
+  `lib/design/studioLayout.ts`, `lib/design/composition.ts`). Where its line is the app's to place
+  (`lineIsTheApps`: none, the first line the app drew — a third across the longer side — or one a
+  generation placed, `RoomSplit.chosen`), generation tries the kitchen part at either end of either
+  axis, 2.0, 2.4, 2.8, 3.2 and 3.6 m deep where the living part keeps 2.8 m (`splitCandidates`, the
+  first line among them), each with the living half's sofa against a wall and standing free with its
+  back to the kitchen (`LayoutOptions.sofaFree`); lays each out whole without a draw and scores it as
+  one space (`compositionScore`): 100 for each of the run, the fridge, the dining table (or an
+  island), the sofa and a TV; the worktop (10 from 1.8 m); **the run by the water** — 15 a metre past
+  30 cm from the studio's sewer or water (`technicalAnchors`), at most 60, else 3 a metre from the
+  nearest bathroom's or toilet's outline (its wet wall); **off the front door** — 25 in what is seen
+  coming in, 20 a metre within 1.5 m of the door; the TV on a real wall (25) at 2.5–3.5 m (10, 15 a
+  metre off); the sofa's side to the kitchen (10 — her "better still": the sofa on one wall, the TV
+  across, the kitchen along the third) or its back to it (8, the divider), never facing it (−15);
+  the dining table out of the sitting group (`diningCluster`, below) and within 2.5 m of the run;
+  25 for each zone a person cannot walk to from the door (`zonesReached`: a 10 cm floor walked with
+  60 cm of way, from the front door, the run, the fridge, the table and the sofa each within 70 cm of
+  a reached cell — dining chairs, rugs and mats no obstacle) and 15 for each door whose leaf a piece
+  stands in the swing of (`blockedDoorSwings`); and 20 a whole of the studio the kitchen part is off a
+  third. The best is written onto the plan (`composeStudios`, in `layOutFlat` before anything is laid
+  out, so the matcher, the wiring, the estimate, the board and the AI designer's brief all see the
+  halves it was laid out by); a line the person set is kept and only the sofa's way is chosen for it.
+  No draw: the same plan gives the same composition whatever the seed. Then, half by half:
+  **the kitchen half first**, its table a must-have at any size of the half (`roomPiece`) and stood in
+  front of the kitchen — as near the run as its working floor lets it (`placeCentre`, `towardRun`);
+  **a living half lays no table** unless the kitchen half had no floor for one (`LayoutRelax.studioTable`),
+  and then in a zone along the line, the sofa's group laid out of it (`lineZones`, `bestZone`, below);
+  **a studio's sofa is a three-seat, else a two-seat** — never a corner sofa (`programPiece`: a half
+  carries `PlanRoom.studioPart`, set by `partRoom` and never saved). The ladder's first try without
+  its draw comes before the fallbacks where the drawn spot loses the TV's wall, and a fallback may give
+  up optional decor (`DECOR_SLOTS`: a print, a plant, a floor lamp, an armchair, a bookcase, a rug)
+  for it — a TV on a real wall before a plant.
+- **A living room with a dining table is laid out as two functions** (decision 3.3: the dining table
+  toward the kitchen, the sofa and the TV in the other part — no clustering in one half). Where the
+  room is 5 m long or more, a zone at either end of its long side, 2.2, 2.6 or 3.0 m deep, the
+  sitting part keeping 2.6 m (`diningZones`), is kept from the sofa, its table, the TV and the rest
+  (`LayoutRelax.diningZone`, a box in `occupied` only the table and its chairs ignore), and the table
+  is laid in it; each zone — and, in a room whose shape takes a corner sofa, each with a three-seat —
+  is laid out without a draw and scored (`livingScore`: the sofa, the TV and the table 100 each, a
+  coffee table or the console 30, the TV on a real wall and its distance, the cluster, 3 a metre from
+  the open line across which a kitchen lies — `kitchenSides`, `LayoutOptions.kitchenSide` — 25 for a
+  zone not walked to, 15 for a door's swing, 3 for each other piece), and the best zone that keeps as
+  many of the room's essentials as any way does is taken (`bestDiningZone`): the zone holds the
+  table's floor whatever the room's draw does with the sofa. A living room's table, where no zone
+  is laid, stands with up to 1.2 m round it, away from the sofa's group and toward the kitchen side.
+- **No clustering, measured** (`diningCluster` in `composition.ts`, the whole-flat check's
+  `clustered`): a living room's or a studio's dining table (or island) within 1.2 m of the sofa
+  (`DINING_SOFA_GAP_M`), or its middle nearer the sitting group — the sofa and its coffee table — than
+  40 % of the room's long side, 3 m at most (`DINING_APART_SHARE`, `DINING_APART_M`: her studio, the
+  sofa's back to the kitchen and the table before the kitchen, measures about 3.1 m).
 - **A studio is furnished half by half** (`layoutRoom`): the kitchen's program in the kitchen half,
   the living room's in the other, each half a room of its own for the engine (`partRoom` in
   `lib/design/studio.ts`, which `autoTechnical` uses too) — the room's doors and windows moved onto
@@ -444,8 +496,8 @@ from it is in [overview.md](overview.md#generation-versions-and-undo).
   of its pieces (`keepsEveryPiece`, kind by kind) and leaves the worktop no shorter than the room's
   least (1.5 m, a studio's kitchen half 1.2 m — a 1.2 m run with a 1.4 m leg is 2.6 m of worktop)
   where it was longer; the first level that gives the kitchen everything ends the ladder. A studio's
-  kitchen half is held to its run and its fridge: its table may be the living half's, and the studio
-  laid as one space is stage 6. Her fifth fallback, the L's leg under a window, is the corner pass's
+  kitchen half is held to its table too (stage 6, below: in front of the kitchen, at any size of the
+  half; where the half has no floor for one, the living half lays it). Her fifth fallback, the L's leg under a window, is the corner pass's
   already (a sill at the worktop or above); her sixth, an island, is laid only where its 1.2 m ring
   fits (17 m² and the geometry; none in the fixtures). In 792 flats: kitchens without a table
   160 → 24 (all #408's), studios without a fridge 48 → 24 (#384's kitchen half, three doors and a
@@ -1000,6 +1052,11 @@ rule: the layout is still saved as arranged.
 
 ## Tests
 
+`tests/unit/design/studioComposition.test.ts` (stage 6: the line generation may place and the
+person's kept, the candidate lines, a studio's kitchen placed by its water and off its front door
+with its run, fridge, table, sofa and a TV on a wall, the chosen line written onto the plan and the
+same whatever the seed, a studio's sofa never a corner one, `diningCluster`, a living room's dining
+zones, `zonesReached`),
 `tests/unit/design/pickFit.test.ts` (decision 13: a pick stood elsewhere in its room before
 anything moves, the bookshelf making way for a long sofa and never the wardrobe or the desk, nothing
 moved in the studio, another bedroom taking the bed its own room has no place for — `pickedFor`, not
@@ -1110,6 +1167,22 @@ whole. `lib/design/matcher.ts` is in the coverage gate.
   1,080 generated flats. Its ticked items are fixed (the matcher's: a way out of the strict style,
   what goes with a dropped piece, a kind with no product, what the layout kept clear, the hall's
   mirror, the door mat and the hanging lamp, the chairs' own seats); the rest is open.
+- **A studio laid out as one space keeps some of what it would rather not** (stage 6): its dining
+  table stands in its sitting group (`clustered`) in 62 of 240 fixture studios — mostly a kitchen
+  part too shallow for a table and a way behind the sofa (#389, #392: the table before the kitchen,
+  the sofa's back to it within 1.2 m) and #385, whose kitchen by the water has no floor for a table;
+  #386's kitchen by its water is in what the front door sees (`kitchen_faces_entrance`, 24), and
+  #389's and #384's run stands within 1 m of the front door (40). The composition is scored on the
+  layout's slots, so a product the matcher chooses larger (a 1.04 m deep coffee table before #384's
+  balcony doors) can still stand in a door's swing. An island that is also the dining table is never
+  laid (no island is ever matched, below); a fridge built into the run (a tall unit at its end or
+  under the counter, her fourth) needs a joinery piece the kitchen maker does not have — the fridge
+  is the shop's, hard beside the run (stage 4). Choosing the composition costs about 100–400 ms a
+  studio (42 layouts without a draw, each living half's zones within), a studio flat about 0.5 s.
+- **A floor lamp may stand under a TV wider than its unit**: the matcher takes the screen the sofa's
+  distance asks for over a unit narrowed to 1.2 m, and a lamp product larger than its slot grows
+  beside the unit's end under it — the matcher does not test a floor piece against a TV hung over it
+  (`everyRoom.test.ts` allows it on its L-shaped living room).
 - **A kitchen's island, peninsula, counter and tall unit** (Nini, decision 3.5): an island is laid
   only where its 1.2 m ring fits and is never matched — no island product fits its slot (the six that
   pass are 1.87–4.81 m, or carry a sink or a hob) and the kitchen maker has no island material; a

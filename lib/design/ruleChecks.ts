@@ -37,7 +37,7 @@ import { floorTaken, showerArea } from './shower';
 import { distanceToSegment, doorFloor, QUAD_TOUCH_M, round2 } from './pieceGeometry';
 import type { KeepClear } from './manipulate';
 import { BATH_OR_SHOWER, LIES_FLAT } from './kinds';
-import type { ElectricalPoint, FloorPlan, PlacedItem, TechnicalPoint, Vec2 } from './types';
+import type { ElectricalPoint, FloorPlan, PlacedItem, PlanRoom, TechnicalPoint, Vec2 } from './types';
 
 export type RuleCode =
   | 'radiator_blocked'
@@ -214,10 +214,18 @@ function solid(item: PlacedItem): boolean {
 }
 
 /**
+ * How many of a room's doors a piece stands in the swing of (`door_swing_blocked`, as `doorSwings`
+ * checks it): what a layout is scored on before it is chosen (`lib/design/composition`).
+ */
+export function blockedDoorSwings(room: PlanRoom, items: readonly PlacedItem[]): number {
+  return doorSwings({ rooms: [room] } as FloorPlan, items.filter((i) => i.roomId === room.id)).filter((v) => v.code === 'door_swing_blocked').length;
+}
+
+/**
  * The floor a door's leaf sweeps, in the room it opens into: a square as wide as the door, from
  * the wall out. Two doors whose squares overlap hit each other; a piece standing in one stops it.
  */
-function doorSwings(plan: FloorPlan, items: PlacedItem[]): RuleViolation[] {
+function doorSwings(plan: FloorPlan, items: readonly PlacedItem[]): RuleViolation[] {
   const out: RuleViolation[] = [];
   for (const room of plan.rooms) {
     const edges = roomEdges(room.polygon);

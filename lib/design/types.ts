@@ -282,6 +282,12 @@ export interface PlanRoom {
    * draw a room separator on from the wall again (`lib/design/separators`).
    */
   keepWhole?: boolean;
+  /**
+   * Set only on a studio's half as the engines furnish it (`partRoom`), never saved: which half it
+   * is. A half is furnished as its own type, a studio's all the same — its sofa never a corner one
+   * (Nini, decision 3.4; `programPiece`).
+   */
+  studioPart?: 0 | 1;
 }
 
 export interface FloorPlan {

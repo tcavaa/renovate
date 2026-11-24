@@ -14,6 +14,7 @@ import { fitKitchenCorners } from './kitchenCorner';
 import { applyReviewFixes, clearOfDecor, proposalDecor, proposalNotes, proposalPicks, settleToWalls, standsAfterMove, underCeilingDecor, withoutArtOverDecor, withProposalFinishes, type AiProposal } from './aiProposal';
 import type { AiReview } from './aiReview';
 import { layoutPlan } from './autoLayout';
+import { composeStudios } from './studioLayout';
 import { hangPendants } from './ceilingLights';
 import { suggestElectrical, withFixtureProducts } from './electrical';
 import { applyBoardPicks, applyFinishPicks, placeFurniturePicks, type CalculatorPicks } from './fromCalculator';
@@ -109,18 +110,24 @@ export function layOutFlat(input: Pick<GenerateSceneInput, 'plan' | 'styleId' | 
   // The partitions the app adds (the entrance out of the living room's sight, an en-suite's lobby),
   // before anything is laid out round them; the floor behind each stays free.
   const partitioned = withGeneratedPartitions(input.plan, styleId);
-  const plan = partitioned.plan;
   // Every generation draws from its own seed: the same plan gives another layout, other products
   // and other floors and walls each time. Each room draws each stage — its layout, its products,
   // its bathroom pass, its floor and walls — from a stream of its own (`roomStreams`), so a change
   // in one room (a piece more, a wall moved, a door added) leaves every other room's draw as it was.
   const streams = rngStreams(input.seed);
   // Columns are in the way, and so is the floor in front of a radiator: nothing is stood there.
-  const radiators = radiatorKeepouts(plan);
-  const obstacles = Object.fromEntries(plan.rooms.map((r) => [r.id, [...columnFootprints(plan, r.id), ...(radiators[r.id] ?? []), ...(partitioned.keepouts[r.id] ?? [])]]));
+  const radiators = radiatorKeepouts(partitioned.plan);
+  const obstacles = Object.fromEntries(partitioned.plan.rooms.map((r) => [r.id, [...columnFootprints(partitioned.plan, r.id), ...(radiators[r.id] ?? []), ...(partitioned.keepouts[r.id] ?? [])]]));
   // What is seen coming in through the front door: the kitchen keeps out of it where it can.
   const entranceSight: Record<string, Quad[]> = {};
-  for (const band of entranceSightBands(plan.rooms)) (entranceSight[band.roomId] ??= []).push(band.quad);
+  for (const band of entranceSightBands(partitioned.plan.rooms)) (entranceSight[band.roomId] ??= []).push(band.quad);
+  // A studio laid out as one space (Nini, decisions 2, 3.3 and 3.4): its kitchen part placed by the
+  // water, the doors and the windows, the living half's sofa with it — each way laid out and scored
+  // whole, the line chosen written onto the plan (`composeStudios`). No draw: the same plan, the same
+  // studio, whatever the seed.
+  const anchors = technicalAnchors(partitioned.plan);
+  const composed = composeStudios(partitioned.plan, { anchors, obstacles, entranceSight, styleId });
+  const plan = composed.plan;
   // Laid out under the ceiling: a pendant hangs from a new ceiling, a curtain runs from just under it.
   const underCeilings = plan.rooms.map((r) => underCeiling(r, plan));
   // A slot no partner product can fill is dropped rather than shown as a stand-in — and with it
@@ -129,7 +136,7 @@ export function layOutFlat(input: Pick<GenerateSceneInput, 'plan' | 'styleId' | 
   const { placed, matchOptions, items: matched, kept } = laidOutAndMatched(obstacles, (clear) => {
     // Each try draws afresh from the seed's own streams (`layout`, `match`): the one kept is the flat's draw.
     const draws = rngStreams(input.seed);
-    const laid = layoutPlan(underCeilings, { anchors: technicalAnchors(plan), obstacles: clear, roomRng: roomStreams(draws, 'layout'), entranceSight, styleId });
+    const laid = layoutPlan(underCeilings, { anchors, obstacles: clear, roomRng: roomStreams(draws, 'layout'), entranceSight, styleId, sofaFree: composed.sofaFree });
     const options = { styleId, budgetGel, rooms: underCeilings, roomRng: roomStreams(draws, 'match'), picks: proposalPicks(proposal), keepClear: clear };
     return { kept: clear, placed: laid, matchOptions: options, items: withoutOrphans(laid, placeableOnly(matchProducts(laid, catalog, options)), underCeilings) };
   });

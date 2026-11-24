@@ -60,6 +60,14 @@ describe('generating whole flats', () => {
       'missing:studio:tv',
       'missing:studio:tv_unit',
       'tv_unit_off_wall',
+      // A studio laid out as one space (Nini, decisions 2, 3.3 and 3.4): its kitchen placed by the water
+      // and the doors keeps its run, its fridge and its table; no TV unit on an open line; and a living
+      // room's ladder that may give up its decor for its TV's wall keeps every unit.
+      'missing:studio:kitchen_run',
+      'missing:studio:fridge',
+      'missing:studio:dining_table/kitchen_island',
+      'missing:living_room:tv_unit',
+      'on_open_line',
       // Every balcony is furnished: its compact table and chairs, or at least a planter (Nini, decision 3.6).
       'missing:balcony:dining_table/plant',
       'basin_in_air',

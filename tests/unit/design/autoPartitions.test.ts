@@ -230,7 +230,8 @@ describe('on whole flats: the fixture plans altered to qualify (tests/helpers/ge
         expect(screens.some((w) => w.startsWith(entrance ? 'partition-entry-' : 'partition-ensuite-')), `${id}/${styleId}`).toBe(!entrance || styleId !== 'industrial');
       }
     }
-  });
+    // Twelve whole flats, a studio among them laid out each way it is tried (`composeStudios`).
+  }, 30_000);
 
   // The floor behind a screen is handed to the layout and the matcher as floor to keep clear, but
   // the dining chairs are not kept off it: on these plans (four styles, six draws) a chair stands

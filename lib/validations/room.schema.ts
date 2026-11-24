@@ -20,6 +20,7 @@ export const roomSplitSchema = z.object({
   axis: z.enum(['x', 'z']),
   t: z.number().min(0).max(1),
   parts: z.tuple([roomTypeEnum, roomTypeEnum]),
+  chosen: z.boolean().optional(),
 });
 
 export const roomPartSchema = z.object({

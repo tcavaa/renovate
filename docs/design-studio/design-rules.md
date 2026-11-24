@@ -511,7 +511,7 @@ answers, as the app is to follow them, and the stage each is built in:
 | 12 | A door's clear floor | **By room**: bathrooms and toilets 70 cm deep × the door's width; elsewhere 90 cm × the door + 10 cm each side; archways 55 cm — one rule for the layout, the products, the joinery and the check; the door's swing, access and the way on checked apart, and a layout that passes those three is not refused for the zone alone | 1 |
 | 13 | A calculator pick that fits nowhere | In order: another position or turn in its room → move, shrink or drop the room's secondary pieces for it (a person's pick before the generated ones) → another room of the same type, saying so → left out of the 3D with a note, kept in the list ("This item could not fit in the selected room…"). Never outside the room or overlapping, never resized; placed and unplaced picks told apart | 5 |
 
-The stages (1 to 5 built, 23–24 Nov 2026): **1** the contained rules (door zones, built wardrobes, the hall's boiler section, screens,
+The stages (1 to 6 built, 23–24 Nov 2026): **1** the contained rules (door zones, built wardrobes, the hall's boiler section, screens,
 the balcony door's price, the plan message, the style's own floor, catalogue checks); **2** bathroom
 and bedroom fallbacks; **3** the living room and the TV; **4** the kitchen, the washing machine and
 balconies; **5** decor over low joinery, the ceiling's lighting as one, the calculator's picks; **6**
@@ -672,6 +672,39 @@ the pieces alone) has a place for it (169 and 32 of 4,283 placed) — whether it
 out is hers; a moved pick leaves the rug, the TV and the joinery of the piece it replaced at the old
 slot; picks put into a flat already laid out (in the studio) skip the second step, the flat being the
 person's.
+
+**Stage 6, the studio and the open living room as one space (decisions 2, 3.3 and 3.4), is built**
+(24 Nov 2026): a studio is laid out as one space by its proportions, not two rooms split by a line of
+a third. Where the line is the app's (none, the first line, or one a generation placed), generation
+tries the kitchen part at either end of either axis, 2.0–3.6 m deep, each with the living half's sofa
+against a wall and standing free with its back to the kitchen, lays each out whole and scores it:
+the essentials (the run, the fridge, the dining table or an island, the sofa, a TV), **the run by the
+studio's water** (its sewer or water points, else the wall of a bathroom beside it), **off the front
+door** and out of what it sees, the TV on a real wall at 2.5–3.5 m, the sofa's side to the kitchen
+(her "better still": the sofa on one wall, the TV across, the kitchen along the third) or its back to
+it as the divider — never facing it — the dining table before the kitchen and out of the sitting
+group, a way from the door to every zone and no door's swing blocked; the line chosen is written onto
+the plan (the board, the estimate, the matcher, the wiring and the AI designer's brief all see it)
+and a line the person set is kept. The kitchen half seats the studio at any size, its table in front
+of the kitchen; where it has no floor for one the living half lays it in a zone along the line, the
+sofa's group beyond. **A studio's sofa is a three-seat, else a two-seat — never a corner sofa.** A
+living room with a dining table is laid out as two functions: a zone at one end of its long side kept
+for the table, toward the kitchen across its open line, the sofa and the TV in the rest — the corner
+sofa tried against a three-seat — and the living room's ladder may give up optional decor for its
+TV's wall. "No clustering" is measured (`clustered` in the whole-flat check): the table within 1.2 m
+of the sofa, or nearer the sitting group than 40 % of the room's long side (3 m at most). 792 flats
+(6 draws): studios without a run 24 → 0, without a fridge 24 → 0 (#386's kitchen is by its water now,
+#384's has its fridge), without a dining table 128 → 0, corner sofas in studios 43 → 0, the TV on a
+real wall in studios 240 → 240 and in open living rooms 404 → 408, sofa–TV 2.3–3.7 m in studios 201 →
+215 and open living rooms 271 → 331, living rooms without a TV unit 40 → 0, `sofa_tv_distance` 290 →
+214; open living rooms' tables clustered 34 → 21 of 144; studios' 26 of 112 tables → 62 of 240. The
+detail: [layout-and-matching.md](layout-and-matching.md), [plan-board.md](plan-board.md),
+generation-audit.md RS1, RS2 and M4. Not built: an island that is also the dining table (no island is
+ever matched); the fridge built into the run, a tall unit at its end or under the counter (a joinery
+piece the kitchen maker does not have — the shop's fridge stands hard beside the run); a studio's
+table kept out of the sitting group where its kitchen part is too shallow for the table and a way
+behind the sofa (#389, #392); #386's kitchen by its water stays in the front door's sight, #384's and
+#389's run within 1 m of the front door.
 
 ## The decisions (owner, 28 Oct 2026)
 

@@ -439,7 +439,10 @@ Severity: **high** = seen by anyone who generates; **medium** = wrong in some ro
   bookcase (`placeUnder`'s fallback, `autoLayout.ts:1424-1426`). *Partly:* the rug is fixed — it is
   laid under its own piece or, in a room with none, under the piece the room is laid out round (an
   office's desk), and nowhere without either: no rug under a bookcase or a wardrobe. The rest is
-  RS1–RS5.
+  RS1–RS5. *Since stage 6 (Nini's 2, 3.3 and 3.4):* a studio is laid out as one space (RS1, RS2) —
+  every studio in 792 flats has its run, fridge, table, sofa and TV; left: RS5's minimum areas per
+  half, and a studio's table in its sitting group where its kitchen part is too shallow
+  (`clustered`, 62 of 240).
 - [ ] **M5 (medium) — Program entries that cannot be placed.** An armchair is placed off a sofa
   (`placeRelative`, `:929-930`): the balcony's is never laid (0 of 684) and the office's cannot be. An entry
   with no gate silently takes the archetype's (`:291`): a balcony's plants need 10 m² (92 % of
@@ -1545,15 +1548,24 @@ rooms named, and side effects outside them were not measured.
 **Studios** — 9 studios × 4 styles × 8 seeds = 288 runs. Today: a TV unit on a real wall 16, on
 the open line 48, none 220; a sofa 208; a run 256; a fridge 224.
 
-- [ ] **RS1 (high) — Every studio is divided by the default line.** None of the nine has a stored
+- [x] **RS1 (high) — Every studio is divided by the default line.** None of the nine has a stored
   split, so `defaultSplit` (`studio.ts:55`) puts the kitchen in the low 35 % across the longer side
   whatever the doors and windows: on the front door (#386: no run on 32 of 32), in a 2 m strip
   holding three doors (#384: no fridge). With the line moved or the halves swapped — the engine
   unchanged — each gets its run, fridge, sofa and a TV on a wall on 32 of 32.
-- [ ] **RS2 (high) — The corner sofa.** A living half of 22 m² takes it (`resolveVariant`,
+  *Fixed* (stage 6 of the fourth round, Nini's 3.4): where the line is the app's, generation lays
+  the studio out each way — the kitchen at either end of either axis, 2.0–3.6 m deep, the sofa
+  against a wall or free with its back to the kitchen — and keeps the best as one space, the run by
+  the water and off the front door (`composeStudios`, `lib/design/studioLayout.ts`), the line written
+  onto the plan (`RoomSplit.chosen`). 792 flats: studios without a run 24 → 0, without a fridge 24 → 0,
+  without a dining table 128 → 0.
+- [x] **RS2 (high) — The corner sofa.** A living half of 22 m² takes it (`resolveVariant`,
   `catalog.ts:781`) and nothing smaller is tried: no wall takes 2.7 m (#370, #369), or it leaves
   1.06 m in front (#393). A room needs 3.9 m across for a corner sofa and a TV unit, 3.0 m for a
   three-seat. With a three-seat as the second try: sofas 224 → 288, a TV on a wall 16 → 112.
+  *Fixed* (stage 3's ladder, then stage 6: a studio's sofa is a three-seat, else a two-seat, never a
+  corner one — `programPiece` on a half, `PlanRoom.studioPart`): corner sofas in studios 43 → 0 in 792
+  flats, every studio with its sofa and a TV on a real wall.
 - [x] **RS3 (medium) — The run is never tried under 1.8 m on a short wall** (`autoLayout.ts:824`:
   the wall less 30 cm, 0.7 of it, half, 1.8 m), and its fallback takes the whole wall and leaves the
   fridge nowhere. Also trying 1.5 and 1.2 m: runs 256 → 288.

@@ -25,7 +25,13 @@ at runtime yet; the last one was seen on the sample plan.
   that cannot see any of it; the root cause of each lost piece is measured, with what one change
   recovers. The plain bugs and the clean-ups that need no rule are fixed (eight batches, 16–18 Nov;
   `pnpm audit:generation` measures each fix); the owner's thirteen decisions and per-room rules
-  (Nini, 23 Nov) are being built in six stages — [design-studio/design-rules.md](design-studio/design-rules.md#the-fourth-round-generation-decisions-nini-23-nov-2026); the audit: [design-studio/generation-audit.md](design-studio/generation-audit.md#where-it-stands-18-nov-2026).
+  (Nini, 23 Nov) are built in six stages (24 Nov) — [design-studio/design-rules.md](design-studio/design-rules.md#the-fourth-round-generation-decisions-nini-23-nov-2026); the audit: [design-studio/generation-audit.md](design-studio/generation-audit.md#where-it-stands-18-nov-2026).
+- **A studio laid out as one space, stage 6's remainder** (2, 3.3 and 3.4 built): a studio's table
+  still in its sitting group where its kitchen part is too shallow for a table and a way behind the
+  sofa (`clustered`, 62 of 240 fixture studios), #386's kitchen by its water in the front door's
+  sight, #384's and #389's run within 1 m of the front door, no island that is also the table and no
+  fridge built into the run; a floor lamp may stand under a TV wider than its unit (the matcher) —
+  [design-studio/layout-and-matching.md](design-studio/layout-and-matching.md#known-gaps).
 - **Bathrooms a door leaves no shower** (stage 2's 3.1 built but her last resort): a sliding or
   outward-opening door, a corner basin (none in the catalogue) and a curtain instead of glass are not
   built — [design-studio/layout-and-matching.md](design-studio/layout-and-matching.md#known-gaps).

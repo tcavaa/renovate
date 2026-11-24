@@ -59,6 +59,27 @@ export function defaultSplit(room: Pick<PlanRoom, 'polygon'>): RoomSplit {
   return { axis, t: tForShare(room, axis, DEFAULT_FIRST_SHARE), parts: [...DEFAULT_STUDIO_PARTS] };
 }
 
+/** A split as the person's own: the line no longer one generation placed (`RoomSplit.chosen`). */
+export function personsSplit(split: RoomSplit): RoomSplit {
+  const { chosen: _chosen, ...own } = split;
+  return own;
+}
+
+/**
+ * Whether generation may place a studio's line (Nini, decision 3.4: the kitchen by the doors, the
+ * windows and the water, not a fixed strip): a studio with no line, the line where the app first
+ * drew it (`defaultSplit`: across the longer side, the kitchen a third, the kitchen the lower part),
+ * or the line a generation placed (`chosen`). A line the person moved, turned, swapped or gave
+ * another type is theirs.
+ */
+export function lineIsTheApps(room: Outline): boolean {
+  if (!isStudio(room)) return false;
+  const split = room.split;
+  if (!split || split.chosen) return true;
+  const first = defaultSplit(room);
+  return split.axis === first.axis && Math.abs(split.t - first.t) < 0.005 && split.parts[0] === first.parts[0] && split.parts[1] === first.parts[1];
+}
+
 /** Where the line runs: its coordinate on its axis. */
 export function lineCoordinate(room: Pick<PlanRoom, 'polygon'>, split: Pick<RoomSplit, 'axis' | 't'>): number {
   const b = polygonBounds(room.polygon);
@@ -257,7 +278,7 @@ export function partRoom(room: PlanRoom, part: StudioPart): PlanRoom {
       return to - from > ONTO_WINDOW_M ? [{ ...o, wallIndex: e.index, t: (from + to) / 2 / e.length, widthM: to - from, reachesIn: true }] : [];
     });
   });
-  return { ...room, type: part.type, polygon: part.polygon, areaM2: part.areaM2, openings, open, split: undefined };
+  return { ...room, type: part.type, polygon: part.polygon, areaM2: part.areaM2, openings, open, split: undefined, studioPart: part.index };
 }
 
 /** The parts as the estimate prices them: floor, walls at the room's height, perimeter. */
@@ -303,13 +324,13 @@ export function partAt(room: Outline, point: Vec2): 0 | 1 {
 
 /** A split with the first part at this many square metres. */
 export function withFirstArea(room: Outline, areaM2: number): RoomSplit {
-  const split = effectiveSplit(room);
+  const split = personsSplit(effectiveSplit(room));
   return { ...split, t: tForArea(room, split.axis, areaM2) };
 }
 
 /** The line turned the other way, the first part keeping its share of the floor. */
 export function turned(room: Outline): RoomSplit {
-  const split = effectiveSplit(room);
+  const split = personsSplit(effectiveSplit(room));
   const parts = studioParts(room);
   const total = polygonAreaM2(room.polygon);
   const share = parts && total > 0 ? parts[0].areaM2 / total : DEFAULT_FIRST_SHARE;
@@ -319,13 +340,13 @@ export function turned(room: Outline): RoomSplit {
 
 /** The two parts swapped across the line (the kitchen to the other end). */
 export function swapped(room: Outline): RoomSplit {
-  const split = effectiveSplit(room);
+  const split = personsSplit(effectiveSplit(room));
   return { ...split, parts: [split.parts[1], split.parts[0]] };
 }
 
 /** A part given another type. */
 export function withPartType(room: Outline, index: 0 | 1, type: RoomType): RoomSplit {
-  const split = effectiveSplit(room);
+  const split = personsSplit(effectiveSplit(room));
   const parts: [RoomType, RoomType] = [...split.parts];
   parts[index] = isPartType(type) ? type : parts[index];
   return { ...split, parts };

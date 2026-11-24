@@ -9,11 +9,11 @@ import { auditScene, issueMetric, type SceneIssueCode } from '../../lib/design/s
 import type { DecorPiece, ElectricalPoint, FloorPlan, PlacedItem, PlanRoom } from '../../lib/design/types';
 
 /**
- * What the check counts that is not a defect of the scene: what a room ends without (a measure),
- * the app's own rule checks (warnings a person may accept) and what the save route would refuse
+ * What the check counts that is not a defect of the scene: what a room ends without and a dining
+ * table in the sitting group (measures of the composition), the app's own rule checks (warnings a person may accept) and what the save route would refuse
  * of a plan a test built by hand with only the fields it needs.
  */
-const NOT_DEFECTS: ReadonlySet<SceneIssueCode> = new Set<SceneIssueCode>(['missing', 'rule', 'unsaveable']);
+const NOT_DEFECTS: ReadonlySet<SceneIssueCode> = new Set<SceneIssueCode>(['missing', 'clustered', 'rule', 'unsaveable']);
 
 /** A plan of the rooms alone, as a test builds one. */
 export function planOf(rooms: readonly PlanRoom[]): FloorPlan {

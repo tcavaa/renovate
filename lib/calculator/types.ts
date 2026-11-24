@@ -32,6 +32,12 @@ export interface RoomSplit {
   axis: 'x' | 'z';
   t: number;
   parts: [RoomType, RoomType];
+  /**
+   * The line where generation placed it (`composeStudios` in `lib/design/studioLayout`, Nini's
+   * decision 3.4): the next generation may place it again. A line the person drags, turns, swaps or
+   * re-types is theirs (`personsSplit`) and is kept.
+   */
+  chosen?: boolean;
 }
 
 /** One part of a divided studio, measured: what the estimate prices it as. */
